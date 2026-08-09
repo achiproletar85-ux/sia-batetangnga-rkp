@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prioritas Usulan - SIA Batetangnga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/global-tahun.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { background: #f1f5f9; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.4); }
+        .btn-primary { background: #4f46e5; color: white; padding: 8px 18px; border-radius: 10px; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; }
+        .btn-primary:hover { background: #4338ca; }
+        .btn-success { background: #22c55e; color: white; padding: 8px 18px; border-radius: 10px; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; }
+        .btn-success:hover { background: #16a34a; }
+        .input-field { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; outline: none; transition: 0.2s; background: white; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: #f8fafc; text-align: left; padding: 10px 12px; font-weight: 700; color: #475569; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        tr:hover { background: #f8fafc; }
+    </style>
+</head>
+<body>
+
+    <div id="toast" class="hidden fixed bottom-6 right-6 px-6 py-3 rounded-2xl text-white font-bold shadow-xl z-50"></div>
+
+    <!-- NAVIGATION NAVBAR -->
+    <div id="navbar-container"></div>
+
+    <div class="container-full">
+        <!-- HEADER CONTROL -->
+        <div class="glass rounded-2xl shadow-lg p-6 mb-6">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fas fa-list-check text-indigo-600"></i> Daftar Prioritas Usulan Desa
+                    </h2>
+                    <p class="text-xs text-slate-500">Usulan Pembangunan Dusun / Kelembagaan Desa</p>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase mr-2">Tahun:</label>
+                    <select id="select-year" class="input-field inline-block w-32" onchange="loadUsulanData()">
+                        <option value="2022">2022</option>
+                        <option value="2023">2023</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027" selected>2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                        <option value="2030">2030</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- FORM INPUT USULAN -->
+        <div class="glass rounded-2xl shadow-lg p-6 mb-6">
+            <h3 class="text-sm font-bold text-slate-800 uppercase mb-4 flex items-center gap-2">
+                <i class="fas fa-plus-circle text-indigo-600"></i> Tambah Usulan Pembangunan
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Gagasan Kegiatan *</label>
+                    <input type="text" id="input-kegiatan" class="input-field" placeholder="Nama Usulan Kegiatan..." />
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Lokasi / RT / Dusun</label>
+                    <input type="text" id="input-lokasi" class="input-field" placeholder="Dusun / Lokasi..." />
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Perkiraan Biaya (Rp)</label>
+                    <input type="number" id="input-biaya" class="input-field" placeholder="0" />
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Volume & Satuan</label>
+                    <input type="text" id="input-volume" class="input-field" placeholder="Contoh: 500 Meter" />
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Sasaran Manfaat</label>
+                    <input type="text" id="input-sasaran" class="input-field" placeholder="100 KK / Petani / Pemuda" />
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Pengusul / Tim Delegasi</label>
+                    <input type="text" id="input-pengusul" class="input-field" placeholder="Dusun A / Karang Taruna" />
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <button onclick="tambahUsulan()" class="btn-success text-xs">
+                    <i class="fas fa-save mr-1"></i> Simpan Usulan
+                </button>
+            </div>
+        </div>
+
+        <!-- TABLE USULAN -->
+        <div class="glass rounded-2xl shadow-lg p-6 mb-8">
+            <div class="overflow-x-auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">No</th>
+                            <th>Gagasan Kegiatan Usulan</th>
+                            <th style="width: 140px;">Lokasi</th>
+                            <th style="width: 120px;">Volume</th>
+                            <th style="width: 150px;">Biaya (Rp)</th>
+                            <th style="width: 140px;">Sasaran</th>
+                            <th style="width: 80px;" class="text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <tr>
+                            <td colspan="7" class="text-center py-8 text-slate-400">Memuat data usulan...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="usulan.js"></script>
+    <script>
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(data => {
+                document.getElementById('navbar-container').innerHTML = data;
+            })
+            .catch(err => console.error('Navbar error:', err));
+    </script>
+</body>
+</html>

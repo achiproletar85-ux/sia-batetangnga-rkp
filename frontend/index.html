@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Dashboard — SIA Batetangnga</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <!-- Google Fonts: Plus Jakarta Sans & Outfit -->
+    <!-- Global Master Year Synchronizer -->
+    <script src="/global-tahun.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            min-height: 100vh;
+        }
+        .font-outfit { font-family: 'Outfit', sans-serif; }
+
+        /* Crisp Executive Card Styles */
+        .clean-card {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+            transition: all 0.2s ease;
+        }
+        .clean-card:hover {
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+            border-color: #94a3b8;
+        }
+
+        .hero-banner-clean {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-900 antialiased">
+
+    <!-- NAVBAR COMPONENT CONTAINER -->
+    <div id="navbar-container"></div>
+
+    <!-- MAIN DASHBOARD WRAPPER -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        
+        <!-- HERO EXECUTIVE BANNER (CLEAN & HIGH CONTRAST) -->
+        <div class="relative hero-banner-clean rounded-3xl p-8 md:p-10 text-white overflow-hidden">
+            <div class="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+                
+                <div class="max-w-3xl space-y-4">
+                    <!-- Top Badges -->
+                    <div class="flex flex-wrap items-center gap-3">
+                        <span class="inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-300 text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-xl border border-indigo-400/40">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                            <i class="fas fa-chart-pie text-cyan-400"></i> Executive Overview
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 text-xs font-bold px-3.5 py-1.5 rounded-xl border border-emerald-400/40">
+                            <i class="fas fa-check-circle text-emerald-400"></i> Supabase Cloud Persisten
+                        </span>
+                    </div>
+
+                    <!-- Main Title -->
+                    <h1 class="text-3xl md:text-4xl lg:text-5xl font-black font-outfit tracking-tight text-white leading-tight">
+                        Sistem Akuntansi &amp; Perencanaan <span class="text-amber-400">Desa Batetangnga</span>
+                    </h1>
+                    
+                    <p class="text-sm md:text-base text-slate-300 font-medium leading-relaxed max-w-2xl">
+                        Pusat kendali eksekutif realisasi pembangunan desa, pengawasan anggaran RPJMDes &amp; RKPDes, serta efisiensi tata kelola dokumen pemerintahan desa.
+                    </p>
+
+                    <!-- Quick Action Buttons -->
+                    <div class="flex flex-wrap items-center gap-4 pt-2">
+                        <a href="/dokumen-desa.html" class="inline-flex items-center gap-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-6 py-3.5 rounded-xl shadow-lg transition-all hover:scale-105 cursor-pointer">
+                            <i class="fas fa-folder-open text-sm"></i> 
+                            <span>Buka 28 Dokumen Engine</span>
+                        </a>
+                        <a href="/rpjmdes.html" class="inline-flex items-center gap-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-6 py-3.5 rounded-xl border border-slate-600 transition-all hover:scale-105 cursor-pointer">
+                            <i class="fas fa-scroll text-blue-400 text-sm"></i> 
+                            <span>Lihat Master RPJMDes</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Right Side Widget: Master Kontrol Tahun Anggaran -->
+                <div class="shrink-0 bg-slate-800/90 border-2 border-amber-500/40 p-6 rounded-2xl flex flex-col justify-between gap-4 max-w-xs text-white shadow-xl">
+                    <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                        <span class="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                            <i class="fas fa-sliders text-amber-400"></i> Kontrol Tahun Master
+                        </span>
+                        <span class="text-[10px] font-extrabold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-lg border border-amber-400/30">DEFAULT ALL TABS</span>
+                    </div>
+                    <div>
+                        <label for="selectDashboardTahun" class="text-xs text-slate-200 font-extrabold uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                            <i class="fas fa-calendar-check text-emerald-400"></i> Perintah Tahun Anggaran:
+                        </label>
+                        <select id="selectDashboardTahun" onchange="window.setGlobalActiveTahun(this.value)" class="w-full bg-slate-950 text-amber-300 font-black text-2xl border-2 border-amber-400 rounded-xl px-3.5 py-2.5 outline-none cursor-pointer focus:ring-2 focus:ring-amber-400 transition shadow-inner">
+                            <option value="2022">2022</option>
+                            <option value="2023">2023</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                            <option value="2027">2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                        </select>
+                        <p class="text-[11px] text-slate-300 mt-2 font-medium leading-relaxed">
+                            ⚡ Tahun ini otomatis menjadi perintah default untuk seluruh tab (Dokumen Desa, RKPDes, RAB, Stunting).
+                        </p>
+                    </div>
+                    <div class="text-xs text-slate-300 flex items-center justify-between pt-3 border-t border-slate-700 font-semibold">
+                        <span>Desa Batetangnga</span>
+                        <span class="font-extrabold text-orange-400">Kec. Binuang</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 4 KARTU METRIK EKSEKUTIF UTAMA (HIGH CONTRAST WHITE CARDS) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            <!-- METRIK 1: PAGU RPJMDES -->
+            <div class="clean-card p-6 flex flex-col justify-between space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-black text-slate-500 uppercase tracking-wider">Total Pagu RPJMDes</span>
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center text-xl shadow-sm">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                </div>
+                <div>
+                    <h3 id="stat-rpjmdes-pagu" class="text-2xl lg:text-3xl font-black font-outfit text-slate-900 tracking-tight">Rp 0</h3>
+                    <div class="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-lg">
+                        <i class="fas fa-check-circle text-indigo-500"></i> 
+                        <span id="stat-rpjmdes-count">0 Kegiatan Master</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- METRIK 2: RKPDES TAHUN BERJALAN -->
+            <div class="clean-card p-6 flex flex-col justify-between space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-black text-slate-500 uppercase tracking-wider">RKPDes Tahun 2027</span>
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center text-xl shadow-sm">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
+                </div>
+                <div>
+                    <h3 id="stat-rkpdes-total" class="text-2xl lg:text-3xl font-black font-outfit text-slate-900 tracking-tight">Rp 0</h3>
+                    <div class="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
+                        <i class="fas fa-tasks text-emerald-600"></i> 
+                        <span id="stat-rkpdes-count">0 Kegiatan Disetujui</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- METRIK 3: RAB BERJALAN -->
+            <div class="clean-card p-6 flex flex-col justify-between space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-black text-slate-500 uppercase tracking-wider">Total RAB Kegiatan</span>
+                    <div class="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center text-xl shadow-sm">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                    </div>
+                </div>
+                <div>
+                    <h3 id="stat-rab-total" class="text-2xl lg:text-3xl font-black font-outfit text-slate-900 tracking-tight">Rp 0</h3>
+                    <div class="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-lg">
+                        <i class="fas fa-calculator text-amber-600"></i> 
+                        <span id="stat-rab-count">0 Proposal RAB</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- METRIK 4: AKSI STUNTING -->
+            <div class="clean-card p-6 flex flex-col justify-between space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-black text-slate-500 uppercase tracking-wider">Konvergensi Stunting</span>
+                    <div class="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center text-xl shadow-sm">
+                        <i class="fas fa-heartbeat"></i>
+                    </div>
+                </div>
+                <div>
+                    <h3 id="stat-stunting-total" class="text-2xl lg:text-3xl font-black font-outfit text-slate-900 tracking-tight">Rp 0</h3>
+                    <div class="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-rose-800 bg-rose-50 border border-rose-200 px-3 py-1 rounded-lg">
+                        <i class="fas fa-shield-heart text-rose-500"></i> 
+                        <span id="stat-stunting-count">0 Program Prioritas</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- GRID OVERVIEW UTAMA: CHART ALOKASI & LAUNCHPAD MODUL -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- SEKTOR BAR CHART RINGKAS (ALOKASI ANGGARAN PER BIDANG) -->
+            <div class="lg:col-span-2 clean-card p-7 md:p-8 space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-5">
+                    <div>
+                        <h3 class="text-lg font-black font-outfit text-slate-900 flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold">
+                                <i class="fas fa-chart-column"></i>
+                            </span>
+                            Proporsi Alokasi Anggaran Per Bidang
+                        </h3>
+                        <p class="text-xs text-slate-500 font-medium mt-1">Distribusi anggaran pembangunan Desa Batetangnga berdasarkan 5 Bidang APBDes</p>
+                    </div>
+                    <a href="data-perencanaan.html" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl border border-indigo-200 flex items-center gap-1.5 cursor-pointer">
+                        Detail Data <i class="fas fa-arrow-right text-[10px]"></i>
+                    </a>
+                </div>
+
+                <!-- PROGRESS BARS ALOKASI BIDANG -->
+                <div class="space-y-5">
+                    
+                    <!-- BIDANG 1 -->
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                        <div class="flex justify-between items-center text-xs font-black">
+                            <span class="text-slate-800 flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-md bg-indigo-600"></span> 
+                                <span>1. Penyelenggaraan Pemerintahan Desa</span>
+                            </span>
+                            <span id="label-bidang-1" class="text-indigo-800 font-mono bg-white px-3 py-1 rounded-lg border border-slate-300">Rp 0 (0%)</span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-300">
+                            <div id="bar-bidang-1" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" style="width: 25%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- BIDANG 2 -->
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                        <div class="flex justify-between items-center text-xs font-black">
+                            <span class="text-slate-800 flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-md bg-emerald-600"></span> 
+                                <span>2. Pelaksanaan Pembangunan Desa</span>
+                            </span>
+                            <span id="label-bidang-2" class="text-emerald-800 font-mono bg-white px-3 py-1 rounded-lg border border-slate-300">Rp 0 (0%)</span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-300">
+                            <div id="bar-bidang-2" class="bg-emerald-600 h-2.5 rounded-full transition-all duration-500" style="width: 45%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- BIDANG 3 -->
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                        <div class="flex justify-between items-center text-xs font-black">
+                            <span class="text-slate-800 flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-md bg-amber-500"></span> 
+                                <span>3. Pembinaan Kemasyarakatan Desa</span>
+                            </span>
+                            <span id="label-bidang-3" class="text-amber-800 font-mono bg-white px-3 py-1 rounded-lg border border-slate-300">Rp 0 (0%)</span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-300">
+                            <div id="bar-bidang-3" class="bg-amber-500 h-2.5 rounded-full transition-all duration-500" style="width: 15%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- BIDANG 4 -->
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                        <div class="flex justify-between items-center text-xs font-black">
+                            <span class="text-slate-800 flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-md bg-blue-600"></span> 
+                                <span>4. Pemberdayaan Masyarakat Desa</span>
+                            </span>
+                            <span id="label-bidang-4" class="text-blue-800 font-mono bg-white px-3 py-1 rounded-lg border border-slate-300">Rp 0 (0%)</span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-300">
+                            <div id="bar-bidang-4" class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style="width: 10%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- BIDANG 5 -->
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                        <div class="flex justify-between items-center text-xs font-black">
+                            <span class="text-slate-800 flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-md bg-rose-600"></span> 
+                                <span>5. Penanggulangan Bencana &amp; Keadaan Desak</span>
+                            </span>
+                            <span id="label-bidang-5" class="text-rose-800 font-mono bg-white px-3 py-1 rounded-lg border border-slate-300">Rp 0 (0%)</span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-300">
+                            <div id="bar-bidang-5" class="bg-rose-600 h-2.5 rounded-full transition-all duration-500" style="width: 5%;"></div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- LAUNCHPAD MODUL UTAMA (QUICK ACCESS GRID) -->
+            <div class="clean-card p-7 md:p-8 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-lg font-black font-outfit text-slate-900 mb-1 flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-sm font-bold">
+                            <i class="fas fa-compass"></i>
+                        </span>
+                        Peluncur Modul Utama
+                    </h3>
+                    <p class="text-xs text-slate-500 font-medium mb-5">Akses cepat seluruh fitur aplikasi SIA Batetangnga</p>
+
+                    <div class="space-y-3">
+                        <a href="dokumen-desa.html" class="flex items-center justify-between p-3.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-sm transition cursor-pointer">
+                            <span class="flex items-center gap-3"><i class="fas fa-folder-open text-base"></i> 28 Dokumen Engine RKP</span>
+                            <i class="fas fa-arrow-right text-xs"></i>
+                        </a>
+
+                        <a href="data-perencanaan.html" class="flex items-center justify-between p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-xs hover:bg-emerald-100 transition cursor-pointer">
+                            <span class="flex items-center gap-3"><i class="fas fa-database text-emerald-600 text-sm"></i> Tab Data Perencanaan</span>
+                            <i class="fas fa-chevron-right text-xs text-emerald-600"></i>
+                        </a>
+
+                        <a href="rpjmdes.html" class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-bold text-xs hover:bg-indigo-50 hover:border-indigo-200 transition cursor-pointer">
+                            <span class="flex items-center gap-3"><i class="fas fa-layer-group text-indigo-600 text-sm"></i> Master RPJMDes (6 Thn)</span>
+                            <i class="fas fa-chevron-right text-xs text-slate-400"></i>
+                        </a>
+
+                        <a href="rkpdes.html" class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-bold text-xs hover:bg-indigo-50 hover:border-indigo-200 transition cursor-pointer">
+                            <span class="flex items-center gap-3"><i class="fas fa-calendar-check text-indigo-600 text-sm"></i> Matriks RKPDesa</span>
+                            <i class="fas fa-chevron-right text-xs text-slate-400"></i>
+                        </a>
+
+                        <a href="rab.html" class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-bold text-xs hover:bg-indigo-50 hover:border-indigo-200 transition cursor-pointer">
+                            <span class="flex items-center gap-3"><i class="fas fa-file-invoice-dollar text-indigo-600 text-sm"></i> Penyusunan RAB Desa</span>
+                            <i class="fas fa-chevron-right text-xs text-slate-400"></i>
+                        </a>
+
+                        <a href="stunting.html" class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-bold text-xs hover:bg-rose-50 hover:border-rose-200 transition cursor-pointer">
+                            <span class="flex items-center gap-3"><i class="fas fa-heartbeat text-rose-600 text-sm"></i> Aksi Stunting Desa</span>
+                            <i class="fas fa-chevron-right text-xs text-slate-400"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-4 border-t border-slate-200 text-center">
+                    <p class="text-xs font-black text-slate-400 tracking-tight">SIA Batetangnga &copy; 2026</p>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- SCRIPT LOADER -->
+    <script>
+        fetch('/components/navbar.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('navbar-container').innerHTML = data;
+            });
+    </script>
+    <script src="/index.js"></script>
+</body>
+</html>

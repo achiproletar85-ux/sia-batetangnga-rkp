@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rencana Pembiayaan Pembangunan Desa - SIA Batetangnga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/global-tahun.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { background: #f1f5f9; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.4); }
+        .btn-primary { background: #4f46e5; color: white; padding: 8px 18px; border-radius: 10px; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; }
+        .btn-primary:hover { background: #4338ca; }
+        .btn-success { background: #22c55e; color: white; padding: 8px 18px; border-radius: 10px; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; }
+        .btn-success:hover { background: #16a34a; }
+        .btn-outline { background: transparent; color: #64748b; padding: 8px 18px; border-radius: 10px; font-weight: 600; border: 1px solid #cbd5e1; cursor: pointer; transition: 0.2s; }
+        .btn-outline:hover { background: #f1f5f9; }
+        .input-field { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; outline: none; transition: 0.2s; background: white; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { background: #f8fafc; text-align: center; padding: 8px 10px; font-weight: 700; color: #334155; border: 1px solid #cbd5e1; }
+        td { padding: 8px 10px; border: 1px solid #e2e8f0; vertical-align: middle; }
+        tr:hover { background: #f8fafc; }
+
+        @page {
+            size: 13in 8.5in; /* Folio / F4 Landscape */
+            margin: 10mm 8mm 10mm 8mm;
+        }
+
+        @media print {
+            body { background: white !important; padding: 0 !important; margin: 0 !important; font-size: 10px; }
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            #navbar-container, #navbar, .navbar, nav { display: none !important; }
+            .container-full, .max-w-7xl { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+            .glass { background: transparent !important; backdrop-filter: none !important; border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; border-radius: 0 !important; }
+            .overflow-x-auto, #livePreviewContainer, .overflow-hidden { overflow: visible !important; }
+            table { width: 100% !important; border-collapse: collapse !important; border: 1.5px solid #000 !important; font-size: 9.5px; }
+            th { border: 1px solid #000 !important; background-color: #f1f5f9 !important; color: #000 !important; padding: 4px 3px !important; }
+            td { border: 1px solid #000 !important; color: #000 !important; padding: 4px 4px !important; }
+            tfoot tr { background-color: #e2e8f0 !important; color: #000 !important; }
+            tfoot td { color: #000 !important; font-weight: bold !important; }
+            tr { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast" class="hidden fixed bottom-6 right-6 px-6 py-3 rounded-2xl text-white font-bold shadow-xl z-50 no-print"></div>
+
+    <!-- NAVIGATION NAVBAR -->
+    <div id="navbar-container"></div>
+
+    <div class="container-full">
+        <!-- HEADER CONTROL -->
+        <div class="glass rounded-2xl shadow-lg p-6 mb-6 no-print">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fas fa-wallet text-indigo-600"></i> Rencana Pembiayaan Pembangunan Desa
+                    </h2>
+                    <p class="text-xs text-slate-500">Informasi Rencana Sumber Pembiayaan dan Indikator Alokasi Anggaran</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 uppercase mr-1">Tahun:</label>
+                        <select id="select-year" class="input-field inline-block w-28" onchange="loadPembiayaanData()">
+                            <option value="2022">2022</option>
+                            <option value="2023">2023</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                            <option value="2027" selected>2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 uppercase mr-1">Tgl Cetak:</label>
+                        <input type="date" id="input-tanggal-pembiayaan" class="input-field inline-block w-36" onchange="updateLivePreview()" />
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 uppercase mr-1">Tim Penyusun:</label>
+                        <select id="select-tim-penyusun" class="input-field inline-block w-52" onchange="toggleManualTimPenyusun()">
+                            <option value="Abdul Azis, S. Pd|Ketua Tim Penyusun RKPDesa" selected>Abdul Azis, S. Pd (Ketua Tim)</option>
+                            <option value="Syarifuddin|Sekretaris Desa">Syarifuddin (Sekdes)</option>
+                            <option value="Warman|Kaur Keuangan">Warman (Kaur Keuangan)</option>
+                            <option value="Misbahuddin|Kaur Perencanaan">Misbahuddin (Kaur Perencanaan)</option>
+                            <option value="Nasni|Kasi Pelayanan">Nasni (Kasi Pelayanan)</option>
+                            <option value="Ida Mulyanti|Kasi Kesejahteraan">Ida Mulyanti (Kasi Kesejahteraan)</option>
+                            <option value="Hardiana|Kaur Umum">Hardiana (Kaur Umum)</option>
+                            <option value="manual">-- Input Nama Manual --</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary text-xs bg-amber-600 hover:bg-amber-700" onclick="bukaModalKelolaPembiayaan()">
+                        <i class="fas fa-sliders mr-1"></i> Kelola Pembiayaan Netto
+                    </button>
+                    <button class="btn-success text-xs" onclick="importPembiayaanData()">
+                        <i class="fas fa-download mr-1"></i> Sync / Import Data
+                    </button>
+                    <button class="btn-primary text-xs bg-emerald-600 hover:bg-emerald-700" onclick="bukaModalTambahUraian()">
+                        <i class="fas fa-plus mr-1"></i> Tambah Uraian
+                    </button>
+                    <button class="btn-primary text-xs" onclick="window.print()">
+                        <i class="fas fa-print mr-1"></i> Cetak PDF
+                    </button>
+                </div>
+            </div>
+            <div id="manual-tim-container" class="hidden mt-4 pt-3 border-t border-slate-200 flex flex-wrap gap-3">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Nama Tim Penyusun Manual:</label>
+                    <input type="text" id="input-nama-manual-tim" class="input-field" placeholder="Masukkan Nama..." oninput="updateLivePreview()" />
+                </div>
+                <div class="flex-1 min-w-[200px]">
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Jabatan Manual:</label>
+                    <input type="text" id="input-jabatan-manual-tim" class="input-field" placeholder="Masukkan Jabatan..." oninput="updateLivePreview()" />
+                </div>
+            </div>
+        </div>
+
+        <!-- TABLE DATA LIVE MATRIKS PEMBIAYAAN -->
+        <div class="glass rounded-2xl shadow-lg p-6 mb-8 overflow-hidden">
+            <div id="livePreviewContainer" class="overflow-x-auto">
+                <table class="min-w-full border-collapse border border-slate-300 text-sm bg-white shadow-sm">
+                    <tbody id="tabel-pembiayaan-body">
+                        <tr>
+                            <td colspan="11" class="text-center py-12 text-slate-400">
+                                <i class="fas fa-circle-notch animate-spin text-3xl mb-4"></i>
+                                <p>Memuat data Pembiayaan Pembangunan Desa...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- MODAL TAMBAH URAIAN BARU -->
+    <div id="modalTambahUraian" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center pb-4 border-b border-slate-200 mb-4">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-plus-circle text-emerald-600"></i> Tambah Uraian Belanja Baru
+                </h3>
+                <button onclick="closeModalTambahUraian()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            
+            <form id="formTambahUraian" onsubmit="saveTambahUraianItem(event)" class="space-y-4">
+                <input type="hidden" id="tambah-uraian-prefix" />
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Sub Group Target:</label>
+                    <input type="text" id="tambah-uraian-subgroup-display" class="input-field bg-slate-100 cursor-not-allowed text-slate-700 font-semibold" readonly />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Nama Uraian Belanja:</label>
+                    <input type="text" id="tambah-uraian-nama" class="input-field" placeholder="Misal: Siltap Perangkat Desa / Honorarium..." required />
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Jumlah Anggaran (Rp):</label>
+                        <input type="number" id="tambah-uraian-biaya" class="input-field" min="0" step="any" placeholder="0" required />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Sumber Dana (Indikatif):</label>
+                        <select id="tambah-uraian-sumber-biaya" class="input-field" required>
+                            <option value="ADD" selected>ADD (Alokasi Dana Desa)</option>
+                            <option value="DDS">DDS (Dana Desa / APBN)</option>
+                            <option value="PAD">PAD (Pendapatan Asli Desa)</option>
+                            <option value="PBH">PBH (Bagi Hasil Pajak & Retribusi)</option>
+                            <option value="APBD Tk. I">APBD Tk. I (Bantuan Keuangan Provinsi / BKK)</option>
+                            <option value="APBD Tk. II">APBD Tk. II (Bantuan Keuangan Kab/Kota)</option>
+                            <option value="LAINNYA">Sumber Keuangan Lainnya</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                    <button type="button" onclick="closeModalTambahUraian()" class="btn-outline">Batal</button>
+                    <button type="submit" class="btn-primary bg-emerald-600 hover:bg-emerald-700"><i class="fas fa-plus-circle mr-1"></i> Tambahkan Uraian</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL KELOLA STRUKTUR PEMBIAYAAN DESA -->
+    <div id="modalKelolaPembiayaan" class="fixed inset-0 z-[2000] hidden items-center justify-center p-4" style="background: rgba(2,6,23,0.7); backdrop-filter: blur(8px);">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full overflow-hidden" onclick="event.stopPropagation()">
+            <div class="p-5 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 text-sm">
+                        <i class="fas fa-wallet"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm text-white">Kelola Rencana Pembiayaan Desa</h3>
+                        <p class="text-[11px] text-slate-400">SILPA, Dana Cadangan, & Penyertaan Modal BUMDes</p>
+                    </div>
+                </div>
+                <button onclick="tutupModalKelolaPembiayaan()" class="text-slate-400 hover:text-white text-sm w-7 h-7 rounded-lg flex items-center justify-center hover:bg-slate-800">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+                <div class="p-3 bg-amber-50 rounded-xl border border-amber-200/80 text-xs text-amber-900 flex items-start gap-2">
+                    <i class="fas fa-circle-info text-amber-600 mt-0.5"></i>
+                    <span>Nilai Pembiayaan Netto (Penerimaan - Pengeluaran) secara otomatis dihitung dan disinkronkan ke struktur APBDes Desa Batetangnga.</span>
+                </div>
+
+                <div class="space-y-3">
+                    <h4 class="text-xs font-black uppercase text-indigo-700 tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-1">
+                        <i class="fas fa-arrow-down-left-and-arrow-up-right-to-inside"></i> 1. Penerimaan Pembiayaan
+                    </h4>
+                    <div>
+                        <label class="form-label font-bold text-xs text-slate-700">SILPA Tahun Sebelumnya (Rp)</label>
+                        <input type="text" id="pembiayaan_silpa" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                    </div>
+                    <div>
+                        <label class="form-label font-bold text-xs text-slate-700">Pencairan Dana Cadangan (Rp)</label>
+                        <input type="text" id="pembiayaan_pencairan_cadangan" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                    </div>
+                    <div>
+                        <label class="form-label font-bold text-xs text-slate-700">Hasil Penjualan Kekayaan Desa yang Dipisahkan (Rp)</label>
+                        <input type="text" id="pembiayaan_penjualan_kekayaan" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                    </div>
+                </div>
+
+                <div class="space-y-3 pt-2">
+                    <h4 class="text-xs font-black uppercase text-rose-700 tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-1">
+                        <i class="fas fa-arrow-up-right-from-square"></i> 2. Pengeluaran Pembiayaan
+                    </h4>
+                    <div>
+                        <label class="form-label font-bold text-xs text-slate-700">Pembentukan Dana Cadangan (Rp)</label>
+                        <input type="text" id="pembiayaan_pembentukan_cadangan" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                    </div>
+                    <div>
+                        <label class="form-label font-bold text-xs text-slate-700">Penyertaan Modal Desa / BUMDes (Rp)</label>
+                        <input type="text" id="pembiayaan_penyertaan_modal" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <button onclick="tutupModalKelolaPembiayaan()" class="btn-outline text-xs">Batal</button>
+                <button onclick="simpanPembiayaanForm()" class="btn-primary text-xs bg-indigo-600 hover:bg-indigo-700">
+                    <i class="fas fa-save mr-1"></i> Simpan Data Pembiayaan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="normalisasi-rkpdes.js"></script>
+    <script src="pembiayaan.js"></script>
+    <script>
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(data => {
+                document.getElementById('navbar-container').innerHTML = data;
+            })
+            .catch(err => console.error('Navbar error:', err));
+    </script>
+</body>
+</html>

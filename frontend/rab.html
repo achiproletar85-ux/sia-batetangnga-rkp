@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RAB Desa Batetangnga - SIA Batetangnga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="/global-tahun.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #f8fafc;
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+            color: #0f172a;
+        }
+
+        /* ================= CARD / ACCORDION ================= */
+        .acc-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 16px 40px -20px rgba(15, 23, 42, .18);
+            overflow: hidden;
+            transition: box-shadow .25s ease;
+        }
+
+        .acc-card:hover {
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 20px 48px -20px rgba(79, 70, 229, .22);
+        }
+
+        .acc-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 14px 18px;
+            background: linear-gradient(90deg, #f8fafc, #eef2ff);
+            border: none;
+            cursor: pointer;
+            text-align: left;
+            transition: background .2s;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .acc-head:hover {
+            background: linear-gradient(90deg, #f1f5f9, #e0e7ff);
+        }
+
+        .acc-step {
+            width: 28px;
+            height: 28px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: #fff;
+            font-weight: 800;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .acc-title {
+            font-weight: 800;
+            font-size: 14px;
+            color: #1e293b;
+            letter-spacing: .2px;
+        }
+
+        .acc-sub {
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .acc-chevron {
+            margin-left: auto;
+            font-size: 12px;
+            color: #4f46e5;
+            transition: transform .3s ease;
+            transform: rotate(180deg);
+        }
+
+        .acc-head.acc-closed .acc-chevron {
+            transform: rotate(0deg);
+        }
+
+        .acc-body {
+            transition: display .2s;
+        }
+
+        /* ================= BUTTONS ================= */
+        .btn-primary {
+            background: linear-gradient(135deg, #4f46e5, #6d28d9);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all .2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 8px 18px -8px rgba(79, 70, 229, .55);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 22px -8px rgba(79, 70, 229, .65);
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all .2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 8px 18px -8px rgba(16, 185, 129, .5);
+        }
+
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all .2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-outline {
+            background: white;
+            color: #475569;
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid #cbd5e1;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-outline:hover {
+            border-color: #4f46e5;
+            color: #4f46e5;
+            background: #f8fafc;
+        }
+
+        /* ================= FORM ================= */
+        .input-field {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 13.5px;
+            outline: none;
+            background: white;
+            transition: all .2s;
+        }
+
+        .input-field:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #1e293b;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title i {
+            color: #4f46e5;
+        }
+
+        /* ================= TABEL ================= */
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 13px;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 14px;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th {
+            background: linear-gradient(180deg, #f1f5f9, #f8fafc);
+            color: #475569;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        /* Group & Sub Group baris tabel item RAB */
+        .rab-group-row td {
+            background: linear-gradient(90deg, #4f46e5, #6d28d9) !important;
+            color: #fff !important;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            font-size: 12px;
+            padding: 8px 14px;
+            border-bottom: 1px solid #4338ca;
+        }
+
+        .rab-group-row td i {
+            color: #c7d2fe;
+        }
+
+        .rab-subgroup-row td {
+            background: #eef2ff !important;
+            color: #4338ca !important;
+            font-weight: 700;
+            font-size: 12px;
+            padding: 6px 14px;
+            border-bottom: 1px solid #e0e7ff;
+        }
+
+        .rab-item-row:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        .rab-item-row:hover {
+            background: #eef2ff !important;
+        }
+
+        /* ================= TOAST ================= */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 14px 20px;
+            border-radius: 14px;
+            color: white;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            z-index: 999;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .toast.show {
+            display: flex;
+        }
+
+        .toast.success {
+            background: #10b981;
+        }
+
+        .toast.error {
+            background: #ef4444;
+        }
+
+        .toast.warning {
+            background: #f59e0b;
+        }
+
+        /* Ringkasan kegiatan terpilih */
+        .summary-card {
+            border: 1px solid #e0e7ff;
+            border-radius: 12px;
+            box-shadow: 0 4px 14px -6px rgba(79, 70, 229, .25);
+        }
+
+        /* Hero header */
+        .hero-banner {
+            background: linear-gradient(120deg, #1e1b4b, #312e81 45%, #4c1d95);
+            border-radius: 1.25rem;
+            box-shadow: 0 20px 50px -20px rgba(30, 27, 75, .6);
+        }
+
+        .hero-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 9999px;
+            background: #34d399;
+            display: inline-block;
+            box-shadow: 0 0 0 4px rgba(52, 211, 153, .2);
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                background: white;
+                color: #111827;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- NAVIGATION NAVBAR -->
+    <div id="navbar-container"></div>
+
+    <div id="toast" class="toast success"><span id="toast-msg"></span></div>
+
+    <div class="container-full p-4 pb-10 max-w-[1400px] mx-auto space-y-5">
+
+        <!-- ============ HERO / HEADER ============ -->
+        <div class="hero-banner text-white p-6 sm:p-7 flex flex-wrap items-center justify-between gap-5 no-print">
+            <div>
+                <div class="flex items-center gap-2.5">
+                    <div class="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center text-xl shadow-inner">
+                        <i class="fas fa-file-invoice-dollar text-indigo-300"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-black tracking-tight flex items-center gap-2">
+                            RAB Desa Batetangnga
+                            <span class="hero-dot"></span>
+                        </h1>
+                        <p class="text-xs text-indigo-200 font-medium mt-1">
+                            Penyusunan Rencana Anggaran Biaya Terintegrasi Supabase Cloud Database
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="hidden sm:inline-flex items-center gap-2 text-[11px] font-bold text-indigo-200 bg-white/10 rounded-full px-4 py-2">
+                    <i class="fas fa-database text-emerald-300"></i> Tersimpan di Supabase
+                </span>
+                <button onclick="window.location.href='rancangan-rkpdes.html'" class="btn-outline !bg-white/10 !border-white/20 !text-white hover:!bg-white/20">
+                    <i class="fas fa-arrow-left"></i> Rancangan RKPDes
+                </button>
+                <button onclick="cetakPdfByGroup()" class="btn-primary !shadow-emerald-500/30 !bg-gradient-to-r !from-emerald-500 !to-teal-600">
+                    <i class="fas fa-print"></i> Cetak PDF RAB Kelompok
+                </button>
+            </div>
+        </div>
+
+        <!-- ===== STEP 1 : PENGATURAN CETAK ===== -->
+        <div class="acc-card no-print">
+            <button type="button" class="acc-head" data-acc-target="acc-cetak" onclick="toggleAccSection('acc-cetak')">
+                <span class="acc-step">1</span>
+                <span>
+                    <span class="acc-title block">Pengaturan Cetak PDF</span>
+                    <span class="acc-sub block">Tanggal, penandatangan & kelompok kegiatan RAB</span>
+                </span>
+                <i class="fas fa-chevron-down acc-chevron"></i>
+            </button>
+            <div class="acc-body p-5" id="acc-cetak">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="form-label">Tanggal Cetak</label>
+                        <input type="date" id="inputTanggalCetak" class="input-field" />
+                    </div>
+                    <div>
+                        <label class="form-label">Penandatangan</label>
+                        <select id="selectPenandatangan" class="input-field" onchange="toggleManualSigner()">
+                            <option value="Abdul Azis, S. Pd" selected>Abdul Azis, S. Pd (Kades)</option>
+                            <option value="Syarifuddin">Syarifuddin (Sekdes)</option>
+                            <option value="Warman">Warman (Kaur Keuangan)</option>
+                            <option value="Misbahuddin">Misbahuddin (Kaur Perencanaan)</option>
+                            <option value="Nasni">Nasni (Kasi Pelayanan)</option>
+                            <option value="Ida Mulyanti">Ida Mulyanti (Kasi Kesejahteraan)</option>
+                            <option value="Hardiana">Hardiana (Kaur Umum)</option>
+                            <option value="manual">-- Input Nama Manual --</option>
+                        </select>
+                        <input type="text" id="inputNamaManual" class="input-field mt-2 hidden"
+                            placeholder="Ketik nama penandatangan..." />
+                    </div>
+                    <div>
+                        <label class="form-label">Kelompok Kegiatan Cetak</label>
+                        <select id="selectGroupKegiatanCetak" class="input-field" onchange="onChangeKelompokCetak()">
+                            <option value="01.01.01.">01.01.01. - Penghasilan & Tunjangan Kepala Desa</option>
+                            <option value="01.01.02.">01.01.02. - Penghasilan & Tunjangan Perangkat Desa</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="cetakPdfByGroup()" class="btn-primary w-full">
+                            <i class="fas fa-print"></i> 🖨️ Cetak PDF RAB Kelompok
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== STEP 2: INFOGRAFIS PAGU ===== -->
+        <div class="acc-card no-print">
+            <button type="button" class="acc-head" data-acc-target="acc-pagu" onclick="toggleAccSection('acc-pagu')">
+                <span class="acc-step">2</span>
+                <span>
+                    <span class="acc-title block">Pagu &amp; Realisasi Anggaran per Sumber Dana</span>
+                    <span class="acc-sub block">Tahun <span id="labelTahunInfografis" class="font-bold text-indigo-600">2027</span> — Komparasi Pagu, Terpakai, dan Sisa Anggaran Desa</span>
+                </span>
+                <i class="fas fa-chevron-down acc-chevron"></i>
+            </button>
+            <div class="acc-body p-6" id="acc-pagu">
+                <!-- Banner ringkasan global -->
+                <div class="rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-4 text-white shadow-xl flex flex-wrap items-center justify-between gap-4 mb-5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 text-base">
+                            <i class="fas fa-coins"></i>
+                        </div>
+                        <div>
+                            <span class="text-[10px] font-extrabold uppercase text-slate-300 tracking-wider">TOTAL AKUMULASI DESA</span>
+                            <div class="text-sm font-bold text-slate-200">Kegiatan RKPDesa <span id="rpjmYearLabel" class="text-indigo-400"></span>: <span id="cardTotalPagu" class="text-white font-extrabold">Rp 0</span></div>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-6">
+                        <div>
+                            <span class="text-[10px] uppercase font-bold text-slate-400">Total Terpakai</span>
+                            <div id="cardTotalRabTerpakai" class="text-base font-black text-amber-400">Rp 0</div>
+                        </div>
+                        <div>
+                            <span class="text-[10px] uppercase font-bold text-slate-400">Sisa Pagu Global</span>
+                            <div id="cardSisaPagu" class="text-base font-black text-emerald-400">Rp 0</div>
+                        </div>
+                        <div class="border-l border-white/10 pl-4 hidden md:block">
+                            <span class="text-[10px] uppercase font-bold text-slate-400">Serapan Total</span>
+                            <div id="cardPercentText" class="text-base font-black text-sky-400">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tombol kelola pagu -->
+                <div class="flex justify-end mb-4">
+                    <button onclick="bukaModalKelolaPagu()" class="btn-outline text-xs px-4 py-2 flex items-center gap-2">
+                        <i class="fas fa-sliders text-indigo-600"></i> Kelola Pagu Sumber Dana
+                    </button>
+                </div>
+
+                <!-- Grid 7 kartu per sumber dana -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="containerGridPaguSumberDana">
+                    <!-- Dinamis oleh JS -->
+                </div>
+            </div>
+        </div>
+        <!-- ===== STEP 3: FORM RINCIAN ITEM BELANJA RAB ===== -->
+        <div class="acc-card no-print">
+            <button type="button" class="acc-head acc-closed" data-acc-target="rab-form-panel" onclick="toggleAccSection('rab-form-panel')">
+                <span class="acc-step">3</span>
+                <span>
+                    <span class="acc-title block">Form Input Rincian Item Belanja RAB</span>
+                    <span class="acc-sub block">Tambah / edit rincian item, dikelompokkan hingga Sub Group</span>
+                </span>
+                <i class="fas fa-chevron-down acc-chevron"></i>
+            </button>
+            <div id="rab-form-panel" class="acc-body p-6 hidden">
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+                    <!-- ===== PETAK KIRI : FORM INPUT ITEM ===== -->
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 h-fit">
+                        <div class="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
+                            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-500 text-white flex items-center justify-center text-sm">
+                                <i class="fas fa-pen-to-square"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-extrabold text-slate-800 leading-tight">Form Input Item RAB</h4>
+                                <p class="text-[11px] text-slate-400 font-medium">Isi rincian belanja lalu tekan Tambah Item</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div>
+                                <label class="form-label">Kegiatan RAB (Pilih Kode Unik) *</label>
+                                <select id="select-kode-unik-form" class="input-field" onchange="pilihKegiatanDariForm()">
+                                    <option value="">-- Pilih Kegiatan / Kode Unik --</option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="form-label">Group Belanja *</label>
+                                    <select id="select-group" class="input-field" onchange="onGroupChange()">
+                                        <option value="">-- Pilih Group Belanja --</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label">Sub Group Belanja *</label>
+                                    <select id="select-subgroup" class="input-field">
+                                        <option value="">-- Pilih Sub Group Belanja --</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="form-label">Uraian Belanja *</label>
+                                <input type="text" id="input-uraian" class="input-field"
+                                    placeholder="Nama item / bahan / upah..." />
+                            </div>
+
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                <div>
+                                    <label class="form-label">Volume *</label>
+                                    <input type="number" step="any" id="input-volume" class="input-field" placeholder="0" />
+                                </div>
+                                <div>
+                                    <label class="form-label">Satuan *</label>
+                                    <input list="satuan-list" id="input-satuan" class="input-field" placeholder="Satuan...">
+                                    <datalist id="satuan-list"></datalist>
+                                </div>
+                                <div class="col-span-2 md:col-span-1">
+                                    <label class="form-label">Harga Satuan (Rp) *</label>
+                                    <input type="text" id="input-harga" class="input-field" placeholder="0"
+                                        oninput="formatRupiahInput(this)" />
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="form-label">Sumber Dana</label>
+                                    <select id="select-sumber-dana" class="input-field"></select>
+                                </div>
+                                <div>
+                                    <label class="form-label">Keterangan (Opsional)</label>
+                                    <input type="text" id="input-keterangan" class="input-field"
+                                        placeholder="Swakelola / Paket / dll..." />
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                                <button id="btn-copy-item" onclick="salinDataItem()" class="btn-outline flex-1 justify-center">
+                                    <i class="fas fa-copy"></i> Salin Data Item
+                                </button>
+                                <button id="btn-add-item" onclick="addRabItem()" class="btn-success flex-1 justify-center">
+                                    <i class="fas fa-plus-circle"></i> Tambah Item RAB
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PETAK KANAN : TABEL RINCIAN ITEM -->
+                    <div class="rounded-2xl border border-slate-200 bg-white p-5">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-200">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center text-sm">
+                                    <i class="fas fa-list-check"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-extrabold text-slate-800 leading-tight">Rincian Item RAB</h4>
+                                    <p class="text-[11px] text-slate-400 font-medium">Dikelompokkan Group → Sub Group</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="clearRabItems()" class="btn-outline !px-3 !py-1.5 text-xs">
+                                    <i class="fas fa-trash-alt text-red-500"></i> Kosongkan
+                                </button>
+                                <button onclick="saveRAB()" class="btn-primary !px-4 !py-1.5 text-xs">
+                                    <i class="fas fa-save"></i> Simpan RAB
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="table-wrapper max-h-[520px] overflow-y-auto">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;" class="text-center">No</th>
+                                        <th>Uraian Belanja</th>
+                                        <th style="width: 80px;" class="text-center">Volume</th>
+                                        <th style="width: 80px;" class="text-center">Satuan</th>
+                                        <th style="width: 120px;" class="text-right">Harga Satuan</th>
+                                        <th style="width: 130px;" class="text-right">Jumlah Biaya</th>
+                                        <th style="width: 70px;" class="text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rab-items-body">
+                                    <tr>
+                                        <td colspan="7" class="text-center py-8 text-slate-400">Belum ada item RAB. Tambahkan
+                                            item pertama.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Total rangkuman & butang simpan -->
+                        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 bg-gradient-to-r from-slate-50 to-indigo-50 border border-slate-200 rounded-xl px-4 py-3">
+                            <div class="flex gap-6">
+                                <div>
+                                    <span class="text-[11px] font-bold text-slate-400 uppercase">Total Item:</span>
+                                    <div id="rab-total-items" class="text-lg font-extrabold text-slate-800">0 Item</div>
+                                </div>
+                                <div>
+                                    <span class="text-[11px] font-bold text-slate-400 uppercase">Total Pagu RAB:</span>
+                                    <div id="rab-total-biaya" class="text-lg font-extrabold text-emerald-600">Rp 0</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== STEP 4: PILIH KEGIATAN ===== -->
+        <div class="acc-card no-print">
+            <button type="button" class="acc-head" data-acc-target="acc-filter" onclick="toggleAccSection('acc-filter')">
+                <span class="acc-step">4</span>
+                <span>
+                    <span class="acc-title block">Pilih Kegiatan RKPDesa</span>
+                    <span class="acc-sub block">Filter berdasarkan tahun anggaran &amp; kode unik kegiatan</span>
+                </span>
+                <i class="fas fa-chevron-down acc-chevron"></i>
+            </button>
+            <div class="acc-body p-6" id="acc-filter">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="form-label">Tahun Anggaran</label>
+                        <select id="select-year" class="input-field" onchange="onYearChange()">
+                            <option value="2022">2022</option>
+                            <option value="2023">2023</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                            <option value="2027" selected>2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Cari Kode Unik / Kegiatan</label>
+                        <input type="text" id="search-rpjm" class="input-field"
+                            placeholder="Ketik kode atau nama kegiatan..." oninput="filterRpjmItems()" />
+                    </div>
+                    <div>
+                        <label class="form-label">Pilih Kode Unik</label>
+                        <select id="select-kode-unik" class="input-field" onchange="selectRpjm()">
+                            <option value="">-- Pilih Kode Unik --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Summary kegiatan terpilih -->
+                <div id="rpjm-summary" class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+            </div>
+        </div>
+
+        <!-- ===== STEP 5: DAFTAR RAB TERSIMPAN ===== -->
+        <div class="acc-card no-print">
+            <button type="button" class="acc-head" data-acc-target="acc-daftar" onclick="toggleAccSection('acc-daftar')">
+                <span class="acc-step">5</span>
+                <span>
+                    <span class="acc-title block">Daftar RAB Tersimpan</span>
+                    <span class="acc-sub block">Seluruh RAB di Supabase — dapat dibuka kembali atau dihapus</span>
+                </span>
+                <i class="fas fa-chevron-down acc-chevron"></i>
+            </button>
+            <div class="acc-body" id="acc-daftar">
+                <div class="flex flex-wrap items-center justify-between gap-3 px-6 pt-5 pb-3">
+                    <div class="flex items-center gap-3">
+                        <h3 class="text-sm font-extrabold text-slate-800"><i class="fas fa-database text-indigo-600 mr-2"></i>Daftar RAB Tersimpan di Supabase</h3>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="fixRabData()" class="btn-outline text-xs">
+                            <i class="fas fa-wrench"></i> Perbaiki Data RAB
+                        </button>
+                        <button onclick="loadSavedRabList()" class="btn-outline text-xs">
+                            <i class="fas fa-sync-alt"></i> Refresh List
+                        </button>
+                    </div>
+                </div>
+                <div class="px-6 pb-6">
+                    <div class="table-wrapper overflow-x-auto w-full">
+                        <table class="w-full min-w-[850px]">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;" class="text-center">No</th>
+                                    <th style="min-width: 130px;">Kode Unik Full</th>
+                                    <th style="min-width: 220px;">Nama Kegiatan</th>
+                                    <th style="min-width: 100px;">Bidang</th>
+                                    <th style="min-width: 120px;">Jenis Bidang</th>
+                                    <th style="min-width: 150px;">Jenis Kegiatan</th>
+                                    <th style="width: 130px;">Harga Satuan</th>
+                                    <th style="width: 150px;">Total Biaya RAB</th>
+                                    <th style="width: 140px;">Sumber Dana</th>
+                                    <th style="width: 160px;">Terakhir Disimpan</th>
+                                    <th style="width: 170px;" class="text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rab-saved-body">
+                                <tr>
+                                    <td colspan="11" class="text-center py-8 text-slate-400 font-semibold">
+                                        <i class="fas fa-spinner fa-spin mr-2"></i> Memuat daftar RAB tersimpan...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- INLINE HELPER SCRIPTS -->
+    <script>
+        // ---------- Accordion (tampilan saja; tidak mengubah alur data) ----------
+        function toggleAccSection(id) {
+            const body = document.getElementById(id);
+            if (!body) return;
+            const btn = document.querySelector(`[data-acc-target="${id}"]`);
+            const isOpen = !body.classList.contains('hidden') && body.style.display !== 'none';
+            if (isOpen) {
+                body.classList.add('hidden');
+                body.style.display = 'none';
+                if (btn) btn.classList.add('acc-closed');
+            } else {
+                body.classList.remove('hidden');
+                body.style.display = '';
+                if (btn) btn.classList.remove('acc-closed');
+            }
+        }
+
+        function syncAccSection(id) {
+            const body = document.getElementById(id);
+            const btn = document.querySelector(`[data-acc-target="${id}"]`);
+            if (!body || !btn) return;
+            const isOpen = !body.classList.contains('hidden') && body.style.display !== 'none';
+            btn.classList.toggle('acc-closed', !isOpen);
+        }
+        window.syncAccSection = syncAccSection;
+
+        function toggleManualSigner() {
+            const sel = document.getElementById('selectPenandatangan');
+            const inp = document.getElementById('inputNamaManual');
+            if (sel && inp) {
+                if (sel.value === 'manual') {
+                    inp.classList.remove('hidden');
+                } else {
+                    inp.classList.add('hidden');
+                }
+            }
+        }
+    </script>
+
+    <!-- MODAL KELOLA PAGU ANGGARAN -->
+    <div id="modalKelolaPagu" class="fixed inset-0 z-[2000] hidden items-center justify-center p-4" style="background: rgba(2,6,23,0.6); backdrop-filter: blur(8px);">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden" onclick="event.stopPropagation()">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                        <i class="fas fa-sliders"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-extrabold text-slate-900">Kelola Pagu Sumber Dana</h3>
+                        <p class="text-xs text-slate-400 font-medium">Set batas pagu anggaran per tahun &amp; sumber dana</p>
+                    </div>
+                </div>
+                <button onclick="tutupModalKelolaPagu()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-5 space-y-3 max-h-[60vh] overflow-y-auto">
+                <div class="mb-3">
+                    <label class="form-label">Tahun Anggaran Target</label>
+                    <select id="paguInputTahun" class="input-field font-bold" onchange="onPaguTahunChange(this.value)">
+                        <option value="2022">2022</option>
+                        <option value="2023">2023</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027" selected>2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                        <option value="2030">2030</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="form-label">Pagu ADD (Alokasi Dana Desa)</label>
+                        <input type="text" id="paguInput_ADD" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                    </div>
+                    <div>
+                        <label class="form-label">Pagu DDS (Dana Desa / APBN)</label>
+                        <input type="text" id="paguInput_DDS" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                    </div>
+                    <div>
+                        <label class="form-label">Pagu PBH (Bagi Hasil Pajak &amp; Retribusi)</label>
+                        <input type="text" id="paguInput_PBH" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                    </div>
+                    <div>
+                        <label class="form-label">Pagu APBD Tk. I (Bantuan Provinsi)</label>
+                        <input type="text" id="paguInput_APBD1" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                    </div>
+                    <div>
+                        <label class="form-label">Pagu APBD Tk. II (Bantuan Kabupaten)</label>
+                        <input type="text" id="paguInput_APBD2" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                    </div>
+                    <div>
+                        <label class="form-label">Pagu PAD (Pendapatan Asli Desa)</label>
+                        <input type="text" id="paguInput_PAD" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <button onclick="tutupModalKelolaPagu()" class="btn-outline text-xs">Batal</button>
+                <button onclick="simpanPaguForm()" class="btn-primary text-xs">
+                    <i class="fas fa-save mr-1"></i> Simpan Pagu Anggaran
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PERINGATAN OVER-BUDGET -->
+    <div id="modalOverBudgetWarning" class="fixed inset-0 z-[3000] hidden items-center justify-center p-4" style="background: rgba(2,6,23,0.7); backdrop-filter: blur(8px);">
+        <div class="bg-white rounded-2xl shadow-2xl border border-red-200 max-w-md w-full p-6 text-center" onclick="event.stopPropagation()">
+            <div class="w-16 h-16 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-red-500 text-2xl mx-auto mb-4">
+                <i class="fas fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-lg font-black text-slate-900 mb-1">Peringatan: Over-Budget!</h3>
+            <p class="text-xs text-slate-600 font-medium mb-4 leading-relaxed" id="overBudgetModalMsg">
+                Alokasi melebihi batas pagu anggaran sumber dana!
+            </p>
+            <div class="bg-red-50 border border-red-100 rounded-xl p-3.5 text-left text-xs space-y-1 mb-5">
+                <div class="flex justify-between"><span class="text-slate-500">Sumber Dana:</span> <span id="obSumberDana" class="font-bold text-slate-800">-</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Pagu Anggaran:</span> <span id="obPaguLimit" class="font-bold text-slate-800">Rp 0</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">RAB Terpakai Saat Ini:</span> <span id="obRabExisting" class="font-bold text-slate-800">Rp 0</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Pengajuan Baru:</span> <span id="obNewAmount" class="font-bold text-amber-600">Rp 0</span></div>
+                <div class="flex justify-between border-t border-red-200 pt-1 font-bold"><span class="text-red-700">Total Melebihi (Defisit):</span> <span id="obDeficit" class="text-red-700">Rp 0</span></div>
+            </div>
+            <button onclick="tutupModalOverBudget()" class="w-full btn-danger text-xs font-bold py-2.5 rounded-xl shadow-lg shadow-red-500/20">
+                <i class="fas fa-shield-exclamation mr-1"></i> Mengerti, Koreksi Nominal RAB
+            </button>
+        </div>
+    </div>
+
+    <script src="rab.js" defer></script>
+    <script>
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(data => {
+                document.getElementById('navbar-container').innerHTML = data;
+            })
+            .catch(err => console.error('Navbar error:', err));
+    </script>
+</body>
+
+</html>

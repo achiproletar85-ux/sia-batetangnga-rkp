@@ -1,0 +1,436 @@
+<!-- navbar.html - Premium Dark Indigo Header with Seamless Hover Buffer & Z-Index -->
+<style>
+    .nav-dropdown {
+        position: relative;
+        z-index: 100;
+    }
+    .nav-dropdown-menu {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        min-width: 245px;
+        background: rgba(15, 23, 42, 0.98);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 16px;
+        box-shadow: 0 25px 35px -5px rgba(0, 0, 0, 0.7), 0 12px 15px -6px rgba(0, 0, 0, 0.7);
+        padding: 8px;
+        margin-top: 4px;
+        z-index: 99999 !important;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+    }
+    /* Invisible hover buffer zone between button and dropdown card */
+    .nav-dropdown-menu::before {
+        content: '';
+        position: absolute;
+        top: -12px;
+        left: 0;
+        right: 0;
+        height: 12px;
+        background: transparent;
+    }
+    .nav-dropdown:hover .nav-dropdown-menu,
+    .nav-dropdown.hovering .nav-dropdown-menu,
+    .nav-dropdown:focus-within .nav-dropdown-menu,
+    .nav-dropdown.open .nav-dropdown-menu {
+        display: block !important;
+        animation: navDropdownPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes navDropdownPop {
+        from { opacity: 0; transform: translateY(6px) scale(0.96); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .nav-dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        color: #cbd5e1;
+        font-size: 12px;
+        font-weight: 500;
+        transition: all 0.15s ease;
+    }
+    .nav-dropdown-item:hover {
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+        transform: translateX(3px);
+    }
+    .nav-dropdown-item.active {
+        background: rgba(249, 115, 22, 0.25);
+        color: #fb923c !important;
+        font-weight: 700;
+    }
+    .nav-top-btn {
+        transition: all 0.2s ease;
+    }
+    .nav-top-btn:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+    .nav-top-btn.active {
+        background-color: rgba(249, 115, 22, 0.25);
+        border-color: rgba(249, 115, 22, 0.5);
+        color: #fb923c !important;
+        font-weight: 700;
+    }
+    .logout-btn-nav {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        transition: all 0.2s ease;
+    }
+    .logout-btn-nav:hover {
+        background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.45);
+    }
+
+    /* Modal Konfirmasi Logout */
+    #modalLogoutConfirm {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        align-items: center;
+        justify-content: center;
+        background: rgba(2, 6, 23, 0.65);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+    .logout-card-anim {
+        animation: modalPopIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    @keyframes modalPopIn {
+        from { opacity: 0; transform: scale(0.92) translateY(10px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+</style>
+
+<nav class="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 text-slate-100 shadow-xl sticky top-0 z-[9999] w-full border-b border-indigo-900/50 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 py-1.5 flex items-center justify-between gap-3 overflow-visible">
+        
+        <!-- BRAND LOGO -->
+        <div class="flex items-center gap-2.5 shrink-0 pr-3 border-r border-slate-800">
+            <a href="/" class="flex items-center gap-2 group">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-400 text-white flex items-center justify-center font-black text-xs shadow-md shadow-orange-500/30 group-hover:scale-105 transition-transform">
+                    SIA
+                </div>
+                <div>
+                    <span class="text-xs font-black tracking-tight text-white block leading-none">Batetangnga</span>
+                    <span class="text-[9px] font-semibold text-orange-400 leading-none">Keuangan Desa</span>
+                </div>
+            </a>
+        </div>
+
+        <!-- MAIN CATEGORY DROPDOWNS & NAVIGATION MENU -->
+        <div class="hidden md:flex items-center gap-1.5 text-xs font-semibold flex-1 overflow-visible">
+            
+            <!-- 1. DASHBOARD LINK -->
+            <a href="/" class="nav-top-btn px-3 py-2 rounded-xl text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/">
+                <i class="fas fa-gauge-high text-cyan-400"></i>
+                <span>Dashboard</span>
+            </a>
+
+            <!-- 2. PERENCANAAN DROPDOWN -->
+            <div class="nav-dropdown">
+                <button type="button" onclick="toggleNavDropdown(event, this)" class="nav-top-btn px-3 py-2 rounded-xl text-slate-300 hover:text-white flex items-center gap-1.5 cursor-pointer">
+                    <i class="fas fa-calendar-check text-blue-400"></i>
+                    <span>Perencanaan</span>
+                    <i class="fas fa-chevron-down text-[10px] text-slate-400 ml-0.5"></i>
+                </button>
+                <div class="nav-dropdown-menu">
+                    <div class="text-[10px] font-bold uppercase text-slate-400 px-3 py-1 border-b border-slate-800 mb-1">
+                        Perencanaan Desa
+                    </div>
+                    <a href="/rpjmdes.html" class="nav-dropdown-item" data-path="/rpjmdes.html">
+                        <i class="fas fa-calendar-check text-blue-400 w-4 text-center"></i>
+                        <span>RPJMDes</span>
+                    </a>
+                    <a href="/rkpdes.html" class="nav-dropdown-item" data-path="/rkpdes.html">
+                        <i class="fas fa-scroll text-orange-400 w-4 text-center"></i>
+                        <span>RKPDes</span>
+                    </a>
+                    <a href="/du-rkpdes.html" class="nav-dropdown-item" data-path="/du-rkpdes.html">
+                        <i class="fas fa-list-check text-emerald-400 w-4 text-center"></i>
+                        <span>DU-RKP</span>
+                    </a>
+                    <a href="/prioritas-usulan.html" class="nav-dropdown-item" data-path="/prioritas-usulan.html">
+                        <i class="fas fa-flag text-amber-500 w-4 text-center"></i>
+                        <span>Prioritas Usulan</span>
+                    </a>
+                    <a href="/prioritas.html" class="nav-dropdown-item" data-path="/prioritas.html">
+                        <i class="fas fa-ranking-star text-amber-400 w-4 text-center"></i>
+                        <span>Prioritas</span>
+                    </a>
+                    <a href="/usulan.html" class="nav-dropdown-item" data-path="/usulan.html">
+                        <i class="fas fa-hand-holding-heart text-rose-400 w-4 text-center"></i>
+                        <span>Usulan Masyarakat</span>
+                    </a>
+                    <a href="/rancangan-rkpdes.html" class="nav-dropdown-item" data-path="/rancangan-rkpdes.html">
+                        <i class="fas fa-file-lines text-amber-300 w-4 text-center"></i>
+                        <span>Rancangan RKPDes</span>
+                    </a>
+                    <a href="/rktl.html" class="nav-dropdown-item" data-path="/rktl.html">
+                        <i class="fas fa-tasks text-lime-400 w-4 text-center"></i>
+                        <span>RKT / RKTL</span>
+                    </a>
+                    <a href="/data-perencanaan.html" class="nav-dropdown-item" data-path="/data-perencanaan.html">
+                        <i class="fas fa-folder-tree text-indigo-300 w-4 text-center"></i>
+                        <span>Data Perencanaan</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- 3. KEUANGAN & ANGGARAN DROPDOWN -->
+            <div class="nav-dropdown">
+                <button type="button" onclick="toggleNavDropdown(event, this)" class="nav-top-btn px-3 py-2 rounded-xl text-slate-300 hover:text-white flex items-center gap-1.5 cursor-pointer">
+                    <i class="fas fa-coins text-emerald-400"></i>
+                    <span>Keuangan & Anggaran</span>
+                    <i class="fas fa-chevron-down text-[10px] text-slate-400 ml-0.5"></i>
+                </button>
+                <div class="nav-dropdown-menu">
+                    <div class="text-[10px] font-bold uppercase text-slate-400 px-3 py-1 border-b border-slate-800 mb-1">
+                        Penganggaran & Pembiayaan
+                    </div>
+                    <a href="/rab.html" class="nav-dropdown-item" data-path="/rab.html">
+                        <i class="fas fa-coins text-emerald-400 w-4 text-center"></i>
+                        <span>RAB Desa</span>
+                    </a>
+                    <a href="/pagu-indikatif.html" class="nav-dropdown-item" data-path="/pagu-indikatif.html">
+                        <i class="fas fa-scale-balanced text-yellow-400 w-4 text-center"></i>
+                        <span>Pagu Indikatif</span>
+                    </a>
+                    <a href="/pembiayaan.html" class="nav-dropdown-item" data-path="/pembiayaan.html">
+                        <i class="fas fa-wallet text-purple-400 w-4 text-center"></i>
+                        <span>Pembiayaan Netto</span>
+                    </a>
+                    <a href="/program-masuk-desa.html" class="nav-dropdown-item" data-path="/program-masuk-desa.html">
+                        <i class="fas fa-arrow-right-to-bracket text-teal-400 w-4 text-center"></i>
+                        <span>Program Masuk Desa</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- 4. KERJASAMA & LAINNYA DROPDOWN -->
+            <div class="nav-dropdown">
+                <button type="button" onclick="toggleNavDropdown(event, this)" class="nav-top-btn px-3 py-2 rounded-xl text-slate-300 hover:text-white flex items-center gap-1.5 cursor-pointer">
+                    <i class="fas fa-handshake text-indigo-400"></i>
+                    <span>Kerjasama & Evaluasi</span>
+                    <i class="fas fa-chevron-down text-[10px] text-slate-400 ml-0.5"></i>
+                </button>
+                <div class="nav-dropdown-menu">
+                    <div class="text-[10px] font-bold uppercase text-slate-400 px-3 py-1 border-b border-slate-800 mb-1">
+                        Kemitraan & Pelaporan
+                    </div>
+                    <a href="/kerjasama.html" class="nav-dropdown-item" data-path="/kerjasama.html">
+                        <i class="fas fa-handshake text-indigo-400 w-4 text-center"></i>
+                        <span>Kerjasama Desa</span>
+                    </a>
+                    <a href="/kerjasama-pihak-ketiga.html" class="nav-dropdown-item" data-path="/kerjasama-pihak-ketiga.html">
+                        <i class="fas fa-users text-purple-400 w-4 text-center"></i>
+                        <span>Pihak Ketiga</span>
+                    </a>
+                    <a href="/evaluasi.html" class="nav-dropdown-item" data-path="/evaluasi.html">
+                        <i class="fas fa-chart-simple text-rose-400 w-4 text-center"></i>
+                        <span>Evaluasi APBDes</span>
+                    </a>
+                    <a href="/laporan-perkembangan.html" class="nav-dropdown-item" data-path="/laporan-perkembangan.html">
+                        <i class="fas fa-file-invoice text-pink-400 w-4 text-center"></i>
+                        <span>Laporan Perkembangan</span>
+                    </a>
+                    <a href="/verifikasi-proposal.html" class="nav-dropdown-item" data-path="/verifikasi-proposal.html">
+                        <i class="fas fa-check-double text-cyan-400 w-4 text-center"></i>
+                        <span>Verifikasi Proposal</span>
+                    </a>
+                    <a href="/stunting.html" class="nav-dropdown-item" data-path="/stunting.html">
+                        <i class="fas fa-child text-fuchsia-400 w-4 text-center"></i>
+                        <span>Stunting</span>
+                    </a>
+                    <a href="/sdgs.html" class="nav-dropdown-item" data-path="/sdgs.html">
+                        <i class="fas fa-globe text-sky-400 w-4 text-center"></i>
+                        <span>SDGs Desa</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- 5. 28 DOKUMEN ENGINE (FEATURED BADGE) -->
+            <a href="/dokumen-desa.html" class="nav-top-btn px-3 py-1.5 rounded-xl text-white font-bold bg-gradient-to-r from-orange-500 to-amber-600 shadow-md shadow-orange-500/20 flex items-center gap-2 border border-orange-400/30 ml-auto" data-path="/dokumen-desa.html">
+                <i class="fas fa-folder-open text-white"></i>
+                <span>28 Dokumen Engine</span>
+            </a>
+
+        </div>
+
+        <!-- RIGHT SIDE: TAHUN ANGGARAN SELECTOR, AKUN & LOGOUT BUTTON -->
+        <div class="flex items-center gap-2.5 shrink-0 pl-3 border-l border-slate-800">
+            
+            <!-- GLOBAL TAHUN ANGGARAN SELECTOR -->
+            <div class="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 rounded-xl px-2.5 py-1 text-xs">
+                <i class="fas fa-calendar-alt text-amber-400 text-xs"></i>
+                <span class="text-[10px] font-extrabold uppercase text-amber-300 hidden lg:inline">Tahun:</span>
+                <select id="globalActiveTahun" onchange="window.setGlobalActiveTahun(this.value)" class="bg-slate-950 text-amber-300 font-black text-xs border border-amber-500/40 rounded-lg px-2 py-0.5 outline-none cursor-pointer focus:ring-1 focus:ring-amber-400">
+                    <option value="2022">2022</option>
+                    <option value="2023">2023</option>
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                    <option value="2028">2028</option>
+                    <option value="2029">2029</option>
+                    <option value="2030">2030</option>
+                </select>
+            </div>
+
+            <!-- User Profile & Options -->
+            <div class="nav-dropdown">
+                <button type="button" onclick="toggleNavDropdown(event, this)" class="flex items-center gap-2 bg-slate-900/80 px-2.5 py-1 rounded-xl border border-slate-800 hover:border-slate-700 cursor-pointer">
+                    <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white text-[10px] font-black" id="topNavAvatar">
+                        A
+                    </div>
+                    <div class="text-[11px] text-left hidden sm:block">
+                        <span class="font-bold text-slate-200 block leading-none" id="topNavUser">Admin</span>
+                        <span class="text-[9px] text-emerald-400 font-semibold leading-none flex items-center gap-1 mt-0.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Online
+                        </span>
+                    </div>
+                    <i class="fas fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
+                </button>
+                <div class="nav-dropdown-menu right-0 left-auto">
+                    <div class="text-[10px] font-bold uppercase text-slate-400 px-3 py-1 border-b border-slate-800 mb-1">
+                        Pengaturan Akun
+                    </div>
+                    <a href="/ganti-password.html" class="nav-dropdown-item" data-path="/ganti-password.html">
+                        <i class="fas fa-key text-amber-400 w-4 text-center"></i>
+                        <span>Ganti Password</span>
+                    </a>
+                    <button type="button" onclick="document.getElementById('modalLogoutConfirm').style.display='flex';" class="nav-dropdown-item w-full text-left text-red-400 hover:text-red-300">
+                        <i class="fas fa-right-from-bracket text-red-400 w-4 text-center"></i>
+                        <span>Keluar Aplikasi</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tombol Keluar Langsung (Desktop) -->
+            <button type="button" onclick="document.getElementById('modalLogoutConfirm').style.display='flex';" class="logout-btn-nav text-white text-xs font-bold px-3 py-1.5 rounded-xl hidden sm:flex items-center gap-1.5 cursor-pointer">
+                <i class="fas fa-right-from-bracket"></i>
+                <span>Keluar</span>
+            </button>
+        </div>
+
+    </div>
+</nav>
+
+<!-- MODAL KONFIRMASI LOGOUT -->
+<div id="modalLogoutConfirm" onclick="if(event.target===this) this.style.display='none';">
+    <div class="logout-card-anim bg-white rounded-3xl p-7 max-w-sm w-full mx-4 text-center shadow-2xl border border-slate-100" onclick="event.stopPropagation()">
+        <div class="w-16 h-16 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-red-500 text-2xl mx-auto mb-4 shadow-inner">
+            <i class="fas fa-right-from-bracket"></i>
+        </div>
+        <h3 class="text-lg font-black text-slate-900 mb-1">Keluar dari Aplikasi?</h3>
+        <p class="text-xs text-slate-500 font-medium mb-6 leading-relaxed">
+            Anda akan keluar dari Sistem Informasi Akuntansi Desa Batetangnga. Sesi aktif Anda akan diakhiri.
+        </p>
+        <div class="flex items-center gap-3">
+            <button type="button" onclick="document.getElementById('modalLogoutConfirm').style.display='none';" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition">
+                Batal
+            </button>
+            <button type="button" onclick="sessionStorage.clear(); localStorage.clear(); window.location.replace('/login.html');" class="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-lg shadow-red-500/30">
+                <i class="fas fa-right-from-bracket mr-1"></i> Ya, Keluar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Self-Executing Script on innerHTML Injection -->
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" style="display:none;" onerror="if (this.dataset.done) return; this.dataset.done = 1; (function(){
+    window.setGlobalActiveTahun = function(tahunVal) {
+        if (!tahunVal) return;
+        var t = String(tahunVal).trim();
+        localStorage.setItem('ACTIVE_TAHUN_ANGGARAN', t);
+
+        // Sync all year dropdowns on current page
+        document.querySelectorAll('#globalActiveTahun, #selectDashboardTahun, #selectTahunDokumenDesa, #select-year, #select-tahun, #select-tahun-data').forEach(function(sel) {
+            if (sel && sel.value !== t) {
+                sel.value = t;
+            }
+        });
+        document.querySelectorAll('.display-active-tahun').forEach(function(el) {
+            if (el) el.textContent = t;
+        });
+
+        // Broadcast event for active scripts
+        window.dispatchEvent(new CustomEvent('tahunChanged', { detail: { tahun: t } }));
+    };
+
+    var storedYear = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027';
+    window.setGlobalActiveTahun(storedYear);
+
+    window.toggleNavDropdown = function(e, btn) {
+        if (e) e.stopPropagation();
+        var dropdown = btn.closest('.nav-dropdown');
+        if (!dropdown) return;
+        var isOpen = dropdown.classList.contains('open');
+        document.querySelectorAll('.nav-dropdown.open').forEach(function(el) {
+            el.classList.remove('open');
+        });
+        if (!isOpen) {
+            dropdown.classList.add('open');
+        }
+    };
+
+    // Smooth hover delay timer (250ms) to bridge mouse movement cleanly
+    document.querySelectorAll('.nav-dropdown').forEach(function(dd) {
+        var timer;
+        dd.addEventListener('mouseenter', function() {
+            clearTimeout(timer);
+            dd.classList.add('hovering');
+        });
+        dd.addEventListener('mouseleave', function() {
+            timer = setTimeout(function() {
+                dd.classList.remove('hovering');
+            }, 250);
+        });
+    });
+
+    if (!window._navDropdownListenerAdded) {
+        window._navDropdownListenerAdded = true;
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.nav-dropdown')) {
+                document.querySelectorAll('.nav-dropdown.open, .nav-dropdown.hovering').forEach(function(el) {
+                    el.classList.remove('open');
+                    el.classList.remove('hovering');
+                });
+            }
+        });
+    }
+
+    var path = window.location.pathname.toLowerCase();
+    var navLinks = document.querySelectorAll('.nav-top-btn, .nav-dropdown-item');
+    navLinks.forEach(function(link) {
+        var dataPath = (link.getAttribute('data-path') || '').toLowerCase();
+        if (dataPath === '/' && (path === '/' || path === '/index.html')) {
+            link.classList.add('active');
+        } else if (dataPath !== '/' && dataPath !== '/index.html' && path.endsWith(dataPath)) {
+            link.classList.add('active');
+            var parentDropdown = link.closest('.nav-dropdown');
+            if (parentDropdown) {
+                var parentBtn = parentDropdown.querySelector('.nav-top-btn');
+                if (parentBtn) parentBtn.classList.add('active');
+            }
+        }
+    });
+    try {
+        var user = JSON.parse(sessionStorage.getItem('sia_user')) || JSON.parse(localStorage.getItem('sia_user'));
+        // Ensure role property exists for admin checks
+        if (user && !user.role) {
+            user.role = 'admin'; // default to admin if not set (adjust as needed)
+        }
+        if (user) {
+            var userEl = document.getElementById('topNavUser');
+            var avatarEl = document.getElementById('topNavAvatar');
+            if (userEl) userEl.textContent = user.name || user.username || 'Admin';
+            if (avatarEl) avatarEl.textContent = (user.name || user.username || 'A')[0].toUpperCase();
+        }
+    } catch(e) {}
+    this.remove();
+}).call(this);" />

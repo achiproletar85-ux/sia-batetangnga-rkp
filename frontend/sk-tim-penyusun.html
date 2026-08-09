@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SK Tim Penyusun RKP Desa - Desa Batetangnga</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="/global-tahun.js"></script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+            #print-area { box-shadow: none; border: none; padding: 0; margin: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+    <!-- NAVBAR COMPONENT CONTAINER -->
+    <div id="navbar-container"></div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="max-w-4xl mx-auto px-4 pb-12">
+        <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6 my-6 no-print flex justify-between items-center">
+            <div>
+                <h2 class="text-xl font-bold text-slate-800 uppercase flex items-center gap-2">
+                    <i class="fas fa-file-award text-indigo-600"></i> SK TIM PENYUSUN RKP DESA
+                </h2>
+                <p class="text-xs text-slate-500 mt-1">Keputusan Kepala Desa Batetangnga tentang Pembentukan Tim Penyusun</p>
+            </div>
+            <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex items-center gap-1.5">
+                <i class="fas fa-print"></i> Cetak PDF
+            </button>
+        </div>
+
+        <div id="print-area" class="bg-white rounded-xl shadow-md border border-slate-200 p-8 md:p-12 space-y-6">
+            <div class="text-center space-y-1">
+                <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-900">KEPUTUSAN KEPALA DESA BATETANGNGA</h3>
+                <p class="text-xs font-bold text-slate-900 uppercase">NOMOR: 20/SK-Des.Bat/VII/2025</p>
+                <p class="text-xs font-bold text-slate-800 uppercase pt-2">TENTANG</p>
+                <p class="text-xs font-extrabold text-slate-900 uppercase">PEMBENTUKAN TIM PENYUSUN RKP DESA TAHUN 2027</p>
+                <p class="text-xs font-bold text-slate-800 uppercase">DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR</p>
+            </div>
+
+            <div class="text-xs leading-relaxed text-justify space-y-3 pt-4">
+                <p><strong>Menimbang:</strong> Bahwa untuk menyusun RKP Desa Tahun 2027, perlu membentuk Tim Penyusun RKP Desa yang ditetapkan dengan Keputusan Kepala Desa Batetangnga.</p>
+                <p><strong>Mengingat:</strong> UU No. 6 Tahun 2014 tentang Desa; Permendagri No. 114 Tahun 2014; Permendesa PDTT No. 21 Tahun 2020.</p>
+                <p><strong>Memperhatikan:</strong> Hasil Musyawarah Desa Batetangnga.</p>
+                
+                <div class="text-center font-bold uppercase py-2">MEMUTUSKAN:</div>
+                <p><strong>KESATU:</strong> Membentuk Tim Penyusun RKP Desa Batetangnga Tahun 2027.</p>
+                <p><strong>KEDUA:</strong> Segala biaya yang timbul dibebankan pada APB Desa Batetangnga.</p>
+            </div>
+
+            <div class="text-center mt-8 pt-6 border-t border-slate-100 text-xs font-bold">
+                <p>Ditetapkan di: Desa Batetangnga</p>
+                <p class="uppercase font-extrabold tracking-wide text-slate-900 mt-1">KEPALA DESA BATETANGNGA</p>
+                <div class="h-24"></div>
+                <p class="font-extrabold uppercase border-b-2 border-slate-900 inline-block px-8">SUMAILA DAMANG</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT LOADER -->
+    <script>
+        fetch('/components/navbar.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('navbar-container').innerHTML = data;
+            });
+    </script>
+</body>
+</html>

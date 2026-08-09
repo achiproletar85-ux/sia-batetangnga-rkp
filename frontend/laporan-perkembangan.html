@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laporan Perkembangan Pelaksanaan Kegiatan - SIA Batetangnga</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏡</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/global-tahun.js"></script>
+    <style>
+        @page {
+            size: landscape;
+            margin: 8mm 6mm 8mm 6mm;
+        }
+
+        @media print {
+            body { background: white !important; padding: 0 !important; margin: 0 !important; font-size: 9px !important; color: black !important; }
+            .no-print { display: none !important; }
+            .max-w-7xl { max-width: 100% !important; width: 100% !important; padding: 0 !important; margin: 0 !important; border: none !important; box-shadow: none !important; }
+            table { width: 100% !important; border-collapse: collapse !important; border: 1.5px solid #000 !important; font-size: 8.5px !important; table-layout: auto !important; }
+            th { border: 1px solid #000 !important; background-color: #f1f5f9 !important; color: #000 !important; padding: 3px 2px !important; font-weight: bold !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            td { border: 1px solid #000 !important; color: #000 !important; padding: 3px 2px !important; word-wrap: break-word !important; }
+            
+            input, select, textarea {
+                border: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                outline: none !important;
+                padding: 0 !important;
+                color: black !important;
+                font-size: 8.5px !important;
+            }
+        }
+
+        .overflow-x-auto {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .overflow-x-auto table {
+            min-width: 1400px;
+        }
+
+        .overflow-x-auto th,
+        .overflow-x-auto td {
+            padding: 4px 6px;
+        }
+
+        @media print {
+            .overflow-x-auto table {
+                min-width: 100% !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
+
+    <!-- NAVIGATION BAR -->
+    <div id="navbar-container"></div>
+    <script>
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(data => document.getElementById('navbar-container').innerHTML = data)
+            .catch(err => console.error('Navbar error:', err));
+    </script>
+
+    <!-- MAIN CONTAINER -->
+    <div class="container-full">
+        
+        <!-- HEADER KARTU & PANEL KONTROL -->
+        <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6 mb-6 no-print">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 tracking-wide uppercase flex items-center gap-2">
+                        <i class="fas fa-chart-line text-blue-600"></i>
+                        LAPORAN PERKEMBANGAN PELAKSANAAN KEGIATAN PEMBANGUNAN DESA
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">
+                        Format Baku Kementerian Desa & Perkembangan Progres Fisik/Biaya Bulanan
+                    </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-semibold">
+                        <label for="select-bulan" class="text-blue-900 font-bold">Bulan:</label>
+                        <select id="select-bulan" onchange="loadLaporanData()" class="bg-white border border-blue-300 text-blue-950 font-bold text-xs rounded px-2 py-1 outline-none">
+                            <option value="Januari">Januari</option>
+                            <option value="Februari">Februari</option>
+                            <option value="Maret">Maret</option>
+                            <option value="April">April</option>
+                            <option value="Mei">Mei</option>
+                            <option value="Juni">Juni</option>
+                            <option value="Juli">Juli</option>
+                            <option value="Agustus" selected>Agustus</option>
+                            <option value="September">September</option>
+                            <option value="Oktober">Oktober</option>
+                            <option value="November">November</option>
+                            <option value="Desember">Desember</option>
+                        </select>
+
+                        <label for="select-tahun" class="text-blue-900 font-bold ml-2">Tahun:</label>
+                        <select id="select-tahun" onchange="loadLaporanData()" class="bg-white border border-blue-300 text-blue-950 font-bold text-xs rounded px-2 py-1 outline-none">
+                                                        <option value="2022">2022</option>
+                            <option value="2023">2023</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                            <option value="2027" selected>2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                        </select>
+                    </div>
+
+                    <button onclick="tarikDariRAB()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+                        <i class="fas fa-cloud-arrow-down"></i> Tarik dari RKPDes
+                    </button>
+
+                    <button onclick="updateProgres()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+                        <i class="fas fa-calculator"></i> Update Progres
+                    </button>
+
+                    <button onclick="saveToDatabase()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+                        <i class="fas fa-save"></i> Simpan Ke DB
+                    </button>
+
+                    <button onclick="printPDF()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+                        <i class="fas fa-file-pdf"></i> Cetak PDF
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200 mb-3">
+                <div class="flex items-center gap-4">
+                    <span><strong class="text-slate-700">Desa:</strong> Batetangnga</span>
+                    <span><strong class="text-slate-700">Kecamatan:</strong> Binuang</span>
+                    <span><strong class="text-slate-700">Kabupaten:</strong> Polewali Mandar</span>
+                </div>
+                <div id="stat-summary" class="font-bold text-blue-700">
+                    Total Kegiatan: 0 | Total Biaya: Rp 0 | Total Realisasi Biaya: Rp 0
+                </div>
+            </div>
+
+            <!-- INPUT TANGGAL & NAMA TTD -->
+            <div class="flex flex-wrap items-center gap-4 pt-3 border-t border-slate-200 text-xs">
+                <div class="flex items-center gap-2">
+                    <label for="tanggal-input" class="font-semibold text-slate-700">Tanggal Laporan:</label>
+                    <input type="date" id="tanggal-input" class="border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-blue-500" 
+                           value="2026-08-02" onchange="updateTTD()">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="kepala-desa-input" class="font-semibold text-slate-700">Kepala Desa:</label>
+                    <input type="text" id="kepala-desa-input" class="border border-slate-300 rounded px-2 py-1 text-xs w-48 outline-none focus:border-blue-500" 
+                           value="SUMAILA DAMANG" onchange="updateTTD()">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="ketua-tim-input" class="font-semibold text-slate-700">Ketua TPK / Pelaksana:</label>
+                    <input type="text" id="ketua-tim-input" class="border border-slate-300 rounded px-2 py-1 text-xs w-48 outline-none focus:border-blue-500" 
+                           value="Abdul Azis, S. Pd" onchange="updateTTD()">
+                </div>
+            </div>
+        </div>
+
+        <!-- DOKUMEN CETAK CONTAINER -->
+        <div id="laporan-print-area" class="bg-white p-4 md:p-6 rounded-xl shadow-lg border border-slate-200">
+            
+            <!-- HEADER RESMI KOP DOKUMEN -->
+            <div class="text-center mb-6">
+                <h3 class="text-lg font-bold text-slate-900 uppercase tracking-wider">LAPORAN PERKEMBANGAN PELAKSANAAN KEGIATAN PEMBANGUNAN DESA</h3>
+                <h4 class="text-md font-semibold text-slate-700 uppercase tracking-wide mt-1">DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR</h4>
+                <p id="print-periode-title" class="text-sm font-bold text-slate-800 mt-1">PERIODE BULAN <span id="judul-bulan">Agustus</span> TAHUN <span id="judul-tahun">2027</span></p>
+            </div>
+
+            <!-- TABEL 5 BIDANG LAPORAN PERKEMBANGAN -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left border-collapse border border-slate-300">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-800 font-bold text-center border-b border-slate-300">
+                            <th class="border border-slate-300 p-2 w-8" rowspan="2">NO</th>
+                            <th class="border border-slate-300 p-2 min-w-[160px]" rowspan="2">BIDANG &amp; SUB BIDANG</th>
+                            <th class="border border-slate-300 p-2 min-w-[180px]" rowspan="2">NAMA PROGRAM / KEGIATAN</th>
+                            <th class="border border-slate-300 p-2 min-w-[110px]" rowspan="2">LOKASI</th>
+                            <th class="border border-slate-300 p-2 w-24" rowspan="2">VOLUME &amp; SATUAN</th>
+                            <th class="border border-slate-300 p-2 w-28" rowspan="2">BIAYA (Rp)</th>
+                            <th class="border border-slate-300 p-1" colspan="4">REALISASI PENERIMA MANFAAT</th>
+                            <th class="border border-slate-300 p-1" colspan="2">RENCANA WAKTU</th>
+                            <th class="border border-slate-300 p-1" colspan="2">PROGRES KEGIATAN</th>
+                            <th class="border border-slate-300 p-2 min-w-[100px]" rowspan="2">KETERANGAN</th>
+                            <th class="border border-slate-300 p-2 w-16 no-print" rowspan="2">AKSI</th>
+                        </tr>
+                        <tr class="bg-slate-100 text-slate-800 font-bold text-center border-b border-slate-300">
+                            <th class="border border-slate-300 p-1 w-10">JML</th>
+                            <th class="border border-slate-300 p-1 w-9">LK</th>
+                            <th class="border border-slate-300 p-1 w-9">PR</th>
+                            <th class="border border-slate-300 p-1 w-11">RTM</th>
+                            <th class="border border-slate-300 p-1 w-14">HARI</th>
+                            <th class="border border-slate-300 p-1 w-20">TGL MULAI</th>
+                            <th class="border border-slate-300 p-1 w-12">FISIK%</th>
+                            <th class="border border-slate-300 p-1 w-24">BIAYA (Rp)</th>
+                        </tr>
+                        <tr class="bg-slate-50 text-slate-500 font-semibold text-center italic text-[10px]">
+                            <td class="border border-slate-300 p-0.5">a</td>
+                            <td class="border border-slate-300 p-0.5">b &amp; c</td>
+                            <td class="border border-slate-300 p-0.5">d</td>
+                            <td class="border border-slate-300 p-0.5">e</td>
+                            <td class="border border-slate-300 p-0.5">f</td>
+                            <td class="border border-slate-300 p-0.5">g</td>
+                            <td class="border border-slate-300 p-0.5">h.1</td>
+                            <td class="border border-slate-300 p-0.5">h.2</td>
+                            <td class="border border-slate-300 p-0.5">h.3</td>
+                            <td class="border border-slate-300 p-0.5">h.4</td>
+                            <td class="border border-slate-300 p-0.5">i.1</td>
+                            <td class="border border-slate-300 p-0.5">i.2</td>
+                            <td class="border border-slate-300 p-0.5">j.1</td>
+                            <td class="border border-slate-300 p-0.5">j.2</td>
+                            <td class="border border-slate-300 p-0.5">k</td>
+                            <td class="border border-slate-300 p-0.5 no-print">-</td>
+                        </tr>
+                    </thead>
+                    <tbody id="laporan-body">
+                        <!-- Dynamic Bidang 1-5 Content -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-blue-50 text-blue-950 font-bold text-xs border-t-2 border-slate-400">
+                            <td colspan="5" class="p-2.5 text-right uppercase tracking-wider">TOTAL ANGGARAN &amp; REALISASI BIAYA:</td>
+                            <td id="grand-total-anggaran" class="p-2.5 text-right text-blue-900 font-extrabold">Rp 0</td>
+                            <td colspan="7" class="p-2.5 text-right uppercase tracking-wider">TOTAL REALISASI PROGRES BIAYA:</td>
+                            <td id="grand-total-progres-biaya" class="p-2.5 text-right text-emerald-800 font-extrabold">Rp 0</td>
+                            <td colspan="2" class="p-2.5"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+<!-- FOOTER TANDA TANGAN -->
+            <div class="mt-8 flex justify-between items-end border-t pt-4 text-xs font-semibold text-slate-800">
+                <div>
+                    <p class="text-sm">Mengetahui,</p>
+                    <p class="text-sm font-bold mt-2">Kepala Desa Batetangnga</p>
+                    <div class="mt-12">
+                        <p class="text-sm font-bold" id="kepala-desa-nama">SUMAILA DAMANG</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm">Batetangnga, <span id="tanggal-cetak">2 Agustus 2026</span></p>
+                    <p class="text-sm mt-2">Disusun Oleh,</p>
+                    <p class="text-sm font-bold mt-2">Ketua TPK / Tim Pelaksana Kegiatan</p>
+                    <div class="mt-12">
+                        <p class="text-sm font-bold" id="ketua-tim-nama">Abdul Azis, S. Pd</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- SCRIPT INCLUDES -->
+    <script src="laporan-perkembangan.js"></script>
+</body>
+</html>

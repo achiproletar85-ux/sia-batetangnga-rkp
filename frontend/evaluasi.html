@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluasi Pelaksanaan RKP Desa - SIA Batetangnga</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏡</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/global-tahun.js"></script>
+    <style>
+        @page {
+            size: landscape;
+            margin: 8mm 6mm 8mm 6mm;
+        }
+
+        @media print {
+            body {
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                font-size: 9.5px !important;
+                color: black !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .max-w-7xl {
+                max-width: 100% !important;
+                width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+            }
+
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                border: 1.5px solid #000 !important;
+                font-size: 9px !important;
+                table-layout: auto !important;
+            }
+
+            th {
+                border: 1px solid #000 !important;
+                background-color: #f1f5f9 !important;
+                color: #000 !important;
+                padding: 3px 2px !important;
+                font-weight: bold !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            td {
+                border: 1px solid #000 !important;
+                color: #000 !important;
+                padding: 3px 3px !important;
+                word-wrap: break-word !important;
+            }
+
+            input,
+            select,
+            textarea {
+                border: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                outline: none !important;
+                padding: 0 !important;
+                color: black !important;
+                font-size: 9px !important;
+            }
+
+            .overflow-x-auto table {
+                min-width: 100% !important;
+            }
+        }
+
+        .overflow-x-auto {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+        }
+
+        .overflow-x-auto table {
+            min-width: 1400px;
+        }
+
+        .overflow-x-auto th,
+        .overflow-x-auto td {
+            padding: 4px 6px;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
+
+    <!-- NAVIGATION BAR -->
+    <div id="navbar-placeholder"></div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="container-full">
+
+        <!-- HEADER KARTU & PANEL KONTROL -->
+        <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6 mb-6 no-print">
+            <div
+                class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 tracking-wide uppercase flex items-center gap-2">
+                        <i class="fas fa-clipboard-check text-indigo-600"></i>
+                        EVALUASI PELAKSANAAN RKP DESA
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">
+                        Format Baku Kementerian Desa & Perimbangan Tahun Anggaran Sebelumnya
+                    </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div
+                        class="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg text-xs font-semibold">
+                        <label for="select-year" class="text-indigo-900 font-bold">Tahun:</label>
+                        <select id="select-year" onchange="loadEvaluasiData()"
+                            class="bg-white border border-indigo-300 text-indigo-950 font-bold text-xs rounded px-2 py-1 outline-none">
+                            <option value="2022">2022</option>
+                            <option value="2023">2023</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                            <option value="2027" selected>2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                        </select>
+                    </div>
+
+                    <button onclick="tarikDariRAB()"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow-sm flex items-center gap-1.5">
+                        <i class="fas fa-cloud-arrow-down"></i> Tarik dari RKPDes Tahun Terpilih
+                    </button>
+
+                    <button onclick="saveToDatabase()"
+                        class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow-sm flex items-center gap-1.5">
+                        <i class="fas fa-save"></i> Simpan ke Database
+                    </button>
+
+                    <button onclick="printPDF()"
+                        class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow-sm flex items-center gap-1.5">
+                        <i class="fas fa-print"></i> Cetak PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- SEARCH & METADATA Cepat -->
+            <div
+                class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-semibold text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <div><strong>DESA:</strong> BATETANGNGA</div>
+                <div><strong>KECAMATAN:</strong> BINUANG</div>
+                <div><strong>KABUPATEN:</strong> POLEWALI MANDAR</div>
+                <div><strong>PROVINSI:</strong> SULAWESI BARAT</div>
+            </div>
+        </div>
+
+        <!-- PRINT HEADER (PRINT ONLY) -->
+        <div class="hidden print:block text-center mb-4">
+            <h1 class="text-sm font-bold uppercase tracking-wider">EVALUASI PELAKSANAAN RKP DESA</h1>
+            <h2 class="text-xs font-bold uppercase text-indigo-900 mt-1" id="print-header-subtitle">DESA BATETANGNGA
+                KECAMATAN BINUANG</h2>
+            <div class="grid grid-cols-4 text-[10px] font-bold mt-2 border-b border-black pb-1">
+                <span>DESA: BATETANGNGA</span>
+                <span>KECAMATAN: BINUANG</span>
+                <span>KABUPATEN: POLEWALI MANDAR</span>
+                <span>PROVINSI: SULAWESI BARAT</span>
+            </div>
+        </div>
+
+        <!-- MAIN DATA TABLE -->
+        <div class="bg-white rounded-xl shadow-md border border-slate-300 overflow-x-auto p-4">
+            <table class="w-full border-collapse border border-slate-400 text-xs">
+                <thead>
+                    <tr class="bg-indigo-950 text-white uppercase text-center font-bold">
+                        <th class="border border-slate-400 px-2 py-2.5 w-10">No</th>
+                        <th class="border border-slate-400 px-3 py-2.5 min-w-[260px]">Jenis Kegiatan</th>
+                        <th class="border border-slate-400 px-3 py-2.5 min-w-[140px]">Lokasi Kegiatan</th>
+                        <th class="border border-slate-400 px-3 py-2.5 w-36">Nominal (Rp)</th>
+                        <th class="border border-slate-400 px-2 py-2.5 w-24">Realisasi (√)</th>
+                        <th class="border border-slate-400 px-3 py-2.5 min-w-[160px]">Keterangan</th>
+                        <th class="border border-slate-400 px-2 py-2.5 w-24 no-print">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="tabel-evaluasi-body" class="divide-y divide-slate-300">
+                    <!-- Dynamic Rows via JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SIGNATURE BOX (PRINT ONLY) -->
+        <div class="hidden print:flex justify-between items-start mt-8 text-[10px] font-bold page-break-inside-avoid">
+            <div class="text-center w-60">
+                <p>Mengetahui,</p>
+                <p>Kepala Desa Batetangnga</p>
+                <div class="h-16"></div>
+                <p class="underline font-extrabold">SUMAILA DAMANG</p>
+            </div>
+            <div class="text-center w-60">
+                <p id="print-footer-tgl">Batetangnga, 1 Agustus 2026</p>
+                <p>Disusun oleh,<br>Ketua Tim Penyusun RKPDesa</p>
+                <div class="h-16"></div>
+                <p class="underline font-extrabold" id="print-footer-ketua">ABDUL AZIS, S. Pd</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JS SCRIPTS -->
+    <script>
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(html => {
+                document.getElementById('navbar-placeholder').innerHTML = html;
+            });
+    </script>
+    <script src="evaluasi.js"></script>
+</body>
+
+</html>

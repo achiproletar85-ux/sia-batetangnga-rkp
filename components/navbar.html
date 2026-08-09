@@ -1,0 +1,211 @@
+<!-- navbar.html - Premium Dark Indigo Header with Self-Executing Auth Controls -->
+<style>
+    .nav-link-item {
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .nav-link-item:hover {
+        background-color: rgba(255, 255, 255, 0.12);
+        transform: translateY(-1px);
+    }
+    .nav-link-item.active {
+        background-color: rgba(249, 115, 22, 0.25);
+        border-color: rgba(249, 115, 22, 0.5);
+        color: #fb923c !important;
+        font-weight: 700;
+    }
+    .nav-scroll-bar::-webkit-scrollbar {
+        height: 3px;
+    }
+    .nav-scroll-bar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 99px;
+    }
+    .logout-btn-nav {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        transition: all 0.2s ease;
+    }
+    .logout-btn-nav:hover {
+        background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.45);
+    }
+
+    /* Modal Konfirmasi Logout */
+    #modalLogoutConfirm {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        align-items: center;
+        justify-content: center;
+        background: rgba(2, 6, 23, 0.65);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+    .logout-card-anim {
+        animation: modalPopIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    @keyframes modalPopIn {
+        from { opacity: 0; transform: scale(0.92) translateY(10px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+</style>
+
+<nav class="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 text-slate-100 shadow-xl sticky top-0 z-50 w-full border-b border-indigo-900/50 backdrop-blur-md">
+    <div class="w-full px-3 py-1 flex items-center justify-between gap-2">
+        
+        <!-- SIDE LEFT: BRAND LOGO -->
+        <div class="flex items-center gap-2.5 shrink-0 pr-2 border-r border-slate-800">
+            <a href="/" class="flex items-center gap-2 group">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-400 text-white flex items-center justify-center font-black text-xs shadow-md shadow-orange-500/30 group-hover:scale-105 transition-transform">
+                    SIA
+                </div>
+                <div class="hidden sm:block">
+                    <span class="text-xs font-black tracking-tight text-white block leading-none">Batetangnga</span>
+                    <span class="text-[9px] font-semibold text-orange-400 leading-none">Keuangan Desa</span>
+                </div>
+            </a>
+        </div>
+
+        <!-- CENTER: SCROLLABLE NAVIGATION TABS -->
+        <div class="flex items-center gap-1 h-11 nav-scroll-bar overflow-x-auto text-xs font-medium flex-1">
+            <a href="/" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/">
+                <i class="fas fa-gauge-high text-cyan-400"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/rpjmdes.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/rpjmdes">
+                <i class="fas fa-calendar-check text-blue-400"></i>
+                <span>RPJMDes</span>
+            </a>
+            <a href="/rkpdes.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/rkpdes">
+                <i class="fas fa-scroll text-orange-400"></i>
+                <span>RKPDes</span>
+            </a>
+            <a href="/du-rkpdes.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/du-rkpdes">
+                <i class="fas fa-list-check text-emerald-400"></i>
+                <span>DU-RKP</span>
+            </a>
+            <a href="/prioritas-usulan.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/prioritas-usulan">
+                <i class="fas fa-flag text-amber-400"></i>
+                <span>Prioritas</span>
+            </a>
+            <a href="/rancangan-rkpdes.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/rancangan-rkpdes">
+                <i class="fas fa-file-lines text-amber-300"></i>
+                <span>Rancangan</span>
+            </a>
+            <a href="/rab.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/rab">
+                <i class="fas fa-coins text-emerald-400"></i>
+                <span>RAB</span>
+            </a>
+            <a href="/program-masuk-desa.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/program-masuk-desa">
+                <i class="fas fa-arrow-right-to-bracket text-teal-400"></i>
+                <span>Program Masuk</span>
+            </a>
+            <a href="/kerjasama.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/kerjasama">
+                <i class="fas fa-handshake text-indigo-400"></i>
+                <span>Kerjasama</span>
+            </a>
+            <a href="/kerjasama-pihak-ketiga.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/kerjasama-pihak-ketiga">
+                <i class="fas fa-users text-purple-400"></i>
+                <span>Pihak Ketiga</span>
+            </a>
+            <a href="/evaluasi.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/evaluasi">
+                <i class="fas fa-chart-simple text-rose-400"></i>
+                <span>Evaluasi</span>
+            </a>
+            <a href="/laporan-perkembangan.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/laporan-perkembangan">
+                <i class="fas fa-file-lines text-pink-400"></i>
+                <span>Laporan</span>
+            </a>
+            <a href="/verifikasi-proposal.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/verifikasi-proposal">
+                <i class="fas fa-check-double text-cyan-400"></i>
+                <span>Verifikasi</span>
+            </a>
+            <a href="/stunting.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/stunting">
+                <i class="fas fa-child text-fuchsia-400"></i>
+                <span>Stunting</span>
+            </a>
+            <a href="/rktl.html" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-slate-300 hover:text-white flex items-center gap-1.5" data-path="/rktl">
+                <i class="fas fa-tasks text-lime-400"></i>
+                <span>RKT</span>
+            </a>
+            <a href="/dokumen-desa.html" class="nav-link-item px-3 py-1.5 rounded-xl whitespace-nowrap text-white font-bold bg-gradient-to-r from-orange-500 to-amber-600 shadow-md shadow-orange-500/20 flex items-center gap-2 border border-orange-400/30" data-path="/dokumen-desa">
+                <i class="fas fa-folder-open text-white"></i>
+                <span>28 Dokumen Engine</span>
+            </a>
+            <a href="/ganti-password" class="nav-link-item px-2.5 py-1.5 rounded-xl whitespace-nowrap text-amber-300 hover:text-amber-200 flex items-center gap-1.5 border border-amber-500/30 bg-amber-500/10" data-path="/ganti-password">
+                <i class="fas fa-key text-amber-400"></i>
+                <span class="font-bold">Ganti Password</span>
+            </a>
+        </div>
+
+        <!-- RIGHT SIDE: USER PROFILE & LOGOUT BUTTON -->
+        <div class="flex items-center gap-2 shrink-0 pl-2 border-l border-slate-800">
+            <!-- User Avatar & Info -->
+            <div class="hidden lg:flex items-center gap-2 bg-slate-900/80 px-2.5 py-1 rounded-xl border border-slate-800">
+                <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white text-[10px] font-black" id="topNavAvatar">
+                    A
+                </div>
+                <div class="text-[11px]">
+                    <span class="font-bold text-slate-200 block leading-none" id="topNavUser">Admin</span>
+                    <span class="text-[9px] text-emerald-400 font-semibold leading-none flex items-center gap-1 mt-0.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Online
+                    </span>
+                </div>
+            </div>
+
+            <!-- Tombol Keluar (Logout) Direct Pure Inline Trigger -->
+            <button type="button" onclick="document.getElementById('modalLogoutConfirm').style.display='flex';" class="logout-btn-nav text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 cursor-pointer">
+                <i class="fas fa-right-from-bracket"></i>
+                <span>Keluar</span>
+            </button>
+        </div>
+
+    </div>
+</nav>
+
+<!-- MODAL KONFIRMASI LOGOUT -->
+<div id="modalLogoutConfirm" onclick="if(event.target===this) this.style.display='none';">
+    <div class="logout-card-anim bg-white rounded-3xl p-7 max-w-sm w-full mx-4 text-center shadow-2xl border border-slate-100" onclick="event.stopPropagation()">
+        <div class="w-16 h-16 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-red-500 text-2xl mx-auto mb-4 shadow-inner">
+            <i class="fas fa-right-from-bracket"></i>
+        </div>
+        <h3 class="text-lg font-black text-slate-900 mb-1">Keluar dari Aplikasi?</h3>
+        <p class="text-xs text-slate-500 font-medium mb-6 leading-relaxed">
+            Anda akan keluar dari Sistem Informasi Akuntansi Desa Batetangnga. Sesi aktif Anda akan diakhiri.
+        </p>
+        <div class="flex items-center gap-3">
+            <button type="button" onclick="document.getElementById('modalLogoutConfirm').style.display='none';" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition">
+                Batal
+            </button>
+            <button type="button" onclick="sessionStorage.clear(); localStorage.clear(); window.location.href='/login';" class="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-lg shadow-red-500/30">
+                <i class="fas fa-right-from-bracket mr-1"></i> Ya, Keluar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Self-Executing Script on innerHTML Injection -->
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" style="display:none;" onerror="if (this.dataset.done) return; this.dataset.done = 1; (function(){
+    var path = window.location.pathname;
+    var navLinks = document.querySelectorAll('.nav-link-item');
+    navLinks.forEach(function(link) {
+        var dataPath = link.getAttribute('data-path');
+        if (dataPath === '/' && (path === '/' || path === '/index.html')) {
+            link.classList.add('active');
+        } else if (dataPath !== '/' && path.includes(dataPath)) {
+            link.classList.add('active');
+        }
+    });
+    try {
+        var user = JSON.parse(sessionStorage.getItem('sia_user')) || JSON.parse(localStorage.getItem('sia_user'));
+        if (user) {
+            var userEl = document.getElementById('topNavUser');
+            var avatarEl = document.getElementById('topNavAvatar');
+            if (userEl) userEl.textContent = user.name || user.username || 'Admin';
+            if (avatarEl) avatarEl.textContent = (user.name || user.username || 'A')[0].toUpperCase();
+        }
+    } catch(e) {}
+    this.remove();
+}).call(this);" />

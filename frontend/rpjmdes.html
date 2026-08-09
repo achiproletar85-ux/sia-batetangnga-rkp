@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RPJMDes - SIA Batetangnga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="/global-tahun.js"></script>
+    <style>
+        /* ===== GLOBAL MODERN DESIGN SYSTEM ===== */
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        * { box-sizing: border-box; }
+        body { background: #f8fafc; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #0f172a; }
+        .glass { background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border: 1px solid rgba(226,232,240,0.8); }
+        .btn-primary { background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); color: white; padding: 10px 22px; border-radius: 14px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 12px rgba(79,70,229,0.25); }
+        .btn-primary:hover { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(79,70,229,0.35); }
+        .btn-success { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 10px 22px; border-radius: 14px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 12px rgba(16,185,129,0.25); }
+        .btn-success:hover { background: linear-gradient(135deg, #34d399 0%, #10b981 100%); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(16,185,129,0.35); }
+        .btn-secondary { background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; padding: 10px 22px; border-radius: 14px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(2,132,199,0.25); }
+        .btn-secondary:hover { background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%); transform: translateY(-1px); }
+        .btn-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 10px 22px; border-radius: 14px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(239,68,68,0.25); }
+        .btn-danger:hover { background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); transform: translateY(-1px); }
+        .btn-outline { background: #ffffff; color: #475569; padding: 10px 22px; border-radius: 14px; font-weight: 700; border: 1px solid #cbd5e1; cursor: pointer; transition: all 0.2s ease; }
+        .btn-outline:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
+        .input-field { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 12px; font-size: 13px; outline: none; transition: all 0.25s ease; background: #ffffff; color: #0f172a; font-weight: 500; }
+        .input-field:focus { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.12); background: #ffffff; }
+        .input-field:disabled, .input-field[readonly] { background: #f8fafc; color: #64748b; border-color: #cbd5e1; }
+        select.input-field { appearance: auto; }
+        .form-label { display: block; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(2,6,23,0.65); backdrop-filter: blur(8px); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal-overlay.show { display: flex; }
+        .modal-content { background: #ffffff; border-radius: 24px; max-width: 900px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 32px; box-shadow: 0 25px 60px -15px rgba(15,23,42,0.3); border: 1px solid rgba(226,232,240,0.8); }
+        .modal-content::-webkit-scrollbar { width: 6px; }
+        .modal-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .toast { position: fixed; bottom: 30px; right: 30px; padding: 14px 24px; border-radius: 16px; color: white; font-weight: 700; z-index: 9999; display: none; align-items: center; gap: 10px; box-shadow: 0 20px 35px -10px rgba(0,0,0,0.3); }
+        .toast.show { display: flex; }
+        .toast.success { background: linear-gradient(135deg, #10b981, #059669); }
+        .toast.error { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .toast.warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+        th { background: #f8fafc; text-align: left; padding: 12px 14px; font-weight: 800; color: #475569; border-bottom: 2px solid #e2e8f0; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
+        td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        tr:hover { background: #f8fafc; }
+        .badge-ranking { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; }
+        .badge-I { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+        .badge-II { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .badge-III { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+        .badge-IV { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; }
+        .grid-5 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 14px; }
+        @media (max-width: 768px) { .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; } }
+        .section-title { font-size: 12px; font-weight: 800; color: #334155; padding: 10px 0 6px 0; border-bottom: 2px solid #e2e8f0; margin: 20px 0 14px 0; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .section-title i { color: #4f46e5; }
+        .target-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 800; }
+        .target-yes { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+        .target-no { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+        .stat-card { background: #ffffff; padding: 20px 24px; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(15,23,42,0.04); border: 1px solid #e2e8f0; transition: all 0.25s ease; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 12px 20px -5px rgba(15,23,42,0.08); }
+        .stat-card .number { font-size: 26px; font-weight: 900; color: #0f172a; font-family: 'Outfit', sans-serif; }
+        .stat-card .label { font-size: 11px; color: #64748b; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+        .stat-card .icon { font-size: 22px; color: #4f46e5; }
+        .hidden-field { display: none; }
+        .tab-active { background: #4f46e5; color: white !important; }
+    </style>
+</head>
+<body>
+    <div id="navbar-container"></div>
+
+<!-- ============================================================ -->
+<!-- TOAST NOTIFIKASI -->
+<!-- ============================================================ -->
+<div id="toast" class="toast">
+    <i id="toast-icon" class="fas fa-check-circle"></i>
+    <span id="toast-msg">Notifikasi</span>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL FORM TAMBAH / EDIT -->
+<!-- ============================================================ -->
+<div id="modal-form" class="modal-overlay">
+    <div class="modal-content">
+        <!-- HEADER MODAL -->
+        <div class="flex justify-between items-center mb-4 pb-3 border-b">
+            <h2 id="modal-title" class="text-xl font-bold text-slate-800">
+                <i class="fas fa-plus-circle text-indigo-600 mr-2"></i>Tambah Data RPJMDes
+            </h2>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+        </div>
+
+        <form id="form-rpjmdes" onsubmit="saveData(event)">
+            <input type="hidden" id="form-id" value="" />
+
+            <!-- ========================================================== -->
+            <!-- BAGIAN 1: KODE OTOMATIS (READONLY) -->
+            <!-- ========================================================== -->
+            <div class="section-title"><i class="fas fa-code"></i> Kode Otomatis</div>
+            <div class="grid-4">
+                <div>
+                    <label class="form-label">Kode Bidang</label>
+                    <input type="text" id="form-kode-bidang" class="input-field" readonly />
+                </div>
+                <div>
+                    <label class="form-label">Kode Sub</label>
+                    <input type="text" id="form-kode-sub" class="input-field" readonly />
+                </div>
+                <div>
+                    <label class="form-label">Kode Kegiatan</label>
+                    <input type="text" id="form-kode-kegiatan" class="input-field" readonly />
+                </div>
+                <div>
+                    <label class="form-label">Kode Unik Full</label>
+                    <input type="text" id="form-kode-unik" class="input-field" readonly />
+                </div>
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- BAGIAN 2: DATA DASAR -->
+            <!-- ========================================================== -->
+            <div class="section-title"><i class="fas fa-info-circle"></i> Data Dasar</div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">Nama Kegiatan <span class="text-red-500">*</span></label>
+                    <input type="text" id="form-nama" class="input-field" required placeholder="Nama kegiatan..." />
+                </div>
+                <div>
+                    <label class="form-label">Pagu RPJM (Rp)</label>
+                    <input type="text" id="form-pagu" class="input-field" placeholder="0" oninput="formatRupiahInput(this)" />
+                </div>
+            </div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">Sifat Kegiatan</label>
+                    <select id="form-sifat" class="input-field">
+                        <option value="Rutin">Rutin</option>
+                        <option value="Sekali">Sekali</option>
+                        <option value="Bertahap">Bertahap</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Kode Unik (H)</label>
+                    <input type="text" id="form-kode-unik-h" class="input-field" readonly />
+                </div>
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- BAGIAN 3: LOKASI & USULAN -->
+            <!-- ========================================================== -->
+            <div class="section-title"><i class="fas fa-map-marker-alt"></i> Lokasi & Usulan</div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">Volume Kegiatan</label>
+                    <input type="text" id="form-volume" class="input-field" placeholder="Contoh: 12 Bulan, 100 Meter" />
+                </div>
+                <div>
+                    <label class="form-label">Lokasi Kegiatan</label>
+                    <input type="text" id="form-lokasi" class="input-field" placeholder="Dusun / Desa" />
+                </div>
+            </div>
+            <div>
+                <label class="form-label">Usulan Berdasarkan</label>
+                <select id="form-usulan" class="input-field">
+                    <option value="">-- Pilih --</option>
+                    <option value="Bagan Kelembagaan">Bagan Kelembagaan</option>
+                    <option value="Kalender Musim">Kalender Musim</option>
+                    <option value="Peta Jalan Desa">Peta Jalan Desa</option>
+                    <option value="Pohon Masalah">Pohon Masalah</option>
+                    <option value="Sketsa Desa">Sketsa Desa</option>
+                </select>
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- BAGIAN 4: DROPDOWN BERTINGKAT (BIDANG → JENIS BIDANG → JENIS KEGIATAN) -->
+            <!-- ========================================================== -->
+            <div class="section-title"><i class="fas fa-sitemap"></i> Klasifikasi</div>
+            <div class="grid-3">
+                <div>
+                    <label class="form-label">Bidang</label>
+                    <select id="form-bidang" class="input-field" onchange="onBidangChange()">
+                        <option value="">-- Pilih Bidang --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Jenis Bidang (Sub Bidang)</label>
+                    <select id="form-jenis-bidang" class="input-field" onchange="onJenisBidangChange()">
+                        <option value="">-- Pilih --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Jenis Kegiatan</label>
+                    <select id="form-jenis-kegiatan" class="input-field" onchange="onJenisKegiatanChange()">
+                        <option value="">-- Pilih --</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- BAGIAN 5: SDGS & PENGUSUL -->
+            <!-- ========================================================== -->
+            <div class="section-title"><i class="fas fa-globe"></i> SDGs & Pengusul</div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">SDGS</label>
+                    <select id="form-sdgs" class="input-field">
+                        <option value="">-- Pilih --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Nama Pengusul</label>
+                    <input type="text" id="form-pengusul" class="input-field" placeholder="Nama pengusul..." />
+                </div>
+            </div>
+            <div>
+                <label class="form-label">Data Existing</label>
+                <input type="text" id="form-data-existing" class="input-field" placeholder="Data existing..." />
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- BAGIAN 6: PENERIMA MANFAAT -->
+            <!-- ========================================================== -->
+            <div class="section-title"><i class="fas fa-users"></i> Penerima Manfaat</div>
+            <div class="grid-3">
+                <div>
+                    <label class="form-label">Manfaat Laki-laki</label>
+                    <input type="number" id="form-manfaat-l" class="input-field" value="0" min="0" oninput="hitungTotalManfaat()" />
+                </div>
+                <div>
+                    <label class="form-label">Manfaat Perempuan</label>
+                    <input type="number" id="form-manfaat-p" class="input-field" value="0" min="0" oninput="hitungTotalManfaat()" />
+                </div>
+                <div>
+                    <label class="form-label">Manfaat RTM</label>
+                    <input type="number" id="form-manfaat-rtm" class="input-field" value="0" min="0" oninput="hitungTotalManfaat()" />
+                </div>
+            </div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">Total Penerima Manfaat</label>
+                    <input type="text" id="form-total-manfaat" class="input-field" readonly value="0" />
+                </div>
+                <div>
+                    <label class="form-label">Waktu Pelaksanaan</label>
+                    <select id="form-waktu" class="input-field">
+                        <option value="">-- Pilih --</option>
+                        <option value="Januari">Januari</option><option value="Februari">Februari</option>
+                        <option value="Maret">Maret</option><option value="April">April</option>
+                        <option value="Mei">Mei</option><option value="Juni">Juni</option>
+                        <option value="Juli">Juli</option><option value="Agustus">Agustus</option>
+                        <option value="September">September</option><option value="Oktober">Oktober</option>
+                        <option value="November">November</option><option value="Desember">Desember</option>
+                        <option value="12 Bulan/Tahun">12 Bulan/Tahun</option>
+                        <option value="Januari s/d Desember">Januari s/d Desember</option>
+                        <option value="Januari s/d Juni">Januari s/d Juni</option>
+                        <option value="Juli s/d Desember">Juli s/d Desember</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- BAGIAN 7: ANGGARAN & SUMBER DANA -->
+            <!-- ========================================================== -->
+            <div class="section-title"><i class="fas fa-coins"></i> Anggaran & Sumber Dana</div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">Anggaran Perubahan (Rp)</label>
+                    <input type="text" id="form-anggaran-perubahan" class="input-field" placeholder="0" oninput="formatRupiahInput(this)" />
+                </div>
+                <div>
+                    <label class="form-label">Sumber Dana</label>
+                    <select id="form-sumber-dana" class="input-field">
+                        <option value="">-- Pilih --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">Pola Pelaksanaan</label>
+                    <select id="form-pola" class="input-field">
+                        <option value="Swakelola">Swakelola</option>
+                        <option value="Pihak Ketiga">Pihak Ketiga</option>
+                        <option value="Kerja Sama Pihak Lain">Kerja Sama Pihak Lain</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Skala Prioritas</label>
+                    <select id="form-skala" class="input-field">
+                        <option value="Ya">Ya</option>
+                        <option value="Tidak">Tidak</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="form-label">Urutan Prioritas</label>
+                <select id="form-urutan" class="input-field">
+                    <option value="">-- Pilih --</option>
+                    <option value="I">I</option>
+                    <option value="II">II</option>
+                    <option value="III">III</option>
+                    <option value="IV">IV</option>
+                    <option value="V">V</option>
+                </select>
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- BAGIAN 8: MASALAH & POTENSI -->
+            <!-- ========================================================== -->
+            <div class="section-title"><i class="fas fa-exclamation-triangle"></i> Masalah & Potensi</div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">Masalah</label>
+                    <textarea id="form-masalah" class="input-field" rows="2" placeholder="Deskripsi masalah..."></textarea>
+                </div>
+                <div>
+                    <label class="form-label">Penyebab</label>
+                    <textarea id="form-penyebab" class="input-field" rows="2" placeholder="Penyebab masalah..."></textarea>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">Potensi</label>
+                    <textarea id="form-potensi" class="input-field" rows="2" placeholder="Potensi yang ada..."></textarea>
+                </div>
+                <div>
+                    <label class="form-label">Alternatif Pemecahan</label>
+                    <textarea id="form-alternatif" class="input-field" rows="2" placeholder="Alternatif pemecahan..."></textarea>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">Tindakan Masalah</label>
+                    <textarea id="form-tindakan-masalah" class="input-field" rows="2" placeholder="Tindakan terhadap masalah..."></textarea>
+                </div>
+                <div>
+                    <label class="form-label">Tindakan yang Layak</label>
+                    <textarea id="form-tindakan-layak" class="input-field" rows="2" placeholder="Tindakan yang layak..."></textarea>
+                </div>
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- BAGIAN 9: TARGET TAHUN (2023-2030) -->
+            <!-- ========================================================== -->
+            <div class="section-title"><i class="fas fa-calendar-alt"></i> Target Tahun</div>
+            <div class="grid-4">
+                <script>
+                    for (let y = 2023; y <= 2030; y++) {
+                        document.write(`
+                            <div class="text-center">
+                                <label class="form-label text-center">${y}</label>
+                                <select id="form-target-${y}" class="input-field text-center">
+                                    <option value="-">Tidak</option>
+                                    <option value="${y}">Ya</option>
+                                </select>
+                            </div>
+                        `);
+                    }
+                </script>
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- BAGIAN 10: SKORING MASALAH (0-100) -->
+            <!-- ========================================================== -->
+            <div class="section-title"><i class="fas fa-sliders-h"></i> Skoring Masalah (0-100)</div>
+            <div class="grid-5">
+                <div>
+                    <label class="form-label text-[10px]">Dirasakan</label>
+                    <input type="number" id="form-dirasakan" class="input-field" value="0" min="0" max="100" oninput="hitungSkorMasalah()" />
+                </div>
+                <div>
+                    <label class="form-label text-[10px]">Parah</label>
+                    <input type="number" id="form-parah" class="input-field" value="0" min="0" max="100" oninput="hitungSkorMasalah()" />
+                </div>
+                <div>
+                    <label class="form-label text-[10px]">Hambat</label>
+                    <input type="number" id="form-hambat" class="input-field" value="0" min="0" max="100" oninput="hitungSkorMasalah()" />
+                </div>
+                <div>
+                    <label class="form-label text-[10px]">Sering</label>
+                    <input type="number" id="form-sering" class="input-field" value="0" min="0" max="100" oninput="hitungSkorMasalah()" />
+                </div>
+                <div>
+                    <label class="form-label text-[10px]">Potensi Skor</label>
+                    <input type="number" id="form-potensi-skor" class="input-field" value="0" min="0" max="100" oninput="hitungSkorMasalah()" />
+                </div>
+            </div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">Jumlah Nilai Total</label>
+                    <input type="text" id="form-jumlah-nilai" class="input-field" readonly value="0" />
+                </div>
+                <div>
+                    <label class="form-label">Uraian Peringkat</label>
+                    <input type="text" id="form-uraian-peringkat" class="input-field" readonly value="-" />
+                </div>
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- BAGIAN 11: SKORING KESESUAIAN (0-100) -->
+            <!-- ========================================================== -->
+            <div class="section-title"><i class="fas fa-check-double"></i> Skoring Kesesuaian (0-100)</div>
+            <div class="grid-4">
+                <div>
+                    <label class="form-label text-[10px]">Visi Misi</label>
+                    <input type="number" id="form-visi-misi" class="input-field" value="0" min="0" max="100" oninput="hitungKesesuaian()" />
+                </div>
+                <div>
+                    <label class="form-label text-[10px]">Pokok BPD</label>
+                    <input type="number" id="form-pokok-bpd" class="input-field" value="0" min="0" max="100" oninput="hitungKesesuaian()" />
+                </div>
+                <div>
+                    <label class="form-label text-[10px]">Program Masyarakat</label>
+                    <input type="number" id="form-program-masy" class="input-field" value="0" min="0" max="100" oninput="hitungKesesuaian()" />
+                </div>
+                <div>
+                    <label class="form-label text-[10px]">Prioritas SDGs</label>
+                    <input type="number" id="form-prioritas-sdgs" class="input-field" value="0" min="0" max="100" oninput="hitungKesesuaian()" />
+                </div>
+            </div>
+            <div class="grid-2">
+                <div>
+                    <label class="form-label">Total Kesesuaian</label>
+                    <input type="text" id="form-total-kesesuaian" class="input-field" readonly value="0" />
+                </div>
+                <div>
+                    <label class="form-label">Ranking</label>
+                    <input type="text" id="form-ranking" class="input-field" readonly value="-" />
+                </div>
+            </div>
+
+            <!-- ========================================================== -->
+            <!-- TOMBOL MODAL -->
+            <!-- ========================================================== -->
+            <div class="flex justify-end gap-3 mt-6 pt-4 border-t">
+                <button type="button" onclick="closeModal()" class="btn-outline">Batal</button>
+                <button type="submit" id="btn-submit" class="btn-primary">
+                    <i class="fas fa-save"></i> Simpan
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- NAVIGATION NAVBAR -->
+<div class="bg-indigo-900 text-white shadow-lg mb-6 w-full">
+    <div class="container-full py-3 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+            <i class="fas fa-building-columns text-2xl text-indigo-300"></i>
+            <div>
+                <h1 class="font-extrabold text-lg tracking-wide">SIA BATETANGNGA</h1>
+                <p class="text-xs text-indigo-200">Sistem Informasi Akuntansi & Perencanaan Desa</p>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-2 text-xs font-semibold">
+            <a href="rpjmdes.html" class="px-3 py-1.5 rounded-lg bg-indigo-700 text-white"><i class="fas fa-layer-group mr-1"></i> RPJMDes</a>
+            <a href="rkpdes.html" class="px-3 py-1.5 rounded-lg hover:bg-indigo-800 text-indigo-100"><i class="fas fa-calendar-check mr-1"></i> RKPDes</a>
+            <a href="rab.html" class="px-3 py-1.5 rounded-lg hover:bg-indigo-800 text-indigo-100"><i class="fas fa-file-invoice-dollar mr-1"></i> RAB</a>
+            <a href="pembiayaan.html" class="px-3 py-1.5 rounded-lg hover:bg-indigo-800 text-indigo-100"><i class="fas fa-wallet mr-1"></i> Pembiayaan</a>
+            <button id="nav-pagu-indikatif" onclick="switchTab('pagu-indikatif')" class="nav-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-100 hover:bg-indigo-800 rounded-lg transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <span>Pagu Indikatif</span>
+            </button>
+            <a href="usulan.html" class="px-3 py-1.5 rounded-lg hover:bg-indigo-800 text-indigo-100"><i class="fas fa-list-check mr-1"></i> Usulan</a>
+            <a href="sdgs.html" class="px-3 py-1.5 rounded-lg hover:bg-indigo-800 text-indigo-100"><i class="fas fa-globe mr-1"></i> SDGs</a>
+            <a href="evaluasi.html" class="px-3 py-1.5 rounded-lg hover:bg-indigo-800 text-indigo-100"><i class="fas fa-chart-line mr-1"></i> Evaluasi</a>
+        </div>
+    </div>
+</div>
+
+<div class="container-full p-4">
+
+    <!-- HEADER -->
+    <div class="glass rounded-2xl shadow-lg p-6 mb-6 border border-white/40">
+        <div class="flex flex-wrap justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-black text-slate-800 flex items-center gap-3">
+                    <span class="p-2 bg-indigo-600 text-white rounded-xl shadow-lg"><i class="fas fa-layer-group"></i></span>
+                    RPJMDes
+                </h1>
+                <p class="text-sm text-slate-500 font-medium">Rencana Pembangunan Jangka Menengah Desa</p>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <button onclick="window.location.href='index.html'" class="btn-outline">
+                    <i class="fas fa-arrow-left"></i> Kembali
+                </button>
+                <button onclick="window.location.href='rab.html'" class="btn-secondary">
+                    <i class="fas fa-file-invoice-dollar"></i> RAB 2027
+                </button>
+                <button onclick="openAddModal()" class="btn-success">
+                    <i class="fas fa-plus"></i> Tambah Data
+                </button>
+                <button onclick="loadData()" class="btn-primary">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILTER & STATISTIK -->
+    <div class="glass rounded-2xl shadow-lg p-5 mb-6 border border-white/40">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label class="form-label">Tahun Target</label>
+<select id="filter-tahun" class="input-field" onchange="filterChangeAndLoad()">
+                    <option value="" selected>Semua Tahun</option>
+                    <option value="2022">2022</option>
+                    <option value="2023">2023</option>
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                    <option value="2028">2028</option>
+                    <option value="2029">2029</option>
+                    <option value="2030">2030</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Bidang</label>
+                <select id="filter-bidang" class="input-field" onchange="filterChangeAndLoad()">
+                    <option value="ALL">Semua Bidang</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Cari</label>
+                <input type="text" id="filter-search" class="input-field" placeholder="Cari kegiatan..." oninput="loadDataDelayed()" />
+            </div>
+            <div class="flex items-end">
+                <button onclick="filterChangeAndLoad()" class="btn-primary w-full">
+                    <i class="fas fa-search"></i> Cari
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- STATISTIK CARD -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="stat-card">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-indigo-100 rounded-lg"><i class="fas fa-tasks text-indigo-600"></i></div>
+                <div>
+                    <p class="label">Total Kegiatan</p>
+                    <p class="number" id="stat-total">0</p>
+                </div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-emerald-100 rounded-lg"><i class="fas fa-money-bill-wave text-emerald-600"></i></div>
+                <div>
+                    <p class="label">Total Pagu</p>
+                    <p class="number text-emerald-600" id="stat-pagu">Rp 0</p>
+                </div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-blue-100 rounded-lg"><i class="fas fa-eye text-blue-600"></i></div>
+                <div>
+                    <p class="label">Ditampilkan</p>
+                    <p class="number text-blue-600" id="stat-tampil">0</p>
+                </div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-amber-100 rounded-lg"><i class="fas fa-flag-checkered text-amber-600"></i></div>
+                <div>
+                    <p class="label">Ranking I</p>
+                    <p class="number text-amber-600" id="stat-ranking1">0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABEL DATA -->
+    <div class="glass rounded-2xl shadow-lg overflow-hidden border border-white/40">
+        <div class="overflow-x-auto">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:50px;">No</th>
+                        <th style="width:120px;">Kode Unik</th>
+                        <th>Nama Kegiatan</th>
+                        <th style="width:150px;">Bidang</th>
+                        <th style="width:120px;">Pagu (Rp)</th>
+                        <th style="width:80px;">Target</th>
+                        <th style="width:70px;">Ranking</th>
+                        <th style="width:100px;">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <tr>
+                        <td colspan="8" class="text-center py-12 text-slate-400">
+                            <i class="fas fa-spinner fa-spin text-2xl"></i>
+                            <p class="mt-2 font-medium">Memuat data...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <!-- PAGINATION -->
+        <div class="p-4 border-t flex flex-wrap justify-between items-center gap-3 bg-slate-50/50">
+            <span class="text-sm text-slate-500" id="pagination-info">Menampilkan 0 data</span>
+            <div class="flex gap-2">
+                <button onclick="prevPage()" id="btn-prev" class="px-4 py-1.5 border rounded-lg text-sm font-medium hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed">Prev</button>
+                <span class="px-3 py-1.5 text-sm font-medium" id="page-info">Halaman 1</span>
+                <button onclick="nextPage()" id="btn-next" class="px-4 py-1.5 border rounded-lg text-sm font-medium hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SCRIPT -->
+<!-- ============================================================ -->
+<script>
+    // ========== VARIABLES ==========
+    const API_URL = (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin !== 'null') ? (window.location.origin + '/api') : '/api';
+    let currentPage = 1;
+    let totalPages = 1;
+    let totalData = 0;
+    let editingId = null;
+
+    // Data dropdown dari master_klasifikasi
+    let klasifikasiData = [];
+    let bidangList = [];
+    let jenisBidangMap = {};
+    let jenisKegiatanMap = {};
+    let latestKodePrefix = '';
+
+    // ========== TOAST ==========
+    function showToast(msg, type = 'success') {
+        const toast = document.getElementById('toast');
+        const icon = document.getElementById('toast-icon');
+        const msgEl = document.getElementById('toast-msg');
+        msgEl.textContent = msg;
+        toast.className = `toast show ${type}`;
+        icon.className = type === 'success' ? 'fas fa-check-circle' : type === 'error' ? 'fas fa-exclamation-circle' : 'fas fa-info-circle';
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(() => { toast.classList.remove('show'); }, 3500);
+    }
+
+    // ========== FORMAT RUPIAH ==========
+    function formatRupiah(angka) {
+        if (!angka) return '0';
+        return new Intl.NumberFormat('id-ID').format(angka);
+    }
+
+    function formatRupiahInput(el) {
+        let val = el.value.replace(/\D/g, '');
+        if (val === '') return;
+        el.value = formatRupiah(parseInt(val));
+    }
+
+    function parseRupiah(str) {
+        if (!str) return 0;
+        return parseInt(str.replace(/\D/g, '')) || 0;
+    }
+
+    function getCodeHierarchy(item) {
+        if (!item) return { kBid: '', kSub: '', kKeg: '', kUnik: '' };
+        const fullCode = String(item.kode_unik_full || item.kode_unik || item.kode_klasifikasi || item.kode || '').trim();
+        const parts = fullCode.split('.').filter(p => p.length > 0);
+
+        const kBid = String(
+            item.kode_bidang || 
+            (parts[0] ? parts[0] + '.' : '')
+        ).trim();
+
+        const kSub = String(
+            item.kode_sub || item.kode_sub_bidang || item.kode_jenis_bidang || 
+            (parts[0] && parts[1] ? parts[0] + '.' + parts[1] + '.' : '')
+        ).trim();
+
+        const kKeg = String(
+            item.kode_kegiatan || 
+            (parts[0] && parts[1] && parts[2] ? parts[0] + '.' + parts[1] + '.' + parts[2] + '.' : '')
+        ).trim();
+
+        const kUnik = fullCode;
+
+        return { kBid, kSub, kKeg, kUnik };
+    }
+
+    function sortHierarchical(dataArray) {
+        if (!Array.isArray(dataArray)) return dataArray;
+        return dataArray.sort((a, b) => {
+            const hA = getCodeHierarchy(a);
+            const hB = getCodeHierarchy(b);
+
+            if (hA.kBid !== hB.kBid && hA.kBid && hB.kBid) {
+                return hA.kBid.localeCompare(hB.kBid, undefined, { numeric: true, sensitivity: 'base' });
+            }
+            if (hA.kSub !== hB.kSub && hA.kSub && hB.kSub) {
+                return hA.kSub.localeCompare(hB.kSub, undefined, { numeric: true, sensitivity: 'base' });
+            }
+            if (hA.kKeg !== hB.kKeg && hA.kKeg && hB.kKeg) {
+                return hA.kKeg.localeCompare(hB.kKeg, undefined, { numeric: true, sensitivity: 'base' });
+            }
+            return hA.kUnik.localeCompare(hB.kUnik, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    }
+
+    // Helper functions for safe property code matching
+    function getSelectedBidang() {
+        return String(document.getElementById('form-bidang')?.value || document.getElementById('select-bidang')?.value || '').trim();
+    }
+
+    function matchBidangItem(item) {
+        const selectedBidang = getSelectedBidang();
+        if (!selectedBidang) return false;
+        const bKode = String(item.kode_bidang || '').trim();
+        const bText = String(item.bidang || '').trim();
+        return (bKode && bKode === selectedBidang) ||
+               (bText && bText === selectedBidang) ||
+               (selectedBidang.includes(bKode) && bKode.length > 0) ||
+               (bKode && selectedBidang.startsWith(bKode));
+    }
+
+    function matchSubItem(item) {
+        if (!matchBidangItem(item)) return false;
+        const selectedSub = String(document.getElementById('form-jenis-bidang')?.value || '').trim();
+        if (!selectedSub) return false;
+        const sKode = String(item.kode_sub || item.kode_sub_bidang || item.kode_jenis_bidang || '').trim();
+        const sText = String(item.sub_bidang || item.jenis_bidang || '').trim();
+        return (sKode && sKode === selectedSub) ||
+               (sText && sText === selectedSub) ||
+               (selectedSub.includes(sKode) && sKode.length > 0) ||
+               (sKode && selectedSub.startsWith(sKode));
+    }
+
+    // ========== LOAD DROPDOWN DATA ==========
+    async function loadDropdownData() {
+        try {
+            // 1. Load master_klasifikasi dari Supabase
+            const res = await fetch(`${API_URL}/master-klasifikasi`);
+            const result = await res.json();
+            if (result.success && Array.isArray(result.data)) {
+                klasifikasiData = result.data;
+                sortHierarchical(klasifikasiData);
+
+                // Populate bidang dropdown
+                const selBidang = document.getElementById('form-bidang');
+                if (selBidang) {
+                    selBidang.innerHTML = '<option value="">-- Pilih Bidang --</option>';
+                    
+                    const bidangMap = new Map();
+                    klasifikasiData.forEach(item => {
+                        const bName = String(item.bidang || '').trim();
+                        if (bName) {
+                            const h = getCodeHierarchy(item);
+                            if (!bidangMap.has(bName) || (h.kBid && !bidangMap.get(bName).kode)) {
+                                bidangMap.set(bName, { name: bName, kode: h.kBid || item.kode_bidang || '' });
+                            }
+                        }
+                    });
+
+                    bidangList = Array.from(bidangMap.values());
+                    bidangList.sort((a, b) => {
+                        const idxA = ORDER_BIDANG.indexOf(a.name);
+                        const idxB = ORDER_BIDANG.indexOf(b.name);
+                        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                        if (idxA !== -1) return -1;
+                        if (idxB !== -1) return 1;
+                        return a.kode.localeCompare(b.kode, undefined, { numeric: true, sensitivity: 'base' });
+                    });
+
+                    bidangList.forEach(bObj => {
+                        const label = bObj.kode ? `${bObj.kode} ${bObj.name}` : bObj.name;
+                        selBidang.innerHTML += `<option value="${bObj.name}">${label}</option>`;
+                    });
+                }
+            }
+
+            // 2. Load SDGS
+            const resSdgs = await fetch(`${API_URL}/sdgs`);
+            const resultSdgs = await resSdgs.json();
+            if (resultSdgs.success && Array.isArray(resultSdgs.data)) {
+                const selSdgs = document.getElementById('form-sdgs');
+                if (selSdgs) {
+                    selSdgs.innerHTML = '<option value="">-- Pilih --</option>';
+                    resultSdgs.data.forEach(item => {
+                        selSdgs.innerHTML += `<option value="${item.no}">${item.no}. ${item.sdgs}</option>`;
+                    });
+                }
+            }
+
+            // 3. Load Sumber Dana
+            const resSumber = await fetch(`${API_URL}/sumber-dana`);
+            const resultSumber = await resSumber.json();
+            if (resultSumber.success && Array.isArray(resultSumber.data)) {
+                const selSumber = document.getElementById('form-sumber-dana');
+                if (selSumber) {
+                    selSumber.innerHTML = '<option value="">-- Pilih --</option>';
+                    resultSumber.data.forEach(item => {
+                        selSumber.innerHTML += `<option value="${item}">${item}</option>`;
+                    });
+                }
+            }
+
+        } catch (error) {
+            console.error('Error loading dropdowns:', error);
+        }
+    }
+
+    // ========== DROPDOWN BERTINGKAT ==========
+    function onBidangChange() {
+        const selJenisBidang = document.getElementById('form-jenis-bidang');
+        const selJenisKegiatan = document.getElementById('form-jenis-kegiatan');
+
+        if (selJenisBidang) selJenisBidang.innerHTML = '<option value="">-- Pilih --</option>';
+        if (selJenisKegiatan) selJenisKegiatan.innerHTML = '<option value="">-- Pilih --</option>';
+
+        const selectedBidang = getSelectedBidang();
+        if (!selectedBidang || !Array.isArray(klasifikasiData)) {
+            updateKodeOtomatis();
+            return;
+        }
+
+        // Filter master data untuk bidang terpilih dengan safe matching
+        const filteredMaster = klasifikasiData.filter(matchBidangItem);
+
+        // Dapatkan daftar unik jenis bidang (sub bidang)
+        const subMap = new Map();
+        filteredMaster.forEach(item => {
+            const sbName = String(item.sub_bidang || item.jenis_bidang || '').trim();
+            if (sbName) {
+                const h = getCodeHierarchy(item);
+                if (!subMap.has(sbName) || (h.kSub && !subMap.get(sbName).kode)) {
+                    subMap.set(sbName, { name: sbName, kode: h.kSub || item.kode_sub || '' });
+                }
+            }
+        });
+
+        const subList = Array.from(subMap.values());
+        subList.sort((a, b) => a.kode.localeCompare(b.kode, undefined, { numeric: true, sensitivity: 'base' }));
+
+        if (selJenisBidang) {
+            subList.forEach(sb => {
+                const label = sb.kode ? `${sb.kode} ${sb.name}` : sb.name;
+                selJenisBidang.innerHTML += `<option value="${sb.name}">${label}</option>`;
+            });
+        }
+
+        updateKodeOtomatis();
+    }
+
+    function onJenisBidangChange() {
+        const selJenisKegiatan = document.getElementById('form-jenis-kegiatan');
+        if (selJenisKegiatan) selJenisKegiatan.innerHTML = '<option value="">-- Pilih --</option>';
+
+        const selectedSub = String(document.getElementById('form-jenis-bidang')?.value || '').trim();
+        if (!selectedSub || !Array.isArray(klasifikasiData)) {
+            updateKodeOtomatis();
+            return;
+        }
+
+        // Filter master data untuk jenis bidang terpilih dengan safe matching
+        const filteredKegiatan = klasifikasiData.filter(item => {
+            const hasKeg = Boolean(item.jenis_kegiatan || item.nama_kegiatan);
+            return matchSubItem(item) && hasKeg;
+        });
+
+        const kegList = [...filteredKegiatan];
+        sortHierarchical(kegList);
+
+        if (selJenisKegiatan) {
+            const seenName = new Set();
+            kegList.forEach(item => {
+                const h = getCodeHierarchy(item);
+                const kodeKeg = item.kode_klasifikasi || item.kode_kegiatan || h.kKeg || item.kode || '';
+                const namaJenis = item.jenis_kegiatan || item.nama_kegiatan || '';
+                if (kodeKeg && namaJenis && !seenName.has(namaJenis)) {
+                    seenName.add(namaJenis);
+                    const label = `[${kodeKeg}] ${namaJenis}`;
+                    selJenisKegiatan.innerHTML += `<option value="${namaJenis}" data-kode="${kodeKeg}">${label}</option>`;
+                }
+            });
+        }
+
+        onJenisKegiatanChange();
+    }
+
+    function onJenisKegiatanChange() {
+        const selJenisKegiatan = document.getElementById('form-jenis-kegiatan');
+        if (selJenisKegiatan && selJenisKegiatan.selectedIndex >= 0) {
+            const opt = selJenisKegiatan.options[selJenisKegiatan.selectedIndex];
+            const kodeKeg = opt ? (opt.dataset.kode || '') : '';
+            if (document.getElementById('form-kode-kegiatan')) {
+                document.getElementById('form-kode-kegiatan').value = kodeKeg;
+            }
+        }
+        updateKodeOtomatis();
+    }
+
+    // ========== KODE OTOMATIS ==========
+async function updateKodeOtomatis() {
+    const bidangValue = String(document.getElementById('form-bidang')?.value || '').trim();
+    const jenisBidangValue = String(document.getElementById('form-jenis-bidang')?.value || '').trim();
+    const jenisKegiatanKode = String(document.getElementById('form-kode-kegiatan')?.value || '').trim();
+
+    console.log('📌 Update Kode - Bidang:', bidangValue, 'Jenis Bidang:', jenisBidangValue, 'Jenis Kegiatan Kode:', jenisKegiatanKode);
+
+    let kodeBidang = '';
+    let kodeSub = '';
+
+    const bidangItem = klasifikasiData.find(item => matchBidangItem(item));
+    if (bidangItem) {
+        const h = getCodeHierarchy(bidangItem);
+        kodeBidang = h.kBid || bidangItem.kode_klasifikasi || '';
+    }
+
+    const subBidangItem = klasifikasiData.find(item => matchSubItem(item));
+    if (subBidangItem) {
+        const h = getCodeHierarchy(subBidangItem);
+        kodeSub = h.kSub || subBidangItem.kode_klasifikasi || '';
+    }
+    
+    if (document.getElementById('form-kode-bidang')) document.getElementById('form-kode-bidang').value = kodeBidang;
+    if (document.getElementById('form-kode-sub')) document.getElementById('form-kode-sub').value = kodeSub;
+    if (document.getElementById('form-kode-kegiatan')) document.getElementById('form-kode-kegiatan').value = jenisKegiatanKode;
+
+    if (editingId) {
+        return; // Jangan overwrite kode_unik_full saat mengedit data yang sudah ada
+    }
+
+    // GENERATE KODE UNIK if jenisKegiatanKode exists
+    if (jenisKegiatanKode) {
+        latestKodePrefix = jenisKegiatanKode;
+        try {
+            const newKode = await generateNextKode(jenisKegiatanKode);
+            if (latestKodePrefix !== jenisKegiatanKode) {
+                console.log('⚠️ Skipping stale kode result for', jenisKegiatanKode);
+                return;
+            }
+            console.log('✅ Kode Unik Baru:', newKode);
+            if (document.getElementById('form-kode-unik')) document.getElementById('form-kode-unik').value = newKode;
+            if (document.getElementById('form-kode-unik-h')) document.getElementById('form-kode-unik-h').value = newKode;
+        } catch (err) {
+            console.log('❌ Error generate kode:', err);
+        }
+    } else {
+        latestKodePrefix = '';
+        if (document.getElementById('form-kode-unik')) document.getElementById('form-kode-unik').value = '';
+        if (document.getElementById('form-kode-unik-h')) document.getElementById('form-kode-unik-h').value = '';
+    }
+}
+
+async function generateNextKode(baseKode) {
+    try {
+        const normalizedPrefix = baseKode.trim().endsWith('.') ? baseKode.trim() : `${baseKode.trim()}.`;
+        console.log('🔍 Generate kode untuk prefix:', normalizedPrefix);
+
+        const res = await fetch(`${API_URL}/rpjmdes/last-kode?prefix=${encodeURIComponent(normalizedPrefix)}`);
+        const result = await res.json();
+
+        console.log('📡 Response:', result);
+
+        if (result.success && result.nextKode) {
+            console.log('✅ Next kode dari API:', result.nextKode);
+            return result.nextKode;
+        }
+
+        if (result.success && result.data) {
+            const lastKode = result.data;
+            const suffix = lastKode.slice(normalizedPrefix.length).split('.')[0];
+            const lastNum = parseInt(suffix, 10) || 0;
+            const nextNum = lastNum + 1;
+            const newKode = `${normalizedPrefix}${String(nextNum).padStart(2, '0')}.`;
+            console.log('✅ Kode baru (fallback):', newKode);
+            return newKode;
+        }
+
+        console.log('📌 Belum ada data, mulai dari 01');
+        return `${normalizedPrefix}01.`;
+
+    } catch (error) {
+        console.log('❌ Error generateNextKode:', error);
+        const normalizedPrefix = baseKode.trim().endsWith('.') ? baseKode.trim() : `${baseKode.trim()}.`;
+        return `${normalizedPrefix}01.`;
+    }
+}
+
+    // ========== HITUNG TOTAL MANFAAT ==========
+    function hitungTotalManfaat() {
+        const l = parseInt(document.getElementById('form-manfaat-l').value) || 0;
+        const p = parseInt(document.getElementById('form-manfaat-p').value) || 0;
+        const rtm = parseInt(document.getElementById('form-manfaat-rtm').value) || 0;
+        document.getElementById('form-total-manfaat').value = l + p + rtm;
+    }
+
+    // ========== HITUNG SKOR MASALAH ==========
+    function hitungSkorMasalah() {
+        const dirasakan = parseInt(document.getElementById('form-dirasakan').value) || 0;
+        const parah = parseInt(document.getElementById('form-parah').value) || 0;
+        const hambat = parseInt(document.getElementById('form-hambat').value) || 0;
+        const sering = parseInt(document.getElementById('form-sering').value) || 0;
+        const potensi = parseInt(document.getElementById('form-potensi-skor').value) || 0;
+        const total = dirasakan + parah + hambat + sering + potensi;
+        document.getElementById('form-jumlah-nilai').value = total;
+
+        // Uraian Peringkat
+        let peringkat = '-';
+        if (total >= 401) peringkat = 'I';
+        else if (total >= 301) peringkat = 'II';
+        else if (total >= 201) peringkat = 'III';
+        else if (total >= 101) peringkat = 'IV';
+        else if (total >= 0) peringkat = 'V';
+        document.getElementById('form-uraian-peringkat').value = peringkat;
+    }
+
+    // ========== HITUNG KESESUAIAN ==========
+    function hitungKesesuaian() {
+        const vm = parseInt(document.getElementById('form-visi-misi').value) || 0;
+        const pb = parseInt(document.getElementById('form-pokok-bpd').value) || 0;
+        const pm = parseInt(document.getElementById('form-program-masy').value) || 0;
+        const ps = parseInt(document.getElementById('form-prioritas-sdgs').value) || 0;
+        const total = vm + pb + pm + ps;
+        document.getElementById('form-total-kesesuaian').value = total;
+
+        // Ranking
+        let ranking = '-';
+        if (total >= 301) ranking = 'I';
+        else if (total >= 201) ranking = 'II';
+        else if (total >= 101) ranking = 'III';
+        else if (total >= 0) ranking = 'IV';
+        document.getElementById('form-ranking').value = ranking;
+    }
+
+    // ========== LOAD DATA ==========
+    let searchTimeout;
+
+    // Reset ke halaman 1 lalu muat ulang (dipakai tombol Cari & dropdown Tahun/Bidang)
+    function filterChangeAndLoad() {
+        currentPage = 1;
+        clearTimeout(searchTimeout);
+        loadData();
+    }
+
+    function loadDataDelayed() {
+        clearTimeout(searchTimeout);
+        currentPage = 1; // cari baru selalu mulai dari halaman 1
+        searchTimeout = setTimeout(loadData, 500);
+    }
+
+    async function loadData() {
+        const tahun = document.getElementById('filter-tahun').value;
+        const bidang = document.getElementById('filter-bidang').value;
+        const search = document.getElementById('filter-search').value;
+
+        const params = new URLSearchParams({
+            page: currentPage,
+            limit: 50
+        });
+        if (tahun) params.append('tahun', tahun);
+        if (bidang && bidang !== 'ALL') params.append('bidang', bidang);
+        if (search) params.append('search', search);
+
+        try {
+            const res = await fetch(`${API_URL}/rpjmdes?${params}`);
+            const result = await res.json();
+
+            if (result.success && Array.isArray(result.data)) {
+                result.data.sort((a, b) => {
+                    const kodeA = String(a.kode_unik_full || a.kode_unik || '').trim();
+                    const kodeB = String(b.kode_unik_full || b.kode_unik || '').trim();
+                    return kodeA.localeCompare(kodeB, undefined, { numeric: true, sensitivity: 'base' });
+                });
+                renderTable(result.data);
+                totalData = result.total || 0;
+                totalPages = Math.max(1, Math.ceil(totalData / 50));
+                updatePagination();
+                loadStats(tahun);
+            }
+        } catch (error) {
+            console.error('Error loading data:', error);
+            showToast('Gagal memuat data', 'error');
+        }
+    }
+
+    // ========== LOAD STATS ==========
+    async function loadStats(tahun) {
+        try {
+            const res = await fetch(`${API_URL}/rpjmdes-stats?tahun=${tahun || '2026'}`);
+            const result = await res.json();
+            if (result.success) {
+                document.getElementById('stat-total').textContent = result.data.totalKegiatan || 0;
+                document.getElementById('stat-pagu').textContent = 'Rp ' + formatRupiah(result.data.totalPagu || 0);
+
+                // Hitung ranking I
+                const rankRes = await fetch(`${API_URL}/rpjmdes?tahun=${tahun || '2026'}&limit=9999`);
+                const rankResult = await rankRes.json();
+                if (rankResult.success) {
+                    const rank1 = rankResult.data.filter(item => item.ranking === 'I').length;
+                    document.getElementById('stat-ranking1').textContent = rank1;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading stats:', error);
+        }
+    }
+
+    // ========== RENDER TABLE ==========
+    function renderTable(data) {
+        const tbody = document.getElementById('table-body');
+
+        if (!data || data.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-10 text-slate-400">
+                        <i class="fas fa-inbox text-3xl"></i>
+                        <p class="mt-2 font-medium">Belum ada data RPJMDes</p>
+                    </td>
+                </tr>
+            `;
+            document.getElementById('stat-tampil').textContent = '0';
+            return;
+        }
+
+        document.getElementById('stat-tampil').textContent = data.length;
+
+        let html = '';
+        data.forEach((item, index) => {
+            const no = (currentPage - 1) * 50 + index + 1;
+            const target = item.target_2026 === '2026' ? '✅' : '-';
+            const rankClass = item.ranking ? `badge-${item.ranking}` : 'badge-V';
+
+            html += `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="text-center text-slate-400 font-medium">${no}</td>
+                    <td class="font-mono text-xs text-indigo-600 font-medium">${item.kode_unik_full || '-'}</td>
+                    <td class="font-medium">${item.nama_kegiatan || '-'}</td>
+                    <td class="text-sm text-slate-600">${item.bidang || '-'}</td>
+                    <td class="text-right font-medium">${formatRupiah(item.pagu_rpjm || 0)}</td>
+                    <td class="text-center"><span class="target-badge ${target === '✅' ? 'target-yes' : 'target-no'}">${target}</span></td>
+                    <td class="text-center"><span class="badge-ranking ${rankClass}">${item.ranking || '-'}</span></td>
+                    <td class="text-center">
+                        <button onclick="editData(${item.id})" class="text-blue-500 hover:text-blue-700 mr-2 transition-colors" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deleteData(${item.id})" class="text-red-400 hover:text-red-600 transition-colors" title="Hapus">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
+
+    // ========== PAGINATION ==========
+    function updatePagination() {
+        document.getElementById('pagination-info').textContent = `Menampilkan ${totalData} data`;
+        document.getElementById('page-info').textContent = `Halaman ${currentPage} dari ${totalPages || 1}`;
+        document.getElementById('btn-prev').disabled = currentPage <= 1;
+        document.getElementById('btn-next').disabled = currentPage >= totalPages;
+    }
+
+    function prevPage() {
+        if (currentPage > 1) { currentPage--;
+            loadData(); }
+    }
+
+    function nextPage() {
+        if (currentPage < totalPages) { currentPage++;
+            loadData(); }
+    }
+
+    // ========== OPEN ADD MODAL ==========
+    function openAddModal() {
+        editingId = null;
+        document.getElementById('modal-title').innerHTML = '<i class="fas fa-plus-circle text-indigo-600 mr-2"></i>Tambah Data RPJMDes';
+        document.getElementById('btn-submit').innerHTML = '<i class="fas fa-save"></i> Simpan';
+        document.getElementById('form-rpjmdes').reset();
+        document.getElementById('form-id').value = '';
+        document.getElementById('modal-form').classList.add('show');
+        // Reset nilai default
+        document.getElementById('form-manfaat-l').value = 0;
+        document.getElementById('form-manfaat-p').value = 0;
+        document.getElementById('form-manfaat-rtm').value = 0;
+        document.getElementById('form-total-manfaat').value = 0;
+        document.getElementById('form-dirasakan').value = 0;
+        document.getElementById('form-parah').value = 0;
+        document.getElementById('form-hambat').value = 0;
+        document.getElementById('form-sering').value = 0;
+        document.getElementById('form-potensi-skor').value = 0;
+        document.getElementById('form-jumlah-nilai').value = 0;
+        document.getElementById('form-uraian-peringkat').value = '-';
+        document.getElementById('form-visi-misi').value = 0;
+        document.getElementById('form-pokok-bpd').value = 0;
+        document.getElementById('form-program-masy').value = 0;
+        document.getElementById('form-prioritas-sdgs').value = 0;
+        document.getElementById('form-total-kesesuaian').value = 0;
+        document.getElementById('form-ranking').value = '-';
+        document.getElementById('form-pagu').value = '';
+        document.getElementById('form-anggaran-perubahan').value = '';
+        // Target default
+        for (let y = 2023; y <= 2030; y++) {
+            document.getElementById(`form-target-${y}`).value = '-';
+        }
+        // Kode otomatis
+        updateKodeOtomatis();
+    }
+
+    function closeModal() {
+        document.getElementById('modal-form').classList.remove('show');
+    }
+
+    // ========== EDIT DATA ==========
+    async function editData(id) {
+        try {
+            const res = await fetch(`${API_URL}/rpjmdes/${id}`);
+            const result = await res.json();
+            if (result.success) {
+                const data = result.data;
+                editingId = id;
+                document.getElementById('modal-title').innerHTML = '<i class="fas fa-edit text-indigo-600 mr-2"></i>Edit Data RPJMDes';
+                document.getElementById('btn-submit').innerHTML = '<i class="fas fa-save"></i> Update';
+                document.getElementById('form-id').value = data.id;
+
+                // Isi form
+                document.getElementById('form-kode-bidang').value = data.kode_bidang || '';
+                document.getElementById('form-kode-sub').value = data.kode_sub || '';
+                document.getElementById('form-kode-kegiatan').value = data.kode_kegiatan || '';
+                document.getElementById('form-kode-unik').value = data.kode_unik_full || '';
+                document.getElementById('form-kode-unik-h').value = data.kode_unik_full || '';
+                document.getElementById('form-nama').value = data.nama_kegiatan || '';
+                document.getElementById('form-pagu').value = data.pagu_rpjm ? formatRupiah(data.pagu_rpjm) : '';
+                document.getElementById('form-sifat').value = data.sifat_kegiatan || 'Rutin';
+                document.getElementById('form-volume').value = data.volume_kegiatan || '';
+                document.getElementById('form-lokasi').value = data.lokasi_kegiatan || '';
+                document.getElementById('form-usulan').value = data.usulan_berdasarkan || '';
+                document.getElementById('form-bidang').value = data.bidang || '';
+                onBidangChange();
+                document.getElementById('form-jenis-bidang').value = data.jenis_bidang || '';
+                onJenisBidangChange();
+                
+                const selKeg = document.getElementById('form-jenis-kegiatan');
+                if (selKeg && data.jenis_kegiatan) {
+                    if (![...selKeg.options].some(o => o.value === data.jenis_kegiatan)) {
+                        selKeg.innerHTML += `<option value="${data.jenis_kegiatan}" data-kode="${data.kode_kegiatan || ''}">${data.jenis_kegiatan}</option>`;
+                    }
+                    selKeg.value = data.jenis_kegiatan;
+                }
+                if (document.getElementById('form-kode-kegiatan')) document.getElementById('form-kode-kegiatan').value = data.kode_kegiatan || '';
+                if (document.getElementById('form-kode-unik')) document.getElementById('form-kode-unik').value = data.kode_unik_full || '';
+                if (document.getElementById('form-kode-unik-h')) document.getElementById('form-kode-unik-h').value = data.kode_unik_full || '';
+
+                document.getElementById('form-sdgs').value = data.sdgs || '';
+                document.getElementById('form-pengusul').value = data.nama_pengusul || '';
+                document.getElementById('form-data-existing').value = data.data_existing || '';
+                document.getElementById('form-manfaat-l').value = data.manfaat_l || 0;
+                document.getElementById('form-manfaat-p').value = data.manfaat_p || 0;
+                document.getElementById('form-manfaat-rtm').value = data.manfaat_rtm || 0;
+                hitungTotalManfaat();
+                document.getElementById('form-waktu').value = data.waktu_pelaksanaan || '';
+                document.getElementById('form-anggaran-perubahan').value = data.anggaran_perubahan ? formatRupiah(data.anggaran_perubahan) : '';
+                document.getElementById('form-sumber-dana').value = data.sumber_dana || '';
+                document.getElementById('form-pola').value = data.pola_pelaksanaan || 'Swakelola';
+                document.getElementById('form-skala').value = data.skala_prioritas || 'Ya';
+                document.getElementById('form-urutan').value = data.urutan_prioritas || '';
+                document.getElementById('form-masalah').value = data.masalah || '';
+                document.getElementById('form-penyebab').value = data.penyebab || '';
+                document.getElementById('form-potensi').value = data.potensi || '';
+                document.getElementById('form-alternatif').value = data.alternatif_pemecahan || '';
+                document.getElementById('form-tindakan-masalah').value = data.tindakan_masalah || '';
+                document.getElementById('form-tindakan-layak').value = data.tindakan_layak || '';
+
+                // Target tahun
+                for (let y = 2023; y <= 2030; y++) {
+                    const el = document.getElementById(`form-target-${y}`);
+                    if (el) {
+                        const val = data[`target_${y}`];
+                        const isTarget = String(val || '').trim() === String(y) || String(val || '').trim().toLowerCase() === 'ya';
+                        el.value = isTarget ? String(y) : '-';
+                    }
+                }
+
+                // Skor masalah
+                document.getElementById('form-dirasakan').value = data.dirasakan || 0;
+                document.getElementById('form-parah').value = data.parah || 0;
+                document.getElementById('form-hambat').value = data.hambat || 0;
+                document.getElementById('form-sering').value = data.sering || 0;
+                document.getElementById('form-potensi-skor').value = data.potensi_skor || 0;
+                hitungSkorMasalah();
+                document.getElementById('form-jumlah-nilai').value = data.jumlah_nilai_total || 0;
+                document.getElementById('form-uraian-peringkat').value = data.uraian_peringkat || '-';
+
+                // Skor kesesuaian
+                document.getElementById('form-visi-misi').value = data.visi_misi || 0;
+                document.getElementById('form-pokok-bpd').value = data.pokok_bpd || 0;
+                document.getElementById('form-program-masy').value = data.program_masyarakat || 0;
+                document.getElementById('form-prioritas-sdgs').value = data.prioritas_sdgs_skor || 0;
+                hitungKesesuaian();
+                document.getElementById('form-total-kesesuaian').value = data.total_kesesuaian || 0;
+                document.getElementById('form-ranking').value = data.ranking || '-';
+
+                document.getElementById('modal-form').classList.add('show');
+            }
+        } catch (error) {
+            console.error('Error editing data:', error);
+            showToast('Gagal memuat data untuk diedit', 'error');
+        }
+    }
+
+    // ========== SAVE DATA ==========
+    async function saveData(event) {
+        event.preventDefault();
+
+        const id = document.getElementById('form-id').value;
+        const payload = {
+            kode_bidang: document.getElementById('form-kode-bidang').value,
+            kode_sub: document.getElementById('form-kode-sub').value,
+            kode_kegiatan: document.getElementById('form-kode-kegiatan').value,
+            kode_unik_full: document.getElementById('form-kode-unik').value,
+            nama_kegiatan: document.getElementById('form-nama').value,
+            pagu_rpjm: parseRupiah(document.getElementById('form-pagu').value),
+            sifat_kegiatan: document.getElementById('form-sifat').value,
+            kode_unik_h: document.getElementById('form-kode-unik-h').value,
+            volume_kegiatan: document.getElementById('form-volume').value,
+            lokasi_kegiatan: document.getElementById('form-lokasi').value,
+            bidang: document.getElementById('form-bidang').value,
+            jenis_bidang: document.getElementById('form-jenis-bidang').value,
+            jenis_kegiatan: document.getElementById('form-jenis-kegiatan').value,
+            sdgs: document.getElementById('form-sdgs').value,
+            data_existing: document.getElementById('form-data-existing').value,
+            nama_pengusul: document.getElementById('form-pengusul').value,
+            manfaat_l: parseInt(document.getElementById('form-manfaat-l').value) || 0,
+            manfaat_p: parseInt(document.getElementById('form-manfaat-p').value) || 0,
+            manfaat_rtm: parseInt(document.getElementById('form-manfaat-rtm').value) || 0,
+            total_manfaat: parseInt(document.getElementById('form-total-manfaat').value) || 0,
+            waktu_pelaksanaan: document.getElementById('form-waktu').value,
+            anggaran_perubahan: parseRupiah(document.getElementById('form-anggaran-perubahan').value),
+            sumber_dana: document.getElementById('form-sumber-dana').value,
+            pola_pelaksanaan: document.getElementById('form-pola').value,
+            skala_prioritas: document.getElementById('form-skala').value,
+            urutan_prioritas: document.getElementById('form-urutan').value,
+            masalah: document.getElementById('form-masalah').value,
+            penyebab: document.getElementById('form-penyebab').value,
+            potensi: document.getElementById('form-potensi').value,
+            alternatif_pemecahan: document.getElementById('form-alternatif').value,
+            tindakan_masalah: document.getElementById('form-tindakan-masalah').value,
+            tindakan_layak: document.getElementById('form-tindakan-layak').value,
+            dirasakan: parseInt(document.getElementById('form-dirasakan').value) || 0,
+            parah: parseInt(document.getElementById('form-parah').value) || 0,
+            hambat: parseInt(document.getElementById('form-hambat').value) || 0,
+            sering: parseInt(document.getElementById('form-sering').value) || 0,
+            potensi_skor: parseInt(document.getElementById('form-potensi-skor').value) || 0,
+            jumlah_nilai_total: parseInt(document.getElementById('form-jumlah-nilai').value) || 0,
+            uraian_peringkat: document.getElementById('form-uraian-peringkat').value || '-',
+            visi_misi: parseInt(document.getElementById('form-visi-misi').value) || 0,
+            pokok_bpd: parseInt(document.getElementById('form-pokok-bpd').value) || 0,
+            program_masyarakat: parseInt(document.getElementById('form-program-masy').value) || 0,
+            prioritas_sdgs_skor: parseInt(document.getElementById('form-prioritas-sdgs').value) || 0,
+            total_kesesuaian: parseInt(document.getElementById('form-total-kesesuaian').value) || 0,
+            ranking: document.getElementById('form-ranking').value || '-',
+            penerima_manfaat_bg: parseInt(document.getElementById('form-total-manfaat').value) || 0
+        };
+
+        // Target tahun
+        for (let y = 2023; y <= 2030; y++) {
+            const el = document.getElementById(`form-target-${y}`);
+            payload[`target_${y}`] = el.value;
+        }
+
+        try {
+            const url = id ? `${API_URL}/rpjmdes/${id}` : `${API_URL}/rpjmdes`;
+            const method = id ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+
+            if (result.success) {
+                showToast(id ? 'Data berhasil diupdate!' : 'Data berhasil disimpan!', 'success');
+                closeModal();
+                
+                // Hapus filter agar data baru terlihat
+                document.getElementById('filter-tahun').value = '';
+                document.getElementById('filter-bidang').value = 'ALL';
+                document.getElementById('filter-search').value = '';
+
+                loadData();
+            } else {
+                showToast('Gagal: ' + (result.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            console.error('Error saving data:', error);
+            showToast('Gagal menyimpan data', 'error');
+        }
+    }
+
+    // ========== DELETE DATA ==========
+    async function deleteData(id) {
+        if (!confirm('Yakin ingin menghapus data ini?')) return;
+
+        try {
+            const res = await fetch(`${API_URL}/rpjmdes/${id}`, {
+                method: 'DELETE'
+            });
+            const result = await res.json();
+
+            if (result.success) {
+                showToast('Data berhasil dihapus!', 'success');
+                loadData();
+            } else {
+                showToast('Gagal menghapus data', 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting data:', error);
+            showToast('Gagal menghapus data', 'error');
+        }
+    }
+
+    const ORDER_BIDANG = [
+        "Bidang Penyelenggaraan Pemerintah Desa",
+        "Bidang Pelaksanaan Pembangunan Desa",
+        "Bidang Pembinaan Kemasyarakatan",
+        "Bidang Pemberdayaan Masyarakat",
+        "Bidang Penanggulangan Bencana, Darurat Dan Mendesak Desa"
+    ];
+
+    // ========== LOAD BIDANG LIST UNTUK FILTER ==========
+    // Diambil dari database (via /api/bidang-list) agar nama bidang PERSIS
+    // sesuai data di Supabase. Sebelumnya pakai array hardcoded ORDER_BIDANG
+    // yang namanya berbeda (mis. "Pemerintah Desa" vs "Pemerintahan Desa"),
+    // sehingga filter Bidang tidak pernah menemukan data.
+    async function loadBidangFilter() {
+        try {
+            const sel = document.getElementById('filter-bidang');
+            if (!sel) return;
+            sel.innerHTML = '<option value="ALL">Semua Bidang</option>';
+
+            let dbList = [];
+            try {
+                const res = await fetch(`${API_URL}/bidang-list`);
+                const result = await res.json();
+                if (result.success && Array.isArray(result.data)) dbList = result.data;
+            } catch (err) {
+                console.error('Gagal ambil bidang dari API:', err);
+            }
+
+            // Urutkan sesuai ORDER_BIDANG jika cocok, sisanya di akhir.
+            const ordered = dbList.slice().sort((a, b) => {
+                const idxA = ORDER_BIDANG.indexOf(a);
+                const idxB = ORDER_BIDANG.indexOf(b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+            });
+
+            ordered.forEach(bidang => {
+                sel.innerHTML += `<option value="${bidang}">${bidang}</option>`;
+            });
+        } catch (error) {
+            console.error('Error loading bidang filter:', error);
+        }
+    }
+
+    // ========== INIT ==========
+    document.addEventListener('DOMContentLoaded', async function() {
+        await loadDropdownData();
+        await loadBidangFilter();
+        loadData();
+
+        // Bind event listeners explicitly to ensure cascading dropdown chaining works dynamically!
+        const selBidang = document.getElementById('form-bidang');
+        const selJenisBidang = document.getElementById('form-jenis-bidang');
+        const selJenisKegiatan = document.getElementById('form-jenis-kegiatan');
+
+        if (selBidang) selBidang.addEventListener('change', onBidangChange);
+        if (selJenisBidang) selJenisBidang.addEventListener('change', onJenisBidangChange);
+        if (selJenisKegiatan) selJenisKegiatan.addEventListener('change', onJenisKegiatanChange);
+
+        // Mencegah form ter-submit (dan popup tertutup) saat menekan Enter
+        // di dalam kolom ISIAN, padahal masih ada data yang ingin diketik.
+        // Enter di textarea tetap membuat baris baru, dan tombol Simpan tetap berfungsi.
+        const formRpjmEl = document.getElementById('form-rpjmdes');
+        if (formRpjmEl) {
+            formRpjmEl.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') {
+                    e.preventDefault();
+                }
+});
+        }
+
+        // POPUP HANYA BOLEH DITUTUP LEWAT TOMBOL X / BATAL, atau setelah berhasil
+        // menyimpan. Klik di luar overlay dan menekan Escape TIDAK lagi menutup
+        // popup, agar data yang masih diketik tidak pernah hilang tanpa sengaja.
+    });
+    window.openAddModal = openAddModal;
+    window.closeModal = closeModal;
+    window.editData = editData;
+    window.deleteData = deleteData;
+    window.loadData = loadData;
+    window.loadDataDelayed = loadDataDelayed;
+    window.filterChangeAndLoad = filterChangeAndLoad;
+    window.prevPage = prevPage;
+    window.nextPage = nextPage;
+    window.onBidangChange = onBidangChange;
+    window.onJenisBidangChange = onJenisBidangChange;
+    window.onJenisKegiatanChange = onJenisKegiatanChange;
+    window.hitungTotalManfaat = hitungTotalManfaat;
+    window.hitungSkorMasalah = hitungSkorMasalah;
+    window.hitungKesesuaian = hitungKesesuaian;
+    window.formatRupiahInput = formatRupiahInput;
+    window.switchTab = function(tab) { window.location.href = tab + '.html'; };
+    window.saveData = saveData;
+</script>
+<script>
+    fetch('/components/navbar.html')
+        .then(res => res.text())
+        .then(data => {
+            document.getElementById('navbar-container').innerHTML = data;
+        })
+        .catch(err => console.error('Navbar error:', err));
+</script>
+</body>
+</html>

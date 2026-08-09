@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar Prioritas Usulan Rencana Program/Kegiatan - SIA Batetangnga</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏡</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/global-tahun.js"></script>
+    <style>
+        @page {
+            size: landscape;
+            margin: 8mm 6mm 8mm 6mm;
+        }
+
+        @media print {
+            body { background: white !important; padding: 0 !important; margin: 0 !important; font-size: 9.5px !important; color: black !important; }
+            .no-print { display: none !important; }
+            .max-w-7xl { max-width: 100% !important; width: 100% !important; padding: 0 !important; margin: 0 !important; border: none !important; box-shadow: none !important; }
+            table { width: 100% !important; border-collapse: collapse !important; border: 1.5px solid #000 !important; font-size: 9px !important; table-layout: auto !important; }
+            th { border: 1px solid #000 !important; background-color: #f1f5f9 !important; color: #000 !important; padding: 3px 2px !important; font-weight: bold !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            td { border: 1px solid #000 !important; color: #000 !important; padding: 3px 3px !important; word-wrap: break-word !important; }
+            
+            input, select {
+                border: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                outline: none !important;
+                padding: 0 !important;
+                color: black !important;
+                font-size: 9px !important;
+            }
+            .overflow-x-auto table {
+                min-width: 100% !important;
+            }
+        }
+
+        .overflow-x-auto {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+        }
+
+        .overflow-x-auto table {
+            min-width: 1400px;
+        }
+
+        .overflow-x-auto th,
+        .overflow-x-auto td {
+            padding: 4px 6px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-900 min-h-screen">
+
+    <!-- TOP NAVBAR UTAMA -->
+    <div id="navbar-container"></div>
+
+    <!-- Container Utama Dokumen Baku -->
+    <div class="container-full bg-white p-6 md:p-10 shadow-2xl rounded-2xl border border-slate-300 my-6">
+
+        <!-- Header Kontrol & Tombol (Hilang saat diprint) -->
+        <div class="flex flex-wrap justify-between items-center mb-6 pb-6 border-b border-slate-200 no-print gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl shadow-md">
+                    <i class="fas fa-star"></i>
+                </div>
+                <div>
+                    <h2 class="font-extrabold text-xl text-slate-800 tracking-tight">Daftar Prioritas Usulan Program & Kegiatan</h2>
+                    <p class="text-xs text-slate-500">Matriks Hasil Analisis Prioritas Usulan Desa Batetangnga (Format Baku Kementerian)</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 font-sans">
+                <div>
+                    <label class="text-xs font-bold text-slate-600 mr-2 uppercase">Tahun RKP:</label>
+                    <select id="select-year" onchange="loadPrioritasData()" class="p-2 border border-slate-300 rounded-xl text-sm font-bold bg-white text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="2022">2022</option>
+                        <option value="2023">2023</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027" selected>2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                        <option value="2030">2030</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-xs font-bold text-slate-600 mr-2 uppercase">Tgl Cetak:</label>
+                    <input type="date" id="tgl-cetak" class="p-2 border border-slate-300 rounded-xl text-sm font-bold bg-white text-slate-800 shadow-sm" />
+                </div>
+
+                <button onclick="tarikDariRPJMDes()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition flex items-center gap-2">
+                    <i class="fas fa-sync"></i> Tarik dari RPJMDes
+                </button>
+
+                <button onclick="saveToDatabase()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition flex items-center gap-2">
+                    <i class="fas fa-save"></i> Simpan Ke Database
+                </button>
+
+                <button onclick="printPDF()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition flex items-center gap-2">
+                    <i class="fas fa-print"></i> Cetak / PDF
+                </button>
+            </div>
+        </div>
+
+        <!-- METADATA DOKUMEN F4 BAKU -->
+        <div class="text-center mb-6">
+            <h3 class="font-extrabold text-base uppercase tracking-wider text-slate-900">
+                DAFTAR PRIORITAS USULAN RENCANA PROGRAM DAN KEGIATAN PEMBANGUNAN DESA
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-bold text-slate-700 max-w-3xl mx-auto mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <div>DESA: <span class="text-indigo-900 font-extrabold uppercase">BATETANGNGA</span></div>
+                <div>KECAMATAN: <span class="text-indigo-900 font-extrabold uppercase">BINUANG</span></div>
+                <div>KABUPATEN: <span class="text-indigo-900 font-extrabold uppercase">POLEWALI MANDAR</span></div>
+                <div>PROVINSI: <span class="text-indigo-900 font-extrabold uppercase">SULAWESI BARAT</span></div>
+            </div>
+        </div>
+
+        <!-- TABEL FORMAL BAKU (KOLOM A SAMPAI M) -->
+        <div class="overflow-x-auto w-full rounded-xl border border-slate-400">
+            <table class="w-full min-w-[1000px] text-xs border-collapse">
+                <thead class="bg-indigo-950 text-white font-bold text-center">
+                    <tr>
+                        <th class="border border-slate-400 p-2 w-10" rowspan="2">a. No</th>
+                        <th class="border border-slate-400 p-2 w-36" rowspan="2">b. Bidang</th>
+                        <th class="border border-slate-400 p-2 w-20" rowspan="2">c. Urutan Prioritas</th>
+                        <th class="border border-slate-400 p-2 w-44" rowspan="2">d. Nama Program / Kegiatan</th>
+                        <th class="border border-slate-400 p-2 w-28" rowspan="2">e. Mendukung SDGs Ke-</th>
+                        <th class="border border-slate-400 p-2 w-36" rowspan="2">f. Data Eksisting Tahun Berjalan</th>
+                        <th class="border border-slate-400 p-2 w-32" rowspan="2">g. Lokasi (RT/RW/Dusun)</th>
+                        <th class="border border-slate-400 p-2 w-28" rowspan="2">h. Volume & Satuan</th>
+                        <th class="border border-slate-400 p-2" colspan="3">Penerima Manfaat</th>
+                        <th class="border border-slate-400 p-2 w-32" rowspan="2">l. Prakiraan Biaya (Rp)</th>
+                        <th class="border border-slate-400 p-2 w-24" rowspan="2">m. Sumber Pembiayaan</th>
+                        <th class="border border-slate-400 p-2 w-24 no-print" rowspan="2">Aksi</th>
+                    </tr>
+                    <tr>
+                        <th class="border border-slate-400 p-1 w-16">i. Laki-laki</th>
+                        <th class="border border-slate-400 p-1 w-16">j. Perempuan</th>
+                        <th class="border border-slate-400 p-1 w-16">k. RTM</th>
+                    </tr>
+                </thead>
+                <tbody id="tabel-prioritas-body">
+                    <!-- Loaded via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <div id="pagination-container" class="mt-4 no-print"></div>
+
+        <!-- Footer Tanda Tangan -->
+        <div class="mt-10 flex justify-between text-xs font-semibold">
+            <div class="text-center w-72">
+                <p class="font-bold">Mengetahui,</p>
+                <p class="font-bold mb-16">Kepala Desa Batetangnga</p>
+                <p class="font-bold underline uppercase text-sm">SUMAILA DAMANG</p>
+            </div>
+            <div class="text-center w-72">
+                <p id="lbl-tgl-cetak" class="mb-1">Batetangnga, ....................</p>
+                <p class="font-bold mb-16">Disusun oleh,<br>Ketua Tim Penyusun RKPDesa</p>
+                <input type="text" id="nama-ketua-tim" value="ABDUL AZIS, S. Pd" placeholder="( Nama Ketua Tim )" 
+                    class="w-full text-center font-bold border-b border-dashed border-slate-400 focus:outline-none pb-1" />
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ============================================================
+         MODAL EDIT DATA LENGKAP (hindari data terpotong di tabel)
+         ============================================================ -->
+    <div id="edit-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div id="modal-content" class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto opacity-0 scale-95 transition-all duration-300">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-indigo-950 text-white rounded-t-2xl">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-pen-to-square"></i>
+                    <h3 class="font-extrabold text-sm uppercase tracking-wide">Edit Data Prioritas Usulan</h3>
+                </div>
+                <button type="button" onclick="closeEditModal()" class="text-slate-300 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <form id="edit-modal-form" onsubmit="submitEditForm(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+                <input type="hidden" id="modal-row-id" />
+                <div class="md:col-span-2">
+                    <label class="block text-[11px] font-bold text-indigo-900 uppercase tracking-wide mb-1">Nama Program / Kegiatan <span class="text-red-500">*</span></label>
+                    <textarea id="modal-kegiatan" rows="2" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Nama lengkap program/kegiatan..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Urutan Prioritas</label>
+                    <input id="modal-urutan" type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="1.0" />
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Mendukung SDGs Ke</label>
+                    <input id="modal-sdgs" type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="17" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Data Eksisting Tahun Berjalan</label>
+                    <textarea id="modal-eksisting" rows="2" class="w-full border border-slate-300 rounded-lg p-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Kondisi saat ini..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Lokasi (RT/RW/Dusun)</label>
+                    <textarea id="modal-lokasi" rows="2" class="w-full border border-slate-300 rounded-lg p-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Dusun / RT / RW..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Volume & Satuan</label>
+                    <input id="modal-volume" type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Contoh: 12 bulan" />
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Sumber Pembiayaan</label>
+                    <input id="modal-sumber" type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="ADD / DDS ..." />
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Prakiraan Biaya (Rp)</label>
+                    <input id="modal-biaya" type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-right font-mono" placeholder="0" />
+                </div>
+                <div class="md:col-span-3 grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Penerima Laki-laki</label>
+                        <input id="modal-laki" type="number" min="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-center font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="0" />
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Penerima Perempuan</label>
+                        <input id="modal-perempuan" type="number" min="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-center font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="0" />
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Penerima RTM</label>
+                        <input id="modal-rtm" type="number" min="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-center font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="0" />
+                    </div>
+                </div>
+                <div class="md:col-span-2 flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                    <button type="button" onclick="closeEditModal()" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 font-bold text-sm transition">Batal</button>
+                    <button type="submit" class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-lg transition">
+                        <i class="fas fa-check mr-1"></i> Simpan Perubahan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="prioritas-usulan.js"></script>
+    <script>
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(data => {
+                document.getElementById('navbar-container').innerHTML = data;
+            })
+            .catch(err => console.error('Navbar error:', err));
+    </script>
+</body>
+</html>

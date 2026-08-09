@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Berita Acara Musyawarah RKP Desa - Desa Batetangnga</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="/global-tahun.js"></script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+            #print-area { box-shadow: none; border: none; padding: 0; margin: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+    <!-- NAVBAR COMPONENT CONTAINER -->
+    <div id="navbar-container"></div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="max-w-4xl mx-auto px-4 pb-12">
+        <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6 my-6 no-print flex justify-between items-center">
+            <div>
+                <h2 class="text-xl font-bold text-slate-800 uppercase flex items-center gap-2">
+                    <i class="fas fa-file-contract text-indigo-600"></i> BERITA ACARA MUSYAWARAH
+                </h2>
+                <p class="text-xs text-slate-500 mt-1">Pembentukan Tim Penyusun RKP Desa Batetangnga</p>
+            </div>
+            <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex items-center gap-1.5">
+                <i class="fas fa-print"></i> Cetak PDF
+            </button>
+        </div>
+
+        <div id="print-area" class="bg-white rounded-xl shadow-md border border-slate-200 p-8 md:p-12 space-y-6">
+            <div class="text-center space-y-1">
+                <h3 class="text-base font-extrabold uppercase tracking-wider text-slate-900">BERITA ACARA MUSYAWARAH</h3>
+                <p class="text-sm font-extrabold text-slate-900 uppercase">PEMBENTUKAN TIM PENYUSUN RKP DESA TAHUN 2027</p>
+                <p class="text-xs font-bold text-slate-800 uppercase">DESA BATETANGNGA KECAMATAN BINUANG</p>
+                <p class="text-xs font-bold text-slate-800 uppercase">KABUPATEN POLEWALI MANDAR</p>
+            </div>
+
+            <div class="text-xs leading-relaxed text-justify space-y-4 pt-2">
+                <p>
+                    Pada hari ini <strong>Minggu</strong> tanggal <strong>02</strong> bulan <strong>Agustus</strong> tahun <strong>2026</strong> bertempat di <strong>Aula Kantor Desa Batetangnga</strong> Kantor Desa Batetangnga, kami Pemerintah Desa Batetangnga Kecamatan Binuang Kabupaten Polewali Mandar, telah menyelenggarakan musyawarah pembentukan tim Penyusun RKP Desa Tahun <strong>2027</strong> dengan hasil sebagai berikut:
+                </p>
+
+                <div class="pl-4 space-y-3 font-medium">
+                    <p class="font-bold">1) Terbentuknya Tim Penyusun RKP Desa Tahun 2027 dengan susunan keanggotaan:</p>
+                    <div class="pl-6 space-y-1.5">
+                        <p>a. Pembina : Kepala Desa (SUMAILA DAMANG)</p>
+                        <p>b. Ketua : SYARIFUDDIN (Ketua)</p>
+                        <p>c. Sekretaris : BUSTAMIN. B (Sekretaris)</p>
+                        <p>d. Anggota : Terdiri dari Perangkat Desa, KPM, TP-PKK Desa, Kader Kesehatan, Tokoh Masyarakat, Karang Taruna, dan KPMD.</p>
+                    </div>
+
+                    <p class="font-bold pt-2">2) Susunan keanggotaan Tim Penyusun RKP Desa selanjutnya ditetapkan dengan Keputusan Kepala Desa Batetangnga.</p>
+                </div>
+            </div>
+
+            <div class="pt-10">
+                <div class="grid grid-cols-2 gap-8 text-center text-xs font-bold text-slate-800">
+                    <div>
+                        <p class="uppercase">PIMPINAN MUSYAWARAH,</p>
+                        <div class="h-20"></div>
+                        <p class="font-extrabold uppercase border-b border-slate-900 inline-block px-6">SUMAILA DAMANG</p>
+                    </div>
+                    <div>
+                        <p class="uppercase">Sekretaris/Notulis,</p>
+                        <div class="h-20"></div>
+                        <p class="font-extrabold uppercase border-b border-slate-900 inline-block px-6">AHMAD</p>
+                    </div>
+                </div>
+
+                <div class="text-center mt-8 pt-6 border-t border-slate-100 text-xs font-bold">
+                    <p>Mengetahui,</p>
+                    <p class="uppercase font-extrabold tracking-wide text-slate-900 mt-1">Kepala Desa Batetangnga</p>
+                    <div class="h-24"></div>
+                    <p class="font-extrabold uppercase border-b-2 border-slate-900 inline-block px-8">SUMAILA DAMANG</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT LOADER -->
+    <script>
+        fetch('/components/navbar.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('navbar-container').innerHTML = data;
+            });
+    </script>
+</body>
+</html>

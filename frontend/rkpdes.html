@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RKPDesa - SIA Batetangnga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/global-tahun.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        * { box-sizing: border-box; }
+        body { background: #f8fafc; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #0f172a; }
+        .glass { background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border: 1px solid rgba(226,232,240,0.8); border-radius: 24px; }
+        .btn-primary { background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); color: white; padding: 10px 20px; border-radius: 14px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 12px rgba(79,70,229,0.25); }
+        .btn-primary:hover { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(79,70,229,0.35); }
+        .btn-success { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 10px 20px; border-radius: 14px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 12px rgba(16,185,129,0.25); }
+        .btn-success:hover { background: linear-gradient(135deg, #34d399 0%, #10b981 100%); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(16,185,129,0.35); }
+        .btn-outline { background: #ffffff; color: #475569; padding: 10px 20px; border-radius: 14px; font-weight: 700; border: 1px solid #cbd5e1; cursor: pointer; transition: all 0.2s ease; }
+        .btn-outline:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
+        .input-field { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 12px; font-size: 13px; outline: none; transition: all 0.25s ease; background: #ffffff; color: #0f172a; font-weight: 500; }
+        .input-field:focus { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.12); background: #ffffff; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+        th { background: #f8fafc; text-align: center; padding: 10px 12px; font-weight: 800; color: #334155; border: 1px solid #e2e8f0; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; }
+        td { padding: 10px 12px; border: 1px solid #e2e8f0; vertical-align: middle; }
+        tr:hover { background: #f8fafc; }
+
+        @page {
+            size: 13in 8.5in; /* Folio / F4 Landscape */
+            margin: 10mm 8mm 10mm 8mm;
+        }
+
+        @media print {
+            body { background: white !important; padding: 0 !important; margin: 0 !important; font-size: 10px; }
+            .no-print { display: none !important; }
+            .glass { background: transparent !important; backdrop-filter: none !important; border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; }
+            .max-w-7xl { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+            table { width: 100% !important; border-collapse: collapse !important; border: 1.5px solid #000 !important; font-size: 9.5px; }
+            th { border: 1px solid #000 !important; background-color: #f1f5f9 !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 4px 3px !important; }
+            td { border: 1px solid #000 !important; color: #000 !important; padding: 4px 4px !important; }
+            tfoot tr { background-color: #e2e8f0 !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            tfoot td { color: #000 !important; font-weight: bold !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast" class="hidden fixed bottom-6 right-6 px-6 py-3 rounded-2xl text-white font-bold shadow-xl z-50 no-print"></div>
+
+    <!-- NAVIGATION NAVBAR -->
+    <div id="navbar-container"></div>
+
+    <div class="container-full">
+        <!-- HEADER CONTROL -->
+        <div class="glass rounded-2xl shadow-lg p-6 mb-6 no-print">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fas fa-calendar-check text-indigo-600"></i> RKPDesa Tahun Berjalan
+                    </h2>
+                    <p class="text-xs text-slate-500">Rencana Kerja Pemerintah Desa sesuai Format Matriks Dokumen Resmi</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="bg-indigo-50 border border-indigo-200 px-3.5 py-1.5 rounded-xl flex items-center gap-2">
+                        <i class="fas fa-calendar-alt text-indigo-600 text-xs"></i>
+                        <span class="text-xs font-bold text-slate-700">Tahun Matriks:</span>
+                        <span class="display-active-tahun font-black text-indigo-700 text-sm">2027</span>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 uppercase mr-1">Tgl Cetak:</label>
+                        <input type="date" id="input-tanggal-rkp" class="input-field inline-block w-36" onchange="updateLivePreview()" />
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 uppercase mr-1">Tim Penyusun:</label>
+                        <select id="select-tim-penyusun" class="input-field inline-block w-52" onchange="toggleManualTimPenyusun()">
+                            <option value="Abdul Azis, S. Pd|Ketua Tim Penyusun RKPDesa" selected>Abdul Azis, S. Pd (Ketua Tim)</option>
+                            <option value="Syarifuddin|Sekretaris Desa">Syarifuddin (Sekdes)</option>
+                            <option value="Warman|Kaur Keuangan">Warman (Kaur Keuangan)</option>
+                            <option value="Misbahuddin|Kaur Perencanaan">Misbahuddin (Kaur Perencanaan)</option>
+                            <option value="Nasni|Kasi Pelayanan">Nasni (Kasi Pelayanan)</option>
+                            <option value="Ida Mulyanti|Kasi Kesejahteraan">Ida Mulyanti (Kasi Kesejahteraan)</option>
+                            <option value="Hardiana|Kaur Umum">Hardiana (Kaur Umum)</option>
+                            <option value="manual">-- Input Nama Manual --</option>
+                        </select>
+                    </div>
+                    <button class="btn-success text-xs" onclick="importRkpdesData()">
+                        <i class="fas fa-download mr-1"></i> Sync / Import RAB
+                    </button>
+                    <button class="btn-primary text-xs" onclick="window.print()">
+                        <i class="fas fa-print mr-1"></i> Cetak PDF
+                    </button>
+                </div>
+            </div>
+            <div id="manual-tim-container" class="hidden mt-4 pt-3 border-t border-slate-200 flex flex-wrap gap-3">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Nama Tim Penyusun Manual:</label>
+                    <input type="text" id="input-nama-manual-tim" class="input-field" placeholder="Masukkan Nama..." oninput="updateLivePreview()" />
+                </div>
+                <div class="flex-1 min-w-[200px]">
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Jabatan Manual:</label>
+                    <input type="text" id="input-jabatan-manual-tim" class="input-field" placeholder="Masukkan Jabatan..." oninput="updateLivePreview()" />
+                </div>
+            </div>
+        </div>
+
+        <!-- TABLE DATA -->
+        <div class="glass rounded-2xl shadow-lg p-4 md:p-6 mb-8 overflow-x-auto">
+            <div id="livePreviewContainer">
+                <div class="text-center py-12 text-slate-400">
+                    <i class="fas fa-circle-notch animate-spin text-3xl mb-4"></i>
+                    <p>Memuat data RKPDesa...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDIT KEGIATAN RKPDES -->
+    <div id="modalEditRkp" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center pb-4 border-b border-slate-200 mb-4">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-edit text-amber-500"></i> Edit Kegiatan RKPDesa
+                </h3>
+                <button onclick="closeEditRkpModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            
+            <form id="formEditRkp" onsubmit="saveEditRkpItem(event)" class="space-y-4">
+                <input type="hidden" id="edit-rkp-id" />
+                <input type="hidden" id="edit-rkp-kode" />
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Kode Unik:</label>
+                        <input type="text" id="edit-rkp-kode-display" class="input-field bg-slate-100 cursor-not-allowed text-slate-500" readonly />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Bidang <span class="text-xs font-normal text-slate-400">(Terkunci)</span>:</label>
+                        <select id="edit-rkp-bidang" class="input-field bg-slate-100 cursor-not-allowed text-slate-500" disabled>
+                            <option value="1">1. Bidang Penyelenggaraan Pemerintahan Desa</option>
+                            <option value="2">2. Bidang Pelaksanaan Pembangunan Desa</option>
+                            <option value="3">3. Bidang Pembinaan Kemasyarakatan</option>
+                            <option value="4">4. Bidang Pemberdayaan Masyarakat</option>
+                            <option value="5">5. Bidang Penanggulangan Bencana, Keadaan Darurat Dan Mendesak Desa</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Jenis Kegiatan <span class="text-xs font-normal text-slate-400">(Terkunci)</span>:</label>
+                    <input type="text" id="edit-rkp-jenis-kegiatan" class="input-field bg-slate-100 cursor-not-allowed text-slate-500" readonly disabled />
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Mendukung SDGs ke-:</label>
+                        <input type="text" id="edit-rkp-sdgs" class="input-field" placeholder="Ya / Tidak / SDGs 1" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Lokasi <span class="text-xs font-normal text-slate-400">(Terkunci)</span>:</label>
+                        <input type="text" id="edit-rkp-lokasi" class="input-field bg-slate-100 cursor-not-allowed text-slate-500" readonly disabled />
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Verifikasi Proposal:</label>
+                        <select id="edit-rkp-verifikasi-proposal" class="input-field">
+                            <option value="Belum">Belum</option>
+                            <option value="Ya">Ya</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Stunting:</label>
+                        <select id="edit-rkp-stunting" class="input-field">
+                            <option value="Tidak">Tidak</option>
+                            <option value="Ya">Ya</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Data Eksisting:</label>
+                        <input type="text" id="edit-rkp-data-eksisting" class="input-field" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Target Capaian (f):</label>
+                        <input type="text" id="edit-rkp-target-capaian" class="input-field" placeholder="Contoh: 12 OB / 1 Paket / 100%" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Volume:</label>
+                        <input type="number" id="edit-rkp-volume" class="input-field" min="1" step="any" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Satuan:</label>
+                        <input type="text" id="edit-rkp-satuan" class="input-field" placeholder="Kegiatan / Paket" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Jumlah Biaya (Rp):</label>
+                        <input type="number" id="edit-rkp-biaya" class="input-field" min="0" step="any" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Penerima Manfaat (Orang):</label>
+                        <input type="number" id="edit-rkp-manfaat" class="input-field" placeholder="Jumlah Jiwa" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Waktu Pelaksanaan (j):</label>
+                        <input type="text" id="edit-rkp-waktu" class="input-field" placeholder="Contoh: 12 Bulan / Jan - Des / 1 Tahun" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Sumber Biaya:</label>
+                        <select id="edit-rkp-sumber-biaya" class="input-field">
+                            <option value="ADD">ADD (Alokasi Dana Desa)</option>
+                            <option value="DDS" selected>DDS (Dana Desa)</option>
+                            <option value="PBH">PBH (Pendapatan Bagi Hasil Pajak)</option>
+                            <option value="APBD Tk. I&II">APBD Tk. I&II (Anggaran Pendapatan dan Belanja Daerah Tingkat I & II)</option>
+                            <option value="APBD Tk. I">APBD Tk. I (Anggaran Pendapatan dan Belanja Daerah Tingkat I/Provinsi)</option>
+                            <option value="APBD Tk. II">APBD Tk. II (Anggaran Pendapatan dan Belanja Daerah Tingkat II/Kabupaten)</option>
+                            <option value="PAD">PAD (Pendapatan Asli Desa)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Pola Pelaksanaan:</label>
+                    <select id="edit-rkp-pola" class="input-field">
+                        <option value="Swakelola">Swakelola</option>
+                        <option value="Kerjasama">Kerjasama</option>
+                        <option value="Pihak Ketiga">Pihak Ketiga</option>
+                    </select>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                    <button type="button" onclick="closeEditRkpModal()" class="btn-outline">Batal</button>
+                    <button type="button" onclick="editInRabFromModal()" id="btn-edit-in-rab" class="btn-secondary"><i class="fas fa-external-link-alt mr-1"></i> Edit di RAB</button>
+                    <button type="submit" class="btn-primary"><i class="fas fa-save mr-1"></i> Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="rkpdes.js"></script>
+    <script>
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(data => {
+                document.getElementById('navbar-container').innerHTML = data;
+            })
+            .catch(err => console.error('Navbar error:', err));
+    </script>
+</body>
+</html>

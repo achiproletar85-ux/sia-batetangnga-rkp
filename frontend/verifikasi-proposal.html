@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pemeriksaan Proposal & RAB - SIA Batetangnga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/global-tahun.js"></script>
+    <style>
+        @page {
+            size: portrait;
+            margin: 10mm;
+        }
+
+        @media print {
+            body { background: white !important; padding: 0 !important; margin: 0 !important; font-size: 9.5px !important; color: black !important; }
+            .no-print { display: none !important; }
+            .max-w-5xl { max-width: 100% !important; width: 100% !important; padding: 0 !important; margin: 0 !important; border: none !important; box-shadow: none !important; }
+            table { width: 100% !important; border-collapse: collapse !important; border: 1.5px solid #000 !important; font-size: 9px !important; }
+            th { border: 1px solid #000 !important; background-color: #f1f5f9 !important; color: #000 !important; padding: 4px 3px !important; font-weight: bold !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            td { border: 1px solid #000 !important; color: #000 !important; padding: 4px 4px !important; word-wrap: break-word !important; }
+            
+            input, select, textarea {
+                border: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                outline: none !important;
+                padding: 0 !important;
+                color: black !important;
+                font-size: 9px !important;
+            }
+
+            .overflow-x-auto table {
+                min-width: 100% !important;
+            }
+        }
+
+        .overflow-x-auto {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+        }
+
+        .overflow-x-auto table {
+            min-width: 800px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
+
+    <!-- NAVIGATION BAR -->
+    <div id="navbar-container"></div>
+    <script>
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(data => document.getElementById('navbar-container').innerHTML = data)
+            .catch(err => console.error('Navbar error:', err));
+    </script>
+
+    <!-- MAIN CONTAINER -->
+    <div class="max-w-5xl mx-auto px-4 pb-12">
+        
+        <!-- HEADER KARTU & PANEL KONTROL -->
+        <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6 my-6 no-print">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 tracking-wide uppercase flex items-center gap-2">
+                        <i class="fas fa-file-circle-check text-indigo-600"></i>
+                        PEMERIKSAAN PROPOSAL DAN RAB
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">Lembar Verifikasi Kelengkapan Proposal &amp; RAB Kegiatan (Format Baku Kementerian)</p>
+                </div>
+
+                <!-- FILTER TAHUN & KONTROL RECORD -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-bold text-slate-700 uppercase">Tahun:</label>
+                        <select id="select-tahun" onchange="loadVerifikasiList()" class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                                                        <option value="2022">2022</option>
+                            <option value="2023">2023</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                            <option value="2027" selected>2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-bold text-slate-700 uppercase">Daftar:</label>
+                        <select id="select-verifikasi" onchange="pilihVerifikasi()" class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none max-w-[200px]">
+                            <option value="new">+ Buat Verifikasi Baru</option>
+                        </select>
+                    </div>
+
+                    <button onclick="buatVerifikasiBaru()" class="bg-slate-600 hover:bg-slate-700 text-white font-bold text-xs px-3 py-2 rounded-lg shadow transition flex items-center gap-1">
+                        <i class="fas fa-plus"></i> Baru
+                    </button>
+
+                    <button onclick="simpanVerifikasi()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-2 rounded-lg shadow transition flex items-center gap-1">
+                        <i class="fas fa-save"></i> Simpan DB
+                    </button>
+
+                    <button onclick="hapusVerifikasi()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-3 py-2 rounded-lg shadow transition flex items-center gap-1">
+                        <i class="fas fa-trash-alt"></i> Hapus
+                    </button>
+
+                    <button onclick="printPDF()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-2 rounded-lg shadow transition flex items-center gap-1">
+                        <i class="fas fa-print"></i> Cetak / PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- FORM & LEMBARAN DOKUMEN CETAK RESMI -->
+        <div id="print-area" class="bg-white rounded-xl shadow-md border border-slate-200 p-6 md:p-10 space-y-6">
+            
+            <!-- HEADER KOP DOKUMEN -->
+            <div class="text-center border-b border-slate-300 pb-4">
+                <h3 class="text-lg font-extrabold text-slate-900 uppercase tracking-wider">PEMERIKSAAN PROPOSAL DAN RAB</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-bold text-slate-700 mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div>DESA: <span class="text-indigo-900 uppercase">BATETANGNGA</span></div>
+                    <div>KECAMATAN: <span class="text-indigo-900 uppercase">BINUANG</span></div>
+                    <div>KABUPATEN: <span class="text-indigo-900 uppercase">POLEWALI MANDAR</span></div>
+                    <div>PROVINSI: <span class="text-indigo-900 uppercase">SULAWESI BARAT</span></div>
+                </div>
+            </div>
+
+            <!-- IDENTITAS KEGIATAN & TARIK DARI RAB -->
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs font-semibold space-y-3">
+                <div class="flex flex-wrap items-center gap-2 pb-3 border-b border-slate-200 no-print">
+                    <label class="font-extrabold text-indigo-900 flex items-center gap-1.5 min-w-[140px]">
+                        <i class="fas fa-list-check text-indigo-600"></i> Pilih Kegiatan RAB:
+                    </label>
+                    <select id="select-kegiatan-rab" onchange="pilihKegiatanRAB()" class="flex-1 border border-indigo-300 rounded-lg px-3 py-1.5 text-xs font-bold bg-white text-indigo-950 focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm">
+                        <option value="">-- Pilih Kegiatan dari RAB --</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2">
+                            <label class="w-28 text-slate-700 font-bold">1. Bidang:</label>
+                            <input type="text" id="input-bidang" class="flex-1 border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 bg-white" placeholder="Contoh: Bidang Pembangunan Desa">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="w-28 text-slate-700 font-bold">2. Nama Kegiatan:</label>
+                            <input type="text" id="input-kegiatan" class="flex-1 border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 bg-white" placeholder="Contoh: Pembangunan Drainase Dusun Batetangnga">
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2">
+                            <label class="w-32 text-slate-700 font-bold">3. Lokasi Kegiatan:</label>
+                            <input type="text" id="input-lokasi" class="flex-1 border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 bg-white" value="Desa Batetangnga" placeholder="Lokasi...">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="w-32 text-slate-700 font-bold">4. Volume &amp; Satuan:</label>
+                            <input type="text" id="input-volume" class="flex-1 border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 bg-white" placeholder="Contoh: 150 Meter / 1 Paket">
+                        </div>
+                    </div>
+                    <div class="md:col-span-2 flex items-center gap-2 pt-2 border-t border-slate-200">
+                        <label class="w-36 text-slate-700 font-bold">5. Tgl Pemeriksaan:</label>
+                        <input type="date" id="input-tanggal" class="border border-slate-300 rounded px-2.5 py-1 text-xs outline-none focus:border-indigo-500 bg-white font-bold text-slate-800" value="2026-08-02">
+                    </div>
+                </div>
+            </div>
+
+            <!-- TABEL 14 ITEM PEMERIKSAAN -->
+            <div>
+                <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <i class="fas fa-list-check text-indigo-600"></i> DOKUMEN DAN KELENGKAPAN YANG DIPERIKSA (14 ITEM)
+                </h4>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left border-collapse border border-slate-300">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-800 font-bold text-center border-b border-slate-300">
+                                <th class="border border-slate-300 p-2 w-10">NO</th>
+                                <th class="border border-slate-300 p-2 min-w-[280px]">JENIS DOKUMEN / KELENGKAPAN</th>
+                                <th class="border border-slate-300 p-2 min-w-[240px]">STATUS KELENGKAPAN</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabel-14-item">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- HASIL PEMERIKSAAN (RADIO LAYAK / TIDAK LAYAK) -->
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                <label class="font-bold text-slate-800 text-sm block mb-2">HASIL PEMERIKSAAN KELAYAKAN PROPOSAL DAN RAB:</label>
+                <div class="flex items-center gap-6 font-bold">
+                    <label class="flex items-center gap-2 cursor-pointer text-emerald-800 bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-300 hover:bg-emerald-100 transition">
+                        <input type="radio" name="hasil_layak" value="true" checked class="w-4 h-4 text-emerald-600 focus:ring-emerald-500">
+                        <i class="fas fa-circle-check text-emerald-600 text-base"></i> LAYAK (Diteruskan ke Penyusunan RKPDes)
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-rose-800 bg-rose-50 px-4 py-2 rounded-lg border border-rose-300 hover:bg-rose-100 transition">
+                        <input type="radio" name="hasil_layak" value="false" class="w-4 h-4 text-rose-600 focus:ring-rose-500">
+                        <i class="fas fa-circle-xmark text-rose-600 text-base"></i> TIDAK LAYAK (Perlu Perbaikan / Ditolak)
+                    </label>
+                </div>
+            </div>
+
+            <!-- TIM VERIFIKASI (3 ORANG) -->
+            <div>
+                <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <i class="fas fa-users text-indigo-600"></i> TIM VERIFIKASI DOKUMEN (3 ORANG)
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <label class="font-bold text-slate-700 block mb-1">1. Wakil Masyarakat:</label>
+                        <input type="text" id="input-wakil-masyarakat" class="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 bg-white" value="H. ABDULLAH" placeholder="Nama Wakil Masyarakat...">
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <label class="font-bold text-slate-700 block mb-1">2. Pendamping Profesional:</label>
+                        <input type="text" id="input-pendamping-profesional" class="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 bg-white" value="RAHMAN, ST" placeholder="Nama Pendamping...">
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <label class="font-bold text-slate-700 block mb-1">3. Dinas / Instansi Terkait:</label>
+                        <input type="text" id="input-dinas-instansi" class="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 bg-white" value="IR. M. YUSUF" placeholder="Nama Perwakilan Dinas...">
+                    </div>
+                </div>
+            </div>
+
+            <!-- CATATAN PEMERIKSAAN -->
+            <div>
+                <label class="font-bold text-slate-800 text-xs block mb-1">CATATAN &amp; REKOMENDASI HASIL VERIFIKASI:</label>
+                <textarea id="input-catatan" rows="3" class="w-full p-2.5 text-xs border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white" placeholder="Catatan perbaikan desain, penyesuaian volume, atau rekomendasi pendampingan..."></textarea>
+            </div>
+
+            <!-- FOOTER SIGNATURE SECTION (3 TIM VERIFIKASI) -->
+            <div class="mt-10 pt-6 border-t border-slate-300">
+                <p class="text-xs font-bold text-slate-800 text-center mb-6">Batetangnga, <span id="text-tanggal-ttd">02 Agustus 2026</span></p>
+                <div class="grid grid-cols-3 text-center text-xs font-bold text-slate-800 gap-4">
+                    <div>
+                        <p class="mb-14">Wakil Masyarakat</p>
+                        <p id="ttd-wakil-masyarakat" class="font-extrabold uppercase border-b border-slate-900 pb-0.5 inline-block min-w-[150px]">H. ABDULLAH</p>
+                    </div>
+                    <div>
+                        <p class="mb-14">Pendamping Profesional</p>
+                        <p id="ttd-pendamping-profesional" class="font-extrabold uppercase border-b border-slate-900 pb-0.5 inline-block min-w-[150px]">RAHMAN, ST</p>
+                    </div>
+                    <div>
+                        <p class="mb-14">Dinas / Instansi Terkait</p>
+                        <p id="ttd-dinas-instansi" class="font-extrabold uppercase border-b border-slate-900 pb-0.5 inline-block min-w-[150px]">IR. M. YUSUF</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- SCRIPT UTAMA -->
+    <script src="verifikasi-proposal.js"></script>
+</body>
+</html>

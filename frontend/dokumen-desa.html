@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistem Dokumen RKP Desa Batetangnga - Template Management & Google Docs Engine</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fff7ed',
+              100: '#ffedd5',
+              500: '#f97316',
+              600: '#ea580c',
+              700: '#c2410c'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="/global-tahun.js"></script>
+  <style>
+    :root {
+      --brand-50: #fff7ed;
+      --brand-100: #ffedd5;
+      --brand-400: #fb923c;
+      --brand-500: #f97316;
+      --brand-600: #ea580c;
+      --brand-700: #c2410c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: linear-gradient(135deg, #f0f4ff 0%, #f8fafc 50%, #faf5ff 100%);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+    .card-premium {
+      background: #ffffff;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 20px;
+      box-shadow: 0 4px 6px -1px rgba(15,23,42,0.04), 0 2px 4px -2px rgba(15,23,42,0.03), 0 0 0 1px rgba(255,255,255,0.8);
+      transition: box-shadow 0.2s ease;
+    }
+    .card-premium:hover { box-shadow: 0 10px 25px -5px rgba(15,23,42,0.08), 0 4px 10px -3px rgba(15,23,42,0.05); }
+    .card-shadow { box-shadow: 0 4px 6px -1px rgba(15,23,42,0.04), 0 2px 4px -2px rgba(15,23,42,0.03); border-radius: 20px; }
+    .nav-btn {
+      color: #64748b;
+      font-weight: 600;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid transparent;
+      font-size: 11px;
+      letter-spacing: 0.01em;
+    }
+    .nav-btn:hover { color: #0f172a; background: rgba(255,255,255,0.8); border-color: rgba(148,163,184,0.3); }
+    .nav-btn.active {
+      background: #ffffff;
+      color: #ea580c;
+      font-weight: 800;
+      border: 1px solid rgba(251,146,60,0.3);
+      box-shadow: 0 2px 12px rgba(234, 88, 12, 0.15), inset 0 1px 0 rgba(255,255,255,0.9);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+      color: #ffffff;
+      font-weight: 700;
+      border-radius: 12px;
+      border: none;
+      box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+      transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+      cursor: pointer;
+    }
+    .btn-primary:hover { box-shadow: 0 6px 18px rgba(249,115,22,0.4); transform: translateY(-1px); background: linear-gradient(135deg, #fb923c 0%, #f97316 100%); }
+    .btn-secondary {
+      background: rgba(241,245,249,0.9);
+      color: #475569;
+      font-weight: 700;
+      border-radius: 12px;
+      border: 1px solid rgba(148,163,184,0.25);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .btn-secondary:hover { background: #ffffff; color: #0f172a; box-shadow: 0 2px 8px rgba(15,23,42,0.08); }
+    .btn-dark {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: #f8fafc;
+      font-weight: 700;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 4px 12px rgba(15,23,42,0.25);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .btn-dark:hover { background: linear-gradient(135deg, #334155 0%, #1e293b 100%); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(15,23,42,0.35); }
+    .btn-emerald {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff;
+      font-weight: 700;
+      border-radius: 12px;
+      border: none;
+      box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .btn-emerald:hover { box-shadow: 0 6px 18px rgba(16,185,129,0.4); transform: translateY(-1px); }
+    .btn-sky {
+      background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+      color: #ffffff;
+      font-weight: 700;
+      border-radius: 12px;
+      border: none;
+      box-shadow: 0 4px 12px rgba(14,165,233,0.3);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .btn-sky:hover { box-shadow: 0 6px 18px rgba(14,165,233,0.4); transform: translateY(-1px); }
+    .btn-red {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: #ffffff;
+      font-weight: 700;
+      border-radius: 12px;
+      border: none;
+      box-shadow: 0 4px 12px rgba(239,68,68,0.3);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .btn-red:hover { box-shadow: 0 6px 18px rgba(239,68,68,0.4); transform: translateY(-1px); }
+    .btn-slate {
+      background: linear-gradient(135deg, #475569 0%, #334155 100%);
+      color: #ffffff;
+      font-weight: 700;
+      border-radius: 12px;
+      border: none;
+      box-shadow: 0 4px 12px rgba(71,85,105,0.25);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .btn-slate:hover { box-shadow: 0 6px 18px rgba(71,85,105,0.35); transform: translateY(-1px); }
+    iframe.gdoc-iframe { width: 100%; height: 100%; border: 0; background: #ffffff; }
+    .glass-header {
+      position: sticky;
+      top: 46px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06);
+    }
+    .table-premium thead { background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); }
+    .table-premium thead th { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; border-bottom: 2px solid #e2e8f0; padding: 14px 16px; }
+    .table-premium tbody td { padding: 12px 16px; border-bottom: 1px solid rgba(241,245,249,0.8); font-size: 12px; color: #334155; font-weight: 500; vertical-align: middle; }
+    .table-premium tbody tr { transition: background 0.15s ease; }
+    .table-premium tbody tr:hover { background: linear-gradient(135deg, #fafbff 0%, #f8fafc 100%); }
+    .table-premium tbody tr:last-child td { border-bottom: none; }
+    .form-input {
+      width: 100%;
+      border: 1.5px solid rgba(203,213,225,0.8);
+      border-radius: 10px;
+      padding: 9px 14px;
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: 500;
+      color: #1e293b;
+      background: #ffffff;
+      transition: all 0.2s ease;
+      outline: none;
+    }
+    .form-input:focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249,115,22,0.1); }
+    .form-input-mono {
+      font-family: 'SF Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .section-label {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    .badge-code {
+      display: inline-flex;
+      align-items: center;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: #e2e8f0;
+      font-family: 'SF Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+    }
+    .preview-iframe-bar {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .modal-overlay-bg {
+      background: rgba(2, 6, 23, 0.6);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .modal-card {
+      background: #ffffff;
+      border-radius: 24px;
+      box-shadow: 0 25px 60px -12px rgba(2,6,23,0.35), 0 0 0 1px rgba(255,255,255,0.8);
+      border: 1px solid rgba(148,163,184,0.1);
+    }
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid rgba(226,232,240,0.8);
+    }
+    .modal-footer {
+      padding: 16px 24px;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-top: 1px solid rgba(226,232,240,0.8);
+      border-radius: 0 0 24px 24px;
+    }
+    .auto-save-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #059669;
+      background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+      padding: 3px 10px;
+      border-radius: 99px;
+      border: 1px solid rgba(16,185,129,0.2);
+    }
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      background: #10b981;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+    .gradient-badge {
+      background: linear-gradient(135deg, rgba(251,146,60,0.12) 0%, rgba(249,115,22,0.08) 100%);
+      color: #c2410c;
+      border: 1px solid rgba(251,146,60,0.25);
+      font-weight: 800;
+      font-size: 10px;
+      padding: 2px 10px;
+      border-radius: 99px;
+      letter-spacing: 0.02em;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.4); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,0.5); }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col">
+  <!-- STICKY TOP NAVIGATION WRAPPER (NAVBAR UTAMA + SUB-HEADER) -->
+  <div class="sticky top-0 z-[1050] bg-white/95 backdrop-blur-md border-b border-slate-200/60 shadow-sm">
+    <div id="navbar-container"></div>
+
+    <!-- HEADER BAR SISTEM MAIN -->
+    <header class="glass-header">
+      <div class="max-w-full px-5 py-2.5">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+
+          <!-- Judul & Identitas -->
+          <div class="flex items-center gap-4">
+            <div class="relative">
+              <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-600 via-brand-500 to-amber-400 text-white flex items-center justify-center font-black text-sm shadow-lg shadow-orange-500/30 border border-orange-300/20">
+                RKP
+              </div>
+              <span class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-400 border-2 border-white rounded-full shadow"></span>
+            </div>
+            <div>
+              <h1 class="text-[15px] font-extrabold text-slate-900 flex items-center gap-2.5 tracking-tight leading-tight">
+                Sistem Dokumen RKP Desa Batetangnga
+                <span class="gradient-badge">Google Docs Engine</span>
+              </h1>
+              <p class="text-[11px] text-slate-400 font-semibold mt-0.5 tracking-wide">
+                Desa Batetangnga &nbsp;•&nbsp; Kec. Binuang &nbsp;•&nbsp; Kab. Polewali Mandar
+              </p>
+            </div>
+          </div>
+
+          <!-- Navigation Tabs & Tahun Anggaran Selector (2022-2027) -->
+            <!-- Indikator Tahun Anggaran Aktif -->
+            <div class="flex items-center gap-2 bg-slate-900 text-white px-3.5 py-1.5 rounded-2xl shadow-sm border border-slate-800">
+              <i class="fas fa-calendar-alt text-amber-400 text-xs"></i>
+              <span class="text-[11px] font-bold text-slate-300">Tahun RKP:</span>
+              <span class="display-active-tahun bg-amber-400 text-slate-950 font-black text-xs px-2.5 py-0.5 rounded-xl">2027</span>
+            </div>
+
+            <div class="flex items-center gap-1.5 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60 shadow-inner">
+              <button onclick="bukaModul('/admin/templates')" id="tabnav-templates" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
+                <i class="fas fa-layer-group"></i> Kelola Template
+              </button>
+              <button onclick="bukaModul('/admin/templates/scan')" id="tabnav-scan" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
+                <i class="fas fa-code"></i> Scan Placeholder
+              </button>
+              <button onclick="bukaDokumenEdit('DOC-02B')" id="tabnav-edit" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
+                <i class="fas fa-pen-to-square"></i> Form &amp; Preview
+              </button>
+              <button onclick="bukaModul('/admin/templates/settings')" id="tabnav-settings" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
+                <i class="fas fa-sliders"></i> Pengaturan
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <!-- CONTAINER MAIN WORKSPACE -->
+  <main class="max-w-full px-5 py-6 flex-1 w-full space-y-5">
+
+    <!-- MODUL 1: PANEL KELOLA TEMPLATE (CRUD) -->
+    <section id="modul-admin-templates" class="space-y-5">
+
+      <!-- PANEL INFOGRAFIS / STATISTIK RINGKASAN DOKUMEN -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Card 1: Total Dokumen -->
+        <div class="card-premium p-4.5 flex items-center justify-between group hover:border-orange-200 transition-all">
+          <div>
+            <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Total Template</span>
+            <div class="flex items-baseline gap-2">
+              <span id="statTotalDocs" class="text-2xl font-black text-slate-900">18</span>
+              <span class="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">Resmi</span>
+            </div>
+            <span class="text-[11px] text-slate-400 font-medium block mt-1">Tahap A s/d Tahap E</span>
+          </div>
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-400 text-white flex items-center justify-center text-xl shadow-lg shadow-orange-500/25 group-hover:scale-110 transition-transform">
+            <i class="fas fa-folder-closed"></i>
+          </div>
+        </div>
+
+        <!-- Card 2: Google Docs ID Aktif -->
+        <div class="card-premium p-4.5 flex items-center justify-between group hover:border-emerald-200 transition-all">
+          <div>
+            <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Google Docs ID Aktif</span>
+            <div class="flex items-baseline gap-2">
+              <span id="statActiveGDocs" class="text-2xl font-black text-slate-900">18</span>
+              <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Terhubung</span>
+            </div>
+            <span class="text-[11px] text-slate-400 font-medium block mt-1">Siap Eksekusi Copy</span>
+          </div>
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xl shadow-lg shadow-emerald-500/25 group-hover:scale-110 transition-transform">
+            <i class="fas fa-file-contract"></i>
+          </div>
+        </div>
+
+        <!-- Card 3: Document ID Real -->
+        <div class="card-premium p-4.5 flex items-center justify-between group hover:border-indigo-200 transition-all">
+          <div>
+            <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">ID Real Terverifikasi</span>
+            <div class="flex items-baseline gap-2">
+              <span id="statRealGDocs" class="text-2xl font-black text-slate-900">1</span>
+              <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">Verified</span>
+            </div>
+            <span class="text-[11px] text-slate-400 font-medium block mt-1">Live Google Drive</span>
+          </div>
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center text-xl shadow-lg shadow-indigo-500/25 group-hover:scale-110 transition-transform">
+            <i class="fas fa-shield-check"></i>
+          </div>
+        </div>
+
+        <!-- Card 4: Persentase Kesiapan Sistem -->
+        <div class="card-premium p-4.5 flex items-center justify-between group hover:border-sky-200 transition-all">
+          <div>
+            <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Status Kesiapan</span>
+            <div class="flex items-baseline gap-2">
+              <span id="statReadyPercent" class="text-2xl font-black text-slate-900">100%</span>
+              <span class="text-xs font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-100">Siap Pakai</span>
+            </div>
+            <span class="text-[11px] text-slate-400 font-medium block mt-1">Engine Operational</span>
+          </div>
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center text-xl shadow-lg shadow-sky-500/25 group-hover:scale-110 transition-transform">
+            <i class="fas fa-circle-check"></i>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Top Action Bar Panel CRUD -->
+      <div class="card-premium p-5 flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/25">
+            <i class="fas fa-folder-open text-white text-lg"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-extrabold text-slate-900 tracking-tight">
+              Panel Kelola Template Dokumen
+              <span class="text-xs font-bold text-slate-400 ml-1">(CRUD)</span>
+            </h2>
+            <p class="text-xs text-slate-400 font-medium mt-0.5">Kelola daftar template resmi RKP Desa — ganti Google Docs ID, scan placeholder, atau tambah template baru.</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button onclick="bukaModalTambahTemplate()" class="btn-primary text-xs px-5 py-2.5 flex items-center gap-2">
+            <i class="fas fa-plus-circle"></i> Tambah Template Baru
+          </button>
+        </div>
+      </div>
+
+      <!-- Table Template Catalog -->
+      <div class="card-premium overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full table-premium">
+            <thead>
+              <tr>
+                <th class="w-16">Kode</th>
+                <th>Nama Dokumen RKP</th>
+                <th>Google Docs Document ID</th>
+                <th class="w-28">Link External</th>
+                <th class="text-center w-56">Aksi Manajemen</th>
+              </tr>
+            </thead>
+            <tbody id="tableTemplatesBody">
+              <!-- Rendered dynamically by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- MODUL 2: HALAMAN SCAN PLACEHOLDER -->
+    <section id="modul-scan-placeholder" class="card-premium p-6 space-y-5 hidden">
+      <div class="border-b border-slate-100 pb-4 flex justify-between items-start">
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+            <i class="fas fa-code text-white"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="scanDocCode" class="badge-code">DOC-02B</span>
+              <h2 id="scanDocTitle" class="text-base font-extrabold text-slate-900">Scan Tag Placeholder Google Docs</h2>
+            </div>
+            <p class="text-xs text-slate-400 font-medium mt-0.5">Mengekstrak seluruh tag {{kode_field}} langsung dari template Google Docs untuk generate form otomatis.</p>
+          </div>
+        </div>
+        <button onclick="bukaModul('/admin/templates')" class="btn-secondary text-xs px-4 py-2 flex items-center gap-1.5">
+          <i class="fas fa-arrow-left"></i> Kembali
+        </button>
+      </div>
+
+      <!-- Input Scanner Controls -->
+      <div class="bg-gradient-to-r from-slate-50 to-indigo-50/50 p-5 rounded-2xl border border-slate-200/60">
+        <p class="section-label mb-3">Konfigurasi Pemindaian</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-slate-600 mb-1.5">Google Docs Document ID</label>
+            <input type="text" id="inputScanGDocId" class="form-input form-input-mono" value="" />
+          </div>
+          <div class="flex items-end">
+            <button onclick="eksekusiScanOtomatis()" class="btn-dark text-xs py-2.5 px-4 w-full flex items-center justify-center gap-2">
+              <i class="fas fa-search"></i> Eksekusi Scan {{...}}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results Display -->
+      <div id="containerScanResults" class="space-y-4">
+        <div class="p-10 bg-slate-50/80 border border-dashed border-slate-200 rounded-2xl text-center">
+          <i class="fas fa-magnifying-glass text-slate-300 text-3xl mb-3 block"></i>
+          <p class="text-slate-400 text-sm font-semibold">Tekan tombol <strong class="text-slate-600">"Eksekusi Scan"</strong> untuk memindai tag placeholder secara otomatis.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODUL 3: HALAMAN EDIT DOKUMEN (FORM + PREVIEW IFRAME GOOGLE DOCS REAL) -->
+    <section id="modul-dokumen-edit" class="space-y-5 hidden">
+
+      <!-- Action Header Bar -->
+      <div class="card-premium p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+          <button onclick="bukaModul('/admin/templates')" class="btn-secondary w-9 h-9 flex items-center justify-center rounded-xl text-sm shrink-0">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <div>
+            <div class="flex items-center gap-2.5 flex-wrap">
+              <span id="editDocCode" class="badge-code">DOC-02B</span>
+              <h2 id="editDocTitle" class="text-[15px] font-extrabold text-slate-900 tracking-tight">SK Tim Penyusun Perencanaan Desa</h2>
+              <div class="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                <label for="selectActiveTemplate" class="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider hidden sm:inline-flex items-center gap-1">
+                  <i class="fas fa-file-invoice text-brand-500"></i> Dokumen:
+                </label>
+                <select id="selectActiveTemplate" onchange="bukaDokumenEdit(this.value)" class="text-xs font-extrabold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl px-3 py-1.5 focus:border-brand-500 focus:outline-none cursor-pointer shadow-sm">
+                  <!-- Populated dynamically by JS -->
+                </select>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <p id="editDocGDocId" class="text-[10px] text-slate-400 font-mono font-semibold">ID: (belum diisi)</p>
+              <button onclick="bukaModalGantiDocIdAktif()" class="text-[10px] font-bold text-sky-600 hover:text-sky-700 underline flex items-center gap-1 cursor-pointer" title="Klik jika Document ID tertukar / tidak sesuai">
+                <i class="fas fa-pen-to-square"></i> Fix / Ganti Google Docs ID
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap items-center gap-2 shrink-0">
+          <button onclick="simpanFormDokumenAuto()" class="btn-primary text-xs px-4 py-2.5 flex items-center gap-2">
+            <i class="fas fa-cloud-arrow-up"></i> Simpan &amp; Sinkron
+          </button>
+          <button onclick="bukaModalEditTemplate()" class="btn-slate text-xs px-3.5 py-2.5 flex items-center gap-1.5">
+            <i class="fas fa-cog"></i> Edit Template
+          </button>
+          <button onclick="cetakPdfGoogleDrive()" class="btn-red text-xs px-3.5 py-2.5 flex items-center gap-1.5">
+            <i class="fas fa-file-pdf"></i> Cetak PDF
+          </button>
+          <button onclick="bukaGoogleDocsTabBaru()" class="btn-dark text-xs px-3.5 py-2.5 flex items-center gap-1.5">
+            <i class="fas fa-external-link-alt"></i> Buka di Tab Baru
+          </button>
+        </div>
+      </div>
+
+      <!-- Split Screen Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+        <!-- LEFT COLUMN: Dynamic Form -->
+        <div class="lg:col-span-5 card-premium p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+          <div class="border-b border-slate-100 pb-3.5 flex justify-between items-center">
+            <h3 class="section-label flex items-center gap-2">
+              <span class="w-6 h-6 rounded-lg bg-gradient-to-tr from-brand-500 to-amber-400 flex items-center justify-center">
+                <i class="fas fa-sliders text-white text-[10px]"></i>
+              </span>
+              Form Pengisian Otomatis {{...}}
+            </h3>
+            <span id="autoSaveIndicator" class="auto-save-badge">
+              <span class="pulse-dot"></span> Auto-saved
+            </span>
+          </div>
+
+          <div id="containerDynamicFormFields" class="space-y-4">
+            <!-- Dynamic form inputs injected by JS -->
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Google Docs Iframe Preview -->
+        <div class="lg:col-span-7 card-premium overflow-hidden flex flex-col h-[85vh]">
+          <div class="preview-iframe-bar px-5 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-2.5 text-sm font-bold text-white">
+              <i class="fab fa-google-drive text-amber-400"></i>
+              <span>Live Preview Google Docs</span>
+              <span class="text-[10px] font-semibold text-slate-400">(Real-time)</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="refreshLivePreviewIframe()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1.5 transition cursor-pointer" title="Refresh tampilan preview jika Google Docs baru selesai dirender">
+                <i class="fas fa-rotate"></i> Refresh Preview
+              </button>
+              <button onclick="bukaGoogleDocsTabBaru()" class="text-xs bg-amber-500 hover:bg-amber-400 text-slate-900 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition shadow cursor-pointer">
+                <i class="fas fa-external-link-alt"></i> Buka Hasil di Tab Baru
+              </button>
+            </div>
+          </div>
+          <div class="flex-1 w-full bg-slate-100 relative">
+            <iframe id="iframeGoogleDocsPreview" class="gdoc-iframe" src="about:blank"></iframe>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- MODUL 4: PENGATURAN TEMPLATE (FIELDS & HEADER) -->
+    <section id="modul-pengaturan-template" class="card-premium p-6 space-y-6 hidden">
+      <div class="border-b border-slate-100 pb-5 flex justify-between items-start">
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-violet-500 flex items-center justify-center shadow-lg shadow-purple-500/25">
+            <i class="fas fa-sliders text-white"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-extrabold text-slate-900 tracking-tight">Pengaturan Template — Fields &amp; Header</h2>
+            <p class="text-xs text-slate-400 font-medium mt-0.5">Kelola daftar field {{...}} dan header tabel repeatable untuk template dokumen.</p>
+          </div>
+        </div>
+        <button onclick="bukaModul('/admin/templates')" class="btn-secondary text-xs px-4 py-2 flex items-center gap-1.5">
+          <i class="fas fa-arrow-left"></i> Kembali
+        </button>
+      </div>
+
+      <!-- Pilih Template & Supabase Status Header -->
+      <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="section-label">Template Aktif:</span>
+          <select id="selectSettingTemplateCode" onchange="muatPengaturanTemplate(this.value)" class="form-input w-auto text-xs font-bold bg-white cursor-pointer shadow-sm">
+            <!-- Options dynamically populated by JS with all 18 templates -->
+          </select>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+          <span class="bg-emerald-100 text-emerald-800 text-[11px] font-extrabold px-3 py-1.5 rounded-xl border border-emerald-300 flex items-center gap-1.5 shadow-sm">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <i class="fas fa-database text-emerald-600"></i> Supabase Live DB Active
+          </span>
+          <button onclick="muatPengaturanTemplate()" class="bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs px-3.5 py-1.5 rounded-xl shadow flex items-center gap-1.5 transition cursor-pointer">
+            <i class="fas fa-arrows-rotate"></i> 🔄 Refresh Live Supabase
+          </button>
+          <button onclick="toggleSupabaseRawJsonViewer()" class="bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl shadow flex items-center gap-1.5 transition cursor-pointer">
+            <i class="fas fa-code"></i> 🔍 Lihat JSON Supabase
+          </button>
+        </div>
+      </div>
+
+      <!-- Collapsible Raw Supabase JSON Viewer -->
+      <div id="containerSupabaseRawJson" class="hidden bg-slate-900 text-emerald-400 p-4 rounded-2xl border border-slate-800 font-mono text-xs space-y-2 shadow-inner">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+          <span class="font-bold text-slate-300 flex items-center gap-2">
+            <i class="fas fa-database text-emerald-400"></i> Data Mentah dari Database Supabase (dokumen_form_data &amp; dokumen_templates)
+          </span>
+          <button onclick="toggleSupabaseRawJsonViewer()" class="text-slate-400 hover:text-white font-bold text-xs">&times; Tutup</button>
+        </div>
+        <pre id="preSupabaseRawJson" class="max-h-60 overflow-y-auto whitespace-pre-wrap text-[11px]">Memuat data Supabase...</pre>
+      </div>
+
+      <!-- Daftar Field -->
+      <div class="space-y-3">
+        <div class="flex justify-between items-center">
+          <h3 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-lg bg-gradient-to-tr from-brand-500 to-amber-400 flex items-center justify-center">
+              <i class="fas fa-tags text-white text-[9px]"></i>
+            </span>
+            Daftar Field Placeholder
+            <span id="badgeFieldCount" class="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">0 Fields</span>
+          </h3>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button onclick="bukaModalTambahField()" class="btn-emerald text-xs px-4 py-2 flex items-center gap-2">
+              <i class="fas fa-plus"></i> Tambah Field
+            </button>
+            <div class="relative">
+              <button onclick="toggleDropdown('fieldActionsDropdown')" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5">
+                Aksi Lainnya <i class="fas fa-chevron-down text-[8px] ml-1"></i>
+              </button>
+              <div id="fieldActionsDropdown" class="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10 hidden origin-top-right">
+                <div class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                  <a href="#" onclick="simpanKonfigurasiFieldPermanen(); toggleDropdown('fieldActionsDropdown'); return false;" class="block px-4 py-2 text-xs text-gray-700 hover:bg-gray-100 hover:text-gray-900" role="menuitem">
+                    <i class="fas fa-floppy-disk mr-2"></i> Simpan Konfigurasi Field
+                  </a>
+                  <a href="#" onclick="simpanDanTerapkanGlobalFieldsSemuaDokumen(); toggleDropdown('fieldActionsDropdown'); return false;" class="block px-4 py-2 text-xs text-gray-700 hover:bg-gray-100 hover:text-gray-900" role="menuitem">
+                    <i class="fas fa-arrows-rotate mr-2"></i> Terapkan Master Field ke Semua Surat
+                  </a>
+                  <a href="#" onclick="jalankanAutoScanPlaceholdersSettings(); toggleDropdown('fieldActionsDropdown'); return false;" class="block px-4 py-2 text-xs text-gray-700 hover:bg-gray-100 hover:text-gray-900" role="menuitem">
+                    <i class="fas fa-search mr-2"></i> Auto-Scan Google Docs
+                  </a>
+                  <a href="#" onclick="bersihkanFieldKadaluarsa(); toggleDropdown('fieldActionsDropdown'); return false;" class="block px-4 py-2 text-xs text-gray-700 hover:bg-gray-100 hover:text-gray-900" role="menuitem">
+                    <i class="fas fa-broom mr-2"></i> Bersihkan Field Tidak Aktif
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-2xl border border-slate-200/60 overflow-hidden">
+          <table class="w-full table-premium">
+            <thead>
+              <tr>
+                <th class="w-10 text-center">No</th>
+                <th class="w-1/5">Kode Field</th>
+                <th class="w-1/5">Label Field</th>
+                <th>Isi Data / Value (Dapat Diisi Langsung)</th>
+                <th class="w-32 text-center">Tipe Field</th>
+                <th class="w-24 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyTemplateFields">
+              <!-- Rendered by JS -->
+            </tbody>
+          </table>
+        </div>
+        </div>
+      </div>
+      <!-- Header Tabel -->
+      <div class="space-y-3 pt-5 border-t border-slate-100">
+        <div class="flex justify-between items-center">
+          <h3 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-lg bg-gradient-to-tr from-sky-500 to-cyan-400 flex items-center justify-center">
+              <i class="fas fa-table text-white text-[9px]"></i>
+            </span>
+            Header Tabel Repeatable
+          </h3>
+          <button onclick="bukaModalEditTableHeader()" class="btn-sky text-xs px-4 py-2 flex items-center gap-2">
+            <i class="fas fa-pen-to-square"></i> Edit Header
+          </button>
+        </div>
+
+        <!-- Preview Header Tabel -->
+        <div class="rounded-2xl border border-slate-200/60 overflow-hidden">
+          <table class="w-full table-premium">
+            <thead>
+              <tr id="previewTableHeadersRow" class="">
+                <!-- Diisi oleh JS -->
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="px-4 py-4 text-center text-slate-300 text-xs font-medium" colspan="5">
+                  <i class="fas fa-table mr-1.5"></i> Baris data akan diisi otomatis dari form
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODAL EDIT TEMPLATE -->
+    <div id="modalEditTemplate" class="fixed inset-0 z-50 hidden items-center justify-center overflow-y-auto">
+      <div class="fixed inset-0 modal-overlay-bg" onclick="tutupModalEditTemplate()"></div>
+      <div class="relative modal-card w-full max-w-4xl m-6" onclick="event.stopPropagation()">
+
+        <div class="modal-header flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-slate-700 to-slate-600 flex items-center justify-center shadow">
+              <i class="fas fa-cog text-white text-sm"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-extrabold text-slate-900">Edit Template</h3>
+              <p class="text-xs text-slate-400 font-medium">Kode: <span id="modal-template-code" class="font-mono font-bold text-brand-500">DOC-02B</span></p>
+            </div>
+          </div>
+          <button onclick="tutupModalEditTemplate()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-all">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-6 max-h-[72vh] overflow-y-auto">
+
+          <!-- Fields Section -->
+          <div class="space-y-3">
+            <div class="flex justify-between items-center">
+              <h4 class="text-sm font-extrabold text-slate-800">Daftar Field <span class="text-xs font-semibold text-slate-400">({{...}})</span></h4>
+              <button onclick="tambahFieldBaru()" class="btn-emerald text-xs px-3.5 py-2 flex items-center gap-1.5">
+                <i class="fas fa-plus"></i> Tambah Field
+              </button>
+            </div>
+            <div class="rounded-2xl border border-slate-200/60 overflow-hidden">
+              <table class="w-full table-premium">
+                <thead>
+                  <tr>
+                    <th class="w-1/3">Kode Field</th>
+                    <th>Label (Nama di Form)</th>
+                    <th class="w-24 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="modal-fields-tbody">
+                  <!-- Rows will be injected by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Header Tabel -->
+          <div class="space-y-3">
+            <div class="flex justify-between items-center">
+              <h4 class="text-sm font-extrabold text-slate-800">Header Tabel Tim Penyusun</h4>
+              <button onclick="tambahKolomHeader()" class="btn-sky text-xs px-3.5 py-2 flex items-center gap-1.5">
+                <i class="fas fa-plus"></i> Tambah Kolom
+              </button>
+            </div>
+            <div id="modal-headers-container" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <!-- Header inputs will be injected by JS -->
+            </div>
+          </div>
+
+        </div>
+
+        <div class="modal-footer flex items-center justify-end gap-3">
+          <button onclick="tutupModalEditTemplate()" class="btn-secondary text-sm px-5 py-2.5">Batal</button>
+          <button onclick="simpanPerubahanTemplate()" class="btn-primary text-sm px-5 py-2.5 flex items-center gap-2">
+            <i class="fas fa-cloud-arrow-up"></i> Simpan Perubahan
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- MODAL EDIT HEADER TABEL -->
+    <div id="modalEditTableHeader" class="fixed inset-0 z-50 hidden items-center justify-center overflow-y-auto">
+      <div class="fixed inset-0 modal-overlay-bg" onclick="tutupModalEditTableHeader()"></div>
+      <div class="relative modal-card w-full max-w-2xl m-6" onclick="event.stopPropagation()">
+
+        <div class="modal-header flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-cyan-400 flex items-center justify-center shadow">
+              <i class="fas fa-table text-white text-sm"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-extrabold text-slate-900">Edit Header Tabel</h3>
+              <p class="text-xs text-slate-400 font-medium">Ubah nama kolom header tabel repeatable</p>
+            </div>
+          </div>
+          <button onclick="tutupModalEditTableHeader()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-all">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-5">
+          <p class="text-xs text-slate-400 font-medium bg-sky-50 border border-sky-100 rounded-xl px-4 py-3">
+            <i class="fas fa-circle-info text-sky-400 mr-1.5"></i>
+            Atur status dan susunan kolom header tabel. Anda dapat menambah, mengubah, atau menghapus kolom header sesuai kebutuhan dokumen.
+          </p>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Status Tabel Dokumen Ini</label>
+              <select id="selectModalHasTable" class="form-input w-full text-xs font-bold bg-white">
+                <option value="true">✅ Gunakan Tabel Repeatable (Tampilkan di Form & Dokumen)</option>
+                <option value="false">🚫 Tidak Menggunakan Tabel (Sembunyikan Bagian Tabel)</option>
+              </select>
+            </div>
+            <div>
+              <div class="flex justify-between items-center mb-2">
+                <label class="block text-xs font-bold text-slate-700">Daftar Kolom Header Tabel</label>
+                <button onclick="tambahKolomHeaderDynamic()" class="bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-sm flex items-center gap-1 transition cursor-pointer">
+                  <i class="fas fa-plus"></i> + Tambah Kolom Header
+                </button>
+              </div>
+              <div id="modalHeaderColsList" class="space-y-2 max-h-[35vh] overflow-y-auto p-1">
+                <!-- Dynamic column inputs injected by JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer flex items-center justify-end gap-3">
+          <button onclick="tutupModalEditTableHeader()" class="btn-secondary text-sm px-5 py-2.5">Batal</button>
+          <button onclick="simpanHeaderTabel()" class="btn-sky text-sm px-5 py-2.5 flex items-center gap-2">
+            <i class="fas fa-cloud-arrow-up"></i> Simpan Header
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- MODAL TAMBAH FIELD -->
+    <div id="modalTambahField" class="fixed inset-0 z-50 hidden items-center justify-center overflow-y-auto">
+      <div class="fixed inset-0 modal-overlay-bg" onclick="tutupModalTambahField()"></div>
+      <div class="relative modal-card w-full max-w-lg m-6" onclick="event.stopPropagation()">
+
+        <div class="modal-header flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow">
+              <i class="fas fa-plus text-white text-sm"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-extrabold text-slate-900">Tambah Field Baru</h3>
+              <p class="text-xs text-slate-400 font-medium">Tambah placeholder {{...}} ke template</p>
+            </div>
+          </div>
+          <button onclick="tutupModalTambahField()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-all">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1.5">Kode Field <span class="text-red-400">*</span></label>
+            <input id="tambahFieldKey" type="text" class="form-input form-input-mono" placeholder="Contoh: nomor_surat" />
+            <p class="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
+              <i class="fas fa-circle-info text-slate-300"></i> Akan digunakan sebagai <strong class="font-mono text-slate-600">{{kode_field}}</strong> di Google Docs
+            </p>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1.5">Label (Tampilan di Form)</label>
+            <input id="tambahFieldLabel" type="text" class="form-input" placeholder="Contoh: Nomor Surat" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1.5">Tipe Field</label>
+            <select id="tambahFieldType" onchange="toggleOptionsInput('tambah')" class="form-input font-bold text-slate-700">
+              <option value="text">TEXT — Teks Biasa (Input Pendek)</option>
+              <option value="dropdown">DROPDOWN — Menu Pilihan (Select)</option>
+              <option value="date">DATE — Tanggal (Datepicker)</option>
+              <option value="number">NUMBER — Angka (Numerik)</option>
+              <option value="textarea">TEXTAREA — Teks Panjang (Paragraf)</option>
+              <option value="table">TABLE — Tabel Repeatable</option>
+            </select>
+          </div>
+          <div id="tambahOptionsContainer" class="hidden space-y-1">
+            <label class="block text-xs font-bold text-slate-600">Opsi Pilihan (Pisahkan dengan koma)</label>
+            <input id="tambahFieldOptions" type="text" class="form-input" placeholder="Contoh: Opsi 1, Opsi 2, Opsi 3" />
+          </div>
+        </div>
+
+        <div class="modal-footer flex items-center justify-end gap-3">
+          <button onclick="tutupModalTambahField()" class="btn-secondary text-sm px-5 py-2.5">Batal</button>
+          <button onclick="simpanTambahFieldBaru()" class="btn-emerald text-sm px-5 py-2.5 flex items-center gap-2">
+            <i class="fas fa-plus"></i> Tambahkan Field
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- MODAL EDIT FIELD -->
+    <div id="modalEditField" class="fixed inset-0 z-50 hidden items-center justify-center overflow-y-auto">
+      <div class="fixed inset-0 modal-overlay-bg" onclick="tutupModalEditField()"></div>
+      <div class="relative modal-card w-full max-w-lg m-6" onclick="event.stopPropagation()">
+
+        <div class="modal-header flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-400 flex items-center justify-center shadow">
+              <i class="fas fa-pen-to-square text-white text-sm"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-extrabold text-slate-900">Edit Field</h3>
+              <p class="text-xs text-slate-400 font-medium">Ubah label, tipe, dan properti field</p>
+            </div>
+          </div>
+          <button onclick="tutupModalEditField()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-all">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1.5">Kode Field</label>
+            <input id="editFieldKey" type="text" class="form-input form-input-mono bg-slate-50 text-slate-500 cursor-not-allowed" disabled />
+            <input id="editOriginalKey" type="hidden" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1.5">Label (Tampilan di Form)</label>
+            <input id="editFieldLabel" type="text" class="form-input" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1.5">Tipe Field</label>
+            <select id="editFieldType" onchange="toggleOptionsInput('edit')" class="form-input font-bold text-slate-700">
+              <option value="text">TEXT — Teks Biasa (Input Pendek)</option>
+              <option value="dropdown">DROPDOWN — Menu Pilihan (Select)</option>
+              <option value="date">DATE — Tanggal (Datepicker)</option>
+              <option value="number">NUMBER — Angka (Numerik)</option>
+              <option value="textarea">TEXTAREA — Teks Panjang (Paragraf)</option>
+              <option value="table">TABLE — Tabel Repeatable</option>
+            </select>
+          </div>
+          <div id="editOptionsContainer" class="hidden space-y-1">
+            <label class="block text-xs font-bold text-slate-600">Opsi Pilihan (Pisahkan dengan koma)</label>
+            <input id="editFieldOptions" type="text" class="form-input" placeholder="Contoh: Opsi 1, Opsi 2, Opsi 3" />
+          </div>
+        </div>
+
+        <div class="modal-footer flex items-center justify-end gap-3 border-t border-slate-100 pt-4 mt-2">
+          <button onclick="tutupModalEditField()" class="btn-secondary text-sm px-5 py-2.5">Batal</button>
+          <button onclick="simpanPerubahanField()" class="bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow-md flex items-center gap-2 transition cursor-pointer">
+            <i class="fas fa-check-circle"></i> Simpan Perubahan
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL TAMBAH TEMPLATE BARU -->
+  <div id="modalTambahTemplate" class="fixed inset-0 z-[2000] hidden items-center justify-center overflow-y-auto">
+    <div class="fixed inset-0 modal-overlay-bg" onclick="tutupModalTambahTemplate()"></div>
+    <div class="relative modal-card w-full max-w-lg m-6" onclick="event.stopPropagation()">
+
+      <div class="modal-header flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-400 flex items-center justify-center shadow">
+            <i class="fas fa-plus text-white text-sm"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-extrabold text-slate-900">Tambah Template Baru</h3>
+            <p class="text-xs text-slate-400 font-medium">Daftarkan template RKP Desa baru</p>
+          </div>
+        </div>
+        <button onclick="tutupModalTambahTemplate()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-all">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1.5">Kode Dokumen <span class="text-red-400">*</span></label>
+          <input id="tambahModalCode" type="text" class="form-input form-input-mono uppercase" placeholder="Contoh: DOC-35" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1.5">Nama Dokumen RKP <span class="text-red-400">*</span></label>
+          <input id="tambahModalName" type="text" class="form-input" placeholder="Contoh: SK Kades Penetapan Tim RKP" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1.5">Google Docs Document ID <span class="text-red-400">*</span></label>
+          <input id="tambahModalGDocId" type="text" class="form-input form-input-mono" placeholder="Contoh: 1MQJsTZCMPoYNFD8..." />
+        </div>
+      </div>
+
+      <div class="modal-footer flex items-center justify-end gap-3">
+        <button onclick="tutupModalTambahTemplate()" class="btn-secondary text-sm px-5 py-2.5">Batal</button>
+        <button onclick="simpanTambahTemplateBaru()" class="btn-primary text-sm px-5 py-2.5 flex items-center gap-2">
+          <i class="fas fa-plus-circle"></i> Tambahkan Template
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL EDIT TEMPLATE GOOGLE DOCS ID -->
+  <div id="modalEditTemplateId" class="fixed inset-0 z-[2000] hidden items-center justify-center overflow-y-auto">
+    <div class="fixed inset-0 modal-overlay-bg" onclick="tutupModalEditTemplateId()"></div>
+    <div class="relative modal-card w-full max-w-lg m-6" onclick="event.stopPropagation()">
+
+      <div class="modal-header flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-slate-700 to-slate-600 flex items-center justify-center shadow">
+            <i class="fas fa-key text-white text-sm"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-extrabold text-slate-900">Edit Google Docs Document ID</h3>
+            <p class="text-xs text-slate-400 font-medium">Perbarui ID Template Google Docs</p>
+          </div>
+        </div>
+        <button onclick="tutupModalEditTemplateId()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-all">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1.5">Kode Dokumen</label>
+          <input id="editModalCodeDisplay" type="text" class="form-input form-input-mono bg-slate-50 text-slate-500 cursor-not-allowed" disabled />
+          <input id="editModalDocCode" type="hidden" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1.5">Google Docs Document ID Baru <span class="text-red-400">*</span></label>
+          <input id="editModalGDocId" type="text" class="form-input form-input-mono" placeholder="Masukkan Document ID Google Docs" />
+          <div class="flex flex-wrap justify-between items-center gap-2 mt-2">
+            <p class="text-[11px] text-slate-400 flex items-center gap-1">
+              <i class="fas fa-circle-info text-slate-300"></i> Ambil dari URL Google Docs: docs.google.com/document/d/<strong>[ID]</strong>/edit
+            </p>
+            <button type="button" onclick="resetDocIdToMasterDefault()" class="text-[11px] font-bold text-amber-600 hover:text-amber-700 underline flex items-center gap-1 cursor-pointer">
+              <i class="fas fa-rotate-left"></i> Reset ke Master ID Default
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer flex items-center justify-end gap-3">
+        <button onclick="tutupModalEditTemplateId()" class="btn-secondary text-sm px-5 py-2.5">Batal</button>
+        <button onclick="simpanEditTemplateId()" class="btn-dark text-sm px-5 py-2.5 flex items-center gap-2">
+          <i class="fas fa-cloud-arrow-up"></i> Simpan Document ID
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- Toast Notification Container -->
+  <div id="toast" class="hidden"></div>
+
+  <script src="dokumen-desa.js"></script>
+  <script>
+    // Fetch and inject the navbar component
+    fetch('/components/navbar.html')
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`Gagal memuat navbar: ${res.statusText}`);
+        }
+        return res.text();
+      })
+      .then(data => {
+        document.getElementById('navbar-container').innerHTML = data;
+      })
+      .catch(err => {
+        console.error('Error fetching navbar:', err);
+        const navbarContainer = document.getElementById('navbar-container');
+        if (navbarContainer) {
+          navbarContainer.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <strong class="font-bold">Error!</strong>
+            <span class="block sm:inline">Gagal memuat komponen navigasi.</span>
+          </div>`;
+        }
+      });
+  </script>
+</body>
+</html>

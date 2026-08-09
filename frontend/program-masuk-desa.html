@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar Rencana Program & Kegiatan yang Masuk ke Desa - SIA Batetangnga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/global-tahun.js"></script>
+    <style>
+        @page {
+            size: landscape;
+            margin: 8mm 6mm 8mm 6mm;
+        }
+
+        @media print {
+            body { background: white !important; padding: 0 !important; margin: 0 !important; font-size: 9.5px !important; color: black !important; }
+            .no-print { display: none !important; }
+            .max-w-7xl { max-width: 100% !important; width: 100% !important; padding: 0 !important; margin: 0 !important; border: none !important; box-shadow: none !important; }
+            table { width: 100% !important; border-collapse: collapse !important; border: 1.5px solid #000 !important; font-size: 9px !important; table-layout: auto !important; }
+            th { border: 1px solid #000 !important; background-color: #f1f5f9 !important; color: #000 !important; padding: 3px 2px !important; font-weight: bold !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            td { border: 1px solid #000 !important; color: #000 !important; padding: 3px 3px !important; word-wrap: break-word !important; }
+            
+            input, select {
+                border: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                outline: none !important;
+                padding: 0 !important;
+                color: black !important;
+                font-size: 9px !important;
+            }
+            .overflow-x-auto table {
+                min-width: 100% !important;
+            }
+        }
+
+        .overflow-x-auto {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+        }
+
+        .overflow-x-auto table {
+            min-width: 1400px;
+        }
+
+        .overflow-x-auto th,
+        .overflow-x-auto td {
+            padding: 4px 6px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-900 min-h-screen">
+
+    <!-- TOP NAVBAR UTAMA -->
+    <div id="navbar-container"></div>
+
+    <!-- Container Utama Dokumen Baku -->
+    <div class="container-full bg-white p-6 md:p-10 shadow-2xl rounded-2xl border border-slate-300 my-6">
+
+        <!-- Header Kontrol & Tombol (Hilang saat diprint) -->
+        <div class="flex flex-wrap justify-between items-center mb-6 pb-6 border-b border-slate-200 no-print gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl shadow-md">
+                    <i class="fas fa-download"></i>
+                </div>
+                <div>
+                    <h2 class="font-extrabold text-xl text-slate-800 tracking-tight">Program & Kegiatan yang Masuk ke Desa</h2>
+                    <p class="text-xs text-slate-500">Rencana Program Pembangunan Sektor/Kementerian, Provinsi, dan Kabupaten di Desa Batetangnga</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 font-sans">
+                <div>
+                    <label class="text-xs font-bold text-slate-600 mr-2 uppercase">Tahun RKP:</label>
+                    <select id="select-year" onchange="loadProgramMasukData()" class="p-2 border border-slate-300 rounded-xl text-sm font-bold bg-white text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                                <option value="2022">2022</option>
+                        <option value="2023">2023</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027" selected>2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                        <option value="2030">2030</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-xs font-bold text-slate-600 mr-2 uppercase">Tgl Cetak:</label>
+                    <input type="date" id="tgl-cetak" class="p-2 border border-slate-300 rounded-xl text-sm font-bold bg-white text-slate-800 shadow-sm" />
+                </div>
+
+                <button onclick="saveToDatabase()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition flex items-center gap-2">
+                    <i class="fas fa-save"></i> Simpan Ke Database
+                </button>
+
+                <button onclick="printPDF()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition flex items-center gap-2">
+                    <i class="fas fa-print"></i> Cetak / PDF
+                </button>
+            </div>
+        </div>
+
+        <!-- METADATA DOKUMEN F4 BAKU -->
+        <div class="text-center mb-6">
+            <h3 class="font-extrabold text-base uppercase tracking-wider text-slate-900">
+                DAFTAR RENCANA PROGRAM DAN KEGIATAN YANG MASUK KE DESA
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-bold text-slate-700 max-w-3xl mx-auto mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <div>DESA: <span class="text-indigo-900 font-extrabold uppercase">BATETANGNGA</span></div>
+                <div>KECAMATAN: <span class="text-indigo-900 font-extrabold uppercase">BINUANG</span></div>
+                <div>KABUPATEN: <span class="text-indigo-900 font-extrabold uppercase">POLEWALI MANDAR</span></div>
+                <div>PROVINSI: <span class="text-indigo-900 font-extrabold uppercase">SULAWESI BARAT</span></div>
+            </div>
+        </div>
+
+        <!-- TABEL FORMAL BAKU (KOLOM A SAMPAI J) -->
+        <div class="overflow-x-auto rounded-xl border border-slate-400">
+            <table class="w-full text-xs border-collapse">
+                <thead class="bg-indigo-950 text-white font-bold text-center">
+                    <tr>
+                        <th class="border border-slate-400 p-2 w-10">a. No</th>
+                        <th class="border border-slate-400 p-2 w-44">b. Bidang</th>
+                        <th class="border border-slate-400 p-2 w-48">c. Nama Program / Kegiatan</th>
+                        <th class="border border-slate-400 p-2 w-44">d. Pemerintah / Prov. / Pemda Kab. (Kementerian/OPD)</th>
+                        <th class="border border-slate-400 p-2 w-28">e. Mendukung SDGs Desa ke-</th>
+                        <th class="border border-slate-400 p-2 w-24">f. Tahun Pelaksanaan</th>
+                        <th class="border border-slate-400 p-2 w-36">g. Lokasi Kegiatan (Dusun/RT/RW)</th>
+                        <th class="border border-slate-400 p-2 w-20">h. Volume</th>
+                        <th class="border border-slate-400 p-2 w-20">i. Satuan</th>
+                        <th class="border border-slate-400 p-2 w-36">j. Total Pagu Dana (Rp)</th>
+                        <th class="border border-slate-400 p-2 w-24 no-print">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="tabel-program-masuk-body">
+                    <!-- Loaded via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer Tanda Tangan -->
+        <div class="mt-10 flex justify-between text-xs font-semibold">
+            <div class="text-center w-72">
+                <p class="font-bold">Mengetahui,</p>
+                <p class="font-bold mb-16">Kepala Desa Batetangnga</p>
+                <p class="font-bold underline uppercase text-sm">SUMAILA DAMANG</p>
+            </div>
+            <div class="text-center w-72">
+                <p id="lbl-tgl-cetak" class="mb-1">Batetangnga, ....................</p>
+                <p class="font-bold mb-16">Disusun oleh,<br>Ketua Tim Penyusun RKPDesa</p>
+                <input type="text" id="nama-ketua-tim" value="ABDUL AZIS, S. Pd" placeholder="( Nama Ketua Tim )" 
+                    class="w-full text-center font-bold border-b border-dashed border-slate-400 focus:outline-none pb-1" />
+            </div>
+        </div>
+
+    </div>
+
+    <script src="program-masuk-desa.js"></script>
+    <script>
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(data => {
+                document.getElementById('navbar-container').innerHTML = data;
+            })
+            .catch(err => console.error('Navbar error:', err));
+    </script>
+</body>
+</html>

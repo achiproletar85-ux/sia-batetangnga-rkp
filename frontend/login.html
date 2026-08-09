@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — SIA Desa Batetangnga</title>
+  <meta name="description" content="Sistem Informasi Akuntansi Desa Batetangnga — Kec. Binuang, Kab. Polewali Mandar" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      background: #0f172a;
+    }
+
+    /* ========== LAYOUT ========== */
+    .login-wrapper {
+      display: flex;
+      height: 100vh;
+      width: 100%;
+    }
+
+    /* ========== LEFT: SLIDESHOW ========== */
+    .slide-panel {
+      position: relative;
+      flex: 1.1;
+      overflow: hidden;
+      display: none;
+    }
+    @media (min-width: 900px) {
+      .slide-panel { display: block; }
+    }
+
+    .slide-item {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      opacity: 0;
+      transition: opacity 1.4s cubic-bezier(0.4, 0, 0.2, 1), transform 8s ease-in-out;
+      transform: scale(1.06);
+    }
+    .slide-item.active {
+      opacity: 1;
+      transform: scale(1.0);
+    }
+
+    .slide-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        135deg,
+        rgba(2, 6, 23, 0.65) 0%,
+        rgba(30, 41, 82, 0.5) 50%,
+        rgba(2, 6, 23, 0.8) 100%
+      );
+      z-index: 1;
+    }
+
+    .slide-content {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 48px 48px 40px;
+      z-index: 2;
+      background: linear-gradient(to top, rgba(2,6,23,0.9) 0%, transparent 100%);
+    }
+
+    .slide-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(249, 115, 22, 0.2);
+      border: 1px solid rgba(249, 115, 22, 0.4);
+      color: #fb923c;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 99px;
+      margin-bottom: 16px;
+    }
+
+    .slide-quote {
+      color: #f8fafc;
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.35;
+      margin-bottom: 8px;
+      max-width: 520px;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1) 0.3s;
+    }
+    .slide-item.active ~ .slide-content .slide-quote,
+    .slide-content .slide-quote.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .slide-sub {
+      color: #94a3b8;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 24px;
+      opacity: 0;
+      transform: translateY(16px);
+      transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1) 0.5s;
+    }
+    .slide-sub.show { opacity: 1; transform: translateY(0); }
+
+    /* Dots */
+    .slide-dots {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 99px;
+      background: rgba(255,255,255,0.3);
+      cursor: pointer;
+      transition: all 0.4s ease;
+      border: none;
+    }
+    .dot.active {
+      width: 28px;
+      background: #f97316;
+    }
+
+    /* Top-left logo on slide */
+    .slide-logo {
+      position: absolute;
+      top: 32px;
+      left: 40px;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .slide-logo-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 900;
+      color: white;
+      box-shadow: 0 8px 24px rgba(249,115,22,0.4);
+    }
+    .slide-logo-text {
+      color: white;
+    }
+    .slide-logo-text strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .slide-logo-text span {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      font-weight: 500;
+    }
+
+    /* ========== RIGHT: FORM PANEL ========== */
+    .form-panel {
+      width: 100%;
+      max-width: 520px;
+      flex-shrink: 0;
+      height: 100vh;
+      overflow-y: auto;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 48px 52px;
+      position: relative;
+      box-shadow: -40px 0 80px -10px rgba(2, 6, 23, 0.35);
+    }
+    @media (max-width: 899px) {
+      .form-panel {
+        max-width: 100%;
+        box-shadow: none;
+        padding: 40px 28px;
+      }
+    }
+
+    /* Decorative background circles */
+    .form-panel::before {
+      content: '';
+      position: absolute;
+      top: -120px;
+      right: -80px;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(249,115,22,0.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .form-panel::after {
+      content: '';
+      position: absolute;
+      bottom: -100px;
+      left: -60px;
+      width: 250px;
+      height: 250px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .form-inner {
+      position: relative;
+      z-index: 1;
+      max-width: 420px;
+      width: 100%;
+    }
+
+    /* Mobile logo (visible only on mobile) */
+    .mobile-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 36px;
+    }
+    @media (min-width: 900px) {
+      .mobile-logo { display: none; }
+    }
+    .mobile-logo-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 900;
+      color: white;
+      box-shadow: 0 6px 18px rgba(249,115,22,0.35);
+    }
+    .mobile-logo-text strong { display: block; font-size: 14px; font-weight: 800; color: #0f172a; }
+    .mobile-logo-text span { font-size: 11px; color: #94a3b8; }
+
+    .form-greeting {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #f97316;
+      margin-bottom: 8px;
+    }
+    .form-title {
+      font-size: 28px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+    .form-subtitle {
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 500;
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+
+    /* Input Groups */
+    .input-group {
+      margin-bottom: 20px;
+    }
+    .input-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      margin-bottom: 7px;
+      letter-spacing: 0.02em;
+    }
+    .input-wrapper {
+      position: relative;
+    }
+    .input-icon {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94a3b8;
+      font-size: 14px;
+      pointer-events: none;
+      transition: color 0.2s ease;
+    }
+    .form-input {
+      width: 100%;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 14px 18px 14px 44px;
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: 500;
+      color: #0f172a;
+      background: #f8fafc;
+      outline: none;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .form-input:focus {
+      border-color: #f97316;
+      background: #ffffff;
+      box-shadow: 0 0 0 4px rgba(249,115,22,0.1);
+    }
+    .form-input:focus ~ .input-icon,
+    .input-wrapper:focus-within .input-icon {
+      color: #f97316;
+    }
+    .toggle-password {
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #94a3b8;
+      font-size: 14px;
+      padding: 4px;
+      transition: color 0.2s ease;
+    }
+    .toggle-password:hover { color: #475569; }
+
+    /* Options row */
+    .options-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .remember-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+      user-select: none;
+    }
+    .remember-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #f97316;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .forgot-link {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f97316;
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+    .forgot-link:hover { color: #ea580c; }
+
+    /* Submit Button */
+    .btn-login {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 800;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(249,115,22,0.35);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      letter-spacing: 0.01em;
+      margin-bottom: 24px;
+    }
+    .btn-login:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(249,115,22,0.45);
+      background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+    }
+    .btn-login:active {
+      transform: translateY(0);
+    }
+    .btn-login.loading {
+      pointer-events: none;
+      opacity: 0.85;
+    }
+    .btn-login .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2.5px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+    .btn-login.loading .spinner { display: block; }
+    .btn-login.loading .btn-text { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Error message */
+    .error-msg {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #dc2626;
+      margin-bottom: 20px;
+      animation: shake 0.4s ease;
+    }
+    .error-msg.show { display: flex; }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .divider-line { flex: 1; height: 1px; background: #e2e8f0; }
+    .divider-text { font-size: 12px; font-weight: 600; color: #94a3b8; white-space: nowrap; }
+
+    /* Info banner */
+    .info-banner {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border: 1px solid #bae6fd;
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #0369a1;
+      line-height: 1.6;
+    }
+    .info-banner i { color: #0ea5e9; font-size: 15px; margin-top: 1px; flex-shrink: 0; }
+
+    /* Footer note */
+    .form-footer {
+      margin-top: 28px;
+      text-align: center;
+      font-size: 11.5px;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+    .form-footer a { color: #f97316; font-weight: 700; text-decoration: none; }
+
+    /* Entrance animation */
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .form-inner {
+      animation: slideInRight 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    /* Stats bar at bottom of slide */
+    .stats-bar {
+      display: flex;
+      gap: 32px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.12);
+    }
+    .stat-item { text-align: center; }
+    .stat-num { font-size: 20px; font-weight: 900; color: #f97316; display: block; }
+    .stat-label { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.5); letter-spacing: 0.06em; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+
+<div class="login-wrapper">
+
+  <!-- ========== LEFT: SLIDE PANEL ========== -->
+  <div class="slide-panel" id="slidePanel">
+
+    <!-- Slides -->
+    <div class="slide-item active" id="slide1" style="background-image: url('/slide1.jpg')"></div>
+    <div class="slide-item" id="slide2" style="background-image: url('/slide2.jpg')"></div>
+    <div class="slide-item" id="slide3" style="background-image: url('/slide3.jpg')"></div>
+
+    <!-- Overlay -->
+    <div class="slide-overlay"></div>
+
+    <!-- Logo top-left -->
+    <div class="slide-logo">
+      <div class="slide-logo-icon">SIA</div>
+      <div class="slide-logo-text">
+        <strong>Desa Batetangnga</strong>
+        <span>Kec. Binuang &bull; Kab. Polewali Mandar</span>
+      </div>
+    </div>
+
+    <!-- Slide content bottom -->
+    <div class="slide-content" id="slideContent">
+      <div class="slide-badge">
+        <i class="fas fa-leaf"></i>
+        <span id="slideLabel">Desa Batetangnga</span>
+      </div>
+      <div class="slide-quote show" id="slideQuote">
+        Melayani Masyarakat dengan Tata Kelola Desa yang Transparan & Akuntabel
+      </div>
+      <div class="slide-sub show" id="slideSub">
+        Sistem Informasi Akuntansi Desa terintegrasi untuk perencanaan, anggaran, dan pelaporan pembangunan desa.
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px;">
+        <div class="slide-dots" id="slideDots">
+          <button class="dot active" onclick="goToSlide(0)"></button>
+          <button class="dot" onclick="goToSlide(1)"></button>
+          <button class="dot" onclick="goToSlide(2)"></button>
+        </div>
+        <div class="stats-bar">
+          <div class="stat-item">
+            <span class="stat-num">28+</span>
+            <span class="stat-label">Dokumen Resmi</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-num">100%</span>
+            <span class="stat-label">Digital</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-num">RKP</span>
+            <span class="stat-label">Terintegrasi</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ========== RIGHT: FORM PANEL ========== -->
+  <div class="form-panel">
+    <div class="form-inner">
+
+      <!-- Mobile logo -->
+      <div class="mobile-logo">
+        <div class="mobile-logo-icon">SIA</div>
+        <div class="mobile-logo-text">
+          <strong>Desa Batetangnga</strong>
+          <span>Kec. Binuang &bull; Kab. Polewali Mandar</span>
+        </div>
+      </div>
+
+      <p class="form-greeting"><i class="fas fa-shield-halved mr-1"></i> Area Terproteksi</p>
+      <h1 class="form-title">Masuk ke Sistem</h1>
+      <p class="form-subtitle">Selamat datang kembali. Masukkan kredensial Anda untuk mengakses Sistem Informasi Akuntansi Desa Batetangnga.</p>
+
+      <!-- Error message -->
+      <div class="error-msg" id="errorMsg">
+        <i class="fas fa-circle-exclamation"></i>
+        <span id="errorText">Username atau password salah. Silakan coba lagi.</span>
+      </div>
+
+      <!-- Form -->
+      <form id="loginForm" onsubmit="handleLogin(event)">
+
+        <!-- Username -->
+        <div class="input-group">
+          <label class="input-label" for="username">
+            <i class="fas fa-user mr-1.5 text-slate-400"></i> Username / NIP
+          </label>
+          <div class="input-wrapper">
+            <i class="fas fa-user input-icon"></i>
+            <input
+              id="username"
+              type="text"
+              class="form-input"
+              placeholder="Masukkan username Anda"
+              autocomplete="username"
+              required
+            />
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="input-group">
+          <label class="input-label" for="password">
+            <i class="fas fa-lock mr-1.5 text-slate-400"></i> Password
+          </label>
+          <div class="input-wrapper">
+            <i class="fas fa-lock input-icon"></i>
+            <input
+              id="password"
+              type="password"
+              class="form-input"
+              placeholder="Masukkan password Anda"
+              autocomplete="current-password"
+              required
+            />
+            <button type="button" class="toggle-password" onclick="togglePassword()" id="toggleBtn">
+              <i class="fas fa-eye" id="eyeIcon"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Options row -->
+        <div class="options-row">
+          <label class="remember-label">
+            <input type="checkbox" id="rememberMe" />
+            Ingat saya
+          </label>
+          <a href="#" class="forgot-link">Lupa password?</a>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="btn-login" id="loginBtn">
+          <span class="btn-text"><i class="fas fa-right-to-bracket"></i> Masuk ke Dashboard</span>
+          <span class="spinner"></span>
+        </button>
+
+      </form>
+
+      <!-- Divider -->
+      <div class="divider">
+        <div class="divider-line"></div>
+        <span class="divider-text">Informasi Sistem</span>
+        <div class="divider-line"></div>
+      </div>
+
+      <!-- Info banner -->
+      <div class="info-banner">
+        <i class="fas fa-circle-info"></i>
+        <div>
+          Akses sistem ini hanya untuk perangkat desa yang berwenang. Hubungi <strong>Admin Desa</strong> jika Anda mengalami masalah login atau lupa kredensial.
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="form-footer">
+        &copy; 2025 &nbsp;SIA Desa Batetangnga &nbsp;&bull;&nbsp;
+        Dikembangkan untuk Kec. Binuang, Kab. Polewali Mandar
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ============================================================
+  // SLIDE CONFIG
+  // ============================================================
+  const slides = [
+    {
+      id: 'slide1',
+      label: 'Desa Batetangnga',
+      quote: 'Melayani Masyarakat dengan Tata Kelola Desa yang Transparan & Akuntabel',
+      sub: 'Sistem Informasi Akuntansi Desa terintegrasi untuk perencanaan, anggaran, dan pelaporan pembangunan desa.'
+    },
+    {
+      id: 'slide2',
+      label: 'Musyawarah Desa',
+      quote: 'Pembangunan Desa Dimulai dari Musyawarah yang Aspiratif dan Inklusif',
+      sub: 'Dokumen RKPDes, RPJMDes, dan SK resmi dibuat lebih mudah dengan Google Docs Engine terintegrasi.'
+    },
+    {
+      id: 'slide3',
+      label: 'Sulawesi Barat',
+      quote: 'Desa Mandiri Melalui Pengelolaan Dana Desa yang Efektif dan Terdigitalisasi',
+      sub: 'Pantau realisasi anggaran, laporan perkembangan kegiatan, dan evaluasi pembangunan secara real-time.'
+    }
+  ];
+
+  let currentSlide = 0;
+  let slideInterval;
+
+  function goToSlide(index) {
+    // Remove active from current
+    document.getElementById(slides[currentSlide].id).classList.remove('active');
+    document.querySelectorAll('.dot')[currentSlide].classList.remove('active');
+
+    currentSlide = index;
+
+    // Activate new slide
+    document.getElementById(slides[currentSlide].id).classList.add('active');
+    document.querySelectorAll('.dot')[currentSlide].classList.add('active');
+
+    // Update text (animate)
+    const quote = document.getElementById('slideQuote');
+    const sub   = document.getElementById('slideSub');
+    const label = document.getElementById('slideLabel');
+
+    quote.classList.remove('show');
+    sub.classList.remove('show');
+
+    setTimeout(() => {
+      label.textContent = slides[currentSlide].label;
+      quote.textContent = slides[currentSlide].quote;
+      sub.textContent   = slides[currentSlide].sub;
+      quote.classList.add('show');
+      sub.classList.add('show');
+    }, 300);
+
+    restartInterval();
+  }
+
+  function nextSlide() {
+    goToSlide((currentSlide + 1) % slides.length);
+  }
+
+  function restartInterval() {
+    clearInterval(slideInterval);
+    slideInterval = setInterval(nextSlide, 5500);
+  }
+
+  // Start auto-play
+  restartInterval();
+
+  // ============================================================
+  // PASSWORD TOGGLE
+  // ============================================================
+  function togglePassword() {
+    const pwd = document.getElementById('password');
+    const icon = document.getElementById('eyeIcon');
+    if (pwd.type === 'password') {
+      pwd.type = 'text';
+      icon.className = 'fas fa-eye-slash';
+    } else {
+      pwd.type = 'password';
+      icon.className = 'fas fa-eye';
+    }
+  }
+
+  // ============================================================
+  // LOGIN HANDLER
+  // ============================================================
+  async function handleLogin(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const btn = document.getElementById('loginBtn');
+    const errorMsg = document.getElementById('errorMsg');
+    const errorText = document.getElementById('errorText');
+
+    // Hide error
+    errorMsg.classList.remove('show');
+
+    // Show loading
+    btn.classList.add('loading');
+
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        // Success: save session and redirect
+        if (document.getElementById('rememberMe').checked) {
+          localStorage.setItem('sia_user', JSON.stringify(data.user));
+        } else {
+          sessionStorage.setItem('sia_user', JSON.stringify(data.user));
+        }
+        // Redirect to dashboard
+        window.location.href = '/';
+      } else {
+        throw new Error(data.message || 'Username atau password tidak valid.');
+      }
+
+    } catch (err) {
+      btn.classList.remove('loading');
+      errorText.textContent = err.message || 'Terjadi kesalahan. Silakan coba lagi.';
+      errorMsg.classList.add('show');
+    }
+  }
+
+  // ============================================================
+  // INPUT FOCUS EFFECT — icon color change on parent focus
+  // ============================================================
+  document.querySelectorAll('.form-input').forEach(input => {
+    input.addEventListener('focus', () => {
+      const icon = input.closest('.input-wrapper').querySelector('.input-icon');
+      if (icon) icon.style.color = '#f97316';
+    });
+    input.addEventListener('blur', () => {
+      const icon = input.closest('.input-wrapper').querySelector('.input-icon');
+      if (icon) icon.style.color = '#94a3b8';
+    });
+  });
+</script>
+
+</body>
+</html>

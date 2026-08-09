@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rincian Kegiatan Pencegahan Stunting - SIA Batetangnga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/global-tahun.js"></script>
+    <style>
+        @page {
+            size: landscape;
+            margin: 8mm 6mm 8mm 6mm;
+        }
+
+        @media print {
+            body { background: white !important; padding: 0 !important; margin: 0 !important; font-size: 9px !important; color: black !important; }
+            .no-print { display: none !important; }
+            .max-w-7xl { max-width: 100% !important; width: 100% !important; padding: 0 !important; margin: 0 !important; border: none !important; box-shadow: none !important; }
+            table { width: 100% !important; border-collapse: collapse !important; border: 1.5px solid #000 !important; font-size: 8.5px !important; table-layout: auto !important; }
+            th { border: 1px solid #000 !important; background-color: #f1f5f9 !important; color: #000 !important; padding: 3px 2px !important; font-weight: bold !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            td { border: 1px solid #000 !important; color: #000 !important; padding: 3px 2px !important; word-wrap: break-word !important; }
+            
+            input, select, textarea {
+                border: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                outline: none !important;
+                padding: 0 !important;
+                color: black !important;
+                font-size: 8.5px !important;
+            }
+
+            .overflow-x-auto table {
+                min-width: 100% !important;
+            }
+        }
+
+        .overflow-x-auto {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+        }
+
+        .overflow-x-auto table {
+            min-width: 1300px;
+        }
+
+        .overflow-x-auto th,
+        .overflow-x-auto td {
+            padding: 4px 6px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
+
+    <!-- NAVIGATION BAR -->
+    <div id="navbar-container"></div>
+    <script>
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(data => document.getElementById('navbar-container').innerHTML = data)
+            .catch(err => console.error('Navbar error:', err));
+    </script>
+
+    <!-- MAIN CONTAINER -->
+    <div class="container-full">
+        
+        <!-- HEADER KARTU & PANEL KONTROL -->
+        <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6 my-6 no-print">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 tracking-wide uppercase flex items-center gap-2">
+                        <i class="fas fa-heartbeat text-rose-600"></i>
+                        RINCIAN KEGIATAN PENCEGAHAN STUNTING
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">Laporan Rincian Kegiatan Pencegahan Stunting Dalam RKPDesa (Format Baku Kementerian)</p>
+                </div>
+
+                <!-- FILTER TAHUN & TOMBOL AKSI -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="bg-rose-50 border border-rose-200 px-3.5 py-1.5 rounded-xl flex items-center gap-2">
+                        <i class="fas fa-calendar-alt text-rose-600 text-xs"></i>
+                        <span class="text-xs font-bold text-slate-700">Tahun Program:</span>
+                        <span class="display-active-tahun font-black text-rose-700 text-sm">2027</span>
+                    </div>
+
+                    <button onclick="bukaModalRAB()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg shadow transition flex items-center gap-1.5">
+                        <i class="fas fa-tasks"></i> Pilih dari RKPDes
+                    </button>
+
+                    <button onclick="saveToDatabase()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg shadow transition flex items-center gap-1.5">
+                        <i class="fas fa-save"></i> Simpan Ke Database
+                    </button>
+
+                    <button onclick="printPDF()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg shadow transition flex items-center gap-1.5">
+                        <i class="fas fa-print"></i> Cetak / PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- INPUT TANGGAL & PENANDATANGAN -->
+            <div class="flex flex-wrap items-center gap-4 text-xs">
+                <div class="flex items-center gap-2">
+                    <label class="font-semibold text-slate-700">Tanggal Cetak:</label>
+                    <input type="date" id="tanggal-input" class="border rounded px-2 py-1 text-xs border-slate-300" value="2026-08-02" onchange="updateTTD()">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="font-semibold text-slate-700">Kepala Desa:</label>
+                    <input type="text" id="kepala-desa-input" class="border rounded px-2 py-1 text-xs w-44 border-slate-300" value="SUMAILA DAMANG" onchange="updateTTD()">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="font-semibold text-slate-700">Ketua Tim Penyusun:</label>
+                    <input type="text" id="ketua-tim-input" class="border rounded px-2 py-1 text-xs w-44 border-slate-300" value="AHMAD" onchange="updateTTD()">
+                </div>
+            </div>
+        </div>
+
+        <!-- DOKUMEN CETAK LEMBARAN RESMI -->
+        <div id="print-area" class="bg-white rounded-xl shadow-md border border-slate-200 p-6 md:p-8">
+            
+            <!-- HEADER RESMI KOP DOKUMEN -->
+            <div class="text-center mb-6">
+                <h3 class="text-lg font-bold text-slate-900 uppercase tracking-wider">LAPORAN RINCIAN KEGIATAN PENCEGAHAN STUNTING DALAM RKPDESA</h3>
+                <div class="flex justify-center gap-6 text-xs font-bold text-slate-700 mt-2">
+                    <span>DESA: BATETANGNGA</span>
+                    <span>KECAMATAN: BINUANG</span>
+                    <span>KABUPATEN: POLEWALI MANDAR</span>
+                    <span>PROVINSI: SULAWESI BARAT</span>
+                </div>
+                <p id="print-tahun-title" class="text-sm font-bold text-slate-800 mt-1">TAHUN ANGGARAN <span id="judul-tahun">2027</span></p>
+            </div>
+
+            <!-- TABEL 5 BIDANG RKPDes STUNTING -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left border-collapse border border-slate-300">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-800 font-bold text-center border-b border-slate-300">
+                            <th class="border border-slate-300 p-2 w-8">NO</th>
+                            <th class="border border-slate-300 p-2 min-w-[140px]">BIDANG</th>
+                            <th class="border border-slate-300 p-2 min-w-[200px]">JENIS KEGIATAN</th>
+                            <th class="border border-slate-300 p-2 min-w-[120px]">LOKASI</th>
+                            <th class="border border-slate-300 p-2 w-28">VOLUME &amp; SATUAN</th>
+                            <th class="border border-slate-300 p-2 min-w-[130px]">PENERIMA MANFAAT</th>
+                            <th class="border border-slate-300 p-2 w-28">WAKTU PELAKSANAAN</th>
+                            <th class="border border-slate-300 p-2 w-32">BIAYA (Rp)</th>
+                            <th class="border border-slate-300 p-2 w-28">SUMBER BIAYA</th>
+                            <th class="border border-slate-300 p-2 min-w-[150px]">POLA PELAKSANAAN</th>
+                            <th class="border border-slate-300 p-2 w-16 no-print">AKSI</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stunting-table-body">
+                        <!-- Loaded dynamically via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- TANDA TANGAN (FOOTER DOKUMEN) -->
+            <div class="mt-12 flex justify-between items-end text-xs font-bold text-slate-800">
+                <div class="text-center w-64">
+                    <p class="mb-1">Mengetahui,</p>
+                    <p class="mb-16 uppercase">Kepala Desa Batetangnga</p>
+                    <p id="kepala-desa-ttd" class="font-extrabold uppercase border-b border-slate-900 pb-0.5 inline-block min-w-[180px]">SUMAILA DAMANG</p>
+                </div>
+                <div class="text-center w-64">
+                    <p class="mb-1">Batetangnga, <span id="tanggal-ttd">02 Agustus 2026</span></p>
+                    <p class="mb-16 uppercase">Ketua Tim Penyusun</p>
+                    <p id="ketua-tim-ttd" class="font-extrabold uppercase border-b border-slate-900 pb-0.5 inline-block min-w-[180px]">AHMAD</p>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- MODAL POPUP PILIH RAB UNTUK STUNTING -->
+    <div id="modal-rab" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <!-- Modal Header -->
+            <div class="bg-slate-900 text-white p-4 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-list-check text-amber-400 text-lg"></i>
+                    <h3 class="font-bold text-base">Pilih Kegiatan Penanganan Stunting dari RKPDes</h3>
+                </div>
+                <button onclick="tutupModalRAB()" class="text-slate-400 hover:text-white text-lg px-2">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Modal Search Controls -->
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                <div class="relative flex-1 min-w-[200px]">
+                    <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                    <input type="text" id="modal-search" oninput="filterModalRAB()" placeholder="Cari kegiatan (posyandu, PMT, stunting, air bersih...)" class="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-rose-500">
+                </div>
+                <div class="flex items-center gap-2 text-xs font-semibold">
+                    <label class="cursor-pointer flex items-center gap-1.5 text-slate-700">
+                        <input type="checkbox" id="check-all-rab" onchange="toggleCheckAllRAB(this)" class="rounded text-rose-600 focus:ring-rose-500">
+                        Pilih Semua
+                    </label>
+                </div>
+            </div>
+
+            <!-- Modal List Table -->
+            <div class="p-4 overflow-y-auto flex-1">
+                <table class="w-full text-xs border-collapse border border-slate-200">
+                    <thead>
+                        <tr class="bg-slate-100 font-bold text-slate-700 text-center">
+                            <th class="p-2 border border-slate-200 w-10">PILIH</th>
+                            <th class="p-2 border border-slate-200 w-24">KODE</th>
+                            <th class="p-2 border border-slate-200 min-w-[120px]">BIDANG</th>
+                            <th class="p-2 border border-slate-200 min-w-[180px]">NAMA KEGIATAN</th>
+                            <th class="p-2 border border-slate-200 w-24">VOLUME</th>
+                            <th class="p-2 border border-slate-200 w-28">BIAYA (Rp)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-rab-list">
+                        <!-- Loaded dynamically -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+                <span id="modal-selected-count" class="text-xs font-bold text-slate-600">0 kegiatan dipilih</span>
+                <div class="flex gap-2">
+                    <button onclick="tutupModalRAB()" class="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 bg-slate-200 hover:bg-slate-300 rounded-lg transition">
+                        Batal
+                    </button>
+                    <button onclick="tarikRABTerpilih()" class="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow transition flex items-center gap-1.5">
+                        <i class="fas fa-download"></i> Tarik Terpilih ke Tabel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT UTAMA -->
+    <script src="stunting.js"></script>
+</body>
+</html>

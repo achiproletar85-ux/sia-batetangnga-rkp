@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar Rencana Kerja Sama dengan Pihak Ketiga - SIA Batetangnga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/global-tahun.js"></script>
+    <style>
+        @media print {
+            body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            #navbar-container, .no-print { display: none !important; }
+            #container-dokumen {
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+            }
+            
+            input, select {
+                border: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                outline: none !important;
+                padding: 0 !important;
+                color: black !important;
+                font-size: 12px !important;
+            }
+            input[type="date"]::-webkit-calendar-picker-indicator { display: none; }
+            .overflow-x-auto table {
+                min-width: 100% !important;
+            }
+        }
+
+        .overflow-x-auto {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+        }
+
+        .overflow-x-auto table {
+            min-width: 1400px;
+        }
+
+        .overflow-x-auto th,
+        .overflow-x-auto td {
+            padding: 4px 6px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-serif text-slate-900 min-h-screen">
+
+    <!-- TOP NAVBAR UTAMA -->
+    <div id="navbar-container"></div>
+
+    <!-- Container Utama Dokumen Baku -->
+    <div id="container-dokumen" class="container-full bg-white p-8 md:p-12 shadow-2xl rounded-2xl border border-slate-300 my-8">
+
+        <!-- Header Kontrol & Tombol (Hilang saat diprint) -->
+        <div class="flex flex-wrap justify-between items-center mb-8 pb-6 border-b border-slate-200 no-print gap-4">
+            <div class="flex items-center gap-3">
+                <h2 class="font-sans font-bold text-xl text-indigo-950">Modul Rencana Kerja Sama Pihak Ketiga</h2>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 font-sans">
+                <div>
+                    <label class="text-xs font-bold text-slate-600 mr-2">Tahun RKP:</label>
+                    <select id="select-year" onchange="loadDataKerjasama()" class="p-2 border border-slate-300 rounded-lg text-sm font-bold bg-white text-slate-800">
+                        <option value="2022">2022</option>
+                        <option value="2023">2023</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027" selected>2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                        <option value="2030">2030</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-600 mr-1">Tanggal Surat:</label>
+                    <input type="date" id="tgl-cetak" class="p-1.5 border border-slate-300 rounded-lg text-sm font-bold bg-white text-slate-800" />
+                </div>
+                <!-- Tombol Simpan ke Database -->
+                <button onclick="simpanDataManual()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center gap-2">
+                    <i class="fas fa-save"></i> Simpan ke Database
+                </button>
+                <!-- Tombol Cetak Aman -->
+                <button onclick="cetakDokumenBersih()" class="bg-indigo-700 hover:bg-indigo-800 text-white px-5 py-2 rounded-lg text-sm font-bold shadow transition flex items-center gap-2">
+                    <i class="fas fa-print"></i> Cetak Dokumen
+                </button>
+            </div>
+        </div>
+
+        <!-- Kop Surat Dokumen Resmi -->
+        <div class="text-center mb-6">
+            <h2 class="font-bold text-base uppercase tracking-wider">DAFTAR RENCANA KERJA SAMA DENGAN PIHAK KETIGA</h2>
+            <h3 class="font-bold text-sm uppercase mt-1">RKP DESA TAHUN <span id="header-tahun">2027</span></h3>
+        </div>
+
+        <!-- Informasi Wilayah -->
+        <div class="mb-6 font-serif text-xs md:text-sm space-y-1">
+            <div class="flex"><span class="w-36 font-semibold">DESA</span><span>: BATETANGNGA</span></div>
+            <div class="flex"><span class="w-36 font-semibold">KECAMATAN</span><span>: BINUANG</span></div>
+            <div class="flex"><span class="w-36 font-semibold">KABUPATEN</span><span>: POLEWALI MANDAR</span></div>
+            <div class="flex"><span class="w-36 font-semibold">PROVINSI</span><span>: SULAWESI BARAT</span></div>
+        </div>
+
+        <!-- Tabel Matriks Utama -->
+        <div class="overflow-x-auto">
+            <table id="tabel-kerjasama-table" class="w-full border-collapse border border-slate-500 text-xs md:text-sm">
+                <thead>
+                    <tr class="bg-slate-100 text-center font-bold">
+                        <td rowspan="2" class="border border-slate-500 px-2 py-2 w-12">No.</td>
+                        <td colspan="2" class="border border-slate-500 px-2 py-2">Bidang/ Jenis Kegiatan</td>
+                        <td rowspan="2" class="border border-slate-500 px-2 py-2">Mendukung SDGs Desa ke-</td>
+                        <td rowspan="2" class="border border-slate-500 px-2 py-2">Lokasi</td>
+                        <td rowspan="2" class="border border-slate-500 px-2 py-2">Prakiraan Volume & Satuan</td>
+                        <td rowspan="2" class="border border-slate-500 px-2 py-2">Penerima Manfaat</td>
+                        <td colspan="2" class="border border-slate-500 px-2 py-2">Prakiraan Biaya yang Ditanggung Desa</td>
+                        <td colspan="2" class="border border-slate-500 px-2 py-2">Prakiraan Biaya yang Ditanggung Pihak Ketiga</td>
+                        <td rowspan="2" class="border border-slate-500 px-2 py-2 no-print w-16">Aksi</td>
+                    </tr>
+                    <tr class="bg-slate-100 text-center font-bold text-xs">
+                        <td class="border border-slate-500 px-2 py-1.5 w-36">Bidang</td>
+                        <td class="border border-slate-500 px-2 py-1.5 w-56">Nama Program/ Kegiatan</td>
+                        <td class="border border-slate-500 px-2 py-1.5 w-28">Jumlah (Rp.)</td>
+                        <td class="border border-slate-500 px-2 py-1.5 w-20">Sumber</td>
+                        <td class="border border-slate-500 px-2 py-1.5 w-28">Jumlah (Rp.)</td>
+                        <td class="border border-slate-500 px-2 py-1.5 w-32">Nama Pihak Ketiga</td>
+                    </tr>
+                    <tr class="bg-slate-50 text-center text-xs italic font-sans text-slate-500">
+                        <td class="border border-slate-500 py-1">a</td>
+                        <td colspan="2" class="border border-slate-500 py-1">b</td>
+                        <td class="border border-slate-500 py-1">c</td>
+                        <td class="border border-slate-500 py-1">d</td>
+                        <td class="border border-slate-500 py-1">e</td>
+                        <td class="border border-slate-500 py-1">f</td>
+                        <td class="border border-slate-500 py-1">g</td>
+                        <td class="border border-slate-500 py-1">h</td>
+                        <td class="border border-slate-500 py-1">i</td>
+                        <td class="border border-slate-500 py-1">j</td>
+                        <td class="border border-slate-500 py-1 no-print">k</td>
+                    </tr>
+                </thead>
+                <tbody id="tabel-kerjasama-body">
+                    <!-- Dinamis terisi dari JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer Tanda Tangan -->
+        <div class="mt-12 flex justify-between font-serif text-sm">
+            <div class="text-center w-72">
+                <p class="font-bold">Mengetahui,</p>
+                <p class="font-bold mb-20">Kepala Desa Batetangnga</p>
+                <p class="font-bold underline uppercase">SUMAILA DAMANG</p>
+            </div>
+            <div class="text-center w-72">
+                <p id="lbl-tgl-cetak" class="mb-1">Batetangnga, ....................</p>
+                <p class="font-bold mb-20">Disusun oleh,<br>Ketua Tim Penyusun RKPDesa</p>
+                <input type="text" id="nama-ketua-tim" placeholder="( Nama Ketua Tim )" 
+                    class="w-full text-center font-bold border-b border-dashed border-slate-400 focus:outline-none pb-1" />
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Script Utama -->
+    <script src="kerjasama.js"></script>
+    <script>
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(data => {
+                document.getElementById('navbar-container').innerHTML = data;
+            })
+            .catch(err => console.error('Navbar error:', err));
+    </script>
+</body>
+</html>
