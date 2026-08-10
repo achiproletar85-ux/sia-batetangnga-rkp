@@ -2404,6 +2404,8 @@ window.tutupModalEditTemplateId = tutupModalEditTemplateId;
 window.simpanEditTemplateId = simpanEditTemplateId;
 window.tambahFieldBaru = tambahFieldBaru;
 window.tambahKolomHeader = tambahKolomHeader;
+window.bukaModalScanPlaceholdersForm = bukaModalScanPlaceholdersForm;
+window.simpanDanTerapkanGlobalFieldsSemuaDokumen = simpanDanTerapkanGlobalFieldsSemuaDokumen;
 
 // Dropdown utility functions
 function toggleDropdown(id) {
