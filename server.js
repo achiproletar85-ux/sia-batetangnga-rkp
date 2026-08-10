@@ -10,7 +10,7 @@ const supabase = require('./backend/config/supabase');
 
 const app = express();
 const os = require('os');
-const WRITABLE_BASE = process.env.USER_DATA_PATH || __dirname;
+const WRITABLE_BASE = process.env.USER_DATA_PATH || (process.env.VERCEL ? os.tmpdir() : __dirname);
 
 const FRONTEND_PATH = path.resolve(__dirname, 'frontend');
 const TEMPLATES_PATH = path.resolve(WRITABLE_BASE, 'templates');
@@ -27,6 +27,14 @@ app.use((req, res, next) => {
     console.log(`➡️ ${req.method} ${req.url}`);
     next();
 });
+
+const uploadDir = path.join(WRITABLE_BASE, 'uploads', 'templates');
+try {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    fs.mkdirSync(TEMPLATES_PATH, { recursive: true });
+} catch (err) {
+    console.warn('⚠️ Warning: Gagal membuat direktori upload:', err.message);
+}
 
 // GET /api/dokumen-form-data/:code/:tahun (memuat data form & tabel tersimpan dari Supabase)
 app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
@@ -125,10 +133,6 @@ app.post('/api/sync-document', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-
-const uploadDir = path.join(WRITABLE_BASE, 'uploads', 'templates');
-fs.mkdirSync(uploadDir, { recursive: true });
-fs.mkdirSync(TEMPLATES_PATH, { recursive: true });
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
