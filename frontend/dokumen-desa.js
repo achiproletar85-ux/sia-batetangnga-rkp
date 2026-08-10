@@ -637,9 +637,13 @@ async function bukaDokumenEdit(code) {
   try {
     const supabaseRes = await fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${tahun}`);
     const supabaseData = await supabaseRes.json();
-    if (supabaseData.success && supabaseData.fields && Object.keys(supabaseData.fields).length > 0) {
-      rawFields = supabaseData.fields || {};
-      rawTables = supabaseData.tables || {};
+    if (supabaseData && supabaseData.success) {
+      if (supabaseData.fields && Object.keys(supabaseData.fields).length > 0) {
+        rawFields = supabaseData.fields;
+      }
+      if (supabaseData.tables && Object.keys(supabaseData.tables).length > 0) {
+        rawTables = supabaseData.tables;
+      }
       if (supabaseData.last_doc_id) {
         appState.lastGeneratedDocId = supabaseData.last_doc_id;
       }
@@ -919,10 +923,9 @@ async function renderDynamicFormFields(tpl) {
         }
       }
     }
-    if (savedTableData === null) {
+    if (!savedTableData) {
       savedTableData = [
-        { nama: 'Drs. H. Ahmad', ttl: 'Polewali, 12 Mei 1975', jabatan: 'Ketua Tim', unsur: 'Pemerintah Desa' },
-        { nama: 'Hj. Siti Aisyah', ttl: 'Batetangnga, 04-08-1982', jabatan: 'Sekretaris', unsur: 'Tokoh Masyarakat' }
+        { nama: '', ttl: '', jabatan: '', unsur: '' }
       ];
     }
 
@@ -932,7 +935,13 @@ async function renderDynamicFormFields(tpl) {
       rowsHtml += `<td class="p-1 border text-center font-bold text-slate-600 col-no">${index + 1}</td>`;
       
       dataHeaders.forEach((h, colIdx) => {
-        const val = item[h] || item[h.toLowerCase()] || item[`col_${colIdx}`] || (colIdx === 0 ? item.nama : colIdx === 1 ? item.ttl : colIdx === 2 ? item.jabatan : item.unsur) || '';
+        const val = (item[h] !== undefined && item[h] !== null) 
+          ? item[h] 
+          : (item[h.toLowerCase()] !== undefined && item[h.toLowerCase()] !== null) 
+            ? item[h.toLowerCase()] 
+            : (item[`col_${colIdx}`] !== undefined && item[`col_${colIdx}`] !== null) 
+              ? item[`col_${colIdx}`] 
+              : (colIdx === 0 ? (item.nama || '') : colIdx === 1 ? (item.ttl || '') : colIdx === 2 ? (item.jabatan || '') : (item.unsur || ''));
         rowsHtml += `<td class="p-1 border"><input type="text" class="col-dyn-${colIdx} w-full p-1 border border-slate-200 rounded text-xs focus:outline-none focus:border-brand-500 font-semibold" oninput="handleAutoSaveTable()" value="${val}" placeholder="${h}..." /></td>`;
       });
 
@@ -1352,10 +1361,10 @@ function gatherTableRowsData() {
     });
 
     const inputs = tr.querySelectorAll('input');
-    if (inputs[0]) rowObj.nama = inputs[0].value;
-    if (inputs[1]) rowObj.ttl = inputs[1].value;
-    if (inputs[2]) rowObj.jabatan = inputs[2].value;
-    if (inputs[3]) rowObj.unsur = inputs[3].value;
+    if (inputs[0]) { rowObj.nama = inputs[0].value; if (inputs[0].value.trim()) hasAnyVal = true; }
+    if (inputs[1]) { rowObj.ttl = inputs[1].value; if (inputs[1].value.trim()) hasAnyVal = true; }
+    if (inputs[2]) { rowObj.jabatan = inputs[2].value; if (inputs[2].value.trim()) hasAnyVal = true; }
+    if (inputs[3]) { rowObj.unsur = inputs[3].value; if (inputs[3].value.trim()) hasAnyVal = true; }
 
     if (hasAnyVal) {
       rows.push(rowObj);
@@ -1398,24 +1407,14 @@ async function simpanFormDokumenAuto() {
   const tahun = appState.activeTahun;
   const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, documentId: '' };
 
-  // Hanya kirim data tabel jika template benar-benar menggunakan tabel berulang.
-  // Jika status "Tidak Menggunakan Tabel" dipilih, tabel tidak ikut disinkronkan.
-  const usesTable = tpl.hasTable === undefined
-    ? (Array.isArray(tpl.tableHeaders) && tpl.tableHeaders.length > 0)
-    : tpl.hasTable === true;
-
-  if (usesTable) {
-    const tableData = gatherTableRowsData();
-    appState.documentTables = {
-      tabel_tim_penyusun: tableData,
-      tabel_sk_tim_penyusun: tableData,
-      susunan_tim: tableData,
-      tabel_daftar_hadir: tableData,
-      tabel_kegiatan: tableData
-    };
-  } else {
-    appState.documentTables = {};
-  }
+  const tableData = gatherTableRowsData();
+  appState.documentTables = {
+    tabel_tim_penyusun: tableData,
+    tabel_sk_tim_penyusun: tableData,
+    susunan_tim: tableData,
+    tabel_daftar_hadir: tableData,
+    tabel_kegiatan: tableData
+  };
   saveStateToLocalStorage();
 
   console.log(`📌 [Frontend Step 2] Target Document Code: ${code} (${tahun})`);
