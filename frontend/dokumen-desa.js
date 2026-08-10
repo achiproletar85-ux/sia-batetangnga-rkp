@@ -41,6 +41,7 @@ let appState = {
   activeDocCode: 'DOC-02B',
   activeTahun: localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027',
   globalSharedFields: JSON.parse(localStorage.getItem('GLOBAL_SHARED_FIELDS') || '{}'),
+  globalSharedTables: JSON.parse(localStorage.getItem('GLOBAL_SHARED_TABLES') || '[]'),
   documentFields: {},
   documentTables: {},
   autoSaveTimer: null
@@ -675,15 +676,20 @@ async function bukaDokumenEdit(code) {
     rawTables = savedState.documentTables || {};
   }
 
-  // Jika rawTables untuk dokumen ini tidak ada baris valid, gunakan appState.globalSharedTables
-  const hasValidRows = rawTables && Object.values(rawTables).some(arr => Array.isArray(arr) && arr.length > 0);
-  if (!hasValidRows && appState.globalSharedTables && appState.globalSharedTables.length > 0) {
+  // Prioritaskan tabel master global (globalSharedTables) jika memiliki baris data lebih banyak atau sama
+  const globalTableRows = (appState.globalSharedTables && Array.isArray(appState.globalSharedTables)) ? appState.globalSharedTables : [];
+  let docTableRows = [];
+  if (rawTables && typeof rawTables === 'object') {
+    docTableRows = rawTables.tabel_tim_penyusun || rawTables.tabel_sk_tim_penyusun || rawTables.susunan_tim || [];
+  }
+
+  if (globalTableRows.length > 0 && (docTableRows.length === 0 || globalTableRows.length >= docTableRows.length)) {
     rawTables = {
-      tabel_tim_penyusun: appState.globalSharedTables,
-      tabel_sk_tim_penyusun: appState.globalSharedTables,
-      susunan_tim: appState.globalSharedTables,
-      tabel_daftar_hadir: appState.globalSharedTables,
-      tabel_kegiatan: appState.globalSharedTables
+      tabel_tim_penyusun: globalTableRows,
+      tabel_sk_tim_penyusun: globalTableRows,
+      susunan_tim: globalTableRows,
+      tabel_daftar_hadir: globalTableRows,
+      tabel_kegiatan: globalTableRows
     };
   }
 
