@@ -199,15 +199,7 @@ function syncDocumentData(payload) {
     });
 
     // Isikan nilai default untuk master field utama jika belum terisi di form agar tidak menyisakan {{...}} mentah
-    var masterDefaults = {
-      'nama_desa': 'Desa Batetangnga',
-      'kades': 'SUMAILA DAMANG',
-      'nama_kepala_desa': 'SUMAILA DAMANG',
-      'tahun': '2025',
-      'tahun1': '2025',
-      'tempat': 'Aula Kantor Desa Batetangnga',
-      'sk_tim': '188.4/05/SK-DES/X/2024'
-    };
+    var masterDefaults = {};
     Object.keys(masterDefaults).forEach(function(mk) {
       if (!data[mk] || String(data[mk]).trim() === '') {
         replaceAllDocSections(doc, mk, masterDefaults[mk]);

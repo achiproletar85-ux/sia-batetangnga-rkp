@@ -1972,14 +1972,6 @@ function renderPengaturanTemplateUI() {
   if (badgeCount) badgeCount.textContent = `${fields.length} Fields`;
 
   if (tbody) {
-    const headerContainer = document.getElementById('settingsHeaderActions');
-    if (headerContainer) {
-      headerContainer.innerHTML = `
-        <button onclick="simpanKonfigurasiFieldPermanen()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5 cursor-pointer"><i class="fas fa-save"></i> 💾 Simpan Isi Data ke Supabase</button>
-        <button onclick="jalankanAutoScanPlaceholdersSettings()" class="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5 cursor-pointer"><i class="fas fa-search"></i> Scan Ulang Placeholder</button>
-        <button onclick="bukaModalTambahField()" class="bg-brand-500 hover:bg-brand-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow cursor-pointer">+ Tambah Field Baru</button>
-      `;
-    }
     if (fields.length === 0) {
       tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400">Belum ada field diset. Tekan "Tambah Field Baru" di atas.</td></tr>`;
     } else {

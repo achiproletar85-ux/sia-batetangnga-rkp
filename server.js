@@ -20,8 +20,16 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-//  Frontend Middleware: Sajikan semua file statis dari folder 'frontend'
-app.use(express.static(FRONTEND_PATH));
+//  Frontend Middleware: Sajikan semua file statis dari folder 'frontend' dengan header NO-CACHE
+app.use(express.static(FRONTEND_PATH, {
+    etag: false,
+    maxAge: 0,
+    setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+}));
 
 app.use((req, res, next) => {
     console.log(`➡️ ${req.method} ${req.url}`);
@@ -36,135 +44,6 @@ try {
     console.warn('⚠️ Warning: Gagal membuat direktori upload:', err.message);
 }
 
-// GET /api/dokumen-form-data/:code/:tahun (memuat data form & tabel tersimpan dari Supabase)
-app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
-  try {
-    const { code, tahun } = req.params;
-    const tahunInt = parseInt(tahun, 10);
-    if (!tahunInt) {
-        return res.status(400).json({ success: false, error: 'Tahun tidak valid.' });
-    }
-
-    let { data, error } = await supabase
-      .from('dokumen_form_data')
-      .select('*')
-      .eq('doc_code', code)
-      .eq('tahun', tahunInt)
-      .maybeSingle();
-      
-    if (error) throw error;
-
-    // Fallback: Jika belum ada data di tahun spesifik ini, muat data tersimpan paling baru dari tahun lain
-    if (!data || (!data.fields && !data.tables) || (Object.keys(data.fields || {}).length === 0 && Object.keys(data.tables || {}).length === 0)) {
-      const { data: fallbackData } = await supabase
-        .from('dokumen_form_data')
-        .select('*')
-        .eq('doc_code', code)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (fallbackData && (Object.keys(fallbackData.fields || {}).length > 0 || Object.keys(fallbackData.tables || {}).length > 0)) {
-        data = fallbackData;
-      }
-    }
-
-    if (!data) {
-      return res.json({ success: true, fields: {}, tables: {}, last_doc_id: null });
-    }
-    res.json({
-      success: true,
-      doc_code: data.doc_code,
-      google_docs_id: data.google_docs_id,
-      fields: data.fields || {},
-      tables: data.tables || {},
-      last_doc_id: data.last_generated_doc_id || null,
-      preview_url: data.last_generated_pdf_url || null,
-      updated_at: data.updated_at
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// POST /api/sync-document (menyimpan data form & tabel ke Supabase)
-app.post('/api/sync-document', async (req, res) => {
-    try {
-        const { doc_code, tahun, fields, tables, google_docs_id } = req.body;
-        const tahunInt = parseInt(tahun, 10);
-
-        if (!doc_code || !tahunInt) {
-            return res.status(400).json({ success: false, error: 'doc_code dan tahun wajib diisi.' });
-        }
-        
-        const upsertPayload = {
-            doc_code: doc_code,
-            tahun: tahunInt,
-            fields: fields || {},
-            tables: tables || {},
-            updated_at: new Date().toISOString(),
-        };
-        if (google_docs_id) {
-            upsertPayload.google_docs_id = google_docs_id;
-        }
-
-        let data = null;
-        let error = null;
-
-        try {
-            const resUpsert = await supabase
-                .from('dokumen_form_data')
-                .upsert(upsertPayload, { onConflict: 'doc_code,tahun' })
-                .select()
-                .maybeSingle();
-            data = resUpsert.data;
-            error = resUpsert.error;
-        } catch (e) {
-            error = e;
-        }
-
-        if (error) {
-            console.warn('⚠️ Upsert onConflict error, attempting fallback select+update/insert:', error.message);
-            const { data: existing } = await supabase
-                .from('dokumen_form_data')
-                .select('id')
-                .eq('doc_code', doc_code)
-                .eq('tahun', tahunInt)
-                .maybeSingle();
-
-            if (existing && existing.id) {
-                const { data: updated, error: updateErr } = await supabase
-                    .from('dokumen_form_data')
-                    .update(upsertPayload)
-                    .eq('id', existing.id)
-                    .select()
-                    .maybeSingle();
-                if (updateErr) throw updateErr;
-                data = updated;
-            } else {
-                const { data: inserted, error: insertErr } = await supabase
-                    .from('dokumen_form_data')
-                    .insert(upsertPayload)
-                    .select()
-                    .maybeSingle();
-                if (insertErr) throw insertErr;
-                data = inserted;
-            }
-        }
-
-        // Frontend mengharapkan new_document_id, kita kembalikan null agar tidak memicu fallback ke GAS
-        res.json({ 
-            success: true, 
-            message: 'Data form dan tabel berhasil disimpan ke database.',
-            data: data,
-            new_document_id: null, // Penting agar frontend tidak fallback ke GAS
-            synced_fields_count: Object.keys(fields || {}).length
-        });
-
-    } catch (error) {
-        console.error('Server-side /api/sync-document error:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -596,20 +475,27 @@ async function seedTemplateConfigCache() {
         console.warn('⚠️ TemplateConfig seed gagal:', e.message);
     }
 }
+const DEFAULT_DOC_TABLE_HEADERS = {
+    'DOC-02B': ['No', 'Nama', 'Tempat, Tanggal Lahir', 'Jabatan', 'Unsur'],
+    'DOC-20': ['No', 'Nama Peserta', 'Alamat / Dusun', 'Jabatan / Unsur', 'Tanda Tangan'],
+    'DOC-27': ['No', 'Jenis Kegiatan', 'Lokasi Kegiatan', 'Volume / Satuan', 'Pagu Indikatif (Rp)', 'Sumber Dana'],
+    'DOC-34': ['No', 'Nama Tim Verifikasi', 'Jabatan / Instansi', 'Keterangan']
+};
 
 // Helper to get the specific template config (dari cache; fallback ke default).
 function getTemplateSettings(docCode) {
-    if (!templateConfigCache[docCode]) {
-        templateConfigCache[docCode] = {
+    const codeUpper = String(docCode || '').toUpperCase();
+    if (!templateConfigCache[codeUpper]) {
+        templateConfigCache[codeUpper] = {
             fields: [
                 { key: 'sk_tim', label: 'Nomor SK Tim', type: 'text' },
                 { key: 'tahun', label: 'Tahun Anggaran', type: 'text' },
                 { key: 'tgl_musdes_tim_hari', label: 'Hari & Tanggal Musdes', type: 'text' }
             ],
-            tableHeaders: ['No', 'Nama', 'Tempat, Tanggal Lahir', 'Jabatan', 'Unsur']
+            tableHeaders: DEFAULT_DOC_TABLE_HEADERS[codeUpper] || []
         };
     }
-    return templateConfigCache[docCode];
+    return templateConfigCache[codeUpper];
 }
 
 // Simpan config ke cache + Supabase (kolom fields & table_headers).
@@ -640,103 +526,6 @@ async function saveTemplateSettings(docCode, settings) {
     }
 }
 
-// GET /api/dokumen-form-data/:code/:tahun (memuat data form & tabel tersimpan dari Supabase)
-app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
-  try {
-    const { code, tahun } = req.params;
-    const tahunInt = parseInt(tahun, 10);
-    if (!tahunInt) {
-        return res.status(400).json({ success: false, error: 'Tahun tidak valid.' });
-    }
-
-    const { data, error } = await supabase
-      .from('dokumen_form_data')
-      .select('*')
-      .eq('doc_code', code)
-      .eq('tahun', tahunInt)
-      .maybeSingle();
-      
-    if (error) throw error;
-
-    if (!data) {
-      return res.json({ success: true, fields: {}, tables: {}, last_doc_id: null });
-    }
-    res.json({
-      success: true,
-      doc_code: data.doc_code,
-      google_docs_id: data.google_docs_id,
-      fields: data.fields || {},
-      tables: data.tables || {},
-      last_doc_id: data.last_generated_doc_id || null,
-      preview_url: data.last_generated_pdf_url || null,
-      updated_at: data.updated_at
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// POST /api/sync-document (menyimpan data form & tabel ke Supabase)
-app.post('/api/sync-document', async (req, res) => {
-    try {
-        const { doc_code, tahun, fields, tables, google_docs_id } = req.body;
-        const tahunInt = parseInt(tahun, 10);
-
-        if (!doc_code || !tahunInt) {
-            return res.status(400).json({ success: false, error: 'doc_code dan tahun wajib diisi.' });
-        }
-        
-        const upsertPayload = {
-            doc_code: doc_code,
-            tahun: tahunInt,
-            fields: fields || {},
-            tables: tables || {},
-            updated_at: new Date().toISOString(),
-        };
-        if (google_docs_id) {
-            upsertPayload.google_docs_id = google_docs_id;
-        }
-
-        const { data, error } = await supabase
-            .from('dokumen_form_data')
-            .upsert(upsertPayload, { onConflict: 'doc_code,tahun' })
-            .select()
-            .single();
-
-        if (error) {
-            if (error.code === '23505' || error.message.includes('unique constraint') || error.message.includes('violates unique constraint')) {
-                 console.error('Kesalahan unique constraint. Pastikan Anda sudah menjalankan SQL untuk memperbaiki index (doc_code, tahun).', error);
-                 return res.status(500).json({ 
-                    success: false, 
-                    error: 'Gagal menyimpan karena kesalahan database. Index unique `(doc_code, tahun)` mungkin belum dibuat. Silakan jalankan skrip SQL perbaikan.',
-                    details: error.message
-                });
-            }
-             if (error.message.includes('no unique or exclusion constraint matching the ON CONFLICT')) {
-                console.error('Kesalahan ON CONFLICT. Constraint (doc_code, tahun) tidak ditemukan.', error);
-                return res.status(500).json({
-                    success: false,
-                    error: 'Gagal menyimpan karena konfigurasi database salah. Constraint untuk `(doc_code, tahun)` tidak ditemukan. Silakan jalankan skrip SQL perbaikan.',
-                    details: error.message
-                });
-            }
-            throw error;
-        }
-
-        // Frontend mengharapkan new_document_id, kita kembalikan null agar tidak memicu fallback ke GAS
-        res.json({ 
-            success: true, 
-            message: 'Data form dan tabel berhasil disimpan ke database.',
-            data: data,
-            new_document_id: google_docs_id || 'SAVED_SUPABASE_DOC',
-            synced_fields_count: Object.keys(fields || {}).length
-        });
-
-    } catch (error) {
-        console.error('Server-side /api/sync-document error:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
 
 // GET /api/templates/:code/fields
 // Also serves as the main endpoint to get all settings for the modal
@@ -5744,9 +5533,11 @@ app.post('/api/scan-placeholders', async (req, res) => {
     }
 
     if (doc_code) {
+      const tahunVal = parseInt(req.body.tahun || req.query.tahun || 2026, 10);
       try {
         await supabase.from('dokumen_form_data').upsert({
           doc_code,
+          tahun: tahunVal,
           google_docs_id,
           scanned_fields: fields,
           updated_at: new Date()
@@ -5764,6 +5555,22 @@ app.post('/api/scan-placeholders', async (req, res) => {
 // ============================================================
 // DOKUMEN ENGINE — FORM DATA & SYNC (Supabase-backed)
 // ============================================================
+
+const DOC_TABLE_KEY_MAP = {
+  'DOC-02B': 'tabel_sk_tim_penyusun',
+  'DOC-20': 'tabel_daftar_hadir',
+  'DOC-27': 'tabel_kegiatan',
+  'DOC-34': 'tabel_tim_verifikasi'
+};
+
+function sanitizeTablesForDocCode(docCode, rawTables) {
+  const allowedKey = DOC_TABLE_KEY_MAP[docCode] || 'table_rows';
+  if (!allowedKey || !rawTables || typeof rawTables !== 'object') {
+    return {};
+  }
+  const rowArray = Array.isArray(rawTables[allowedKey]) ? rawTables[allowedKey] : [];
+  return { [allowedKey]: rowArray };
+}
 
 // GET /api/dokumen-form-data/:code/:tahun (memuat data form & tabel tersimpan dari Supabase)
 app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
@@ -5784,12 +5591,15 @@ app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
     if (!data) {
       return res.json({ success: true, fields: {}, tables: {}, last_doc_id: null });
     }
+
+    const cleanTables = (code === 'GLOBAL_MASTER') ? {} : sanitizeTablesForDocCode(data.doc_code, data.tables);
+
     res.json({
       success: true,
       doc_code: data.doc_code,
       google_docs_id: data.google_docs_id,
       fields: data.fields || {},
-      tables: data.tables || {},
+      tables: cleanTables,
       last_doc_id: data.last_generated_doc_id || null,
       preview_url: data.last_generated_pdf_url || null,
       updated_at: data.updated_at
@@ -5806,8 +5616,42 @@ app.post('/api/sync-document', async (req, res) => {
     const { google_docs_id, doc_code, tahun, fields, tables } = req.body;
     const tahunInt = parseInt(tahun, 10);
 
-    if (!google_docs_id || !doc_code || !tahunInt) {
-      return res.status(400).json({ success: false, error: 'google_docs_id, doc_code, dan tahun wajib diisi.' });
+    if (!doc_code || !tahunInt) {
+      return res.status(400).json({ success: false, error: 'doc_code dan tahun wajib diisi.' });
+    }
+
+    const cleanTables = (doc_code === 'GLOBAL_MASTER') ? {} : sanitizeTablesForDocCode(doc_code, tables);
+
+    // ====================================================================
+    // JAGA DATA: jangan timpa tabel yang masih berisi data dengan array
+    // kosong. Data lama dipertahankan sampai ada data baru yang menggantikannya
+    // (hanya berlaku untuk dokumen tabel = yang punya header tersimpan).
+    // ====================================================================
+    if (doc_code !== 'GLOBAL_MASTER' && typeof cleanTables === 'object') {
+      const allowedKey = DOC_TABLE_KEY_MAP[doc_code] || 'table_rows';
+      const incomingRows = Array.isArray(cleanTables[allowedKey]) ? cleanTables[allowedKey] : null;
+      if (incomingRows !== null && incomingRows.length === 0) {
+        try {
+          const { data: tplHead } = await supabase
+            .from('dokumen_templates')
+            .select('table_headers')
+            .eq('code', doc_code)
+            .maybeSingle();
+          const hasHeaders = Array.isArray(tplHead?.table_headers) && tplHead.table_headers.length > 0;
+          if (hasHeaders) {
+            const { data: existingRow } = await supabase
+              .from('dokumen_form_data')
+              .select('tables')
+              .eq('doc_code', doc_code)
+              .eq('tahun', tahunInt)
+              .maybeSingle();
+            const existingRows = existingRow?.tables?.[allowedKey];
+            if (Array.isArray(existingRows) && existingRows.length > 0) {
+              cleanTables[allowedKey] = existingRows;
+            }
+          }
+        } catch (e) {}
+      }
     }
 
     // ====================================================================
@@ -5817,17 +5661,33 @@ app.post('/api/sync-document', async (req, res) => {
         const upsertPayload = {
             doc_code,
             tahun: tahunInt,
-            google_docs_id,
             fields: fields || {},
-            tables: tables || {},
+            tables: cleanTables,
             updated_at: new Date().toISOString(),
         };
+        if (google_docs_id) {
+            upsertPayload.google_docs_id = google_docs_id;
+        }
+
         const { error: dbError } = await supabase
             .from('dokumen_form_data')
             .upsert(upsertPayload, { onConflict: 'doc_code,tahun' });
 
         if (dbError) {
-             console.error('⚠️ Gagal menyimpan form ke Supabase sebelum sinkronisasi:', dbError.message);
+             console.warn('⚠️ Upsert onConflict error, executing fallback update/insert:', dbError.message);
+             const { data: existingList } = await supabase
+                 .from('dokumen_form_data')
+                 .select('id')
+                 .eq('doc_code', doc_code)
+                 .eq('tahun', tahunInt)
+                 .limit(1);
+
+             const existing = existingList && existingList[0];
+             if (existing && existing.id) {
+                 await supabase.from('dokumen_form_data').update(upsertPayload).eq('id', existing.id);
+             } else {
+                 await supabase.from('dokumen_form_data').insert(upsertPayload);
+             }
         } else {
             console.log(`✅ Form data for ${doc_code} (${tahunInt}) saved to Supabase.`);
         }
@@ -6147,7 +6007,9 @@ function startServer(preferredPort = 5500) {
     return new Promise((resolve, reject) => {
         const initialPort = parseInt(preferredPort || process.env.PORT || 5500, 10);
         const server = app.listen(initialPort, () => {
-            const actualPort = server.address().port;
+            const addr = server.address();
+            if (!addr) return;
+            const actualPort = addr.port;
             console.log(`🚀 Server berjalan di http://localhost:${actualPort}`);
             console.log(`📊 Test API: http://localhost:${actualPort}/api/test-db`);
             console.log(`📋 Master API: http://localhost:${actualPort}/api/master`);
@@ -6160,7 +6022,8 @@ function startServer(preferredPort = 5500) {
             if (err.code === 'EADDRINUSE') {
                 console.warn(`⚠️ Port ${initialPort} terpakai, mencoba mencari port acak...`);
                 const fallbackServer = app.listen(0, () => {
-                    const actualPort = fallbackServer.address().port;
+                    const fbAddr = fallbackServer.address();
+                    const actualPort = fbAddr ? fbAddr.port : 0;
                     console.log(`🚀 Server berjalan di http://localhost:${actualPort}`);
                     seedTemplateConfigCache();
                     resolve(actualPort);
