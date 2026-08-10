@@ -738,8 +738,8 @@ function cetakDokumenBersih() {
         if (inputKetua) {
             const valKetua = inputKetua.value || '';
             const spanKetua = document.createElement('span');
-            spanKetua.className = "print-text-replacement font-bold underline uppercase text-xs";
-            spanKetua.textContent = valKetua ? `( ${valKetua.toUpperCase()} )` : '( ABDUL AZIS, S. Pd )';
+            spanKetua.className = "print-text-replacement font-bold underline text-xs";
+            spanKetua.textContent = valKetua ? `( ${valKetua} )` : '( ABDUL AZIS, S. Pd )';
             inputKetua.parentNode.appendChild(spanKetua);
             inputKetua.style.display = 'none';
         }

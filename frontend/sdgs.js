@@ -38,7 +38,7 @@ function updateFooterSDGs() {
     }
 
     if (elNama) {
-        elNama.textContent = valTim ? `( ${valTim.toUpperCase()} )` : '( ABDUL AZIS, S. Pd )';
+        elNama.textContent = valTim ? `( ${valTim} )` : '( ABDUL AZIS, S. Pd )';
     }
 }
 

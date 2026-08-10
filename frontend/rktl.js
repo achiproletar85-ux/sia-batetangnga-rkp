@@ -284,7 +284,7 @@ function resetDefaultRKTL() {
     rktlRowsData = JSON.parse(JSON.stringify(DEFAULT_RKTL_STEPS));
     timPenyusunData = JSON.parse(JSON.stringify(DEFAULT_TIM_PENYUSUN));
     document.getElementById('input-kepala-desa').value = 'SUMAILA DAMANG';
-    document.getElementById('input-ketua-tim').value = 'AHMAD';
+    document.getElementById('input-ketua-tim').value = 'ABDUL AZIS, S. Pd';
     document.getElementById('input-tanggal-ttd').value = '2026-08-02';
     if (document.getElementById('input-fasilitator-nama')) document.getElementById('input-fasilitator-nama').value = 'RAHMAN, ST';
     if (document.getElementById('input-fasilitator-jabatan')) document.getElementById('input-fasilitator-jabatan').value = 'Pendamping Desa';
@@ -296,7 +296,7 @@ function resetDefaultRKTL() {
 async function simpanRKTL() {
     const tahun = parseInt(document.getElementById('select-tahun')?.value || '2027');
     const tglTTD = document.getElementById('input-tanggal-ttd')?.value || '2026-08-02';
-    const ketuaTim = document.getElementById('input-ketua-tim')?.value || 'AHMAD';
+    const ketuaTim = document.getElementById('input-ketua-tim')?.value || 'ABDUL AZIS, S. Pd';
     const kepalaDesa = document.getElementById('input-kepala-desa')?.value || 'SUMAILA DAMANG';
     const fasNama = document.getElementById('input-fasilitator-nama')?.value || 'RAHMAN, ST';
     const fasJabatan = document.getElementById('input-fasilitator-jabatan')?.value || 'Pendamping Desa';
@@ -381,7 +381,7 @@ async function copyKeTahunLain() {
     if (!confirm(`Salin ${rktlRowsData.length} kegiatan RKTL & ${timPenyusunData.length} anggota tim dari tahun ${activeTahun} ke tahun ${targetTahunInt}?`)) return;
 
     const tglTTD = document.getElementById('input-tanggal-ttd')?.value || '2026-08-02';
-    const ketuaTim = document.getElementById('input-ketua-tim')?.value || 'AHMAD';
+    const ketuaTim = document.getElementById('input-ketua-tim')?.value || 'ABDUL AZIS, S. Pd';
     const kepalaDesa = document.getElementById('input-kepala-desa')?.value || 'SUMAILA DAMANG';
     const fasNama = document.getElementById('input-fasilitator-nama')?.value || 'RAHMAN, ST';
     const fasJabatan = document.getElementById('input-fasilitator-jabatan')?.value || 'Pendamping Desa';
@@ -424,7 +424,7 @@ async function copyKeTahunLain() {
 function printPDF() {
     const tahun = document.getElementById('select-tahun')?.value || '2027';
     const kepalaDesa = document.getElementById('input-kepala-desa')?.value || 'SUMAILA DAMANG';
-    const ketuaTim = document.getElementById('input-ketua-tim')?.value || 'AHMAD';
+    const ketuaTim = document.getElementById('input-ketua-tim')?.value || 'ABDUL AZIS, S. Pd';
     const tgl = document.getElementById('input-tanggal-ttd')?.value || '2026-08-02';
     const fasNama = document.getElementById('input-fasilitator-nama')?.value || 'RAHMAN, ST';
     const fasJabatan = document.getElementById('input-fasilitator-jabatan')?.value || 'Pendamping Desa';
@@ -492,7 +492,7 @@ function printPDF() {
                 .ttd-wrapper { margin-top: 30px; display: flex; justify-content: space-between; page-break-inside: avoid; text-align: center; }
                 .ttd-box { width: 48%; min-width: 280px; }
                 .ttd-jabatan { font-weight: bold; margin-bottom: 70px; text-transform: uppercase; letter-spacing: 0.5px; }
-                .ttd-nama { font-weight: bold; text-transform: uppercase; display: inline-block; min-width: 260px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
+                .ttd-nama { font-weight: bold; display: inline-block; min-width: 260px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
                 .fasilitator-box { margin-top: 30px; border: 1.5px solid #000; padding: 15px; page-break-inside: avoid; }
             </style>
         </head>

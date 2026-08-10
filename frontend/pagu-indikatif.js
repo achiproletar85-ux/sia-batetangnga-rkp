@@ -40,7 +40,7 @@ function updateFooterPaguIndikatif() {
     if (elNama) {
         let nama = valTim || '';
         if (nama.includes('|')) nama = nama.split('|')[0];
-        elNama.textContent = nama ? `( ${nama.toUpperCase()} )` : '( ABDUL AZIS, S. Pd )';
+        elNama.textContent = nama ? `( ${nama} )` : '( ABDUL AZIS, S. Pd )';
     }
 }
 

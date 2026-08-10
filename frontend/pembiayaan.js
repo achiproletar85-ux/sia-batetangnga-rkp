@@ -102,7 +102,7 @@ function updateFooterPrint() {
         if (nama.includes('|')) {
             nama = nama.split('|')[0];
         }
-        elTimText.textContent = nama ? `( ${nama.toUpperCase()} )` : '( ABDUL AZIS, S. Pd )';
+        elTimText.textContent = nama ? `( ${nama} )` : '( ABDUL AZIS, S. Pd )';
     }
 }
 
