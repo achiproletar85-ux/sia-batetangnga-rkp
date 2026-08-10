@@ -619,8 +619,18 @@ async function eksekusiScanOtomatis(codeParam) {
   }
 }
 
-// 5. MODAL 3: EDIT DOKUMEN (DYNAMIC FORM + REAL GOOGLE DOCS IFRAME EMBED PREVIEW)
-async function bukaDokumenEdit(code) {
+function getBestTableArray(tablesObj) {
+  if (!tablesObj || typeof tablesObj !== 'object') return [];
+  let bestArr = [];
+  Object.values(tablesObj).forEach(val => {
+    if (Array.isArray(val) && val.length > bestArr.length) {
+      bestArr = val;
+    }
+  });
+  return bestArr;
+}
+
+async function bukaModulDokumenDesaEdit(code) {
   appState.activeDocCode = code;
   appState.lastGeneratedDocId = null;
   bukaModul('/dokumen/[id]/edit');
@@ -632,6 +642,9 @@ async function bukaDokumenEdit(code) {
 
   const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, name: 'Template Dokumen', documentId: '', isReal: false };
 
+  let rawFields = {};
+  let rawTables = {};
+
   // 1. Muat data GLOBAL_MASTER (fields & tables) terlebih dahulu agar data master terbaru selalu menang
   try {
     const globalRes = await fetch(`${getApiBase()}/api/dokumen-form-data/GLOBAL_MASTER/${tahun}`);
@@ -642,9 +655,9 @@ async function bukaDokumenEdit(code) {
         appState.globalSharedFields = { ...globalData.fields, ...appState.globalSharedFields };
       }
       if (globalData.tables && typeof globalData.tables === 'object') {
-        const mainT = globalData.tables.tabel_tim_penyusun || globalData.tables.tabel_sk_tim_penyusun || globalData.tables.susunan_tim;
-        if (Array.isArray(mainT) && mainT.length > 0) {
-          appState.globalSharedTables = mainT;
+        const bestGlobalT = getBestTableArray(globalData.tables);
+        if (bestGlobalT.length > 0) {
+          appState.globalSharedTables = bestGlobalT;
         }
       }
     }
@@ -676,21 +689,23 @@ async function bukaDokumenEdit(code) {
     rawTables = savedState.documentTables || {};
   }
 
-  // Prioritaskan tabel master global (globalSharedTables) jika memiliki baris data lebih banyak atau sama
+  // Cari array tabel terbaik (terbanyak barisnya) dari global master maupun dokumen individual
   const globalTableRows = (appState.globalSharedTables && Array.isArray(appState.globalSharedTables)) ? appState.globalSharedTables : [];
-  let docTableRows = [];
-  if (rawTables && typeof rawTables === 'object') {
-    docTableRows = rawTables.tabel_tim_penyusun || rawTables.tabel_sk_tim_penyusun || rawTables.susunan_tim || [];
-  }
+  const docTableRows = getBestTableArray(rawTables);
 
-  if (globalTableRows.length > 0 && (docTableRows.length === 0 || globalTableRows.length >= docTableRows.length)) {
+  const bestRows = (globalTableRows.length >= docTableRows.length && globalTableRows.length > 0)
+    ? globalTableRows
+    : docTableRows;
+
+  if (bestRows.length > 0) {
     rawTables = {
-      tabel_tim_penyusun: globalTableRows,
-      tabel_sk_tim_penyusun: globalTableRows,
-      susunan_tim: globalTableRows,
-      tabel_daftar_hadir: globalTableRows,
-      tabel_kegiatan: globalTableRows
+      tabel_tim_penyusun: bestRows,
+      tabel_sk_tim_penyusun: bestRows,
+      susunan_tim: bestRows,
+      tabel_daftar_hadir: bestRows,
+      tabel_kegiatan: bestRows
     };
+    appState.globalSharedTables = bestRows;
   }
 
   // Prioritaskan nilai master global terbaru agar nilai lama dari dokumen individual tidak menimpa nilai baru
@@ -953,20 +968,11 @@ async function renderDynamicFormFields(tpl) {
     headerColsHtml += `<th class="p-1.5 border text-center w-8">Aksi</th>`;
 
     const dataHeaders = headers.filter(h => h.toLowerCase() !== 'no');
-    let savedTableData = null;
-    if (appState.documentTables && typeof appState.documentTables === 'object') {
-      const tableKeys = Object.keys(appState.documentTables);
-      for (const tk of tableKeys) {
-        if (Array.isArray(appState.documentTables[tk]) && appState.documentTables[tk].length > 0) {
-          savedTableData = appState.documentTables[tk];
-          break;
-        }
-      }
-    }
-    if (!savedTableData && appState.globalSharedTables && Array.isArray(appState.globalSharedTables) && appState.globalSharedTables.length > 0) {
+    let savedTableData = getBestTableArray(appState.documentTables);
+    if ((!savedTableData || savedTableData.length === 0) && appState.globalSharedTables && Array.isArray(appState.globalSharedTables) && appState.globalSharedTables.length > 0) {
       savedTableData = appState.globalSharedTables;
     }
-    if (!savedTableData) {
+    if (!savedTableData || savedTableData.length === 0) {
       savedTableData = [
         { nama: '', ttl: '', jabatan: '', unsur: '' }
       ];
@@ -978,13 +984,13 @@ async function renderDynamicFormFields(tpl) {
       rowsHtml += `<td class="p-1 border text-center font-bold text-slate-600 col-no">${index + 1}</td>`;
       
       dataHeaders.forEach((h, colIdx) => {
-        const val = (item[h] !== undefined && item[h] !== null) 
+        const val = (item[h] !== undefined && item[h] !== null && item[h] !== '') 
           ? item[h] 
-          : (item[h.toLowerCase()] !== undefined && item[h.toLowerCase()] !== null) 
+          : (item[h.toLowerCase()] !== undefined && item[h.toLowerCase()] !== null && item[h.toLowerCase()] !== '') 
             ? item[h.toLowerCase()] 
-            : (item[`col_${colIdx}`] !== undefined && item[`col_${colIdx}`] !== null) 
+            : (item[`col_${colIdx}`] !== undefined && item[`col_${colIdx}`] !== null && item[`col_${colIdx}`] !== '') 
               ? item[`col_${colIdx}`] 
-              : (colIdx === 0 ? (item.nama || '') : colIdx === 1 ? (item.ttl || '') : colIdx === 2 ? (item.jabatan || '') : (item.unsur || ''));
+              : (colIdx === 0 ? (item.nama || item.Nama || '') : colIdx === 1 ? (item.ttl || item['Tempat, Tanggal Lahir'] || '') : colIdx === 2 ? (item.jabatan || item.Jabatan || '') : (item.unsur || item.Unsur || ''));
         rowsHtml += `<td class="p-1 border"><input type="text" class="col-dyn-${colIdx} w-full p-1 border border-slate-200 rounded text-xs focus:outline-none focus:border-brand-500 font-semibold" oninput="handleAutoSaveTable()" value="${val}" placeholder="${h}..." /></td>`;
       });
 
