@@ -1073,15 +1073,9 @@ function triggerDebouncedSupabaseSave() {
       const code = appState.activeDocCode || 'DOC-02B';
       const tahun = appState.activeTahun;
       const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, documentId: '' };
-      
-      const targetTpl = RKP_TEMPLATES.find(x => x.code === code) || { hasTable: false };
-      const tableKey = targetTpl.hasTable ? (getSpecificTableKeyForDoc(code) || 'table_rows') : null;
-      let tablesPayload = {};
 
-      if (targetTpl.hasTable && tableKey) {
-        const tableData = gatherTableRowsData();
-        tablesPayload = { [tableKey]: tableData };
-      }
+      // Gunakan payload aman agar data tabel lama tidak tertimpa kosong
+      const tablesPayload = await siapkanTablesPayloadAman(code, tahun);
 
       const res = await fetch(`${getApiBase()}/api/sync-document`, {
         method: 'POST',
@@ -1156,7 +1150,8 @@ function handleAutoSaveTable() {
   const code = appState.activeDocCode;
   const targetTpl = RKP_TEMPLATES.find(x => x.code === code) || { hasTable: false };
   if (!targetTpl.hasTable) {
-    appState.documentTables = {};
+    // Jangan nolkan data tabel di memori: biarkan siapkanTablesPayloadAman
+    // yang memutuskan apakah data lama perlu dipertahankan.
     return;
   }
   const tableData = gatherTableRowsData();
@@ -1524,6 +1519,49 @@ function gatherTableRowsData() {
   return rows;
 }
 
+// ============================================================
+// JAGA DATA TABEL: jangan pernah menimpa tabel berisi data
+// dengan data kosong. Data lama tetap dipertahankan sampai ada
+// data baru (≥1 baris terisi) yang menggantikannya.
+// ============================================================
+async function siapkanTablesPayloadAman(code, tahun) {
+  const targetTpl = RKP_TEMPLATES.find(x => x.code === code) || { hasTable: false };
+  const tableKey = getSpecificTableKeyForDoc(code) || 'table_rows';
+
+  // Dokumen tanpa tabel aktif: jangan kirim data tabel (server membersihkan sisa yang basi)
+  if (!targetTpl.hasTable) {
+    return {};
+  }
+
+  // Ambil baris terisi dari form (kalau tabel sedang dirender)
+  let gathered = [];
+  if (document.getElementById('tbodyRepeatableTim')) {
+    gathered = gatherTableRowsData();
+  }
+
+  // Ada data baru (≥1 baris terisi) → gantikan data lama
+  if (gathered.length > 0) {
+    return { [tableKey]: gathered };
+  }
+
+  // Form kosong saat ini → PERTAHANKAN data yang sudah tersimpan (jangan hapus!)
+  const stored = appState.documentTables && appState.documentTables[tableKey];
+  if (Array.isArray(stored) && stored.length > 0) {
+    return { [tableKey]: stored };
+  }
+
+  // Terakhir, minta data lama dari Supabase agar tidak tertimpa kosong
+  try {
+    const res = await fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${tahun}`);
+    const d = await res.json();
+    if (d.success && d.tables && Array.isArray(d.tables[tableKey])) {
+      return { [tableKey]: d.tables[tableKey] };
+    }
+  } catch (e) {}
+
+  return { [tableKey]: [] };
+}
+
 async function simpanFormDokumenAuto() {
   console.log('--------------------------------------------------');
   console.log('📌 [Frontend Step 1] Tombol Simpan & Sinkron diklik');
@@ -1557,14 +1595,8 @@ async function simpanFormDokumenAuto() {
   const tahun = appState.activeTahun;
   const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, documentId: '' };
 
-  const targetTpl = RKP_TEMPLATES.find(x => x.code === code) || { hasTable: false };
-  const tableKey = targetTpl.hasTable ? (getSpecificTableKeyForDoc(code) || 'table_rows') : null;
-  let tablesPayload = {};
-
-  if (targetTpl.hasTable && tableKey) {
-    const tableData = gatherTableRowsData();
-    tablesPayload = { [tableKey]: tableData };
-  }
+  // Gunakan payload aman agar data tabel lama tidak tertimpa kosong
+  const tablesPayload = await siapkanTablesPayloadAman(code, tahun);
   appState.documentTables = tablesPayload;
   saveStateToLocalStorage();
 
@@ -2424,6 +2456,9 @@ async function simpanSemuaPerubahanPengaturan() {
 
     // Also persist data values to Supabase dokumen_form_data
     const docId = tpl.documentId || DEFAULT_MASTER_DOC_ID;
+    // Gunakan payload aman agar penyimpanan dari Pengaturan TIDAK menimpa
+    // tabel dokumen dengan data kosong (data lama tetap dipertahankan).
+    const tablesAman = await siapkanTablesPayloadAman(code, appState.activeTahun);
     await fetch(`${getApiBase()}/api/sync-document`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2432,7 +2467,7 @@ async function simpanSemuaPerubahanPengaturan() {
         doc_code: code,
         tahun: appState.activeTahun,
         fields: appState.documentFields,
-        tables: appState.documentTables
+        tables: tablesAman
       })
     });
   } catch (e) {
