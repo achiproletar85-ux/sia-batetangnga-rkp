@@ -820,15 +820,12 @@ async function renderDynamicFormFields(tpl) {
     if (!defaultVal) {
       const lowerK = key.toLowerCase();
       if (lowerK.includes('kades') || lowerK.includes('kepala_desa')) defaultVal = 'SUMAILA DAMANG';
-      else if (lowerK.includes('tahun')) defaultVal = appState.activeTahun || '2025';
+      else if (lowerK.includes('tahun')) defaultVal = appState.activeTahun || '2027';
       else if (lowerK.includes('tempat') || lowerK.includes('lokasi')) defaultVal = 'Aula Kantor Desa Batetangnga';
       else if (lowerK.includes('desa')) defaultVal = 'Desa Batetangnga';
       else if (lowerK.includes('kecamatan')) defaultVal = 'Binuang';
       else if (lowerK.includes('kabupaten')) defaultVal = 'Polewali Mandar';
-      else if (lowerK.includes('sk_') || lowerK.includes('nomor') || lowerK.includes('no_')) defaultVal = '188.4/05/SK-DES/X/2024';
-      else if (lowerK.includes('tgl') || lowerK.includes('tanggal')) defaultVal = '15 Oktober 2024';
-      else if (lowerK.includes('materi') || lowerK.includes('hasil') || lowerK.includes('isi') || lowerK.includes('catatan')) defaultVal = 'Penyusunan Rencana Kerja Pemerintah Desa Batetangnga';
-      else defaultVal = label;
+      else defaultVal = '';
     }
 
     const isYearField = (key === 'tahun' || key === 'tahun1' || key === 'tahun_anggaran' || key === 'year' || key === 'tahun_rkp');
@@ -1815,15 +1812,30 @@ function updateSettingFieldValue(key, val) {
   triggerDebouncedSupabaseSave();
 }
 
-function updateSettingFieldType(key, typeVal) {
-  const code = templateSettingsState.activeCode || 'DOC-02B';
+async function updateSettingFieldType(key, typeVal) {
+  const code = templateSettingsState.activeCode || appState.activeDocCode || 'DOC-02B';
   const tpl = RKP_TEMPLATES.find(x => x.code === code);
   if (tpl && tpl.fields) {
     const item = tpl.fields.find(f => f.key === key);
     if (item) item.type = typeVal;
   }
-  const settingsItem = templateSettingsState.fields.find(f => f.key === key);
-  if (settingsItem) settingsItem.type = typeVal;
+  if (templateSettingsState.fields) {
+    const settingsItem = templateSettingsState.fields.find(f => f.key === key);
+    if (settingsItem) settingsItem.type = typeVal;
+  }
+
+  // 1. Simpan tipe field baru ke Supabase database secara otomatis
+  try {
+    await simpanSemuaPerubahanPengaturan();
+    showToast(`✅ Tipe field {{${key}}} diubah ke '${typeVal.toUpperCase()}' & disimpan ke Supabase!`, 'success');
+  } catch (e) {
+    console.warn('Gagal menyimpan tipe field ke Supabase:', e);
+  }
+
+  // 2. Langsung sinkronkan dan update tampilan Form & Preview di layar
+  if (tpl) {
+    await renderDynamicFormFields(tpl);
+  }
 }
 
 async function scanDanMuatUlangPengaturan(codeOverride, silent = false) {
