@@ -5764,14 +5764,12 @@ app.post('/api/sync-document', async (req, res) => {
         preview_url: previewUrl,
         duplicated: !!syncResult.duplicated
       });
-    } else {
-      try {
-        await supabase.from('dokumen_form_data').update({ syncing: false }).eq('doc_code', doc_code).eq('tahun', tahunInt);
-      } catch (e) {}
-      res.status(500).json({
-        success: false,
-        message: `Gagal sinkron ke Google Docs: ${syncResult.error || syncResult.message || 'Respons GAS gagal.'}`,
-        error: syncResult.error || 'GAS request failed'
+      res.json({
+        success: true,
+        db_saved: true,
+        gas_synced: false,
+        message: `Data tersimpan di Supabase. Sync Google Docs: ${syncResult.error || syncResult.message || 'Respons GAS pending'}`,
+        warning: syncResult.error || 'GAS request skipped or failed'
       });
     }
   } catch (error) {
