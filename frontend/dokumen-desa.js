@@ -877,8 +877,8 @@ async function renderDynamicFormFields(tpl) {
     const isTglOtomatis = /^tgl_.+_(hari|bulan|terbilang)$/.test(key);
     const fieldType = isTglOtomatis ? 'text' : (f.type || 'text');
 
-    const isYearField = (key === 'tahun' || key === 'tahun0' || key === 'tahun1' || key === 'tahun2');
-    // Semua varian tahun ({{tahun}}, {{tahun0}}, {{tahun1}}, {{tahun2}}) mewarisi
+    const isYearField = (key === 'tahun' || key === 'tahun0' || key === 'tahun1' || key === 'tahun2' || key === 'tahun3');
+    // Semua varian tahun ({{tahun}}, {{tahun0}}, {{tahun1}}, {{tahun2}}, {{tahun3}}) mewarisi
     // nilai TAHUN GLOBAL aktif — beda placeholder, satu nilai, berlaku umum.
     if (isYearField) {
       val = appState.activeTahun || '2027';
@@ -1176,7 +1176,7 @@ function handleAutoSaveTable() {
 function gantiTahunDokumenDesa(tahunVal) {
   appState.activeTahun = tahunVal;
   if (!appState.globalSharedFields) appState.globalSharedFields = {};
-  ['tahun', 'tahun0', 'tahun1', 'tahun2'].forEach(k => {
+  ['tahun', 'tahun0', 'tahun1', 'tahun2', 'tahun3'].forEach(k => {
     appState.globalSharedFields[k] = tahunVal;
     appState.documentFields[k] = tahunVal;
   });
@@ -1209,7 +1209,7 @@ async function simpanDanTerapkanGlobalFieldsSemuaDokumen() {
 
   // Paksa varian tahun agar selalu konsisten dengan appState.activeTahun
   const curTahun = appState.activeTahun || '2027';
-  ['tahun', 'tahun1', 'tahun2', 'tahun_anggaran', 'tahun_rkp'].forEach(tk => {
+  ['tahun', 'tahun0', 'tahun1', 'tahun2', 'tahun3', 'tahun_anggaran', 'tahun_rkp'].forEach(tk => {
     appState.globalSharedFields[tk] = curTahun;
     appState.documentFields[tk] = curTahun;
   });
