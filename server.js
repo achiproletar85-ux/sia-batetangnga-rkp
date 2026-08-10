@@ -740,10 +740,26 @@ app.post('/api/sync-document', async (req, res) => {
 
 // GET /api/templates/:code/fields
 // Also serves as the main endpoint to get all settings for the modal
-app.get('/api/templates/:code/fields', (req, res) => {
+app.get('/api/templates/:code/fields', async (req, res) => {
     try {
         const { code } = req.params;
-        const settings = getTemplateSettings(code);
+        const codeUpper = String(code).toUpperCase();
+
+        const { data } = await supabase
+            .from('dokumen_templates')
+            .select('fields, table_headers')
+            .eq('code', codeUpper)
+            .maybeSingle();
+
+        if (data && (Array.isArray(data.fields) && data.fields.length > 0 || Array.isArray(data.table_headers) && data.table_headers.length > 0)) {
+            return res.json({
+                success: true,
+                fields: data.fields || [],
+                tableHeaders: data.table_headers || []
+            });
+        }
+
+        const settings = getTemplateSettings(codeUpper);
         res.json({
             success: true,
             fields: settings.fields || [],
@@ -759,18 +775,19 @@ app.post('/api/templates/:code/fields', async (req, res) => {
     try {
         const { code } = req.params;
         const { key, label, type } = req.body;
+        const codeUpper = String(code).toUpperCase();
         if (!key || !label) {
             return res.status(400).json({ success: false, message: 'Key and label are required.' });
         }
 
-        const settings = getTemplateSettings(code);
+        const settings = getTemplateSettings(codeUpper);
         if (settings.fields.some(f => f.key === key)) {
             return res.status(400).json({ success: false, message: `Field with key "${key}" already exists.` });
         }
 
         const newField = { key, label, type: type || 'text' };
         settings.fields.push(newField);
-        const saved = await saveTemplateSettings(code, settings);
+        const saved = await saveTemplateSettings(codeUpper, settings);
         if (!saved.success) {
             return res.status(500).json({ success: false, message: `GAGAL simpan ke Supabase: ${saved.error}` });
         }
@@ -785,14 +802,13 @@ app.post('/api/templates/:code/fields', async (req, res) => {
 app.put('/api/templates/:code/fields', async (req, res) => {
     try {
         const { code } = req.params;
-        // According to the new UI, we only edit one label at a time.
-        // A bulk update can be complex. Let's handle a single field update.
         const { key, label } = req.body;
+        const codeUpper = String(code).toUpperCase();
         if (!key || !label) {
             return res.status(400).json({ success: false, message: 'Key and label are required for update.' });
         }
 
-        const settings = getTemplateSettings(code);
+        const settings = getTemplateSettings(codeUpper);
         const field = settings.fields.find(f => f.key === key);
 
         if (!field) {
@@ -800,7 +816,7 @@ app.put('/api/templates/:code/fields', async (req, res) => {
         }
 
         field.label = label;
-        const saved = await saveTemplateSettings(code, settings);
+        const saved = await saveTemplateSettings(codeUpper, settings);
         if (!saved.success) {
             return res.status(500).json({ success: false, message: `GAGAL simpan ke Supabase: ${saved.error}` });
         }
@@ -812,55 +828,31 @@ app.put('/api/templates/:code/fields', async (req, res) => {
 });
 
 
-// PUT /api/templates/:code/all (Save all changes at once)
+// PUT /api/templates/:code/all (Save all changes at once to Supabase)
 app.put('/api/templates/:code/all', async (req, res) => {
     try {
         const { code } = req.params;
         const { fields, tableHeaders } = req.body;
+        const codeUpper = String(code).toUpperCase();
 
         if (!Array.isArray(fields) || !Array.isArray(tableHeaders)) {
             return res.status(400).json({ success: false, message: '`fields` and `tableHeaders` must be arrays.' });
         }
 
-        const settings = getTemplateSettings(code);
+        const settings = getTemplateSettings(codeUpper);
         settings.fields = fields;
         settings.tableHeaders = tableHeaders;
-        const saved = await saveTemplateSettings(code, settings);
+
+        const saved = await saveTemplateSettings(codeUpper, settings);
         if (!saved.success) {
             return res.status(500).json({ success: false, message: `GAGAL simpan ke Supabase: ${saved.error}` });
         }
-        const notPersisted = saved.persisted === false;
 
-        // --- Google Apps Script Integration ---
-        const RKP_TEMPLATES = readDokumenStorage();
-        const tpl = RKP_TEMPLATES.find(t => t.code === code);
-        const documentId = tpl ? tpl.documentId : null;
-
-        if (documentId && process.env.GAS_WEB_APP_URL) {
-            // We can make one call to GAS to update everything
-            const response = await fetch(process.env.GAS_WEB_APP_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'updateTemplate',
-                    templateId: documentId,
-                    headers: tableHeaders,
-                    fields: fields // Pass fields for potential future use (e.g., adding/removing placeholders)
-                })
-            });
-            const result = await response.json();
-            if (!result.success) {
-                // Still return success to client, but log the GAS error
-                console.error('GAS Error:', result.error);
-                return res.json({ success: true, message: 'Settings saved locally, but failed to sync to Google Docs.' });
-            }
-        } else {
-            console.warn('GAS_WEB_APP_URL not set or documentId not found. Skipping Google Docs sync.');
-        }
-
-        res.json({ success: true, persisted: !notPersisted, message: notPersisted
-            ? 'Perubahan tersimpan sementara (kolom fields/table_headers belum dibuat di Supabase). Jalankan supabase_add_template_config_columns.sql agar permanen.'
-            : 'Changes saved and synced to Google Docs successfully.' });
+        res.json({
+            success: true,
+            persisted: true,
+            message: `Konfigurasi template ${codeUpper} (fields & tableHeaders) berhasil disimpan permanen ke Supabase.`
+        });
 
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -868,11 +860,31 @@ app.put('/api/templates/:code/all', async (req, res) => {
 });
 
 
-// GET /api/templates/:code/all (load fields & tableHeaders untuk modal pengaturan)
-app.get('/api/templates/:code/all', (req, res) => {
+// GET /api/templates/:code/all (load fields & tableHeaders langsung dari Supabase)
+app.get('/api/templates/:code/all', async (req, res) => {
     try {
         const { code } = req.params;
-        const settings = getTemplateSettings(code);
+        const codeUpper = String(code).toUpperCase();
+
+        const { data } = await supabase
+            .from('dokumen_templates')
+            .select('fields, table_headers')
+            .eq('code', codeUpper)
+            .maybeSingle();
+
+        if (data && (Array.isArray(data.fields) && data.fields.length > 0 || Array.isArray(data.table_headers) && data.table_headers.length > 0)) {
+            templateConfigCache[codeUpper] = {
+                fields: data.fields || [],
+                tableHeaders: data.table_headers || []
+            };
+            return res.json({
+                success: true,
+                fields: data.fields || [],
+                tableHeaders: data.table_headers || []
+            });
+        }
+
+        const settings = getTemplateSettings(codeUpper);
         res.json({
             success: true,
             fields: settings.fields || [],
