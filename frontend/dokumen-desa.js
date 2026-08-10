@@ -1217,11 +1217,24 @@ async function simpanDanTerapkanGlobalFieldsSemuaDokumen() {
     });
   }
 
-  // Paksa varian tahun agar selalu konsisten dengan appState.activeTahun
+  // Varian tahun mengikuti mapping kontrol Tahun Master (jangan dipaksa semua = tahun aktif)
+  // {{tahun}}=Y-1, {{tahun0}}=Y, {{tahun1}}=Y+1, {{tahun2}}=Y+2, {{tahun3}}=Y+3
   const curTahun = appState.activeTahun || '2027';
-  ['tahun', 'tahun0', 'tahun1', 'tahun2', 'tahun3', 'tahun_anggaran', 'tahun_rkp'].forEach(tk => {
-    appState.globalSharedFields[tk] = curTahun;
-    appState.documentFields[tk] = curTahun;
+  const yNum = parseInt(curTahun, 10) || 0;
+  const yearDefs = {
+    tahun: String(yNum - 1),
+    tahun0: String(yNum),
+    tahun1: String(yNum + 1),
+    tahun2: String(yNum + 2),
+    tahun3: String(yNum + 3),
+    tahun_anggaran: String(yNum),
+    tahun_rkp: String(yNum)
+  };
+  Object.keys(yearDefs).forEach(tk => {
+    if (appState.globalSharedFields[tk] === undefined || appState.globalSharedFields[tk] === null || appState.globalSharedFields[tk] === '') {
+      appState.globalSharedFields[tk] = yearDefs[tk];
+    }
+    appState.documentFields[tk] = appState.globalSharedFields[tk];
   });
 
   try {
