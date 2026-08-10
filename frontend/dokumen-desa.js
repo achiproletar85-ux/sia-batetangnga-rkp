@@ -2028,6 +2028,21 @@ async function scanDanMuatUlangPengaturan(codeOverride, silent = false) {
   }
 }
 
+async function bukaModalScanPlaceholdersForm() {
+  const code = appState.activeDocCode || 'DOC-02B';
+  showToast(`🔍 Memindai tag placeholder {{...}} baru dari Google Docs...`, 'info');
+  try {
+    await scanDanMuatUlangPengaturan(code, false);
+    const tpl = RKP_TEMPLATES.find(x => x.code === code);
+    if (tpl) {
+      await renderDynamicFormFields(tpl);
+    }
+    showToast(`✅ Placeholder Google Docs berhasil dipindai & ditambahkan otomatis ke Form & Live Preview!`, 'success');
+  } catch (e) {
+    showToast(`❌ Gagal memindai placeholder: ${e.message}`, 'error');
+  }
+}
+
 function renderModalHeaderColsUI(headers) {
   const container = document.getElementById('modalHeaderColsList');
   if (!container) return;

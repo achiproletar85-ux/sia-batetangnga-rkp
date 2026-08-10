@@ -537,7 +537,10 @@
             <h3 class="text-sm font-extrabold text-slate-800 uppercase tracking-tight flex items-center gap-2">
               <i class="fas fa-edit text-brand-500"></i> Form Pengisian Otomatis {{...}}
             </h3>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              <button onclick="bukaModalScanPlaceholdersForm()" class="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer" title="Pindai otomatis dari Google Docs jika Anda baru saja menambah tag placeholder {{...}} baru">
+                <i class="fas fa-search"></i> 🔍 Scan Placeholder dari Google Docs
+              </button>
               <button onclick="simpanDanTerapkanGlobalFieldsSemuaDokumen()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer" title="Simpan dan terapkan seluruh data Form & Preview ini ke 39 dokumen desa di Supabase">
                 <i class="fas fa-globe"></i> 🌐 Terapkan ke Semua Dokumen
               </button>
