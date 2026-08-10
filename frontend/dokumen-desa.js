@@ -877,15 +877,17 @@ async function renderDynamicFormFields(tpl) {
     const isTglOtomatis = /^tgl_.+_(hari|bulan|terbilang)$/.test(key);
     const fieldType = isTglOtomatis ? 'text' : (f.type || 'text');
 
-    const isYearField = (key === 'tahun');
-    let val = appState.documentFields[key];
-    if (val === undefined || val === null) {
-      val = appState.globalSharedFields ? (appState.globalSharedFields[key] || '') : '';
-    }
-    if (isYearField && !val) {
+    const isYearField = (key === 'tahun' || key === 'tahun0' || key === 'tahun1' || key === 'tahun2');
+    // Semua varian tahun ({{tahun}}, {{tahun0}}, {{tahun1}}, {{tahun2}}) mewarisi
+    // nilai TAHUN GLOBAL aktif — beda placeholder, satu nilai, berlaku umum.
+    if (isYearField) {
       val = appState.activeTahun || '2027';
+    } else {
+      let v = appState.documentFields[key];
+      if (v === undefined || v === null) v = appState.globalSharedFields ? (appState.globalSharedFields[key] || '') : '';
+      if (v === undefined || v === null) v = '';
+      val = v;
     }
-    if (val === undefined || val === null) val = '';
     appState.documentFields[key] = val;
 
     const labelBlock = `
@@ -1174,10 +1176,10 @@ function handleAutoSaveTable() {
 function gantiTahunDokumenDesa(tahunVal) {
   appState.activeTahun = tahunVal;
   if (!appState.globalSharedFields) appState.globalSharedFields = {};
-  appState.globalSharedFields['tahun'] = tahunVal;
-  appState.globalSharedFields['tahun1'] = tahunVal;
-  appState.documentFields['tahun'] = tahunVal;
-  appState.documentFields['tahun1'] = tahunVal;
+  ['tahun', 'tahun0', 'tahun1', 'tahun2'].forEach(k => {
+    appState.globalSharedFields[k] = tahunVal;
+    appState.documentFields[k] = tahunVal;
+  });
   try {
     localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
   } catch (e) {}
@@ -1189,6 +1191,7 @@ function gantiTahunDokumenDesa(tahunVal) {
   if (tpl) {
     renderDynamicFormFields(tpl);
   }
+  triggerDebouncedSupabaseSave();
   showToast(`📅 Tahun Anggaran diubah ke ${tahunVal}`, 'info');
 }
 
