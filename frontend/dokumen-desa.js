@@ -62,6 +62,36 @@ let templateSettingsState = {
   tableHeaders: ['No', 'Nama', 'Tempat, Tanggal Lahir', 'Jabatan', 'Unsur']
 };
 
+const MASTER_SHARED_DEFAULTS = {
+  tahun0: '',
+  tahun: '',
+  tahun1: '',
+  tahun2: '',
+  rpjmdes1: '',
+  kewenangan1: '',
+  rkpdes1: '',
+  apbdes1: '',
+  nama_desa: '',
+  kades: '',
+  nama_kepala_desa: '',
+  nama_ketua_bpd: '',
+  tempat: '',
+  tempat_musrembang: '',
+  sk_tim: '',
+  ska: '',
+  pimpinan_musrembang: '',
+  tgl_musdes_tim_hari: '',
+  tgl_musdes_tim_bulan: '',
+  tgl_musdes_tim_terbilang: '',
+  tgl_surat_tim: '',
+  tgl_musrembang_hari: '',
+  tgl_tatip_bulan: '',
+  kecamatan: '',
+  kabupaten: '',
+  provinsi: '',
+  alamat_kantor: ''
+};
+
 function setActiveDocCode(code) {
   if (!code) return;
   appState.activeDocCode = code;
