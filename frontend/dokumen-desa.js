@@ -717,7 +717,7 @@ async function bukaDokumenEdit(code) {
 
   // Ensure default master year fallback if key is uninitialized
   if (!rawFields['tahun'] && appState.activeTahun) {
-    rawFields['tahun'] = appState.activeTahun;
+    rawFields['tahun'] = String((parseInt(appState.activeTahun, 10) || 0) - 1);
   }
 
   // Keep all fields & tables retrieved from Supabase database intact
