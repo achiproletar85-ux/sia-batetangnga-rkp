@@ -300,16 +300,16 @@
             </div>
 
             <div class="flex items-center gap-1.5 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60 shadow-inner">
-              <button onclick="bukaModul('/admin/templates')" id="tabnav-templates" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
+              <button onclick="bukaModul('/admin/templates')" id="tabnav-templates" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 font-bold text-xs text-slate-700 hover:bg-slate-200/60 cursor-pointer">
                 <i class="fas fa-layer-group"></i> Kelola Template
               </button>
-              <button onclick="bukaModul('/admin/templates/scan')" id="tabnav-scan" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
+              <button onclick="bukaModul('/admin/templates/scan')" id="tabnav-scan" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 font-bold text-xs text-slate-700 hover:bg-slate-200/60 cursor-pointer">
                 <i class="fas fa-code"></i> Scan Placeholder
               </button>
-              <button onclick="bukaDokumenEdit('DOC-02B')" id="tabnav-edit" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
+              <button onclick="bukaDokumenEdit(appState.activeDocCode || 'DOC-02B')" id="tabnav-edit" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 font-bold text-xs text-slate-700 hover:bg-slate-200/60 cursor-pointer">
                 <i class="fas fa-pen-to-square"></i> Form &amp; Preview
               </button>
-              <button onclick="bukaModul('/admin/templates/settings')" id="tabnav-settings" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
+              <button onclick="bukaPengaturanTemplateUntukDokumenIni()" id="tabnav-settings" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 font-bold text-xs text-slate-700 hover:bg-slate-200/60 cursor-pointer">
                 <i class="fas fa-sliders"></i> Pengaturan
               </button>
             </div>
