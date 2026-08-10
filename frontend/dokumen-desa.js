@@ -221,7 +221,13 @@ function populateTemplateSelector() {
   }
 }
 
-// 3. MODUL 1: PANEL KELOLA TEMPLATE (CRUD) RENDERER
+function bukaPengaturanDocCode(codeParam) {
+  const code = codeParam || appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B';
+  setActiveDocCode(code);
+  bukaModul('/admin/templates/settings');
+  muatPengaturanTemplate(code);
+}
+
 function renderTemplatesTable() {
   const tbody = document.getElementById('tableTemplatesBody');
   if (!tbody) return;
@@ -255,12 +261,15 @@ function renderTemplatesTable() {
           </a>
         </td>
         <td class="p-4 text-center">
-          <div class="flex items-center justify-center gap-1.5">
-            <button onclick="bukaDokumenEdit('${tpl.code}')" class="bg-brand-500 hover:bg-brand-600 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg shadow" title="Buka Form Edit & Preview">
+          <div class="flex items-center justify-center gap-1.5 flex-wrap">
+            <button onclick="bukaDokumenEdit('${tpl.code}')" class="bg-brand-500 hover:bg-brand-600 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg shadow" title="Buka Form Edit &amp; Preview">
               <i class="fas fa-edit"></i> Edit
             </button>
             <button onclick="bukaHalamanScan('${tpl.code}')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-2 py-1.5 rounded-lg shadow" title="Scan Placeholder {{...}}">
               <i class="fas fa-search font-mono"></i> Scan
+            </button>
+            <button onclick="bukaPengaturanDocCode('${tpl.code}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold px-2 py-1.5 rounded-lg shadow" title="Buka Pengaturan Template (Fields &amp; Header Tabel)">
+              <i class="fas fa-cog"></i> Setup
             </button>
             <button onclick="bukaModalEditTemplateId('${tpl.code}', '${tpl.documentId}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold px-2 py-1.5 rounded-lg border" title="Edit Document ID">
               <i class="fas fa-key"></i>
@@ -516,9 +525,13 @@ function tutupModalTambahTemplate() {
 }
 
 async function simpanTambahTemplateBaru() {
-  const code = document.getElementById('tambahModalCode')?.value?.toUpperCase();
-  const name = document.getElementById('tambahModalName')?.value;
-  const gdocId = document.getElementById('tambahModalGDocId')?.value;
+  const codeEl = document.getElementById('tambahModalCode');
+  const nameEl = document.getElementById('tambahModalName');
+  const gdocIdEl = document.getElementById('tambahModalGDocId');
+
+  const code = codeEl?.value?.toUpperCase()?.trim();
+  const name = nameEl?.value?.trim();
+  const gdocId = gdocIdEl?.value?.trim();
 
   if (!code || !gdocId) {
     showToast('⚠️ Mohon isi Kode Dokumen dan Document ID!', 'error');
@@ -526,7 +539,13 @@ async function simpanTambahTemplateBaru() {
   }
 
   const newTpl = { code, name: name || code, documentId: gdocId, stage: 'A', isReal: true, fields: [], tableHeaders: [] };
-  RKP_TEMPLATES.push(newTpl);
+  
+  const existingIdx = RKP_TEMPLATES.findIndex(x => x.code === code);
+  if (existingIdx >= 0) {
+    RKP_TEMPLATES[existingIdx] = { ...RKP_TEMPLATES[existingIdx], name: name || code, documentId: gdocId, isReal: true };
+  } else {
+    RKP_TEMPLATES.push(newTpl);
+  }
 
   try {
     await fetch(`${getApiBase()}/api/templates`, {
@@ -538,10 +557,21 @@ async function simpanTambahTemplateBaru() {
     console.warn('Gagal menyimpan ke backend:', e);
   }
 
+  if (codeEl) codeEl.value = '';
+  if (nameEl) nameEl.value = '';
+  if (gdocIdEl) gdocIdEl.value = '';
+
   tutupModalTambahTemplate();
   renderTemplatesTable();
   populateTemplateSelector();
-  showToast(`✅ Template baru "${code}" berhasil ditambahkan!`, 'success');
+  
+  // Set template baru sebagai template aktif lintas modul
+  setActiveDocCode(code);
+
+  showToast(`✅ Template baru "${code}" berhasil ditambahkan & disinkronkan ke seluruh modul! Memindai placeholder...`, 'success');
+
+  // Otomatis jalankan pemindaian tag {{...}} di latar belakang untuk template baru
+  scanDanMuatUlangPengaturan(code, true).catch(() => {});
 }
 
 function hapusTemplate(code) {
@@ -2711,11 +2741,15 @@ window.simpanEditTemplateId = simpanEditTemplateId;
 window.bukaModalTambahField = bukaModalTambahField;
 window.tambahFieldBaru = tambahFieldBaru;
 window.tambahKolomHeader = tambahKolomHeader;
-window.bukaModalScanPlaceholdersForm = bukaModalScanPlaceholdersForm;
 window.simpanKonfigurasiFieldPermanen = simpanKonfigurasiFieldPermanen;
 window.simpanFormHanyaSupabase = simpanFormHanyaSupabase;
 window.simpanDanTerapkanGlobalFieldsSemuaDokumen = simpanDanTerapkanGlobalFieldsSemuaDokumen;
 window.jalankanAutoScanPlaceholdersSettings = jalankanAutoScanPlaceholdersSettings;
+window.bukaModalTambahTemplate = bukaModalTambahTemplate;
+window.tutupModalTambahTemplate = tutupModalTambahTemplate;
+window.simpanTambahTemplateBaru = simpanTambahTemplateBaru;
+window.bukaPengaturanDocCode = bukaPengaturanDocCode;
+window.hapusTemplate = hapusTemplate;
 window.bersihkanFieldKadaluarsa = bersihkanFieldKadaluarsa;
 window.autoScanSekali = autoScanSekali;
 window.mulaiAutoScanPlaceholders = mulaiAutoScanPlaceholders;
