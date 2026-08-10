@@ -1190,26 +1190,63 @@ function tglParseTanggalBahasa(text) {
 
 function tglUpdateGrup(token) {
   const sourceEl = document.querySelector(`[data-tgl-token="${token}"][data-tgl-role="source"]`);
-  if (!sourceEl) return;
-  const parsed = tglParseTanggalBahasa(sourceEl.value);
-  const targets = document.querySelectorAll(`[data-tgl-token="${token}"][data-tgl-role="derived"]`);
-  targets.forEach(el => {
-    if (!parsed) { el.value = ''; return; }
-    const key = el.getAttribute('data-tgl-key');
-    if (key.endsWith('_hari')) {
-      el.value = `${parsed.weekday}, ${parsed.day} ${parsed.month} ${parsed.year}`;
-    } else if (key.endsWith('_terbilang')) {
-      el.value = `Hari ${parsed.weekday} Tanggal ${tglAngkaTerbilang(parsed.day)} Bulan ${parsed.month} Tahun ${tglAngkaTerbilang(parsed.year)}`;
-    } else {
-      el.value = `${parsed.day} ${parsed.month} ${parsed.year}`;
+  const pickerEl = document.getElementById(`tgl_picker_${token}`);
+  
+  let parsed = null;
+  if (pickerEl && pickerEl.value) {
+    const parts = pickerEl.value.split('-');
+    if (parts.length === 3) {
+      const y = Number(parts[0]);
+      const m = Number(parts[1]);
+      const d = Number(parts[2]);
+      const weekdayName = HARI_ID[new Date(y, m - 1, d).getDay()];
+      parsed = { day: d, monthIdx: m - 1, month: BULAN_ID[m - 1], year: y, weekday: weekdayName };
     }
-    if (el.id) {
-      appState.documentFields[el.id.replace('input_field_', '')] = el.value;
-    }
-    // trigger auto-save suppression: pakai flag agar handleAutoSaveInput tidak menimpa
-    el.setAttribute('aria-linked', 'true');
-  });
+  } else if (sourceEl && sourceEl.value) {
+    parsed = tglParseTanggalBahasa(sourceEl.value);
+  }
+
+  if (parsed) {
+    const hariVal = `${parsed.weekday}, ${parsed.day} ${parsed.month} ${parsed.year}`;
+    const bulanVal = `${parsed.day} ${parsed.month} ${parsed.year}`;
+    const terbilangVal = `Hari ${parsed.weekday} Tanggal ${tglAngkaTerbilang(parsed.day)} Bulan ${parsed.month} Tahun ${tglAngkaTerbilang(parsed.year)}`;
+
+    if (!appState.globalSharedFields) appState.globalSharedFields = {};
+    appState.globalSharedFields[`tgl_${token}_hari`] = hariVal;
+    appState.globalSharedFields[`tgl_${token}_bulan`] = bulanVal;
+    appState.globalSharedFields[`tgl_${token}_terbilang`] = terbilangVal;
+    appState.globalSharedFields[`tgl_${token}`] = bulanVal;
+
+    appState.documentFields[`tgl_${token}_hari`] = hariVal;
+    appState.documentFields[`tgl_${token}_bulan`] = bulanVal;
+    appState.documentFields[`tgl_${token}_terbilang`] = terbilangVal;
+    appState.documentFields[`tgl_${token}`] = bulanVal;
+
+    try {
+      localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
+    } catch (e) {}
+
+    // Update all matching elements in current DOM
+    const allGroupInputs = document.querySelectorAll(`[data-tgl-token="${token}"]`);
+    allGroupInputs.forEach(el => {
+      const key = el.getAttribute('data-tgl-key') || (el.id ? el.id.replace('input_field_', '') : '');
+      if (key.endsWith('_hari')) {
+        el.value = hariVal;
+      } else if (key.endsWith('_terbilang')) {
+        el.value = terbilangVal;
+      } else if (key) {
+        el.value = bulanVal;
+      }
+    });
+  } else {
+    const allGroupInputs = document.querySelectorAll(`[data-tgl-token="${token}"]`);
+    allGroupInputs.forEach(el => {
+      if (el.tagName === 'INPUT' && el.type !== 'date') el.value = '';
+    });
+  }
+
   saveStateToLocalStorage();
+  triggerDebouncedSupabaseSave();
 }
 
 function initTanggalAutoGroup(fields) {
@@ -1222,49 +1259,64 @@ function initTanggalAutoGroup(fields) {
 
   Object.keys(tokenRoles).forEach(token => {
     const roles = tokenRoles[token];
-    const roleCount = Object.keys(roles).length;
-    if (roleCount < 2) return; // tanpa pasangan → tidak aktif
-
     const sourceRole = roles.hari ? 'hari' : (roles.bulan ? 'bulan' : 'terbilang');
     const srcId = 'input_field_' + roles[sourceRole];
     const sourceEl = document.getElementById(srcId);
     if (!sourceEl) return;
 
-    // Semua field tgl_..._(hari|bulan|terbilang) dikunci & otomatis terisi oleh date-picker.
+    // Kunci field sumber & tandai dengan atribut grup
     sourceEl.setAttribute('data-tgl-token', token);
     sourceEl.setAttribute('data-tgl-role', 'source');
     sourceEl.setAttribute('data-tgl-key', roles[sourceRole]);
     sourceEl.setAttribute('readonly', 'readonly');
     sourceEl.classList.add('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
-    sourceEl.addEventListener('input', () => tglUpdateGrup(token));
 
-    // Buat input date-picker khusus untuk grup ini (terhubung ke semua tiga field).
-    const picker = document.createElement('input');
-    picker.type = 'date';
-    picker.id = `tgl_picker_${token}`;
-    picker.className = 'w-full text-xs border border-slate-300 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none mb-2';
-    picker.placeholder = `Pilih tanggal untuk {{${roles.hari || roles.bulan || roles.terbilang}}}`;
-    picker.setAttribute('data-tgl-token', token);
+    // Cek nilai tersimpan dari globalSharedFields
+    const sharedHari = appState.globalSharedFields ? appState.globalSharedFields[`tgl_${token}_hari`] : null;
+    const sharedBulan = appState.globalSharedFields ? appState.globalSharedFields[`tgl_${token}_bulan`] : null;
+    if (sharedHari || sharedBulan) {
+      const parsedShared = tglParseTanggalBahasa(sharedHari || sharedBulan);
+      if (parsedShared) {
+        const hariVal = `${parsedShared.weekday}, ${parsedShared.day} ${parsedShared.month} ${parsedShared.year}`;
+        const bulanVal = `${parsedShared.day} ${parsedShared.month} ${parsedShared.year}`;
+        const terbilangVal = `Hari ${parsedShared.weekday} Tanggal ${tglAngkaTerbilang(parsedShared.day)} Bulan ${parsedShared.month} Tahun ${tglAngkaTerbilang(parsedShared.year)}`;
+
+        appState.documentFields[`tgl_${token}_hari`] = hariVal;
+        appState.documentFields[`tgl_${token}_bulan`] = bulanVal;
+        appState.documentFields[`tgl_${token}_terbilang`] = terbilangVal;
+        appState.documentFields[`tgl_${token}`] = bulanVal;
+      }
+    }
+
+    // Buat input date-picker khusus untuk grup ini
+    let picker = document.getElementById(`tgl_picker_${token}`);
+    if (!picker) {
+      picker = document.createElement('input');
+      picker.type = 'date';
+      picker.id = `tgl_picker_${token}`;
+      picker.className = 'w-full text-xs border border-brand-300 bg-brand-50/20 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none mb-2 font-bold text-slate-800 shadow-sm';
+      picker.setAttribute('data-tgl-token', token);
+      sourceEl.parentNode.insertBefore(picker, sourceEl);
+    }
+
+    // Isikan nilai tanggal picker jika ada data tersimpan
+    const currentVal = appState.documentFields[roles[sourceRole]] || (appState.globalSharedFields ? appState.globalSharedFields[roles[sourceRole]] : '');
+    if (currentVal) {
+      const p = tglParseTanggalBahasa(currentVal);
+      if (p) {
+        picker.value = `${p.year}-${String(p.monthIdx + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+      }
+    }
+
     picker.onchange = () => {
       const v = picker.value; // YYYY-MM-DD
       if (!v) {
         sourceEl.value = '';
-        appState.documentFields[sourceEl.id.replace('input_field_', '')] = '';
         tglUpdateGrup(token);
         return;
       }
-      const parts = v.split('-');
-      const y = Number(parts[0]);
-      const m = Number(parts[1]);
-      const d = Number(parts[2]);
-      const indonesian = `${d} ${BULAN_ID[m - 1]} ${y}`;
-      sourceEl.value = indonesian;
-      appState.documentFields[sourceEl.id.replace('input_field_', '')] = indonesian;
-      // trigger rekap hari/bulan/terbilang yang terkait
       tglUpdateGrup(token);
-      saveStateToLocalStorage();
     };
-    sourceEl.parentNode.insertBefore(picker, sourceEl);
 
     ['hari', 'bulan', 'terbilang'].forEach(role => {
       if (role === sourceRole || !roles[role]) return;
@@ -1277,7 +1329,7 @@ function initTanggalAutoGroup(fields) {
       el.classList.add('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
     });
 
-    if (sourceEl.value) tglUpdateGrup(token);
+    tglUpdateGrup(token);
   });
 }
 
