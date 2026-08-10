@@ -46,7 +46,18 @@
         window.dispatchEvent(new CustomEvent('tahunChanged', { detail: { tahun: t } }));
     };
 
-    // 3. Apply stored active year immediately on DOMContentLoaded
+    // 4. Global Auth Guard (Redirect to /login.html if user is not logged in)
+    try {
+        var path = window.location.pathname.toLowerCase();
+        if (!path.endsWith('login.html') && !path.endsWith('/login')) {
+            var loggedUser = sessionStorage.getItem('sia_user') || localStorage.getItem('sia_user');
+            if (!loggedUser) {
+                window.location.replace('/login.html');
+            }
+        }
+    } catch(e) {}
+
+    // 5. Apply stored active year immediately on DOMContentLoaded
     document.addEventListener('DOMContentLoaded', function() {
         var currentTahun = window.getGlobalActiveTahun();
         window.setGlobalActiveTahun(currentTahun);
