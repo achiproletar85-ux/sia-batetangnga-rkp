@@ -663,6 +663,20 @@ async function bukaDokumenEdit(code) {
     }
   } catch (e) {}
 
+  if (!appState.globalSharedTables || appState.globalSharedTables.length === 0) {
+    try {
+      const altYear = (tahun === '2027') ? '2026' : '2027';
+      const altRes = await fetch(`${getApiBase()}/api/dokumen-form-data/GLOBAL_MASTER/${altYear}`);
+      const altData = await altRes.json();
+      if (altData && altData.success && altData.tables) {
+        const altT = getBestTableArray(altData.tables);
+        if (altT.length > 0) {
+          appState.globalSharedTables = altT;
+        }
+      }
+    } catch (e) {}
+  }
+
   try {
     const supabaseRes = await fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${tahun}`);
     const supabaseData = await supabaseRes.json();
