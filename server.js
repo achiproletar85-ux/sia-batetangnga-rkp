@@ -45,7 +45,7 @@ app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
         return res.status(400).json({ success: false, error: 'Tahun tidak valid.' });
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('dokumen_form_data')
       .select('*')
       .eq('doc_code', code)
@@ -53,6 +53,20 @@ app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
       .maybeSingle();
       
     if (error) throw error;
+
+    // Fallback: Jika belum ada data di tahun spesifik ini, muat data tersimpan paling baru dari tahun lain
+    if (!data || (!data.fields && !data.tables) || (Object.keys(data.fields || {}).length === 0 && Object.keys(data.tables || {}).length === 0)) {
+      const { data: fallbackData } = await supabase
+        .from('dokumen_form_data')
+        .select('*')
+        .eq('doc_code', code)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (fallbackData && (Object.keys(fallbackData.fields || {}).length > 0 || Object.keys(fallbackData.tables || {}).length > 0)) {
+        data = fallbackData;
+      }
+    }
 
     if (!data) {
       return res.json({ success: true, fields: {}, tables: {}, last_doc_id: null });
