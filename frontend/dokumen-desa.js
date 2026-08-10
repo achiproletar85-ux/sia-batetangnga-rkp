@@ -36,9 +36,17 @@ let RKP_TEMPLATES = [
   { code: 'DOC-34', stage: 'E', name: 'BA Pembentukan Tim Verifikasi', documentId: DEFAULT_MASTER_DOC_ID, isReal: true, hasTable: true, fields: [], tableHeaders: ['No', 'Nama Tim Verifikasi', 'Jabatan / Instansi', 'Keterangan'] }
 ];
 
+const savedDocCode = (function() {
+  try {
+    const saved = localStorage.getItem('LAST_ACTIVE_DOC_CODE');
+    if (saved && typeof saved === 'string' && saved.startsWith('DOC-')) return saved;
+  } catch (e) {}
+  return 'DOC-02B';
+})();
+
 let appState = {
   currentRoute: '/admin/templates',
-  activeDocCode: 'DOC-02B',
+  activeDocCode: savedDocCode,
   activeTahun: localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027',
   globalSharedFields: JSON.parse(localStorage.getItem('GLOBAL_SHARED_FIELDS') || '{}'),
   globalSharedTables: JSON.parse(localStorage.getItem('GLOBAL_SHARED_TABLES') || '[]'),
@@ -47,51 +55,26 @@ let appState = {
   autoSaveTimer: null
 };
 
-window.addEventListener('tahunChanged', (e) => {
-  if (e && e.detail && e.detail.tahun) {
-    appState.activeTahun = String(e.detail.tahun);
-    if (appState.activeDocCode) {
-      bukaDokumenEdit(appState.activeDocCode);
-    }
-  }
-});
-
-const MASTER_SHARED_DEFAULTS = {
-  tahun0: '',
-  tahun: '',
-  tahun1: '',
-  tahun2: '',
-  rpjmdes1: '',
-  kewenangan1: '',
-  rkpdes1: '',
-  apbdes1: '',
-  nama_desa: '',
-  kades: '',
-  nama_kepala_desa: '',
-  nama_ketua_bpd: '',
-  tempat: '',
-  tempat_musrembang: '',
-  sk_tim: '',
-  ska: '',
-  pimpinan_musrembang: '',
-  tgl_musdes_tim_hari: '',
-  tgl_musdes_tim_bulan: '',
-  tgl_musdes_tim_terbilang: '',
-  tgl_surat_tim: '',
-  tgl_musrembang_hari: '',
-  tgl_tatip_bulan: '',
-  kecamatan: '',
-  kabupaten: '',
-  provinsi: '',
-  alamat_kantor: ''
-};
-
 // State for the template settings module
 let templateSettingsState = {
-  activeCode: 'DOC-02B',
+  activeCode: savedDocCode,
   fields: [],
   tableHeaders: ['No', 'Nama', 'Tempat, Tanggal Lahir', 'Jabatan', 'Unsur']
 };
+
+function setActiveDocCode(code) {
+  if (!code) return;
+  appState.activeDocCode = code;
+  templateSettingsState.activeCode = code;
+  try {
+    localStorage.setItem('LAST_ACTIVE_DOC_CODE', code);
+  } catch (e) {}
+
+  const selectSettings = document.getElementById('selectSettingTemplateCode');
+  const selectActive = document.getElementById('selectActiveTemplate');
+  if (selectSettings && selectSettings.value !== code) selectSettings.value = code;
+  if (selectActive && selectActive.value !== code) selectActive.value = code;
+}
 
 function saveStateToLocalStorage() {
   try {
@@ -202,6 +185,9 @@ function populateTemplateSelector() {
   // Sinkronkan nilai aktif dropdown jika tombol sudah menyetel activeDocCode
   if (selectActive && appState.activeDocCode) {
     selectActive.value = appState.activeDocCode;
+  }
+  if (selectSettings && appState.activeDocCode) {
+    selectSettings.value = appState.activeDocCode;
   }
 }
 
@@ -542,8 +528,9 @@ function hapusTemplate(code) {
   }
 }
 
-// 4. MODUL 2: HALAMAN SCAN PLACEHOLDER OTOMATIS (/admin/templates/scan/[id])
-function bukaHalamanScan(code) {
+function bukaHalamanScan(codeParam) {
+  const code = codeParam || appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B';
+  setActiveDocCode(code);
   bukaModul('/admin/templates/scan');
 
   const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, name: 'Template', documentId: '' };
@@ -637,8 +624,9 @@ function getBestTableArray(tablesObj) {
   return bestArr;
 }
 
-async function bukaDokumenEdit(code) {
-  appState.activeDocCode = code;
+async function bukaDokumenEdit(codeParam) {
+  const code = codeParam || appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B';
+  setActiveDocCode(code);
   appState.lastGeneratedDocId = null;
   bukaModul('/dokumen/[id]/edit');
 
@@ -1817,7 +1805,7 @@ function bukaModul(route) {
   } else if (route.startsWith('/admin/templates/settings')) {
     if (btnSettings) btnSettings.classList.add('active');
     if (secSettings) secSettings.classList.remove('hidden');
-    muatPengaturanTemplate(appState.activeDocCode || 'DOC-02B');
+    muatPengaturanTemplate(appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B');
   } else {
     if (btnTemplates) btnTemplates.classList.add('active');
     if (secTemplates) secTemplates.classList.remove('hidden');
@@ -1861,8 +1849,8 @@ function toggleOptionsInput(mode) {
 }
 
 async function muatPengaturanTemplate(codeParam) {
-  const code = codeParam || templateSettingsState.activeCode || 'DOC-02B';
-  templateSettingsState.activeCode = code;
+  const code = codeParam || appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B';
+  setActiveDocCode(code);
 
   const tpl = RKP_TEMPLATES.find(x => x.code === code);
   const select = document.getElementById('selectSettingTemplateCode');

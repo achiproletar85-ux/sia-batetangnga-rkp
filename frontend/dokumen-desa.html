@@ -303,13 +303,13 @@
               <button onclick="bukaModul('/admin/templates')" id="tabnav-templates" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
                 <i class="fas fa-layer-group"></i> Kelola Template
               </button>
-              <button onclick="bukaModul('/admin/templates/scan')" id="tabnav-scan" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
+              <button onclick="bukaHalamanScan(appState.activeDocCode)" id="tabnav-scan" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
                 <i class="fas fa-code"></i> Scan Placeholder
               </button>
-              <button onclick="bukaDokumenEdit(appState.activeDocCode || 'DOC-02B')" id="tabnav-edit" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
+              <button onclick="bukaDokumenEdit(appState.activeDocCode)" id="tabnav-edit" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
                 <i class="fas fa-pen-to-square"></i> Form &amp; Preview
               </button>
-              <button onclick="bukaModul('/admin/templates/settings')" id="tabnav-settings" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
+              <button onclick="muatPengaturanTemplate(appState.activeDocCode); bukaModul('/admin/templates/settings');" id="tabnav-settings" class="nav-btn px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5">
                 <i class="fas fa-sliders"></i> Pengaturan
               </button>
             </div>
@@ -1051,7 +1051,7 @@
   <!-- Toast Notification Container -->
   <div id="toast" class="hidden"></div>
 
-  <script src="dokumen-desa.js?v=20260810_v99"></script>
+  <script src="dokumen-desa.js?v=20260811_v100"></script>
   <script>
     // Fetch and inject the navbar component
     fetch('/components/navbar.html')
