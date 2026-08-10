@@ -661,34 +661,30 @@ async function bukaDokumenEdit(codeParam) {
   bukaModul('/dokumen/[id]/edit');
 
   const tahun = appState.activeTahun;
-
-  // Sinkronkan fields/tableHeaders dari server terlebih dahulu
-  await muatPengaturanTemplate(code);
-
   const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, name: 'Template Dokumen', documentId: '', isReal: false };
+
+  // Render form secara instan dari cache lokal lebih dulu (Zero Delay UI)
+  renderDynamicFormFields(tpl);
 
   let rawFields = {};
   let rawTables = {};
 
-  // 1. Muat data GLOBAL_MASTER (fields & tables) terlebih dahulu agar data master terbaru selalu menang
+  // Ambil data server secara PARALEL (Promise.all) agar respons 3x lebih cepat
   try {
-    const globalRes = await fetch(`${getApiBase()}/api/dokumen-form-data/GLOBAL_MASTER/${tahun}`);
-    const globalData = await globalRes.json();
-    if (globalData && globalData.success) {
-      if (globalData.fields) {
-        if (!appState.globalSharedFields) appState.globalSharedFields = {};
-        appState.globalSharedFields = { ...appState.globalSharedFields, ...globalData.fields };
-        try {
-          localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
-        } catch (e) {}
-      }
+    const [tplData, globalData, supabaseData] = await Promise.all([
+      muatPengaturanTemplate(code).catch(() => null),
+      fetch(`${getApiBase()}/api/dokumen-form-data/GLOBAL_MASTER/${tahun}`).then(r => r.json()).catch(() => null),
+      fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${tahun}`).then(r => r.json()).catch(() => null)
+    ]);
+
+    if (globalData && globalData.success && globalData.fields) {
+      if (!appState.globalSharedFields) appState.globalSharedFields = {};
+      appState.globalSharedFields = { ...appState.globalSharedFields, ...globalData.fields };
+      try {
+        localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
+      } catch (e) {}
     }
-  } catch (e) {}
 
-
-  try {
-    const supabaseRes = await fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${tahun}`);
-    const supabaseData = await supabaseRes.json();
     if (supabaseData && supabaseData.success) {
       if (supabaseData.fields && Object.keys(supabaseData.fields).length > 0) {
         rawFields = supabaseData.fields;
@@ -1887,19 +1883,18 @@ async function muatPengaturanTemplate(codeParam) {
   if (select) select.value = code;
 
   try {
-    // 1. Fetch template field schema live from Supabase
-    const res = await fetch(`${getApiBase()}/api/templates/${code}/all`);
-    const data = await res.json();
+    // 1. Fetch template field schema & data values in PARALLEL from Supabase
+    const [data, dbData] = await Promise.all([
+      fetch(`${getApiBase()}/api/templates/${code}/all`).then(r => r.json()).catch(() => ({ fields: [], tableHeaders: [] })),
+      fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${appState.activeTahun}`).then(r => r.json()).catch(() => ({ success: false }))
+    ]);
 
     const CANONICAL_TABLE_DOCS = ['DOC-02B', 'DOC-20', 'DOC-27', 'DOC-34'];
     const isTableDoc = CANONICAL_TABLE_DOCS.includes(code);
 
-    const serverHeaders = (data.tableHeaders && Array.isArray(data.tableHeaders)) ? data.tableHeaders : [];
+    const serverHeaders = (data && data.tableHeaders && Array.isArray(data.tableHeaders)) ? data.tableHeaders : [];
 
     // Status "Gunakan Tabel Repeatable" SINKRON lintas perangkat:
-    // sumber kebenaran = server (kolom table_headers di Supabase).
-    // - server menyimpan header  → tabel AKTIF
-    // - server kosong            → cek pengaturan tersimpan lokal, baru canonical
     let savedHasTable = null;
     try {
       const saved = localStorage.getItem('docTemplateHasTable_' + code);
@@ -1907,7 +1902,7 @@ async function muatPengaturanTemplate(codeParam) {
     } catch (e) {}
     const hasTable = (serverHeaders.length > 0) ? true : ((savedHasTable !== null) ? savedHasTable : isTableDoc);
 
-    // Cadangan header lokal (dipakai saat tabel dimatikan agar mudah diaktifkan lagi)
+    // Cadangan header lokal
     let localBackupHeaders = [];
     try {
       const bk = localStorage.getItem('docTemplateHeaders_' + code);
@@ -1925,11 +1920,7 @@ async function muatPengaturanTemplate(codeParam) {
     templateSettingsState.fields = data.fields || (tpl ? tpl.fields : []) || [];
     templateSettingsState.tableHeaders = finalHeaders;
 
-    // 2. Fetch live data values from Supabase dokumen_form_data
-    const resData = await fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${appState.activeTahun}`);
-    const dbData = await resData.json();
-
-    if (dbData.success && dbData.fields) {
+    if (dbData && dbData.success && dbData.fields) {
       appState.documentFields = Object.assign({}, appState.documentFields, dbData.fields);
     }
 
