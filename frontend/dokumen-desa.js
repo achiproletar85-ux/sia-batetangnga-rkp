@@ -942,8 +942,8 @@ async function renderDynamicFormFields(tpl) {
   const tableKey = getSpecificTableKeyForDoc(docCode);
 
   if (isTableDoc && tableKey) {
-    const headers = (targetTpl.tableHeaders && targetTpl.tableHeaders.length > 0)
-      ? targetTpl.tableHeaders
+    const headers = (tpl.tableHeaders && tpl.tableHeaders.length > 0)
+      ? tpl.tableHeaders
       : (RKP_TEMPLATES.find(x => x.code === docCode)?.tableHeaders || []);
 
     if (!headers || headers.length === 0) {
