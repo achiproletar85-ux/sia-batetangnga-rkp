@@ -635,12 +635,21 @@ async function bukaDokumenEdit(code) {
   let rawFields = {};
   let rawTables = {};
   try {
-    // 1. Muat data GLOBAL_MASTER terlebih dahulu agar data master terbaru selalu menang
+  // 1. Muat data GLOBAL_MASTER (fields & tables) terlebih dahulu agar data master terbaru selalu menang
+  try {
     const globalRes = await fetch(`${getApiBase()}/api/dokumen-form-data/GLOBAL_MASTER/${tahun}`);
     const globalData = await globalRes.json();
-    if (globalData && globalData.success && globalData.fields) {
-      if (!appState.globalSharedFields) appState.globalSharedFields = {};
-      appState.globalSharedFields = { ...globalData.fields, ...appState.globalSharedFields };
+    if (globalData && globalData.success) {
+      if (globalData.fields) {
+        if (!appState.globalSharedFields) appState.globalSharedFields = {};
+        appState.globalSharedFields = { ...globalData.fields, ...appState.globalSharedFields };
+      }
+      if (globalData.tables && typeof globalData.tables === 'object') {
+        const mainT = globalData.tables.tabel_tim_penyusun || globalData.tables.tabel_sk_tim_penyusun || globalData.tables.susunan_tim;
+        if (Array.isArray(mainT) && mainT.length > 0) {
+          appState.globalSharedTables = mainT;
+        }
+      }
     }
   } catch (e) {}
 
@@ -668,6 +677,18 @@ async function bukaDokumenEdit(code) {
   }
   if (Object.keys(rawTables).length === 0) {
     rawTables = savedState.documentTables || {};
+  }
+
+  // Jika rawTables untuk dokumen ini tidak ada baris valid, gunakan appState.globalSharedTables
+  const hasValidRows = rawTables && Object.values(rawTables).some(arr => Array.isArray(arr) && arr.length > 0);
+  if (!hasValidRows && appState.globalSharedTables && appState.globalSharedTables.length > 0) {
+    rawTables = {
+      tabel_tim_penyusun: appState.globalSharedTables,
+      tabel_sk_tim_penyusun: appState.globalSharedTables,
+      susunan_tim: appState.globalSharedTables,
+      tabel_daftar_hadir: appState.globalSharedTables,
+      tabel_kegiatan: appState.globalSharedTables
+    };
   }
 
   // Prioritaskan nilai master global terbaru agar nilai lama dari dokumen individual tidak menimpa nilai baru
@@ -934,11 +955,14 @@ async function renderDynamicFormFields(tpl) {
     if (appState.documentTables && typeof appState.documentTables === 'object') {
       const tableKeys = Object.keys(appState.documentTables);
       for (const tk of tableKeys) {
-        if (Array.isArray(appState.documentTables[tk])) {
+        if (Array.isArray(appState.documentTables[tk]) && appState.documentTables[tk].length > 0) {
           savedTableData = appState.documentTables[tk];
           break;
         }
       }
+    }
+    if (!savedTableData && appState.globalSharedTables && Array.isArray(appState.globalSharedTables) && appState.globalSharedTables.length > 0) {
+      savedTableData = appState.globalSharedTables;
     }
     if (!savedTableData) {
       savedTableData = [
@@ -1110,6 +1134,7 @@ function handleAutoSaveInput(key) {
 
 function handleAutoSaveTable() {
   const tableData = gatherTableRowsData();
+  appState.globalSharedTables = tableData;
   appState.documentTables = {
     tabel_tim_penyusun: tableData,
     tabel_sk_tim_penyusun: tableData,
@@ -1117,6 +1142,9 @@ function handleAutoSaveTable() {
     tabel_daftar_hadir: tableData,
     tabel_kegiatan: tableData
   };
+  try {
+    localStorage.setItem('GLOBAL_SHARED_TABLES', JSON.stringify(tableData));
+  } catch (e) {}
   saveStateToLocalStorage();
   triggerDebouncedSupabaseSave();
 }
