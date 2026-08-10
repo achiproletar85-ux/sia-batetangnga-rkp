@@ -50,7 +50,7 @@
 <body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
 
     <!-- NAVIGATION BAR -->
-    <div id="navbar-container"></div>
+    <div id="navbar-container" class="no-print print:hidden"></div>
     <script>
         fetch('/components/navbar.html')
             .then(res => res.text())

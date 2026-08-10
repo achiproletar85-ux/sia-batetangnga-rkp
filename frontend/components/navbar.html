@@ -1,5 +1,32 @@
 <!-- navbar.html - Premium Dark Indigo Header with Seamless Hover Buffer & Z-Index -->
 <style>
+    /* GLOBAL PRINT PROTECTION: HIDE ALL NAVBARS & CONTROL ELEMENTS WHEN PRINTING TO PDF */
+    @media print {
+        header, 
+        nav, 
+        #navbar-container, 
+        #navbar-placeholder, 
+        .navbar, 
+        .no-print, 
+        .print-hidden, 
+        [class*="no-print"], 
+        [id*="navbar"], 
+        #toast, 
+        #modalLogoutConfirm,
+        .modal-overlay-bg,
+        .modal-card {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            opacity: 0 !important;
+            overflow: hidden !important;
+        }
+    }
+
     .nav-dropdown {
         position: relative;
         z-index: 100;
@@ -106,7 +133,7 @@
     }
 </style>
 
-<nav class="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 text-slate-100 shadow-xl sticky top-0 z-[9999] w-full border-b border-indigo-900/50 backdrop-blur-md">
+<nav class="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 text-slate-100 shadow-xl sticky top-0 z-[9999] w-full border-b border-indigo-900/50 backdrop-blur-md no-print print:hidden">
     <div class="max-w-7xl mx-auto px-4 py-1.5 flex items-center justify-between gap-3 overflow-visible">
         
         <!-- BRAND LOGO -->
