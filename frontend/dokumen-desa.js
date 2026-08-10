@@ -1605,6 +1605,23 @@ async function simpanFormDokumenAuto() {
       console.warn('⚠️ Server lokal tidak merespon:', serverErr.message);
     }
 
+    // Sinkronkan nilai master global ke GLOBAL_MASTER agar berlaku untuk semua surat
+    // (tombol Simpan & Sinkron juga harus memperbarui master, bukan hanya autosave)
+    if (appState.globalSharedFields && Object.keys(appState.globalSharedFields).length > 0) {
+      fetch(`${getApiBase()}/api/sync-document`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          google_docs_id: 'GLOBAL_MASTER',
+          doc_code: 'GLOBAL_MASTER',
+          tahun: tahun,
+          fields: appState.globalSharedFields,
+          tables: {},
+          isTemplate: true
+        })
+      }).catch(() => {});
+    }
+
     // 2. Jika server backend belum memanggil GAS / mengembalikan ID master mentah, panggil GAS langsung dari browser!
     if (!finalDocId || finalDocId === tpl.documentId) {
       console.log('⚡ Running Direct Browser-to-GAS Engine fallback...');
@@ -2243,6 +2260,10 @@ async function simpanTambahFieldBaru() {
   try {
     await simpanSemuaPerubahanPengaturan();
     renderPengaturanTemplateUI();
+    // Sinkronkan Form yang sedang terbuka agar field baru langsung muncul
+    if (appState.activeDocCode === code && !document.getElementById('modul-dokumen-edit').classList.contains('hidden')) {
+      await renderDynamicFormFields(tpl);
+    }
     tutupModalTambahField();
     showToast(`✨ Field '${key}' berhasil ditambahkan!`, 'success');
   } catch (e) {
@@ -2305,6 +2326,10 @@ async function simpanPerubahanField(event, silent = false) {
   try {
     await simpanSemuaPerubahanPengaturan();
     renderPengaturanTemplateUI();
+    // Sinkronkan Form yang sedang terbuka agar tipe/label field langsung berubah
+    if (appState.activeDocCode === code && !document.getElementById('modul-dokumen-edit').classList.contains('hidden')) {
+      await renderDynamicFormFields(tpl);
+    }
     if (!silent) {
       tutupModalEditField();
       showToast(`✅ Perubahan field '${originalKey}' berhasil disimpan!`, 'success');
@@ -2402,6 +2427,10 @@ async function hapusField(key) {
   try {
     await simpanSemuaPerubahanPengaturan();
     renderPengaturanTemplateUI();
+    // Sinkronkan Form yang sedang terbuka agar field yang dihapus ikut hilang
+    if (appState.activeDocCode === code && !document.getElementById('modul-dokumen-edit').classList.contains('hidden')) {
+      await renderDynamicFormFields(tpl);
+    }
     showToast(`🗑️ Field '${key}' telah dihapus.`, 'info');
   } catch (e) {
     showToast(`❌ Gagal menghapus field: ${e.message}`, 'error');
