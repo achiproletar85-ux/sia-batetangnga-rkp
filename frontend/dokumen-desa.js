@@ -708,23 +708,30 @@ async function bukaDokumenEdit(code) {
     rawTables = savedState.documentTables || {};
   }
 
-  // Cari array tabel terbaik (terbanyak barisnya) dari global master maupun dokumen individual
-  const globalTableRows = (appState.globalSharedTables && Array.isArray(appState.globalSharedTables)) ? appState.globalSharedTables : [];
-  const docTableRows = getBestTableArray(rawTables);
+  const targetTpl = RKP_TEMPLATES.find(x => x.code === code) || { hasTable: false };
+  if (targetTpl.hasTable === false) {
+    // Dokumen ini TIDAK menggunakan tabel (seperti DOC-19, DOC-01, DOC-03, dll.)
+    rawTables = {};
+    appState.documentTables = {};
+  } else {
+    // Dokumen ini MEMANG menggunakan tabel (seperti DOC-02B, DOC-20, DOC-27, DOC-34)
+    const globalTableRows = (appState.globalSharedTables && Array.isArray(appState.globalSharedTables)) ? appState.globalSharedTables : [];
+    const docTableRows = getBestTableArray(rawTables);
 
-  const bestRows = (globalTableRows.length >= docTableRows.length && globalTableRows.length > 0)
-    ? globalTableRows
-    : docTableRows;
+    const bestRows = (globalTableRows.length >= docTableRows.length && globalTableRows.length > 0)
+      ? globalTableRows
+      : docTableRows;
 
-  if (bestRows.length > 0) {
-    rawTables = {
-      tabel_tim_penyusun: bestRows,
-      tabel_sk_tim_penyusun: bestRows,
-      susunan_tim: bestRows,
-      tabel_daftar_hadir: bestRows,
-      tabel_kegiatan: bestRows
-    };
-    appState.globalSharedTables = bestRows;
+    if (bestRows.length > 0) {
+      rawTables = {
+        tabel_tim_penyusun: bestRows,
+        tabel_sk_tim_penyusun: bestRows,
+        susunan_tim: bestRows,
+        tabel_daftar_hadir: bestRows,
+        tabel_kegiatan: bestRows
+      };
+      appState.globalSharedTables = bestRows;
+    }
   }
 
   // Prioritaskan nilai master global terbaru agar nilai lama dari dokumen individual tidak menimpa nilai baru
