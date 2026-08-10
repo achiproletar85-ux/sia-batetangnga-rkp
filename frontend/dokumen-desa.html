@@ -627,29 +627,29 @@
 
       <!-- Daftar Field -->
       <div class="space-y-3">
-        <div class="flex justify-between items-center">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80">
           <h3 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-            <span class="w-6 h-6 rounded-lg bg-gradient-to-tr from-brand-500 to-amber-400 flex items-center justify-center">
-              <i class="fas fa-tags text-white text-[9px]"></i>
+            <span class="w-7 h-7 rounded-xl bg-gradient-to-tr from-brand-500 to-amber-400 flex items-center justify-center shadow-sm">
+              <i class="fas fa-tags text-white text-[10px]"></i>
             </span>
-            Daftar Field Placeholder
-            <span id="badgeFieldCount" class="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">0 Fields</span>
+            <span>Daftar Field Placeholder</span>
+            <span id="badgeFieldCount" class="text-[10px] font-extrabold bg-white text-slate-600 px-2.5 py-0.5 rounded-full border border-slate-200 shadow-sm">0 Fields</span>
           </h3>
-          <div id="settingsHeaderActions" class="flex items-center gap-2 flex-wrap">
-            <button onclick="bukaModalTambahField()" class="btn-emerald text-xs px-4 py-2 flex items-center gap-2 font-extrabold shadow-sm">
-              <i class="fas fa-plus"></i> Tambah Field
+          <div id="settingsHeaderActions" class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <button onclick="bukaModalTambahField()" class="btn-emerald text-xs px-3.5 py-2 flex items-center gap-1.5 font-extrabold shadow transition-all hover:scale-[1.02]" title="Tambah placeholder baru {{...}}">
+              <i class="fas fa-plus text-[11px]"></i> Tambah Field
             </button>
-            <button onclick="simpanKonfigurasiFieldPermanen()" class="btn-emerald text-xs px-3.5 py-2 flex items-center gap-1.5 font-bold shadow-sm" title="Simpan konfigurasi field ke Supabase">
-              <i class="fas fa-floppy-disk"></i> Simpan Konfigurasi Field
+            <button onclick="simpanKonfigurasiFieldPermanen()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3.5 py-2 rounded-xl font-bold shadow-sm flex items-center gap-1.5 transition-all hover:scale-[1.02] cursor-pointer" title="Simpan konfigurasi & nilai field ke Supabase">
+              <i class="fas fa-floppy-disk text-[11px]"></i> Simpan Konfigurasi
             </button>
-            <button onclick="simpanDanTerapkanGlobalFieldsSemuaDokumen()" class="btn-sky text-xs px-3.5 py-2 flex items-center gap-1.5 font-bold shadow-sm" title="Terapkan nilai master field ke semua surat">
-              <i class="fas fa-arrows-rotate"></i> Terapkan Master Field ke Semua Surat
+            <button onclick="simpanDanTerapkanGlobalFieldsSemuaDokumen()" class="btn-sky text-xs px-3.5 py-2 flex items-center gap-1.5 font-bold shadow-sm transition-all hover:scale-[1.02]" title="Terapkan nilai master field ke seluruh dokumen surat">
+              <i class="fas fa-arrows-rotate text-[11px]"></i> Terapkan ke Semua Surat
             </button>
-            <button onclick="jalankanAutoScanPlaceholdersSettings()" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5 font-bold shadow-sm" title="Pindai ulang placeholder {{...}} dari Google Docs">
-              <i class="fas fa-search"></i> Auto-Scan Google Docs
+            <button onclick="jalankanAutoScanPlaceholdersSettings()" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5 font-bold shadow-sm transition-all hover:scale-[1.02]" title="Pindai ulang placeholder {{...}} langsung dari Google Docs">
+              <i class="fas fa-magnifying-glass text-[11px]"></i> Auto-Scan Docs
             </button>
-            <button onclick="bersihkanFieldKadaluarsa()" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5 text-rose-600 font-bold shadow-sm" title="Bersihkan field placeholder yang tidak terpakai">
-              <i class="fas fa-broom"></i> Bersihkan Field Tidak Aktif
+            <button onclick="bersihkanFieldKadaluarsa()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs px-3 py-2 rounded-xl font-bold shadow-sm flex items-center gap-1.5 transition-all hover:scale-[1.02] cursor-pointer" title="Bersihkan field placeholder yang tidak terpakai">
+              <i class="fas fa-broom text-[11px]"></i> Bersihkan Field
             </button>
           </div>
         </div>

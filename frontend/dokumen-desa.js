@@ -2629,10 +2629,14 @@ window.bukaModalEditTemplateId = bukaModalEditTemplateId;
 window.tutupModalEditTemplate = tutupModalEditTemplate;
 window.tutupModalEditTemplateId = tutupModalEditTemplateId;
 window.simpanEditTemplateId = simpanEditTemplateId;
+window.bukaModalTambahField = bukaModalTambahField;
 window.tambahFieldBaru = tambahFieldBaru;
 window.tambahKolomHeader = tambahKolomHeader;
 window.bukaModalScanPlaceholdersForm = bukaModalScanPlaceholdersForm;
+window.simpanKonfigurasiFieldPermanen = simpanKonfigurasiFieldPermanen;
 window.simpanDanTerapkanGlobalFieldsSemuaDokumen = simpanDanTerapkanGlobalFieldsSemuaDokumen;
+window.jalankanAutoScanPlaceholdersSettings = jalankanAutoScanPlaceholdersSettings;
+window.bersihkanFieldKadaluarsa = bersihkanFieldKadaluarsa;
 window.autoScanSekali = autoScanSekali;
 window.mulaiAutoScanPlaceholders = mulaiAutoScanPlaceholders;
 
