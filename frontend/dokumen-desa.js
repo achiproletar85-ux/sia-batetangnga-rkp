@@ -631,10 +631,6 @@ async function bukaDokumenEdit(code) {
 
   const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, name: 'Template Dokumen', documentId: '', isReal: false };
 
-  // Load data tersimpan dari Supabase database (dengan fallback ke localStorage)
-  let rawFields = {};
-  let rawTables = {};
-  try {
   // 1. Muat data GLOBAL_MASTER (fields & tables) terlebih dahulu agar data master terbaru selalu menang
   try {
     const globalRes = await fetch(`${getApiBase()}/api/dokumen-form-data/GLOBAL_MASTER/${tahun}`);
