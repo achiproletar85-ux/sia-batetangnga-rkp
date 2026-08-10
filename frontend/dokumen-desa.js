@@ -153,6 +153,10 @@ async function loadTemplatesFromStorageOrBackend() {
           
           item.fields = t.fields || item.fields || [];
           item.tableHeaders = t.tableHeaders || item.tableHeaders || [];
+          // Status tabel ikut disinkronkan dari server: server punya header → tabel AKTIF
+          if (Array.isArray(t.tableHeaders) && t.tableHeaders.length > 0) {
+            item.hasTable = true;
+          }
         } else {
           RKP_TEMPLATES.push({
             code: t.code,
@@ -1833,26 +1837,36 @@ async function muatPengaturanTemplate(codeParam) {
     const CANONICAL_TABLE_DOCS = ['DOC-02B', 'DOC-20', 'DOC-27', 'DOC-34'];
     const isTableDoc = CANONICAL_TABLE_DOCS.includes(code);
 
-    // Status "Gunakan Tabel Repeatable" diambil dari pengaturan tersimpan per-dokumen.
-    // Jika tidak ada pengaturan tersimpan, pakai daftar canonical sebagai nilai bawaan.
+    const serverHeaders = (data.tableHeaders && Array.isArray(data.tableHeaders)) ? data.tableHeaders : [];
+
+    // Status "Gunakan Tabel Repeatable" SINKRON lintas perangkat:
+    // sumber kebenaran = server (kolom table_headers di Supabase).
+    // - server menyimpan header  → tabel AKTIF
+    // - server kosong            → cek pengaturan tersimpan lokal, baru canonical
     let savedHasTable = null;
     try {
       const saved = localStorage.getItem('docTemplateHasTable_' + code);
       if (saved === 'true' || saved === 'false') savedHasTable = (saved === 'true');
     } catch (e) {}
-    const hasTable = (savedHasTable !== null) ? savedHasTable : isTableDoc;
+    const hasTable = (serverHeaders.length > 0) ? true : ((savedHasTable !== null) ? savedHasTable : isTableDoc);
+
+    // Cadangan header lokal (dipakai saat tabel dimatikan agar mudah diaktifkan lagi)
+    let localBackupHeaders = [];
+    try {
+      const bk = localStorage.getItem('docTemplateHeaders_' + code);
+      if (bk) localBackupHeaders = JSON.parse(bk);
+    } catch (e) {}
+    const baseHeaders = RKP_TEMPLATES.find(x => x.code === code)?.tableHeaders || [];
+    const finalHeaders = (serverHeaders.length > 0) ? serverHeaders
+      : ((localBackupHeaders.length > 0) ? localBackupHeaders : baseHeaders);
 
     if (tpl) {
       tpl.fields = data.fields || [];
       tpl.hasTable = hasTable;
-      if (data.tableHeaders && Array.isArray(data.tableHeaders) && data.tableHeaders.length > 0) {
-        tpl.tableHeaders = data.tableHeaders;
-      } else {
-        tpl.tableHeaders = [];
-      }
+      tpl.tableHeaders = finalHeaders;
     }
     templateSettingsState.fields = data.fields || (tpl ? tpl.fields : []) || [];
-    templateSettingsState.tableHeaders = isTableDoc ? ((data.tableHeaders && data.tableHeaders.length > 0) ? data.tableHeaders : (tpl ? tpl.tableHeaders : [])) : [];
+    templateSettingsState.tableHeaders = finalHeaders;
 
     // 2. Fetch live data values from Supabase dokumen_form_data
     const resData = await fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${appState.activeTahun}`);
@@ -2180,22 +2194,27 @@ async function simpanHeaderTabel() {
 
   const code = templateSettingsState.activeCode || appState.activeDocCode || 'DOC-02B';
   const tpl = RKP_TEMPLATES.find(x => x.code === code);
+
+  // Header dikirim ke server HANYA saat tabel AKTIF. Saat OFF, server dikosongkan
+  // agar status sinkron lintas perangkat (server = sumber kebenaran via kolom table_headers).
+  const serverHeaders = hasTable ? newHeaders : [];
   if (tpl) {
     tpl.tableHeaders = newHeaders;
     tpl.hasTable = hasTable;
   }
   templateSettingsState.tableHeaders = newHeaders;
 
-  // Persist status tabel di localStorage (server tidak menyimpan kolom hasTable)
+  // Status tabel + cadangan header disimpan lokal untuk mode offline & kemudahan aktif ulang
   try {
     localStorage.setItem('docTemplateHasTable_' + code, hasTable ? 'true' : 'false');
+    localStorage.setItem('docTemplateHeaders_' + code, JSON.stringify(newHeaders));
   } catch (e) {}
 
   try {
     const res = await fetch(`${getApiBase()}/api/templates/${code}/all`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: tpl?.fields || [], tableHeaders: newHeaders, hasTable: hasTable })
+      body: JSON.stringify({ fields: tpl?.fields || [], tableHeaders: serverHeaders })
     });
     const result = await res.json();
     if (result.success) {
