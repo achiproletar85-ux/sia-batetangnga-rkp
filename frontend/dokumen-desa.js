@@ -871,14 +871,23 @@ async function renderDynamicFormFields(tpl) {
     const isTglOtomatis = /^tgl_.+_(hari|bulan|terbilang)$/.test(key);
     const fieldType = isTglOtomatis ? 'text' : (f.type || 'text');
 
-    const isYearField = (key === 'tahun' || key === 'tahun0' || key === 'tahun1' || key === 'tahun2' || key === 'tahun3');
-    // Varian tahun adalah field TERPISAH yang masing-masing menyimpan SATU nilai
-    // (contoh Master 2027: {{tahun}}=2026, {{tahun0}}=2027, {{tahun1}}=2028, {{tahun2}}=2029).
-    // Nilai diambil dari master GLOBAL_MASTER/tahun aktif sehingga sama di semua dokumen.
+    const isYearField = /^tahun\d*$/.test(key);
+    // Varian tahun mengikuti rumus Tahun RKP aktif: {{tahun0}}=Y-2, {{tahun}}=Y-1,
+    // {{tahun1}}=Y, {{tahun2}}=Y+1, {{tahun3}}=Y+2, {{tahunN}}=Y+(N-1) — berlaku global.
+    // Nilai tersimpan (hasil edit manual) tetap dipakai; rumus hanya mengisi jika kosong.
     {
       let v = appState.documentFields[key];
       if (v === undefined || v === null) v = appState.globalSharedFields ? (appState.globalSharedFields[key] || '') : '';
       if (v === undefined || v === null) v = '';
+      if (v === '' && appState.activeTahun) {
+        const yNum = parseInt(appState.activeTahun, 10) || 0;
+        if (key === 'tahun0') v = String(yNum - 2);
+        else if (key === 'tahun') v = String(yNum - 1);
+        else {
+          const m = /^tahun(\d+)$/.exec(key);
+          if (m) v = String(yNum + (parseInt(m[1], 10) - 1));
+        }
+      }
       val = v;
     }
     appState.documentFields[key] = val;
