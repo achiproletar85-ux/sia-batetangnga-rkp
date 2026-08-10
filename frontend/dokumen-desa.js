@@ -910,6 +910,7 @@ async function renderDynamicFormFields(tpl) {
       else defaultVal = '';
     }
 
+    const isYearField = (key === 'tahun');
     let val = appState.documentFields[key];
     if (val === undefined || val === null || val === '') {
       val = appState.globalSharedFields[key] || MASTER_SHARED_DEFAULTS[key] || defaultVal;
