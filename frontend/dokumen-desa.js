@@ -960,9 +960,14 @@ async function renderDynamicFormFields(tpl) {
   });
 
   const targetTpl = RKP_TEMPLATES.find(x => x.code === tpl?.code) || tpl || { hasTable: false, tableHeaders: [] };
-  const hasSavedRows = (appState.globalSharedTables && Array.isArray(appState.globalSharedTables) && appState.globalSharedTables.length > 0) ||
-                        (appState.documentTables && typeof appState.documentTables === 'object' && Object.values(appState.documentTables).some(a => Array.isArray(a) && a.length > 0));
-  const usesTable = targetTpl.hasTable === true || hasSavedRows || (Array.isArray(targetTpl.tableHeaders) && targetTpl.tableHeaders.length > 0);
+  let usesTable = false;
+  if (targetTpl.hasTable === false) {
+    usesTable = false;
+  } else if (targetTpl.hasTable === true) {
+    usesTable = true;
+  } else {
+    usesTable = (Array.isArray(targetTpl.tableHeaders) && targetTpl.tableHeaders.length > 0);
+  }
 
   if (usesTable) {
     const headers = (targetTpl.tableHeaders && targetTpl.tableHeaders.length > 0)
