@@ -1704,12 +1704,8 @@ function bukaModul(route) {
   const btnEdit = document.getElementById('tabnav-edit');
   const btnSettings = document.getElementById('tabnav-settings');
 
-  const allBtns = [btnTemplates, btnScan, btnEdit, btnSettings];
-  allBtns.forEach(btn => {
-    if (btn) {
-      btn.classList.remove('bg-white', 'text-brand-600', 'shadow-sm', 'font-extrabold');
-      btn.classList.add('text-slate-700', 'font-bold', 'hover:bg-slate-200/60');
-    }
+  [btnTemplates, btnScan, btnEdit, btnSettings].forEach(btn => {
+    if (btn) btn.classList.remove('active');
   });
 
   const secTemplates = document.getElementById('modul-admin-templates');
@@ -1721,25 +1717,18 @@ function bukaModul(route) {
     if (sec) sec.classList.add('hidden');
   });
 
-  function activateTab(btn) {
-    if (btn) {
-      btn.classList.remove('text-slate-700', 'hover:bg-slate-200/60');
-      btn.classList.add('bg-white', 'text-brand-600', 'shadow-sm', 'font-extrabold');
-    }
-  }
-
   if (route.startsWith('/admin/templates/scan')) {
-    activateTab(btnScan);
+    if (btnScan) btnScan.classList.add('active');
     if (secScan) secScan.classList.remove('hidden');
   } else if (route.startsWith('/dokumen/') && route.endsWith('/edit')) {
-    activateTab(btnEdit);
+    if (btnEdit) btnEdit.classList.add('active');
     if (secEdit) secEdit.classList.remove('hidden');
   } else if (route.startsWith('/admin/templates/settings')) {
-    activateTab(btnSettings);
+    if (btnSettings) btnSettings.classList.add('active');
     if (secSettings) secSettings.classList.remove('hidden');
     muatPengaturanTemplate(appState.activeDocCode || 'DOC-02B');
   } else {
-    activateTab(btnTemplates);
+    if (btnTemplates) btnTemplates.classList.add('active');
     if (secTemplates) secTemplates.classList.remove('hidden');
     renderTemplatesTable();
   }
