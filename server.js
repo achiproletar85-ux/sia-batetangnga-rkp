@@ -5607,6 +5607,8 @@ app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
 // POST /api/dokumen-form-data (Simpan Draf data form & tabel ke Supabase tanpa Sync GAS)
 app.post('/api/dokumen-form-data', async (req, res) => {
   try {
@@ -5810,7 +5812,7 @@ app.post('/api/sync-document', async (req, res) => {
         }).eq('doc_code', doc_code).eq('tahun', tahunInt);
       } catch (e) {}
 
-      res.json({
+      return res.json({
         success: true,
         message: syncResult.message || 'Dokumen berhasil disinkronkan ke Google Docs.',
         new_document_id: newDocId,
@@ -5818,7 +5820,11 @@ app.post('/api/sync-document', async (req, res) => {
         preview_url: previewUrl,
         duplicated: !!syncResult.duplicated
       });
-      res.json({
+    } else {
+      try {
+        await supabase.from('dokumen_form_data').update({ syncing: false }).eq('doc_code', doc_code).eq('tahun', tahunInt);
+      } catch (e) {}
+      return res.json({
         success: true,
         db_saved: true,
         gas_synced: false,
