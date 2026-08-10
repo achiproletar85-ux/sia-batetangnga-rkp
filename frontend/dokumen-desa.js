@@ -706,9 +706,8 @@ async function bukaDokumenEdit(code) {
 
   // Prioritaskan nilai master global terbaru agar nilai lama dari dokumen individual tidak menimpa nilai baru
   if (appState.globalSharedFields) {
-    const EXCLUDED_GLOBAL_SYNC_KEYS = ['tahun1', 'tahun2', 'tahun4'];
+    // Semua varian tahun ikut tersinkron dari master (kontrol Tahun Master berlaku global)
     Object.keys(appState.globalSharedFields).forEach(k => {
-      if (EXCLUDED_GLOBAL_SYNC_KEYS.includes(k)) return;
       const gVal = appState.globalSharedFields[k];
       if (gVal !== undefined && gVal !== null && gVal !== '') {
         rawFields[k] = gVal;
@@ -858,7 +857,7 @@ async function renderDynamicFormFields(tpl) {
     }
   }
 
-  const MASTER_KEYS = ['nama_desa', 'tahun', 'tahun1', 'kades', 'nama_kepala_desa', 'nama_ketua_bpd', 'tempat'];
+  const MASTER_KEYS = ['nama_desa', 'tahun', 'tahun0', 'tahun1', 'tahun2', 'tahun3', 'kades', 'nama_kepala_desa', 'nama_ketua_bpd', 'tempat'];
   let html = '';
 
   const IGNORE_SINGLE_KEYS = ['no', 'nama', 'ttl', 'jabatan', 'unsur', 'umur'];
@@ -878,11 +877,10 @@ async function renderDynamicFormFields(tpl) {
     const fieldType = isTglOtomatis ? 'text' : (f.type || 'text');
 
     const isYearField = (key === 'tahun' || key === 'tahun0' || key === 'tahun1' || key === 'tahun2' || key === 'tahun3');
-    // Semua varian tahun ({{tahun}}, {{tahun0}}, {{tahun1}}, {{tahun2}}, {{tahun3}}) mewarisi
-    // nilai TAHUN GLOBAL aktif — beda placeholder, satu nilai, berlaku umum.
-    if (isYearField) {
-      val = appState.activeTahun || '2027';
-    } else {
+    // Varian tahun adalah field TERPISAH yang masing-masing menyimpan SATU nilai
+    // (contoh Master 2027: {{tahun}}=2026, {{tahun0}}=2027, {{tahun1}}=2028, {{tahun2}}=2029).
+    // Nilai diambil dari master GLOBAL_MASTER/tahun aktif sehingga sama di semua dokumen.
+    {
       let v = appState.documentFields[key];
       if (v === undefined || v === null) v = appState.globalSharedFields ? (appState.globalSharedFields[key] || '') : '';
       if (v === undefined || v === null) v = '';
@@ -906,9 +904,7 @@ async function renderDynamicFormFields(tpl) {
 
     let inputHtml = '';
     if (isYearField) {
-      const yearOptions = ['2022', '2023', '2024', '2025', '2026', '2027', '2028', '2029', '2030'];
-      const optionsHtml = yearOptions.map(y => `<option value="${y}" ${String(val) === String(y) ? 'selected' : ''}>${y}</option>`).join('');
-      inputHtml = `<select id="input_field_${key}" onchange="handleAutoSaveInput('${key}')" class="w-full text-xs border border-amber-300 bg-amber-50/40 rounded-xl p-2.5 focus:border-amber-500 focus:outline-none font-bold text-amber-900 cursor-pointer">${optionsHtml}</select>`;
+      inputHtml = `<input type="text" id="input_field_${key}" oninput="handleAutoSaveInput('${key}')" value="${val}" class="w-full text-xs border border-amber-300 bg-amber-50/40 rounded-xl p-2.5 focus:border-amber-500 focus:outline-none font-bold text-amber-900" placeholder="Tulis tahun" />`;
     } else if (fieldType === 'date') {
       inputHtml = `<input type="date" id="input_field_${key}" oninput="handleAutoSaveInput('${key}')" value="${formatDateForInput(val)}" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none font-semibold" />`;
     } else if (fieldType === 'number') {
@@ -1122,24 +1118,9 @@ function handleAutoSaveInput(key) {
     appState.documentFields[key] = val;
 
     // Simpan nilai terbaru untuk key spesifik ini ke globalSharedFields (Edit sekali, berlaku global untuk key yang sama)
-    const EXCLUDED_GLOBAL_SYNC_KEYS = ['tahun1', 'tahun2', 'tahun4'];
-    if (!EXCLUDED_GLOBAL_SYNC_KEYS.includes(key)) {
-      if (!appState.globalSharedFields) appState.globalSharedFields = {};
-      appState.globalSharedFields[key] = val;
-    }
-
-    // Jika yang di-edit adalah key persis 'tahun', update header dropdown & activeTahun
-    if (key === 'tahun') {
-      appState.activeTahun = val;
-      try {
-        localStorage.setItem('ACTIVE_TAHUN_ANGGARAN', val);
-      } catch (e) {}
-      const selectHeader = document.getElementById('selectTahunDokumenDesa');
-      if (selectHeader) selectHeader.value = val;
-      if (window.setGlobalActiveTahun) {
-        window.setGlobalActiveTahun(val);
-      }
-    }
+    // Semua varian tahun ikut tersinkron global (kontrol Tahun Master berlaku untuk semua dokumen)
+    if (!appState.globalSharedFields) appState.globalSharedFields = {};
+    appState.globalSharedFields[key] = val;
     try {
       localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
     } catch (e) {}
@@ -1173,13 +1154,42 @@ function handleAutoSaveTable() {
   triggerDebouncedSupabaseSave();
 }
 
-function gantiTahunDokumenDesa(tahunVal) {
+async function gantiTahunDokumenDesa(tahunVal) {
   appState.activeTahun = tahunVal;
   if (!appState.globalSharedFields) appState.globalSharedFields = {};
-  ['tahun', 'tahun0', 'tahun1', 'tahun2', 'tahun3'].forEach(k => {
-    appState.globalSharedFields[k] = tahunVal;
-    appState.documentFields[k] = tahunVal;
+
+  // Muat nilai master global milik tahun yang dipilih agar nilainya sesuai tahun tsb
+  try {
+    const res = await fetch(`${getApiBase()}/api/dokumen-form-data/GLOBAL_MASTER/${tahunVal}`);
+    const gd = await res.json();
+    if (gd && gd.success && gd.fields && Object.keys(gd.fields).length > 0) {
+      appState.globalSharedFields = { ...gd.fields };
+    }
+  } catch (e) {}
+
+  // Default varian tahun: {{tahun}}=Y-1, {{tahun0}}=Y, {{tahun1}}=Y+1, {{tahun2}}=Y+2, {{tahun3}}=Y+3
+  const yNum = parseInt(tahunVal, 10) || 0;
+  const defs = {
+    tahun: String(yNum - 1),
+    tahun0: String(yNum),
+    tahun1: String(yNum + 1),
+    tahun2: String(yNum + 2),
+    tahun3: String(yNum + 3),
+    tahun_anggaran: String(yNum),
+    tahun_rkp: String(yNum)
+  };
+  Object.keys(defs).forEach(k => {
+    if (appState.globalSharedFields[k] === undefined || appState.globalSharedFields[k] === null || appState.globalSharedFields[k] === '') {
+      appState.globalSharedFields[k] = defs[k];
+    }
   });
+
+  // Terapkan nilai master ke field dokumen agar render memakai nilai tahun yang benar
+  Object.keys(appState.globalSharedFields).forEach(k => {
+    const gVal = appState.globalSharedFields[k];
+    if (gVal !== undefined && gVal !== null && gVal !== '') appState.documentFields[k] = gVal;
+  });
+
   try {
     localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
   } catch (e) {}
@@ -1189,7 +1199,7 @@ function gantiTahunDokumenDesa(tahunVal) {
 
   const tpl = RKP_TEMPLATES.find(x => x.code === appState.activeDocCode);
   if (tpl) {
-    renderDynamicFormFields(tpl);
+    await renderDynamicFormFields(tpl);
   }
   triggerDebouncedSupabaseSave();
   showToast(`📅 Tahun Anggaran diubah ke ${tahunVal}`, 'info');
