@@ -715,11 +715,6 @@ async function bukaDokumenEdit(code) {
     });
   }
 
-  // Ensure default master year fallback if key is uninitialized
-  if (!rawFields['tahun'] && appState.activeTahun) {
-    rawFields['tahun'] = String((parseInt(appState.activeTahun, 10) || 0) - 1);
-  }
-
   // Keep all fields & tables retrieved from Supabase database intact
   appState.documentFields = { ...rawFields };
   appState.documentTables = { ...rawTables };
@@ -1167,23 +1162,6 @@ async function gantiTahunDokumenDesa(tahunVal) {
     }
   } catch (e) {}
 
-  // Default varian tahun: {{tahun}}=Y-1, {{tahun0}}=Y, {{tahun1}}=Y+1, {{tahun2}}=Y+2, {{tahun3}}=Y+3
-  const yNum = parseInt(tahunVal, 10) || 0;
-  const defs = {
-    tahun: String(yNum - 1),
-    tahun0: String(yNum),
-    tahun1: String(yNum + 1),
-    tahun2: String(yNum + 2),
-    tahun3: String(yNum + 3),
-    tahun_anggaran: String(yNum),
-    tahun_rkp: String(yNum)
-  };
-  Object.keys(defs).forEach(k => {
-    if (appState.globalSharedFields[k] === undefined || appState.globalSharedFields[k] === null || appState.globalSharedFields[k] === '') {
-      appState.globalSharedFields[k] = defs[k];
-    }
-  });
-
   // Terapkan nilai master ke field dokumen agar render memakai nilai tahun yang benar
   Object.keys(appState.globalSharedFields).forEach(k => {
     const gVal = appState.globalSharedFields[k];
@@ -1217,25 +1195,8 @@ async function simpanDanTerapkanGlobalFieldsSemuaDokumen() {
     });
   }
 
-  // Varian tahun mengikuti mapping kontrol Tahun Master (jangan dipaksa semua = tahun aktif)
-  // {{tahun}}=Y-1, {{tahun0}}=Y, {{tahun1}}=Y+1, {{tahun2}}=Y+2, {{tahun3}}=Y+3
+  // Varian tahun tidak dihitung rumus: nilai murni dari input (satu placeholder = satu nilai tersimpan per tahun master)
   const curTahun = appState.activeTahun || '2027';
-  const yNum = parseInt(curTahun, 10) || 0;
-  const yearDefs = {
-    tahun: String(yNum - 1),
-    tahun0: String(yNum),
-    tahun1: String(yNum + 1),
-    tahun2: String(yNum + 2),
-    tahun3: String(yNum + 3),
-    tahun_anggaran: String(yNum),
-    tahun_rkp: String(yNum)
-  };
-  Object.keys(yearDefs).forEach(tk => {
-    if (appState.globalSharedFields[tk] === undefined || appState.globalSharedFields[tk] === null || appState.globalSharedFields[tk] === '') {
-      appState.globalSharedFields[tk] = yearDefs[tk];
-    }
-    appState.documentFields[tk] = appState.globalSharedFields[tk];
-  });
 
   try {
     localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
