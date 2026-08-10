@@ -731,7 +731,15 @@ async function bukaDokumenEdit(code) {
       }
     });
   }
-  
+
+  // Paksa seluruh varian variabel tahun agar selalu 100% konsisten dengan appState.activeTahun
+  const globalTahun = appState.activeTahun || '2027';
+  ['tahun', 'tahun1', 'tahun2', 'tahun_anggaran', 'tahun_rkp'].forEach(tk => {
+    rawFields[tk] = globalTahun;
+    if (!appState.globalSharedFields) appState.globalSharedFields = {};
+    appState.globalSharedFields[tk] = globalTahun;
+  });
+
   // Keep all fields & tables retrieved from Supabase database intact
   appState.documentFields = { ...rawFields };
   appState.documentTables = { ...rawTables };
@@ -1141,14 +1149,24 @@ function handleAutoSaveInput(key) {
     // Sync to globalSharedFields cache
     if (!appState.globalSharedFields) appState.globalSharedFields = {};
     appState.globalSharedFields[key] = val;
-    if (key === 'tahun' || key === 'tahun1') {
-      appState.globalSharedFields['tahun'] = val;
-      appState.globalSharedFields['tahun1'] = val;
-      appState.documentFields['tahun'] = val;
-      appState.documentFields['tahun1'] = val;
+    const lowerK = String(key).toLowerCase();
+    if (lowerK.includes('tahun')) {
+      const tahunKeys = ['tahun', 'tahun1', 'tahun2', 'tahun_anggaran', 'tahun_rkp'];
+      tahunKeys.forEach(tk => {
+        appState.globalSharedFields[tk] = val;
+        appState.documentFields[tk] = val;
+        const elTk = document.getElementById(`input_field_${tk}`);
+        if (elTk) elTk.value = val;
+      });
       appState.activeTahun = val;
+      try {
+        localStorage.setItem('ACTIVE_TAHUN_ANGGARAN', val);
+      } catch (e) {}
       const selectHeader = document.getElementById('selectTahunDokumenDesa');
       if (selectHeader) selectHeader.value = val;
+      if (window.setGlobalActiveTahun) {
+        window.setGlobalActiveTahun(val);
+      }
     }
     try {
       localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
@@ -1209,6 +1227,13 @@ async function simpanDanTerapkanGlobalFieldsSemuaDokumen() {
     });
   }
 
+  // Paksa varian tahun agar selalu konsisten dengan appState.activeTahun
+  const curTahun = appState.activeTahun || '2027';
+  ['tahun', 'tahun1', 'tahun2', 'tahun_anggaran', 'tahun_rkp'].forEach(tk => {
+    appState.globalSharedFields[tk] = curTahun;
+    appState.documentFields[tk] = curTahun;
+  });
+
   try {
     localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
   } catch (e) {}
@@ -1226,6 +1251,7 @@ async function simpanDanTerapkanGlobalFieldsSemuaDokumen() {
         body: JSON.stringify({
           google_docs_id: docId,
           doc_code: tpl.code,
+          tahun: curTahun,
           fields: appState.globalSharedFields,
           tables: {}
         })
