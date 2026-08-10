@@ -1758,8 +1758,9 @@ function renderPengaturanTemplateUI() {
     const headerContainer = document.getElementById('settingsHeaderActions');
     if (headerContainer) {
       headerContainer.innerHTML = `
-        <button onclick="jalankanAutoScanPlaceholdersSettings()" class="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5"><i class="fas fa-search"></i> Scan Ulang Placeholder</button>
-        <button onclick="bukaModalTambahField()" class="bg-brand-500 hover:bg-brand-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow">+ Tambah Field Baru</button>
+        <button onclick="simpanKonfigurasiFieldPermanen()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5 cursor-pointer"><i class="fas fa-save"></i> 💾 Simpan Isi Data ke Supabase</button>
+        <button onclick="jalankanAutoScanPlaceholdersSettings()" class="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5 cursor-pointer"><i class="fas fa-search"></i> Scan Ulang Placeholder</button>
+        <button onclick="bukaModalTambahField()" class="bg-brand-500 hover:bg-brand-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow cursor-pointer">+ Tambah Field Baru</button>
       `;
     }
     if (fields.length === 0) {
@@ -1811,6 +1812,7 @@ function updateSettingFieldValue(key, val) {
   try {
     localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
   } catch (e) {}
+  triggerDebouncedSupabaseSave();
 }
 
 function updateSettingFieldType(key, typeVal) {
