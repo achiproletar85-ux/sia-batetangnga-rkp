@@ -985,6 +985,7 @@ async function renderDynamicFormFields(tpl) {
 
     let rowsHtml = '';
     savedTableData.forEach((item, index) => {
+      const itemKeys = Object.keys(item || {}).filter(k => k !== 'no');
       rowsHtml += `<tr class="table-row-item">`;
       rowsHtml += `<td class="p-1 border text-center font-bold text-slate-600 col-no">${index + 1}</td>`;
       
@@ -992,12 +993,17 @@ async function renderDynamicFormFields(tpl) {
         let val = '';
         if (item[h] !== undefined && item[h] !== null) {
           val = item[h];
+        } else if (itemKeys[colIdx] !== undefined && item[itemKeys[colIdx]] !== undefined && item[itemKeys[colIdx]] !== null) {
+          // Header kolom berubah di Pengaturan: tampilkan nilai lama sesuai posisi yang sama,
+          // sampai pengguna menyimpan data baru (generate & simpan) yang menggantikannya.
+          val = item[itemKeys[colIdx]];
         } else if (item[`col_${colIdx}`] !== undefined && item[`col_${colIdx}`] !== null) {
           val = item[`col_${colIdx}`];
         } else if (item[h.toLowerCase()] !== undefined && item[h.toLowerCase()] !== null) {
           val = item[h.toLowerCase()];
         }
-        rowsHtml += `<td class="p-1 border"><input type="text" class="col-dyn-${colIdx} w-full p-1 border border-slate-200 rounded text-xs focus:outline-none focus:border-brand-500 font-semibold" oninput="handleAutoSaveTable()" value="${val}" placeholder="${h}..." /></td>`;
+        const safeVal = String(val).replace(/"/g, '&quot;');
+        rowsHtml += `<td class="p-1 border"><input type="text" class="col-dyn-${colIdx} w-full p-1 border border-slate-200 rounded text-xs focus:outline-none focus:border-brand-500 font-semibold" oninput="handleAutoSaveTable()" value="${safeVal}" placeholder="${h}..." /></td>`;
       });
 
       rowsHtml += `<td class="p-1 border text-center"><button onclick="hapusBarisTim(this)" class="text-red-500 hover:text-red-700 font-bold px-1">&times;</button></td>`;
@@ -2221,9 +2227,10 @@ async function simpanHeaderTabel() {
       renderPengaturanTemplateUI();
       tutupModalEditTableHeader();
 
-      // Refresh form edit view if currently on the active document
-      if (appState.activeDocCode === code) {
-        bukaDokumenEdit(code);
+      // Segarkan tabel repeatable di Form & Preview langsung (tanpa pindah modul)
+      // agar header baru + nilai data lama (posisi sama) segera tampil.
+      if (appState.activeDocCode === code && tpl) {
+        await renderDynamicFormFields(tpl);
       }
 
       showToast(`🎉 Pengaturan tabel template ${code} berhasil diperbarui di Supabase!`, 'success');
