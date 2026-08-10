@@ -652,7 +652,10 @@ async function bukaDokumenEdit(code) {
     if (globalData && globalData.success) {
       if (globalData.fields) {
         if (!appState.globalSharedFields) appState.globalSharedFields = {};
-        appState.globalSharedFields = { ...globalData.fields, ...appState.globalSharedFields };
+        appState.globalSharedFields = { ...appState.globalSharedFields, ...globalData.fields };
+        try {
+          localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
+        } catch (e) {}
       }
       if (globalData.tables && typeof globalData.tables === 'object') {
         const bestGlobalT = getBestTableArray(globalData.tables);
