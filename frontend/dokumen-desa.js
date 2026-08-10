@@ -1770,6 +1770,76 @@ async function simpanFormDokumenAuto() {
   }
 }
 
+async function simpanFormHanyaSupabase() {
+  const currentFields = {};
+  const container = document.getElementById('containerDynamicFormFields');
+  if (container) {
+    container.querySelectorAll('input[id^="input_field_"], textarea[id^="input_field_"], select[id^="input_field_"]').forEach(el => {
+      const key = el.id.replace('input_field_', '');
+      const lowerKey = key.toLowerCase();
+      if (!lowerKey.startsWith('tabel_') && !lowerKey.startsWith('susunan_')) {
+        currentFields[key] = el.value;
+      }
+    });
+  }
+
+  appState.documentFields = currentFields;
+  if (!appState.globalSharedFields) appState.globalSharedFields = {};
+  Object.keys(currentFields).forEach(k => {
+    if (currentFields[k] !== undefined && currentFields[k] !== null && currentFields[k] !== '') {
+      appState.globalSharedFields[k] = currentFields[k];
+    }
+  });
+  try {
+    localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
+  } catch (e) {}
+  saveStateToLocalStorage();
+
+  const code = appState.activeDocCode || 'DOC-02B';
+  const tahun = appState.activeTahun;
+  const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, documentId: '' };
+
+  const tablesPayload = await siapkanTablesPayloadAman(code, tahun);
+  appState.documentTables = tablesPayload;
+  saveStateToLocalStorage();
+
+  const btn = document.getElementById('btnSimpanDrafSupabase');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Menyimpan...';
+  }
+
+  showToast(`💾 Menyimpan draf ${code} (${tahun}) ke Supabase...`, 'info');
+
+  try {
+    const res = await fetch(`${getApiBase()}/api/dokumen-form-data`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        doc_code: code,
+        tahun: tahun,
+        fields: appState.documentFields,
+        tables: appState.documentTables,
+        google_docs_id: tpl.documentId
+      })
+    });
+    const result = await res.json();
+    if (result.success) {
+      showToast(`✅ Draf form & tabel ${code} (${tahun}) berhasil disimpan ke Supabase DB!`, 'success');
+    } else {
+      showToast(`⚠️ Draf tersimpan di local cache. Server: ${result.error || 'Pending'}`, 'info');
+    }
+  } catch (e) {
+    showToast(`💾 Draf form ${code} tersimpan aman di local cache browser!`, 'success');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  }
+}
+
 function cetakPdfGoogleDrive() {
   const tpl = RKP_TEMPLATES.find(x => x.code === appState.activeDocCode) || { documentId: '' };
   const targetId = appState.lastGeneratedDocId || tpl.documentId;
@@ -2643,6 +2713,7 @@ window.tambahFieldBaru = tambahFieldBaru;
 window.tambahKolomHeader = tambahKolomHeader;
 window.bukaModalScanPlaceholdersForm = bukaModalScanPlaceholdersForm;
 window.simpanKonfigurasiFieldPermanen = simpanKonfigurasiFieldPermanen;
+window.simpanFormHanyaSupabase = simpanFormHanyaSupabase;
 window.simpanDanTerapkanGlobalFieldsSemuaDokumen = simpanDanTerapkanGlobalFieldsSemuaDokumen;
 window.jalankanAutoScanPlaceholdersSettings = jalankanAutoScanPlaceholdersSettings;
 window.bersihkanFieldKadaluarsa = bersihkanFieldKadaluarsa;

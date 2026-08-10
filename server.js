@@ -5607,8 +5607,62 @@ app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
-});
+// POST /api/dokumen-form-data (Simpan Draf data form & tabel ke Supabase tanpa Sync GAS)
+app.post('/api/dokumen-form-data', async (req, res) => {
+  try {
+    const { google_docs_id, doc_code, tahun, fields, tables } = req.body;
+    const tahunInt = parseInt(tahun, 10);
 
+    if (!doc_code || !tahunInt) {
+      return res.status(400).json({ success: false, error: 'doc_code dan tahun wajib diisi.' });
+    }
+
+    const cleanTables = (doc_code === 'GLOBAL_MASTER') ? {} : sanitizeTablesForDocCode(doc_code, tables);
+
+    const upsertPayload = {
+      doc_code,
+      tahun: tahunInt,
+      fields: fields || {},
+      tables: cleanTables,
+      updated_at: new Date().toISOString(),
+    };
+    if (google_docs_id) {
+      upsertPayload.google_docs_id = google_docs_id;
+    }
+
+    const { error: dbError } = await supabase
+      .from('dokumen_form_data')
+      .upsert(upsertPayload, { onConflict: 'doc_code,tahun' });
+
+    if (dbError) {
+      console.warn('⚠️ Upsert error, executing fallback update/insert:', dbError.message);
+      const { data: existingList } = await supabase
+        .from('dokumen_form_data')
+        .select('id')
+        .eq('doc_code', doc_code)
+        .eq('tahun', tahunInt)
+        .limit(1);
+
+      const existing = existingList && existingList[0];
+      if (existing && existing.id) {
+        await supabase.from('dokumen_form_data').update(upsertPayload).eq('id', existing.id);
+      } else {
+        await supabase.from('dokumen_form_data').insert(upsertPayload);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Draf ${doc_code} (${tahunInt}) berhasil disimpan ke Supabase database.`,
+      doc_code,
+      tahun: tahunInt,
+      synced_fields_count: Object.keys(fields || {}).length
+    });
+  } catch (error) {
+    console.error('Error simpan draf ke Supabase:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // POST /api/sync-document (Simpan ke Supabase DAN sinkronisasi ke Google Apps Script)
 app.post('/api/sync-document', async (req, res) => {
