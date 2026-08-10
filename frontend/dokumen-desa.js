@@ -57,9 +57,14 @@ window.addEventListener('tahunChanged', (e) => {
 });
 
 const MASTER_SHARED_DEFAULTS = {
-  get tahun() { return localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027'; },
-  get tahun1() { return localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027'; },
-  get tahun_anggaran() { return localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027'; },
+  tahun0: '2025',
+  tahun: '2026',
+  tahun1: '2027',
+  tahun2: '2028',
+  rpjmdes1: '02 Tahun 2025 Tahun Anggaran 2023-2030 tentang Perubahan Atas Peraturan Rencana Pembangunan Jangka Menengah Desa (RPJMDesa) Tahun Anggaran 2022-2029 Batetangnga (Lembaran DesaBatetangnga Tahun 2025 Nomor 02);',
+  kewenangan1: '07 Tahun 2022 Tentang kewenangan Desa berdasarkan Hak Asal Usul dan kewenangan Lokal Berskala Desa (Lembaran Desa Batetangnga Tahun 2022 Nomor 07;',
+  rkpdes1: '06 tahun 2025 tentang tentang Rencana Kerja Pemerintah Desa Tahun Anggaran 2026 (Lembaran Desa Datetangnga Tahun 2025 Nomor 06);',
+  apbdes1: '09 Tahun 2025 tentang Anggaran Pendapatan Belanja Desa Tahun 2026 (Lembaran Desa Batetangnga Tahun 2025 Nomor 9).',
   nama_desa: 'Desa Batetangnga',
   kades: 'SUMAILA DAMANG',
   nama_kepala_desa: 'SUMAILA DAMANG',
@@ -75,9 +80,6 @@ const MASTER_SHARED_DEFAULTS = {
   tgl_surat_tim: '15 Oktober 2024',
   tgl_musrembang_hari: 'Kamis, 24 Oktober 2024',
   tgl_tatip_bulan: '24 Oktober 2024',
-  rpjmdes1: 'Rencana Pembangunan Jangka Menengah Desa Batetangnga Tahun 2020-2026',
-  kewenangan1: 'Peraturan Desa Batetangnga Nomor 03 Tahun 2021 tentang Kewenangan Desa',
-  apbdes1: 'Anggaran Pendapatan dan Belanja Desa (APBDes) Batetangnga Tahun 2025',
   kecamatan: 'Binuang',
   kabupaten: 'Polewali Mandar',
   provinsi: 'Sulawesi Barat',
@@ -908,13 +910,8 @@ async function renderDynamicFormFields(tpl) {
       else defaultVal = '';
     }
 
-    const isYearField = (key === 'tahun' || key === 'tahun1' || key === 'tahun_anggaran' || key === 'year' || key === 'tahun_rkp');
     let val = appState.documentFields[key];
-
-    if (isYearField) {
-      val = appState.activeTahun || localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027';
-      appState.documentFields[key] = val;
-    } else if (val === undefined || val === null) {
+    if (val === undefined || val === null || val === '') {
       val = appState.globalSharedFields[key] || MASTER_SHARED_DEFAULTS[key] || defaultVal;
       appState.documentFields[key] = val;
     }
