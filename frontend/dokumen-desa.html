@@ -512,8 +512,11 @@
 
         <!-- Action Buttons -->
         <div class="flex flex-wrap items-center gap-2 shrink-0">
-          <button onclick="simpanFormDokumenAuto()" class="btn-primary text-xs px-4 py-2.5 flex items-center gap-2">
+          <button onclick="simpanFormDokumenAuto()" class="btn-primary text-xs px-4 py-2.5 flex items-center gap-2 font-extrabold shadow-sm">
             <i class="fas fa-cloud-arrow-up"></i> Simpan &amp; Sinkron
+          </button>
+          <button onclick="jalankanAutoScanPlaceholdersSettings()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3.5 py-2.5 rounded-xl font-bold shadow-sm flex items-center gap-1.5 transition-all hover:scale-[1.02] cursor-pointer" title="Pindai ulang placeholder {{...}} langsung dari Google Docs">
+            <i class="fas fa-magnifying-glass"></i> Auto-Scan Docs
           </button>
           <button onclick="bukaModalEditTemplate()" class="btn-slate text-xs px-3.5 py-2.5 flex items-center gap-1.5">
             <i class="fas fa-cog"></i> Edit Template
@@ -1051,7 +1054,7 @@
   <!-- Toast Notification Container -->
   <div id="toast" class="hidden"></div>
 
-  <script src="dokumen-desa.js?v=20260811_v102"></script>
+  <script src="dokumen-desa.js?v=20260811_v103"></script>
   <script>
     // Fetch and inject the navbar component
     fetch('/components/navbar.html')

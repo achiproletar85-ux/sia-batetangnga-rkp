@@ -2060,7 +2060,7 @@ async function updateSettingFieldType(key, typeVal) {
 }
 
 async function scanDanMuatUlangPengaturan(codeOverride, silent = false) {
-  const code = codeOverride || templateSettingsState.activeCode;
+  const code = codeOverride || appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B';
   const tpl = RKP_TEMPLATES.find(x => x.code === code);
   if (!tpl) {
     if (!silent) showToast(`❌ Template dengan kode ${code} tidak ditemukan.`, 'error');
