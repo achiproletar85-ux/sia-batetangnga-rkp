@@ -635,6 +635,16 @@ async function bukaDokumenEdit(code) {
   let rawFields = {};
   let rawTables = {};
   try {
+    // 1. Muat data GLOBAL_MASTER terlebih dahulu agar data master terbaru selalu menang
+    const globalRes = await fetch(`${getApiBase()}/api/dokumen-form-data/GLOBAL_MASTER/${tahun}`);
+    const globalData = await globalRes.json();
+    if (globalData && globalData.success && globalData.fields) {
+      if (!appState.globalSharedFields) appState.globalSharedFields = {};
+      appState.globalSharedFields = { ...globalData.fields, ...appState.globalSharedFields };
+    }
+  } catch (e) {}
+
+  try {
     const supabaseRes = await fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${tahun}`);
     const supabaseData = await supabaseRes.json();
     if (supabaseData && supabaseData.success) {
@@ -658,6 +668,16 @@ async function bukaDokumenEdit(code) {
   }
   if (Object.keys(rawTables).length === 0) {
     rawTables = savedState.documentTables || {};
+  }
+
+  // Prioritaskan nilai master global terbaru agar nilai lama dari dokumen individual tidak menimpa nilai baru
+  if (appState.globalSharedFields) {
+    Object.keys(appState.globalSharedFields).forEach(k => {
+      const gVal = appState.globalSharedFields[k];
+      if (gVal !== undefined && gVal !== null && gVal !== '') {
+        rawFields[k] = gVal;
+      }
+    });
   }
   
   // Keep all fields & tables retrieved from Supabase database intact
@@ -1031,6 +1051,23 @@ function triggerDebouncedSupabaseSave() {
           isTemplate: true
         })
       });
+
+      // Juga simpan nilai master global ke record GLOBAL_MASTER di Supabase agar tersinkron ke semua surat
+      if (appState.globalSharedFields && Object.keys(appState.globalSharedFields).length > 0) {
+        fetch(`${getApiBase()}/api/sync-document`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            google_docs_id: 'GLOBAL_MASTER',
+            doc_code: 'GLOBAL_MASTER',
+            tahun: tahun,
+            fields: appState.globalSharedFields,
+            tables: {},
+            isTemplate: true
+          })
+        }).catch(() => {});
+      }
+
       const resData = await res.json();
       if (resData && resData.success) {
         if (indicator) {
