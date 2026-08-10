@@ -687,7 +687,7 @@ async function bukaDokumenEdit(code) {
   }
 
   const targetTpl = RKP_TEMPLATES.find(x => x.code === code) || { hasTable: false };
-  const tableKey = getSpecificTableKeyForDoc(code);
+  const tableKey = targetTpl.hasTable ? (getSpecificTableKeyForDoc(code) || 'table_rows') : null;
 
   if (!targetTpl.hasTable || !tableKey) {
     // Dokumen ini TIDAK menggunakan tabel (seperti DOC-19, DOC-01, DOC-03, dll.)
@@ -936,12 +936,13 @@ async function renderDynamicFormFields(tpl) {
     `;
   });
 
-  const CANONICAL_TABLE_DOCS = ['DOC-02B', 'DOC-20', 'DOC-27', 'DOC-34'];
   const docCode = tpl?.code || appState.activeDocCode;
-  const isTableDoc = CANONICAL_TABLE_DOCS.includes(docCode);
-  const tableKey = getSpecificTableKeyForDoc(docCode);
+  const useTable = tpl?.hasTable === undefined
+    ? (Array.isArray(tpl?.tableHeaders) && tpl.tableHeaders.length > 0)
+    : tpl.hasTable === true;
+  const tableKey = useTable ? (getSpecificTableKeyForDoc(docCode) || 'table_rows') : null;
 
-  if (isTableDoc && tableKey) {
+  if (useTable && tableKey) {
     const headers = (tpl.tableHeaders && tpl.tableHeaders.length > 0)
       ? tpl.tableHeaders
       : (RKP_TEMPLATES.find(x => x.code === docCode)?.tableHeaders || []);
@@ -1062,7 +1063,7 @@ function triggerDebouncedSupabaseSave() {
       const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, documentId: '' };
       
       const targetTpl = RKP_TEMPLATES.find(x => x.code === code) || { hasTable: false };
-      const tableKey = getSpecificTableKeyForDoc(code);
+      const tableKey = targetTpl.hasTable ? (getSpecificTableKeyForDoc(code) || 'table_rows') : null;
       let tablesPayload = {};
 
       if (targetTpl.hasTable && tableKey) {
@@ -1551,7 +1552,7 @@ async function simpanFormDokumenAuto() {
   const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, documentId: '' };
 
   const targetTpl = RKP_TEMPLATES.find(x => x.code === code) || { hasTable: false };
-  const tableKey = getSpecificTableKeyForDoc(code);
+  const tableKey = targetTpl.hasTable ? (getSpecificTableKeyForDoc(code) || 'table_rows') : null;
   let tablesPayload = {};
 
   if (targetTpl.hasTable && tableKey) {
@@ -1648,7 +1649,7 @@ async function simpanFormDokumenAuto() {
         });
         const tableFormattedText = textLines.join('\n');
 
-        const tableKey = getSpecificTableKeyForDoc(code);
+        const tableKey = getSpecificTableKeyForDoc(code) || 'table_rows';
         gasPayload.data = gasPayload.data || {};
         if (targetTpl.hasTable && tableKey && tableFormattedText) {
           gasPayload.data[tableKey] = tableFormattedText;
@@ -1819,16 +1820,22 @@ async function muatPengaturanTemplate(codeParam) {
     const CANONICAL_TABLE_DOCS = ['DOC-02B', 'DOC-20', 'DOC-27', 'DOC-34'];
     const isTableDoc = CANONICAL_TABLE_DOCS.includes(code);
 
+    // Status "Gunakan Tabel Repeatable" diambil dari pengaturan tersimpan per-dokumen.
+    // Jika tidak ada pengaturan tersimpan, pakai daftar canonical sebagai nilai bawaan.
+    let savedHasTable = null;
+    try {
+      const saved = localStorage.getItem('docTemplateHasTable_' + code);
+      if (saved === 'true' || saved === 'false') savedHasTable = (saved === 'true');
+    } catch (e) {}
+    const hasTable = (savedHasTable !== null) ? savedHasTable : isTableDoc;
+
     if (tpl) {
       tpl.fields = data.fields || [];
-      tpl.hasTable = isTableDoc;
-      if (isTableDoc) {
-        if (data.tableHeaders && Array.isArray(data.tableHeaders) && data.tableHeaders.length > 0) {
-          tpl.tableHeaders = data.tableHeaders;
-        }
+      tpl.hasTable = hasTable;
+      if (data.tableHeaders && Array.isArray(data.tableHeaders) && data.tableHeaders.length > 0) {
+        tpl.tableHeaders = data.tableHeaders;
       } else {
         tpl.tableHeaders = [];
-        try { localStorage.removeItem('docTemplateHasTable_' + code); } catch (e) {}
       }
     }
     templateSettingsState.fields = data.fields || (tpl ? tpl.fields : []) || [];
