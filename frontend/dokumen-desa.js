@@ -630,7 +630,7 @@ function getBestTableArray(tablesObj) {
   return bestArr;
 }
 
-async function bukaModulDokumenDesaEdit(code) {
+async function bukaDokumenEdit(code) {
   appState.activeDocCode = code;
   appState.lastGeneratedDocId = null;
   bukaModul('/dokumen/[id]/edit');
