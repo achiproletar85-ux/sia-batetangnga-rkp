@@ -134,6 +134,7 @@ async function initApp() {
   await loadTemplatesFromStorageOrBackend();
   renderTemplatesTable();
   populateTemplateSelector();
+  mulaiAutoScanPlaceholders();
 }
 
 async function loadTemplatesFromStorageOrBackend() {
@@ -2517,6 +2518,113 @@ function jalankanAutoScanPlaceholdersSettings() {
   scanDanMuatUlangPengaturan(null, false);
 }
 
+// ============================================================
+// AUTO-SCAN GOOGLE DOCS (background)
+// Otomatis memindai ulang placeholder {{...}} dari Google Docs
+// untuk dokumen yang sedang aktif. Jika ditemukan field BARU
+// (placeholder berubah/tambah di Google Docs), field lama yang
+// tidak lagi ada di dokumen otomatis dibuang dan Form & Preview
+// langsung disinkronkan — tanpa perlu klik "Auto-Scan".
+// ============================================================
+let autoScanTimer = null;
+let isAutoScanning = false;
+
+function autoScanSekali() {
+  if (isAutoScanning) return;
+  if (document.hidden) return; // jangan scan saat tab/minimized
+  isAutoScanning = true;
+  autoScanEksekusi().finally(() => { isAutoScanning = false; });
+}
+
+async function autoScanEksekusi() {
+  try {
+    // Tentukan dokumen aktif: form sedang dibuka → doc tsb; selainnya → doc aktif di Pengaturan
+    let code = null;
+    const editSection = document.getElementById('modul-dokumen-edit');
+    const formOpen = editSection && !editSection.classList.contains('hidden');
+    if (formOpen && appState.activeDocCode) code = appState.activeDocCode;
+    else if (templateSettingsState.activeCode) code = templateSettingsState.activeCode;
+    if (!code) return;
+
+    const tpl = RKP_TEMPLATES.find(x => x.code === code);
+    if (!tpl || !tpl.documentId || !String(tpl.documentId).trim()) return;
+
+    const res = await fetch(`${getApiBase()}/api/scan-placeholders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ google_docs_id: tpl.documentId, doc_code: code })
+    });
+    const result = await res.json();
+    if (!result.success || !result.fields) return;
+
+    const scannedFields = result.fields;
+    // Hasil scan kosong bisa berarti GAS gagal/dokumen tanpa placeholder →
+    // jangan sampai menghapus seluruh field yang sudah ada.
+    if (!Array.isArray(scannedFields) || scannedFields.length === 0) return;
+
+    const existingFields = (tpl.fields || []).slice();
+    const existingKeys = new Map(existingFields.map(f => [f.key, f]));
+    const seen = new Set();
+    const mergedFields = [];
+    scannedFields.forEach(sf => {
+      const key = sf.key;
+      if (seen.has(key)) return;
+      seen.add(key);
+      if (existingKeys.has(key)) mergedFields.push(existingKeys.get(key));
+      else mergedFields.push({ key: sf.key, label: sf.label || sf.key, type: sf.type || 'text' });
+    });
+
+    // Deteksi perubahan kunci field (bertambah/hilang) — kalau tidak berubah,
+    // jangan tulis ulang / render ulang form tanpa perlu.
+    const oldKeys = new Set(existingFields.map(f => f.key));
+    const newKeys = new Set(mergedFields.map(f => f.key));
+    let changed = oldKeys.size !== newKeys.size;
+    if (!changed) { for (const k of oldKeys) if (!newKeys.has(k)) { changed = true; break; } }
+    if (!changed) return;
+
+    tpl.fields = mergedFields;
+    if (templateSettingsState.activeCode === code) templateSettingsState.fields = mergedFields;
+
+    // Persist daftar field template ke backend (payload tabel tidak ikut ditulis).
+    await fetch(`${getApiBase()}/api/templates/${code}/all`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: tpl.fields || [], tableHeaders: tpl.tableHeaders || [] })
+    });
+
+    // Refresh UI Pengaturan kalau sedang terbuka untuk dokumen yang sama.
+    const settingsModule = document.getElementById('modul-pengaturan-template');
+    if (settingsModule && !settingsModule.classList.contains('hidden') && templateSettingsState.activeCode === code) {
+      renderPengaturanTemplateUI();
+    }
+
+    // Sinkronkan Form & Preview yang sedang dibuka.
+    const editSectionNow = document.getElementById('modul-dokumen-edit');
+    const formOpenNow = editSectionNow && !editSectionNow.classList.contains('hidden');
+    if (formOpenNow && appState.activeDocCode === code) {
+      const activeEl = document.activeElement;
+      const userTyping = activeEl && activeEl.id && activeEl.id.indexOf('input_field_') === 0;
+      if (!userTyping) {
+        await renderDynamicFormFields(tpl);
+        showToast(`🔄 Auto-Scan ${code}: field placeholder diperbarui di Form`, 'success');
+      }
+    }
+  } catch (e) {
+    console.warn('[Auto-Scan] gagal:', e);
+  }
+}
+
+function mulaiAutoScanPlaceholders() {
+  if (autoScanTimer) return;
+  const rawInterval = parseInt(localStorage.getItem('AUTO_SCAN_INTERVAL_MS') || '45000', 10);
+  const interval = Math.max(20000, rawInterval || 45000);
+  autoScanTimer = setInterval(autoScanSekali, interval);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) autoScanSekali();
+  });
+  setTimeout(autoScanSekali, 4000); // scan awal beberapa detik setelah app terbuka
+}
+
 // Kickstart the application
 document.addEventListener('DOMContentLoaded', initApp);
 
@@ -2533,6 +2641,8 @@ window.tambahFieldBaru = tambahFieldBaru;
 window.tambahKolomHeader = tambahKolomHeader;
 window.bukaModalScanPlaceholdersForm = bukaModalScanPlaceholdersForm;
 window.simpanDanTerapkanGlobalFieldsSemuaDokumen = simpanDanTerapkanGlobalFieldsSemuaDokumen;
+window.autoScanSekali = autoScanSekali;
+window.mulaiAutoScanPlaceholders = mulaiAutoScanPlaceholders;
 
 // Dropdown utility functions
 function toggleDropdown(id) {
