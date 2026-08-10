@@ -93,30 +93,48 @@ app.post('/api/sync-document', async (req, res) => {
             upsertPayload.google_docs_id = google_docs_id;
         }
 
-        const { data, error } = await supabase
-            .from('dokumen_form_data')
-            .upsert(upsertPayload, { onConflict: 'doc_code,tahun' })
-            .select()
-            .single();
+        let data = null;
+        let error = null;
+
+        try {
+            const resUpsert = await supabase
+                .from('dokumen_form_data')
+                .upsert(upsertPayload, { onConflict: 'doc_code,tahun' })
+                .select()
+                .maybeSingle();
+            data = resUpsert.data;
+            error = resUpsert.error;
+        } catch (e) {
+            error = e;
+        }
 
         if (error) {
-            if (error.code === '23505' || error.message.includes('unique constraint') || error.message.includes('violates unique constraint')) {
-                 console.error('Kesalahan unique constraint. Pastikan Anda sudah menjalankan SQL untuk memperbaiki index (doc_code, tahun).', error);
-                 return res.status(500).json({ 
-                    success: false, 
-                    error: 'Gagal menyimpan karena kesalahan database. Index unique `(doc_code, tahun)` mungkin belum dibuat. Silakan jalankan skrip SQL perbaikan.',
-                    details: error.message
-                });
+            console.warn('⚠️ Upsert onConflict error, attempting fallback select+update/insert:', error.message);
+            const { data: existing } = await supabase
+                .from('dokumen_form_data')
+                .select('id')
+                .eq('doc_code', doc_code)
+                .eq('tahun', tahunInt)
+                .maybeSingle();
+
+            if (existing && existing.id) {
+                const { data: updated, error: updateErr } = await supabase
+                    .from('dokumen_form_data')
+                    .update(upsertPayload)
+                    .eq('id', existing.id)
+                    .select()
+                    .maybeSingle();
+                if (updateErr) throw updateErr;
+                data = updated;
+            } else {
+                const { data: inserted, error: insertErr } = await supabase
+                    .from('dokumen_form_data')
+                    .insert(upsertPayload)
+                    .select()
+                    .maybeSingle();
+                if (insertErr) throw insertErr;
+                data = inserted;
             }
-             if (error.message.includes('no unique or exclusion constraint matching the ON CONFLICT')) {
-                console.error('Kesalahan ON CONFLICT. Constraint (doc_code, tahun) tidak ditemukan.', error);
-                return res.status(500).json({
-                    success: false,
-                    error: 'Gagal menyimpan karena konfigurasi database salah. Constraint untuk `(doc_code, tahun)` tidak ditemukan. Silakan jalankan skrip SQL perbaikan.',
-                    details: error.message
-                });
-            }
-            throw error;
         }
 
         // Frontend mengharapkan new_document_id, kita kembalikan null agar tidak memicu fallback ke GAS

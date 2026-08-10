@@ -833,7 +833,7 @@ async function renderDynamicFormFields(tpl) {
     if (isYearField) {
       val = appState.activeTahun || localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027';
       appState.documentFields[key] = val;
-    } else if (val === undefined || val === null || val === '') {
+    } else if (val === undefined || val === null) {
       val = appState.globalSharedFields[key] || MASTER_SHARED_DEFAULTS[key] || defaultVal;
       appState.documentFields[key] = val;
     }
@@ -991,6 +991,53 @@ async function renderDynamicFormFields(tpl) {
   console.log('--------------------------------------------------\n');
 }
 
+function triggerDebouncedSupabaseSave() {
+  if (appState.supabaseSaveTimer) clearTimeout(appState.supabaseSaveTimer);
+  const indicator = document.getElementById('autoSaveIndicator');
+  if (indicator) {
+    indicator.textContent = '⏳ Menyimpan ke Supabase...';
+    indicator.className = 'text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full';
+  }
+  appState.supabaseSaveTimer = setTimeout(async () => {
+    try {
+      const code = appState.activeDocCode || 'DOC-02B';
+      const tahun = appState.activeTahun;
+      const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, documentId: '' };
+      
+      const tableData = gatherTableRowsData();
+      const tables = {
+        tabel_tim_penyusun: tableData,
+        tabel_sk_tim_penyusun: tableData,
+        susunan_tim: tableData,
+        tabel_daftar_hadir: tableData,
+        tabel_kegiatan: tableData
+      };
+
+      const res = await fetch(`${getApiBase()}/api/sync-document`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          google_docs_id: tpl.documentId,
+          doc_code: code,
+          tahun: tahun,
+          fields: appState.documentFields,
+          tables: tables,
+          isTemplate: true
+        })
+      });
+      const resData = await res.json();
+      if (resData && resData.success) {
+        if (indicator) {
+          indicator.textContent = '✓ Tersimpan di Supabase';
+          indicator.className = 'text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full';
+        }
+      }
+    } catch (e) {
+      console.warn('Auto save to Supabase failed:', e);
+    }
+  }, 1000);
+}
+
 function handleAutoSaveInput(key) {
   const el = document.getElementById(`input_field_${key}`);
   if (el) {
@@ -1015,20 +1062,20 @@ function handleAutoSaveInput(key) {
   }
 
   saveStateToLocalStorage();
+  triggerDebouncedSupabaseSave();
+}
 
-  const indicator = document.getElementById('autoSaveIndicator');
-  if (indicator) {
-    indicator.textContent = '⏳ Saving...';
-    indicator.className = 'text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full';
-  }
-
-  if (appState.autoSaveTimer) clearTimeout(appState.autoSaveTimer);
-  appState.autoSaveTimer = setTimeout(() => {
-    if (indicator) {
-      indicator.textContent = '✓ Saved';
-      indicator.className = 'text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full';
-    }
-  }, 600);
+function handleAutoSaveTable() {
+  const tableData = gatherTableRowsData();
+  appState.documentTables = {
+    tabel_tim_penyusun: tableData,
+    tabel_sk_tim_penyusun: tableData,
+    susunan_tim: tableData,
+    tabel_daftar_hadir: tableData,
+    tabel_kegiatan: tableData
+  };
+  saveStateToLocalStorage();
+  triggerDebouncedSupabaseSave();
 }
 
 function gantiTahunDokumenDesa(tahunVal) {
@@ -1092,11 +1139,6 @@ async function simpanDanTerapkanGlobalFieldsSemuaDokumen() {
   showToast(`✅ Data master (Tahun, Kades, Tempat, dll) berhasil disimpan & diterapkan ke ${count} Surat di Supabase!`, 'success');
 }
 
-function handleAutoSaveTable() {
-  const tableData = gatherTableRowsData();
-  appState.documentTables.tabel_tim_penyusun = tableData;
-  saveStateToLocalStorage();
-}
 
 // ============================================================
 // GRUP TANGGAL OTOMATIS — {{tgl_<token>_hari/bulan/terbilang}}
