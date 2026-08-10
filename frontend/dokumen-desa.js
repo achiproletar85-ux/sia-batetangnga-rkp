@@ -732,13 +732,10 @@ async function bukaDokumenEdit(code) {
     });
   }
 
-  // Paksa seluruh varian variabel tahun agar selalu 100% konsisten dengan appState.activeTahun
-  const globalTahun = appState.activeTahun || '2027';
-  ['tahun', 'tahun1', 'tahun2', 'tahun_anggaran', 'tahun_rkp'].forEach(tk => {
-    rawFields[tk] = globalTahun;
-    if (!appState.globalSharedFields) appState.globalSharedFields = {};
-    appState.globalSharedFields[tk] = globalTahun;
-  });
+  // Ensure default master year fallback if key is uninitialized
+  if (!rawFields['tahun'] && appState.activeTahun) {
+    rawFields['tahun'] = appState.activeTahun;
+  }
 
   // Keep all fields & tables retrieved from Supabase database intact
   appState.documentFields = { ...rawFields };
@@ -1146,18 +1143,12 @@ function handleAutoSaveInput(key) {
     const val = el.value;
     appState.documentFields[key] = val;
 
-    // Sync to globalSharedFields cache
+    // Simpan nilai terbaru untuk key spesifik ini ke globalSharedFields (Edit sekali, berlaku global untuk key yang sama)
     if (!appState.globalSharedFields) appState.globalSharedFields = {};
     appState.globalSharedFields[key] = val;
-    const lowerK = String(key).toLowerCase();
-    if (lowerK.includes('tahun')) {
-      const tahunKeys = ['tahun', 'tahun1', 'tahun2', 'tahun_anggaran', 'tahun_rkp'];
-      tahunKeys.forEach(tk => {
-        appState.globalSharedFields[tk] = val;
-        appState.documentFields[tk] = val;
-        const elTk = document.getElementById(`input_field_${tk}`);
-        if (elTk) elTk.value = val;
-      });
+
+    // Jika yang di-edit adalah key persis 'tahun', update header dropdown & activeTahun
+    if (key === 'tahun') {
       appState.activeTahun = val;
       try {
         localStorage.setItem('ACTIVE_TAHUN_ANGGARAN', val);
