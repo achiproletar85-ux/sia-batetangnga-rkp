@@ -2717,8 +2717,8 @@ async function autoScanEksekusi() {
 
 function mulaiAutoScanPlaceholders() {
   if (autoScanTimer) return;
-  const rawInterval = parseInt(localStorage.getItem('AUTO_SCAN_INTERVAL_MS') || '45000', 10);
-  const interval = Math.max(20000, rawInterval || 45000);
+  const rawInterval = parseInt(localStorage.getItem('AUTO_SCAN_INTERVAL_MS') || '300000', 10);
+  const interval = Math.max(300000, rawInterval || 300000);
   autoScanTimer = setInterval(autoScanSekali, interval);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) autoScanSekali();

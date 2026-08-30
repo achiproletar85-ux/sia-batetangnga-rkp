@@ -20,6 +20,27 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// --- GLOBAL MASTER CACHE UNTUK MENGURANGI SUPABASE EGRESS ---
+const MasterCache = {
+    rpjmdesStandar: null,
+    lastFetch: 0
+};
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 Jam
+
+async function getCachedRpjmdesStandar() {
+    const now = Date.now();
+    if (MasterCache.rpjmdesStandar && (now - MasterCache.lastFetch) < CACHE_TTL_MS) {
+        return MasterCache.rpjmdesStandar;
+    }
+    const { data } = await supabase.from('rpjmdes_standar').select('*'); // Ambil sekali saja per jam
+    if (data && data.length > 0) {
+        MasterCache.rpjmdesStandar = data;
+        MasterCache.lastFetch = now;
+    }
+    return data || [];
+}
+// -----------------------------------------------------------
+
 //  Frontend Middleware: Sajikan semua file statis dari folder 'frontend' dengan header NO-CACHE
 app.use(express.static(FRONTEND_PATH, {
     etag: false,
@@ -753,7 +774,7 @@ app.get('/api/test-db', async (req, res) => {
     try {
         const { data, error, count } = await supabase
             .from('rpjmdes_standar')
-            .select('*', { count: 'exact' })
+            .select('id', { count: 'exact' })
             .limit(1);
 
         if (error) throw error;
@@ -1352,8 +1373,8 @@ app.get('/api/prioritas-usulan/tarik-rpjm', async (req, res) => {
         }
         console.log(`📡 GET /api/prioritas-usulan/tarik-rpjm?tahun=${tahunInt}`);
 
-        const { data, error } = await supabase.from('rpjmdes_standar').select('*');
-        if (error) throw error;
+        const data = await getCachedRpjmdesStandar();
+        const error = null;
 
         const filtered = (data || []).filter(item => isRpjmTargetDitarik(item, tahunInt));
         const payload = filtered.map(row => buildPrioritasInsertItem(row, tahunInt));
@@ -2411,7 +2432,7 @@ app.get('/api/rab-activities', async (req, res) => {
         // Auto-pull dari rpjmdes_standar jika DB rancangan_rkpdes masih kosong untuk tahun tersebut
         if (!rancanganRows || rancanganRows.length === 0) {
             console.log(`🔄 DB rancangan_rkpdes kosong untuk tahun ${tahunInt}, menarik dari rpjmdes_standar...`);
-            const { data: stdData } = await supabase.from('rpjmdes_standar').select('*');
+            const stdData = await getCachedRpjmdesStandar();
             if (Array.isArray(stdData) && stdData.length > 0) {
                 const targetCol = `target_${tahunInt}`;
                 const validToInsert = stdData.filter(item => {
@@ -2795,7 +2816,7 @@ app.get('/api/evaluasi', async (req, res) => {
             .order('id', { ascending: true });
         if (error) throw error;
 
-        const { data: stdData } = await supabase.from('rpjmdes_standar').select('*');
+        const stdData = await getCachedRpjmdesStandar();
         const stdMap = new Map();
         if (Array.isArray(stdData)) {
             stdData.forEach(s => {
@@ -3415,7 +3436,7 @@ app.get('/api/usulan-sdgs', async (req, res) => {
     try {
         const { tahun } = req.query;
 
-        let query = supabase.from('usulan_sdgs').select('*');
+        let query = supabase.from('usulan_sdgs').select('*').limit(200);
 
         if (tahun) {
             query = query.eq('tahun', parseInt(tahun));
@@ -3736,7 +3757,7 @@ const USULAN_TABLE = 'usulan';
 app.get('/api/usulan', async (req, res) => {
     try {
         const { tahun } = req.query;
-        let query = supabase.from(USULAN_TABLE).select('*').order('id', { ascending: true });
+        let query = supabase.from(USULAN_TABLE).select('*').order('id', { ascending: true }).limit(200);
         if (tahun) {
             query = query.eq('tahun', parseInt(tahun, 10));
         }
@@ -4020,7 +4041,7 @@ app.get('/api/rkpdes', async (req, res) => {
         }
 
         try {
-            const { data: enrichStd } = await supabase.from('rpjmdes_standar').select('*');
+            const enrichStd = await getCachedRpjmdesStandar();
             const { data: enrichRab } = await supabase.from('rab').select('*').eq('tahun', tahunInt);
             const stdMap = new Map();
             const stdNameMap = new Map();
