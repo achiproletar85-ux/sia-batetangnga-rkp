@@ -3989,7 +3989,7 @@ app.get('/api/rkpdes', async (req, res) => {
         if (data.length === 0) {
             console.log(`⚠️ Tabel 'rkpdes' kosong untuk tahun ${tahunInt}, mencoba fallback hanya dari data RAB tahun ini...`);
             try {
-                const { data: rabData } = await supabase.from('rab').select('*').eq('tahun', tahunInt);
+                const { data: rabData } = await supabase.from('rab').select('id, kode_unik, kode_unik_full, nama_kegiatan, jenis_kegiatan, bidang, jenis_bidang, lokasi, lokasi_kegiatan, volume, satuan, waktu_pelaksanaan, jumlah_anggaran, total_biaya, sumber_dana, sasaran_kegiatan, penerima_manfaat, items, rpjm_data, tahun').eq('tahun', tahunInt);
 
                 const rabMapByCode = new Map();
                 if (Array.isArray(rabData)) {
@@ -4042,7 +4042,7 @@ app.get('/api/rkpdes', async (req, res) => {
 
         try {
             const enrichStd = await getCachedRpjmdesStandar();
-            const { data: enrichRab } = await supabase.from('rab').select('*').eq('tahun', tahunInt);
+            const { data: enrichRab } = await supabase.from('rab').select('id, kode_unik, kode_unik_full, nama_kegiatan, jenis_kegiatan, jumlah_anggaran, total_biaya, items, tahun').eq('tahun', tahunInt);
             const stdMap = new Map();
             const stdNameMap = new Map();
             if (Array.isArray(enrichStd)) {
@@ -5668,9 +5668,11 @@ app.post('/api/dokumen-form-data', async (req, res) => {
 
       const existing = existingList && existingList[0];
       if (existing && existing.id) {
-        await supabase.from('dokumen_form_data').update(upsertPayload).eq('id', existing.id);
+        const { error: updErr } = await supabase.from('dokumen_form_data').update(upsertPayload).eq('id', existing.id);
+        if (updErr) throw new Error('Fallback Update Error: ' + updErr.message);
       } else {
-        await supabase.from('dokumen_form_data').insert(upsertPayload);
+        const { error: insErr } = await supabase.from('dokumen_form_data').insert(upsertPayload);
+        if (insErr) throw new Error('Fallback Insert Error: ' + insErr.message);
       }
     }
 
@@ -5761,9 +5763,11 @@ app.post('/api/sync-document', async (req, res) => {
 
              const existing = existingList && existingList[0];
              if (existing && existing.id) {
-                 await supabase.from('dokumen_form_data').update(upsertPayload).eq('id', existing.id);
+                 const { error: updErr } = await supabase.from('dokumen_form_data').update(upsertPayload).eq('id', existing.id);
+                 if (updErr) throw new Error('Fallback Update Error: ' + updErr.message);
              } else {
-                 await supabase.from('dokumen_form_data').insert(upsertPayload);
+                 const { error: insErr } = await supabase.from('dokumen_form_data').insert(upsertPayload);
+                 if (insErr) throw new Error('Fallback Insert Error: ' + insErr.message);
              }
         } else {
             console.log(`✅ Form data for ${doc_code} (${tahunInt}) saved to Supabase.`);

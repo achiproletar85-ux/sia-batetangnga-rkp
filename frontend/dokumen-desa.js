@@ -1858,10 +1858,12 @@ async function simpanFormHanyaSupabase() {
     if (result.success) {
       showToast(`✅ Draf form & tabel ${code} (${tahun}) berhasil disimpan ke Supabase DB!`, 'success');
     } else {
-      showToast(`⚠️ Draf tersimpan di local cache. Server: ${result.error || 'Pending'}`, 'info');
+      console.error('Error simpan form:', result.error);
+      showToast(`⚠️ Gagal simpan ke DB. Server: ${result.error}. Disimpan lokal.`, 'error');
     }
   } catch (e) {
-    showToast(`💾 Draf form ${code} tersimpan aman di local cache browser!`, 'success');
+    console.error('Catch error simpan form:', e);
+    showToast(`❌ Gagal terhubung ke server: ${e.message}. Data hanya tersimpan lokal!`, 'error');
   } finally {
     if (btn) {
       btn.disabled = false;
