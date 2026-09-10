@@ -23,7 +23,7 @@ const path = require('path');
 // ---------------------------------------------------------------------------
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
-const SCAN_DIRS = ['src', 'frontend', 'backend', 'components', 'scripts', 'sync-surat-tanah/public'];
+const SCAN_DIRS = ['src', 'frontend', 'backend', 'components', 'scripts', 'test', 'tests', 'sync-surat-tanah/public'];
 const SCAN_FILES = ['server.js', 'main.js', 'preload.js'];
 const SCAN_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|html)$/i;
 

@@ -296,7 +296,7 @@ async function getMergedRkpRows(tahunInt, extraRabFields) {
 
     const { data: rabData, error: rabError } = await supabase
         .from(RAB_TABLE)
-        .select(RAB_FULL_COLUMNS)
+        .select(RAB_SYNC_COLUMNS)
         .eq('tahun', tahunInt);
 
     if (rabError) {
@@ -430,7 +430,7 @@ async function saveRabToDb(record) {
                 .from('rab')
                 .update(dbPayload)
                 .eq('id', existingRows[0].id)
-                .select('id, kode_unik_full, tahun');
+                .select('id');
             if (updErr) {
                 console.error("Supabase Error Details (update):", updErr);
                 throw updErr;
@@ -446,7 +446,7 @@ async function saveRabToDb(record) {
             const { data: ins, error: insErr } = await supabase
                 .from('rab')
                 .insert([{ id: nextId, ...dbPayload }])
-                .select('id, kode_unik_full, tahun');
+                .select('id');
             if (insErr) {
                 console.error("Supabase Error Details (insert):", insErr);
                 throw insErr;
@@ -476,7 +476,8 @@ async function saveRabToDb(record) {
                         uraian_rab: JSON.stringify(itemsArray),
                         updated_at: new Date().toISOString()
                     })
-                    .eq('id', rpjmRows[0].id);
+                    .eq('id', rpjmRows[0].id)
+                    .select('id');
             }
         } catch (eRpjm) {
             console.warn('⚠️ Sync to rpjmdes_standar skipped:', eRpjm.message);
@@ -2134,7 +2135,8 @@ app.post('/api/rancangan-rkpdes/sync', async (req, res) => {
             const payload = validRows.map(r => buildRancanganInsertItem(r, tahunInt));
             const { error: insErr } = await supabase
                 .from('rancangan_rkpdes')
-                .insert(payload);
+                .insert(payload)
+                .select('id');
             if (insErr) throw insErr;
             inserted = payload.length;
         }
@@ -2258,7 +2260,7 @@ app.post('/api/prioritas-rkpdes/sync', async (req, res) => {
 
         const { data: existingPrioritas } = await supabase
             .from('prioritas_rkpdes')
-            .select('id, tahun, kode_unik_full, kode_unik, nama_kegiatan, sub_kegiatan, lokasi, volume, volume_satuan, prakiraan_biaya, skor_kewenangan, skor_sdgs, skor_kabupaten, skor_sumber_daya, ranking')
+            .select(PRIORITAS_COLUMNS)
             .eq('tahun', tahunInt);
         
         const existingScoreMap = new Map();
@@ -2347,7 +2349,8 @@ app.post('/api/prioritas-rkpdes/sync', async (req, res) => {
 
             const { error: insErr } = await supabase
                 .from('prioritas_rkpdes')
-                .insert(payload);
+                .insert(payload)
+                .select('id');
             if (insErr) throw insErr;
             inserted = payload.length;
         }
@@ -2549,13 +2552,13 @@ app.get('/api/prioritas-rkpdes', async (req, res) => {
         }
 
         if (itemsToInsert.length > 0) {
-            await supabase.from('prioritas_rkpdes').insert(itemsToInsert);
+            await supabase.from('prioritas_rkpdes').insert(itemsToInsert).select('id');
         }
 
         if (itemsToUpdate.length > 0) {
             for (const up of itemsToUpdate) {
                 const { id, ...updateData } = up;
-                await supabase.from('prioritas_rkpdes').update(updateData).eq('id', id);
+                await supabase.from('prioritas_rkpdes').update(updateData).eq('id', id).select('id');
             }
         }
 
@@ -2609,7 +2612,7 @@ app.post('/api/prioritas-rkpdes/upsert', async (req, res) => {
         // Kunci uniqueness: (tahun, kode_unik_full). Ambil semua baris lama utk kolisi & mapping update.
         const { data: existing, error: exErr } = await supabase
             .from('prioritas_rkpdes')
-            .select('id, kode_unik_full, kode_unik, nama_kegiatan, jenis_bidang, jenis_kegiatan, lokasi, sub_kegiatan, volume, volume_satuan, mendukung_sdgs')
+            .select(PRIORITAS_COLUMNS)
             .eq('tahun', tahunInt);
         if (exErr) throw exErr;
 
@@ -2669,11 +2672,11 @@ app.post('/api/prioritas-rkpdes/upsert', async (req, res) => {
         }
 
         if (upsertRows.length > 0) {
-            const { error: insErr } = await supabase.from('prioritas_rkpdes').insert(upsertRows);
+            const { error: insErr } = await supabase.from('prioritas_rkpdes').insert(upsertRows).select('id');
             if (insErr) throw insErr;
         }
         for (const pair of updatePairs) {
-            const { error: updErr } = await supabase.from('prioritas_rkpdes').update(pair.data).eq('id', pair.id);
+            const { error: updErr } = await supabase.from('prioritas_rkpdes').update(pair.data).eq('id', pair.id).select('id');
             if (updErr) throw updErr;
         }
 
@@ -2835,7 +2838,7 @@ app.post('/api/rab/fix-data', async (req, res) => {
                 }
             }
             patch.updated_at = new Date().toISOString();
-            const { error: updErr } = await supabase.from('rab').update(patch).eq('id', row.id);
+            const { error: updErr } = await supabase.from('rab').update(patch).eq('id', row.id).select('id');
             if (!updErr) fixedCount++;
         }
 
@@ -2893,7 +2896,7 @@ app.get('/api/rab-activities', async (req, res) => {
                 });
 
                 if (validToInsert.length > 0) {
-                    await supabase.from('rancangan_rkpdes').insert(validToInsert);
+                    await supabase.from('rancangan_rkpdes').insert(validToInsert).select('id');
                     const { data: reFetched } = await supabase.from('rancangan_rkpdes').select(RANCANGAN_LIST_COLUMNS).eq('tahun', tahunInt);
                     if (reFetched) rancanganRows = reFetched;
                 }
@@ -3009,7 +3012,9 @@ app.post('/api/rab', async (req, res) => {
         // sehingga tab RKPDes/Stouting tampil tanpa perlu menekan "Sync / Import RAB".
         try {
             const tahunSync = Number(tahun || record.tahun || saved.tahun) || 2027;
-            await mergeRkpFromRab(tahunSync);
+            if (typeof mergeRkpFromRab === 'function') {
+                await mergeRkpFromRab(tahunSync);
+            }
         } catch (syncErr) {
             console.warn('⚠️ Auto-sync RAB→RKPDes gagal (tetap dilanjutkan):', syncErr.message);
         }
@@ -3549,7 +3554,7 @@ app.post('/api/master', async (req, res) => {
         const { data, error } = await supabase
             .from('rpjmdes_standar')
             .insert([payload])
-            .select('id, kode_unik, kode_unik_full');
+            .select('id');
 
         if (error) throw error;
         res.json({ success: true, data });
@@ -3567,7 +3572,7 @@ app.put('/api/master/:id', async (req, res) => {
             .from('rpjmdes_standar')
             .update(payload)
             .eq('id', id)
-            .select('id, kode_unik, kode_unik_full');
+            .select('id');
 
         if (error) throw error;
         res.json({ success: true, data });
@@ -3802,7 +3807,7 @@ app.post('/api/rpjmdes', async (req, res) => {
         const { data, error } = await supabase
             .from('rpjmdes_standar')
             .insert([payload])
-            .select('id, kode_unik, kode_unik_full');
+            .select('id');
 
         if (error) {
             console.log('❌ Error insert:', error.message);
@@ -3836,7 +3841,7 @@ app.put('/api/rpjmdes/:id', async (req, res) => {
             .from('rpjmdes_standar')
             .update(payload)
             .eq('id', id)
-            .select('id, kode_unik, kode_unik_full');
+            .select('id');
 
         if (error) throw error;
         res.json({ success: true, data });
@@ -4005,7 +4010,7 @@ app.put('/api/sdgs-prioritas/:id', async (req, res) => {
             .from('prioritas_rkpdes')
             .update(updateData)
             .eq('id', id)
-            .select('id, mendukung_sdgs, updated_at');
+            .select('id');
         if (error) throw error;
         return res.json({ success: true, data });
     } catch (err) {
@@ -4123,7 +4128,7 @@ app.put('/api/sdgs-rancangan/:id', async (req, res) => {
             .from('rancangan_rkpdes')
             .update(updateData)
             .eq('id', id)
-            .select('id, kode_unik_full, updated_at');
+            .select('id');
         if (error) throw error;
         return res.json({ success: true, data });
     } catch (err) {
@@ -4161,7 +4166,7 @@ app.post('/api/sdgs-rancangan', async (req, res) => {
         const { data, error } = await supabase
             .from('rancangan_rkpdes')
             .insert(payload)
-            .select('id, kode_unik_full, updated_at');
+            .select('id');
         if (error) throw error;
         return res.json({ success: true, data });
     } catch (err) {
@@ -4692,7 +4697,8 @@ app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
         if (rkpdesPayload.length > 0) {
             const { error: insertError } = await supabase
                 .from('rkpdes')
-                .insert(rkpdesPayload);
+                .insert(rkpdesPayload)
+                .select('id');
 
             if (insertError) throw insertError;
         }
@@ -4936,7 +4942,8 @@ app.post('/api/stunting/tarik-rab', async (req, res) => {
         const { error } = await supabase
             .from('rkpdes')
             .update({ stunting: 'Ya', updated_at: new Date().toISOString() })
-            .in('id', cleanIds);
+            .in('id', cleanIds)
+            .select('id');
         if (error) throw error;
         return res.json({ success: true, message: `${cleanIds.length} kegiatan ditandai sebagai penanganan stunting.` });
     } catch (err) {
@@ -4966,7 +4973,7 @@ app.put('/api/stunting', async (req, res) => {
         };
         let result;
         if (rkpdesId) {
-            const { data, error } = await supabase.from('rkpdes').update(payload).eq('id', rkpdesId).select('id, kode_unik_full, status_rab, stunting, updated_at');
+            const { data, error } = await supabase.from('rkpdes').update(payload).eq('id', rkpdesId).select('id');
             if (error) throw error;
             result = Array.isArray(data) && data.length > 0 ? data[0] : null;
         } else {
@@ -4977,7 +4984,7 @@ app.put('/api/stunting', async (req, res) => {
                 bidang: bidangText,
                 status_rab: 'Belum Dibuat',
                 ...payload
-            }]).select('id, kode_unik_full, status_rab, stunting, updated_at');
+            }]).select('id');
             if (error) throw error;
             result = Array.isArray(data) && data.length > 0 ? data[0] : null;
         }
@@ -4997,7 +5004,8 @@ app.delete('/api/stunting', async (req, res) => {
         const { error } = await supabase
             .from('rkpdes')
             .update({ stunting: 'Tidak', updated_at: new Date().toISOString() })
-            .eq('id', parseInt(id, 10));
+            .eq('id', parseInt(id, 10))
+            .select('id');
         if (error) throw error;
         return res.json({ success: true, message: 'Kegiatan dihapus dari laporan stunting (tetap tersimpan di RKPDes).' });
     } catch (err) {
@@ -5039,11 +5047,12 @@ app.post('/api/stunting/sync', async (req, res) => {
                 const { error } = await supabase
                     .from('rkpdes')
                     .update(payload)
-                    .eq('id', rkpId);
+                    .eq('id', rkpId)
+                    .select('id');
                 if (error) throw error;
                 updated++;
             } else {
-                const { error } = await supabase.from('rkpdes').insert(payload);
+                const { error } = await supabase.from('rkpdes').insert(payload).select('id');
                 if (error) throw error;
                 inserted++;
             }
@@ -5423,7 +5432,8 @@ app.post('/api/pagu-indikatif', async (req, res) => {
         const payload = req.body;
         const { data, error } = await supabase
             .from('anggaran')
-            .upsert([payload], { onConflict: ['tahun', 'sumber'] });
+            .upsert([payload], { onConflict: ['tahun', 'sumber'] })
+            .select('id');
 
         if (error) {
             console.error('Error saving pagu:', error.message);
@@ -5502,7 +5512,8 @@ app.post('/api/pagu-anggaran', async (req, res) => {
 
         const { data, error } = await supabase
             .from('pagu_anggaran')
-            .upsert(rowsToUpsert, { onConflict: ['tahun', 'sumber_dana'] });
+            .upsert(rowsToUpsert, { onConflict: ['tahun', 'sumber_dana'] })
+            .select('id');
 
         if (error) {
             console.error('Error upserting pagu_anggaran:', error.message);
@@ -5562,7 +5573,8 @@ app.post('/api/pembiayaan', async (req, res) => {
 
         const { data, error } = await supabase
             .from('pembiayaan')
-            .upsert(payload, { onConflict: ['tahun'] });
+            .upsert(payload, { onConflict: ['tahun'] })
+            .select('id');
 
         if (error) {
             console.error('Error upserting pembiayaan:', error.message);

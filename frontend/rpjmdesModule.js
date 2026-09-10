@@ -172,7 +172,7 @@ window.RPJMDesModule = (function () {
             const { data, error } = await supabaseClient
                 .from('rpjmdes_standar')
                 .upsert([payload], { onConflict: 'kode_unik' })
-                .select('id, kode_unik, kode_unik_full, updated_at');
+                .select('id');
 
             if (error) throw error;
 
@@ -195,7 +195,7 @@ window.RPJMDesModule = (function () {
             const { data, error } = await supabaseClient
                 .from('rpjmdes_standar')
                 .insert([payload])
-                .select('id, kode_unik, kode_unik_full, updated_at');
+                .select('id');
 
             if (error) throw error;
 
@@ -225,7 +225,7 @@ window.RPJMDesModule = (function () {
                 .from('rpjmdes_standar')
                 .update(updateFields)
                 .eq('kode_unik', kodeUnik.trim())
-                .select('id, kode_unik, kode_unik_full, updated_at');
+                .select('id');
 
             if (error) throw error;
 
