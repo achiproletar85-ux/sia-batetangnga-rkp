@@ -580,21 +580,30 @@ async function deleteUnitFromDb(name) {
 // ke Supabase (kolom fields & table_headers) setiap kali ada perubahan.
 const templateConfigCache = {};
 
+// In-memory cache untuk metadata 28 dokumen_templates dengan TTL (Default: 5 menit)
+const templatesCache = {
+    data: null,
+    timestamp: 0,
+    ttl: 5 * 60 * 1000 // 5 menit TTL
+};
+
+function invalidateTemplatesCache() {
+    templatesCache.data = null;
+    templatesCache.timestamp = 0;
+}
+
 async function seedTemplateConfigCache() {
     try {
-        const { data, error } = await supabase
-            .from('dokumen_templates')
-            .select('code, fields, table_headers');
-        if (error) throw error;
-        for (const row of data || []) {
-            if (row && row.code && (row.fields || row.table_headers)) {
+        const templates = await loadTemplatesFromDb(true);
+        for (const row of templates || []) {
+            if (row && row.code && (row.fields || row.tableHeaders)) {
                 templateConfigCache[row.code] = {
                     fields: row.fields || [],
-                    tableHeaders: row.table_headers || []
+                    tableHeaders: row.tableHeaders || []
                 };
             }
         }
-        console.log(`🧠 TemplateConfig cache ter-seed: ${Object.keys(templateConfigCache).length} template`);
+        console.log(`🧠 TemplateConfig & templates cache ter-seed: ${Object.keys(templateConfigCache).length} template`);
     } catch (e) {
         console.warn('⚠️ TemplateConfig seed gagal:', e.message);
     }
@@ -620,6 +629,7 @@ function getTemplateSettings(docCode) {
 // UI pada sesi ini) tapi dictandai persisted:false agar frontend bisa memberi tahu.
 async function saveTemplateSettings(docCode, settings) {
     templateConfigCache[docCode] = settings;
+    invalidateTemplatesCache();
     try {
         const { error } = await supabase
             .from('dokumen_templates')
@@ -2011,7 +2021,7 @@ app.get('/api/rancangan-rkpdes/tarik-prioritas', async (req, res) => {
 
         const { data, error } = await supabase
             .from('prioritas_usulan')
-            .select('id, tahun, kode_unik_full, kode_unik, no_urut, nama_kegiatan, jenis_bidang, jenis_kegiatan, urutan_prioritas, skala_prioritas, bidang, data_existing, lokasi_kegiatan, volume_kegiatan, waktu_pelaksanaan, sdgs, manfaat_l, manfaat_p, manfaat_rtm, total_manfaat, sumber_dana, pagu_rpjm, skor_kewenangan, skor_sdgs, skor_kabupaten, skor_sumber_daya, total_skor, ranking, updated_at, created_at')
+            .select('id, tahun, kode_unik_full, kode_unik, no_urut, nama_kegiatan, jenis_bidang, jenis_kegiatan, urutan_prioritas, skala_prioritas, bidang, data_existing, lokasi_kegiatan, volume_kegiatan, waktu_pelaksanaan, sdgs, manfaat_l, manfaat_p, manfaat_rtm, total_manfaat, sumber_dana, pagu_rpjm, visi_misi, pokok_bpd, program_masyarakat, prioritas_sdgs_skor, total_kesesuaian, ranking, updated_at, created_at')
             .eq('tahun', tahunInt)
             .order('kode_unik_full', { ascending: true });
         if (error) throw error;
@@ -2050,11 +2060,11 @@ app.get('/api/rancangan-rkpdes/tarik-prioritas', async (req, res) => {
             sumber_pembiayaan: row.sumber_dana || 'ADD',
             sumber_dana: row.sumber_dana || 'ADD',
             waktu_pelaksanaan: row.waktu_pelaksanaan || '12 Bulan',
-            skor_kewenangan: Number(row.skor_kewenangan ?? row.visi_misi ?? 0),
-            skor_sdgs: Number(row.skor_sdgs ?? row.pokok_bpd ?? 0),
-            skor_kabupaten: Number(row.skor_kabupaten ?? row.program_masyarakat ?? 0),
-            skor_sumber_daya: Number(row.skor_sumber_daya ?? row.prioritas_sdgs_skor ?? 0),
-            total_skor: Number(row.total_skor ?? 0),
+            skor_kewenangan: Number(row.visi_misi ?? 0),
+            skor_sdgs: Number(row.pokok_bpd ?? 0),
+            skor_kabupaten: Number(row.program_masyarakat ?? 0),
+            skor_sumber_daya: Number(row.prioritas_sdgs_skor ?? 0),
+            total_skor: Number(row.total_kesesuaian ?? 0),
             ranking: row.ranking || ''
         }));
 
@@ -2154,6 +2164,14 @@ app.delete('/api/rancangan-rkpdes', async (req, res) => {
     }
 });
 
+const parseNumScore = (val, fallback = 100) => {
+    if (val !== null && val !== undefined && val !== '') {
+        const n = parseInt(val, 10);
+        if (!isNaN(n)) return Math.min(100, Math.max(0, n));
+    }
+    return fallback;
+};
+
 // GET /api/prioritas-rkpdes/tarik-rancangan?tahun=2027 -> tarik data dari tabel rancangan_rkpdes
 app.get('/api/prioritas-rkpdes/tarik-rancangan', async (req, res) => {
     try {
@@ -2166,6 +2184,16 @@ app.get('/api/prioritas-rkpdes/tarik-rancangan', async (req, res) => {
             .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunInt);
         if (error) throw error;
+
+        const { data: rpjmRows } = await supabase
+            .from('rpjmdes_standar')
+            .select('kode_unik_full, visi_misi, pokok_bpd, program_masyarakat, prioritas_sdgs_skor');
+
+        const rpjmScoreMap = new Map();
+        (rpjmRows || []).forEach(rp => {
+            const k = String(rp.kode_unik_full || '').trim();
+            if (k) rpjmScoreMap.set(k, rp);
+        });
 
         const seenKode = new Set();
         const validRows = [];
@@ -4552,6 +4580,51 @@ app.get('/api/rkpdes', async (req, res) => {
     }
 });
 
+async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
+    let rabData = preloadedRab;
+    if (!rabData) {
+        const { data, error } = await supabase
+            .from('rab')
+            .select(RAB_SYNC_COLUMNS)
+            .eq('tahun', tahunInt);
+        if (error) throw error;
+        rabData = data || [];
+    }
+    const rows = (rabData || []).map(rb => {
+        let rpjmObj = {};
+        if (rb.rpjm_data) {
+            try {
+                rpjmObj = typeof rb.rpjm_data === 'string' ? JSON.parse(rb.rpjm_data) : rb.rpjm_data;
+            } catch (e) {
+                rpjmObj = rb.rpjm_data;
+            }
+        }
+        const items = Array.isArray(rb.items) ? rb.items : [];
+        const totalBiaya = Number(rb.jumlah_anggaran || rb.total_biaya || 0) || items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+        const code = String(rb.kode_unik_full || rb.kode_unik || '').trim();
+        return {
+            tahun: tahunInt,
+            kode_unik_full: code,
+            bidang: rb.bidang || rpjmObj.bidang || 'Bidang Penyelenggaraan Pemerintah Desa',
+            jenis_bidang: rb.jenis_bidang || rpjmObj.jenis_bidang || '-',
+            jenis_kegiatan: rpjmObj.jenis_kegiatan || rb.jenis_kegiatan || rb.nama_kegiatan || '-',
+            nama_kegiatan: rb.nama_kegiatan || rpjmObj.nama_kegiatan || '-',
+            lokasi: rb.lokasi || rb.lokasi_kegiatan || rpjmObj.lokasi_kegiatan || 'Desa Batetangnga',
+            volume: String(rb.volume || items[0]?.volume || 1),
+            satuan: rb.satuan || rpjmObj.satuan_rab || 'Paket',
+            waktu_pelaksanaan: rpjmObj.waktu_pelaksanaan || '12 Bulan',
+            prakiraan_biaya: totalBiaya,
+            sumber_pembiayaan: rb.sumber_dana || rpjmObj.sumber_dana || 'DDS',
+            pola_pelaksanaan: rpjmObj.pola_pelaksanaan || 'Swakelola',
+            status_rab: 'Sudah Dibuat',
+            data_eksisting: rpjmObj.data_existing || rpjmObj.data_eksisting || '-',
+            target_capaian: rpjmObj.target_capaian || String(rb.volume || 1),
+            mendukung_sdgs: rpjmObj.sdgs || '-'
+        };
+    });
+    return { rows };
+}
+
 app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
     try {
         const { tahun } = req.body;
@@ -4598,8 +4671,8 @@ app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
             return res.json({ success: true, message: 'Tidak ada data RAB untuk tahun ini. Tabel RKPDes telah dikosongkan.' });
         }
 
-// 3. Transformasi dan masukkan data dari RAB ke RKPDes
-        const { rows: rkpdesPayload } = await buildRkpPayLoadFromRAB(tahunInt);
+        // 3. Transformasi dan masukkan data dari RAB ke RKPDes
+        const { rows: rkpdesPayload } = await buildRkpPayLoadFromRAB(tahunInt, rabData);
 
         // Terapkan kembali flag manual yang disimpan sebelumnya
         rkpdesPayload.forEach(row => {
@@ -6027,7 +6100,7 @@ app.put('/api/dokumen-desa/:id', async (req, res) => {
         const { data, error } = await supabase
             .from('dokumen_desa')
             .update({ status, notes, updated_at: new Date().toISOString() })
-            .eq('id', parseInt(id))
+            .eq('id', id)
             .select('id, updated_at');
 
         if (error) throw error;
@@ -6044,7 +6117,7 @@ app.delete('/api/dokumen-desa/:id', async (req, res) => {
         const { error } = await supabase
             .from('dokumen_desa')
             .delete()
-            .eq('id', parseInt(id));
+            .eq('id', id);
 
         if (error) throw error;
         res.json({ success: true, message: 'Dokumen berhasil dihapus' });
@@ -6083,26 +6156,37 @@ function defaultTemplateSeed() {
   ];
 }
 
-async function loadTemplatesFromDb() {
+async function loadTemplatesFromDb(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && templatesCache.data && (now - templatesCache.timestamp < templatesCache.ttl)) {
+    return templatesCache.data;
+  }
   try {
     const { data, error } = await supabase.from('dokumen_templates').select(TEMPLATES_COLUMNS).order('code', { ascending: true });
     if (error) {
       console.warn('⚠️ [Templates] Baca dari Supabase gagal:', error.message);
-      return defaultTemplateSeed();
+      return templatesCache.data || defaultTemplateSeed();
     }
     if (!data || data.length === 0) return defaultTemplateSeed();
-    return data.map(t => {
+    const formatted = data.map(t => {
       const docId = (t.documentid || t.documentId || t.document_id || '').trim();
       return {
+        id: t.id,
         code: t.code,
         stage: t.stage || 'A',
         name: t.name || t.code,
         documentId: docId || DEFAULT_MASTER_DOC_ID,
-        isReal: true
+        isReal: typeof t.is_real === 'boolean' ? t.is_real : !!docId,
+        fields: t.fields || [],
+        tableHeaders: t.table_headers || [],
+        updated_at: t.updated_at
       };
     });
+    templatesCache.data = formatted;
+    templatesCache.timestamp = now;
+    return formatted;
   } catch (e) {
-    return defaultTemplateSeed();
+    return templatesCache.data || defaultTemplateSeed();
   }
 }
 
@@ -6122,6 +6206,7 @@ async function saveTemplatesToDb(templates) {
         }, { onConflict: 'code' });
       if (error) errs.push(error.message);
     }
+    invalidateTemplatesCache();
     return errs;
   } catch (e) {
     return [e.message];
@@ -6156,6 +6241,7 @@ app.post('/api/templates', async (req, res) => {
         updated_at: new Date().toISOString()
       }, { onConflict: 'code' });
     if (error) throw error;
+    invalidateTemplatesCache();
     res.status(201).json({ success: true, message: 'Template berhasil ditambahkan.' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -6183,6 +6269,7 @@ app.put('/api/templates/:code', async (req, res) => {
         updated_at: new Date().toISOString()
       }, { onConflict: 'code' });
     if (error) throw error;
+    invalidateTemplatesCache();
     res.json({ success: true, message: `Document ID untuk ${code} berhasil disimpan.` });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -6195,6 +6282,7 @@ app.delete('/api/templates/:code', async (req, res) => {
     const { code } = req.params;
     const { error } = await supabase.from('dokumen_templates').delete().eq('code', code.toUpperCase());
     if (error) throw error;
+    invalidateTemplatesCache();
     res.json({ success: true, message: 'Template berhasil dihapus.' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -6446,7 +6534,7 @@ app.get('/api/sync-status/:code/:tahun', async (req, res) => {
 
     const { data, error } = await supabase
       .from('dokumen_form_data')
-      .select('doc_code, google_docs_id, fields, tables, last_generated_doc_id, last_generated_pdf_url, updated_at')
+      .select('doc_code, google_docs_id, last_generated_doc_id, last_generated_pdf_url, syncing, updated_at')
       .eq('doc_code', code)
       .eq('tahun', tahunInt)
       .maybeSingle();
