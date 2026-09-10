@@ -6809,4 +6809,7 @@ if (require.main === module) {
     });
 }
 
-module.exports = { app, startServer };
+app.startServer = startServer;
+module.exports = app;
+module.exports.app = app;
+module.exports.startServer = startServer;
