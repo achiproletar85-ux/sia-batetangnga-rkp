@@ -1,0 +1,47 @@
+/* ============================================================
+   SIA BATETANGNGA - GLOBAL PRINT & LAYOUT STYLES
+   ============================================================ */
+
+@media print {
+  /* Sembunyikan seluruh elemen navigasi, header sistem, dan tombol aksi */
+  nav,
+  header,
+  .navbar,
+  #navbar,
+  #navbar-container,
+  .no-print,
+  button,
+  .btn,
+  .btn-action,
+  .action-buttons,
+  .floating-buttons,
+  .sidebar,
+  #sidebar {
+    display: none !important;
+  }
+
+  /* Sembunyikan penanda kode unik saat cetak jika ada */
+  .badge-kode-unik,
+  .col-kode-unik,
+  [data-print-hide="kode-unik"] {
+    display: none !important;
+  }
+
+  /* Bersihkan margin layar agar dokumen mulai dari batas atas kertas */
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hilangkan bayangan box kartu */
+  .shadow,
+  .shadow-md,
+  .shadow-lg,
+  .rounded-lg,
+  .rounded-xl {
+    box-shadow: none !important;
+  }
+}

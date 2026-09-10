@@ -13,9 +13,40 @@
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
         @media print {
-            .no-print { display: none !important; }
-            body { background: white; }
-            #print-area { box-shadow: none; border: none; padding: 0; margin: 0; width: 100%; }
+            /* Sembunyikan seluruh elemen navigasi, header sistem, dan tombol aksi */
+            nav,
+            header,
+            .navbar,
+            #navbar,
+            #navbar-container,
+            .no-print,
+            button,
+            .btn,
+            .btn-action,
+            .action-buttons,
+            .floating-buttons,
+            .sidebar,
+            #sidebar {
+                display: none !important;
+            }
+
+            body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #fff !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .shadow,
+            .shadow-md,
+            .shadow-lg,
+            .rounded-lg,
+            .rounded-xl {
+                box-shadow: none !important;
+            }
+
+            #print-area { box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important; width: 100% !important; }
         }
     </style>
 </head>

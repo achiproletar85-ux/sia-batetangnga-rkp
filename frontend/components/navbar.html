@@ -104,6 +104,57 @@
         from { opacity: 0; transform: scale(0.92) translateY(10px); }
         to { opacity: 1; transform: scale(1) translateY(0); }
     }
+
+    /* ============================================================
+       STANDARISASI CSS @media print GLOBAL UNTUK SEMUA HALAMAN
+       ============================================================ */
+    @media print {
+        /* Sembunyikan seluruh elemen navigasi, header sistem, dan tombol aksi */
+        nav,
+        header,
+        .navbar,
+        #navbar,
+        #navbar-container,
+        .no-print,
+        button,
+        .btn,
+        .btn-action,
+        .action-buttons,
+        .floating-buttons,
+        .sidebar,
+        #sidebar,
+        #modalLogoutConfirm {
+            display: none !important;
+        }
+
+        /* Sembunyikan badge kode unik hanya saat cetak */
+        .badge-kode-unik,
+        .col-kode-unik,
+        [data-print-hide="kode-unik"] {
+            display: none !important;
+        }
+
+        /* Bersihkan margin layar agar dokumen mulai dari batas atas kertas */
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* Hilangkan bayangan box kartu */
+        .shadow,
+        .shadow-md,
+        .shadow-lg,
+        .shadow-xl,
+        .shadow-2xl,
+        .rounded-lg,
+        .rounded-xl,
+        .rounded-2xl {
+            box-shadow: none !important;
+        }
+    }
 </style>
 
 <nav class="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 text-slate-100 shadow-xl sticky top-0 z-[9999] w-full border-b border-indigo-900/50 backdrop-blur-md">
