@@ -11,15 +11,8 @@ let rpjmItems = [];
 let filteredRpjmItems = [];
 let selectedRpjm = null;
 let rabItems = [];
-let rabYear = Number(localStorage.getItem('ACTIVE_TAHUN_ANGGARAN')) || 2027;
-
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        rabYear = Number(e.detail.tahun) || 2027;
-        if (typeof loadPaguAnggaran === 'function') loadPaguAnggaran(rabYear);
-        if (typeof loadSavedRabList === 'function') loadSavedRabList();
-    }
-});
+let savedRabList = [];
+let rabYear = 2027;
 let editIndex = -1;
 
 const defaultUnits = [
@@ -1276,14 +1269,15 @@ async function cetakPdfByGroup() {
 
     console.log("LOCAL MEMORY MATCHED ROWS:", matchedRows.length, matchedRows);
 
-    // 2. FALLBACK QUERY DUA/TIGA KOLOM JIKA ARRAY LOCAL KOSONG
-    if (matchedRows.length === 0 && (window.supabaseClient || window.supabase)) {
+    // 2. FALLBACK QUERY DUA/TIGA KOLOM JIKA ARRAY LOCAL KOSONG ATAU BELUM MEMILIKI ITEMS
+    const hasItems = matchedRows.some(r => r.items && (Array.isArray(r.items) ? r.items.length > 0 : true));
+    if ((matchedRows.length === 0 || !hasItems) && (window.supabaseClient || window.supabase)) {
         const client = window.supabaseClient || window.supabase;
         try {
             const prefixClean = targetPrefix.replace(/\.+$/, '');
             let query = client
                 .from('rab')
-                .select('*')
+                .select('id, kode_unik, kode_unik_full, kode_kegiatan, tahun, nama_kegiatan, uraian, jenis_kegiatan, bidang, group_nama, lokasi, lokasi_kegiatan, volume, volume_rab, satuan, harga_satuan, jumlah_anggaran, sumber_dana')
                 .or(`kode_unik.ilike.${targetPrefix}%,kode_unik_full.ilike.${targetPrefix}%,kode_kegiatan.ilike.${targetPrefix}%,kode_unik.ilike.${prefixClean}%,kode_unik_full.ilike.${prefixClean}%`);
 
             if (!isNaN(tahunNum)) {
@@ -1296,18 +1290,18 @@ async function cetakPdfByGroup() {
                 // Try without year restriction
                 const resNoYear = await client
                     .from('rab')
-                    .select('*')
+                    .select('id, kode_unik, kode_unik_full, kode_kegiatan, tahun, nama_kegiatan, uraian, jenis_kegiatan, bidang, group_nama, lokasi, lokasi_kegiatan, volume, volume_rab, satuan, harga_satuan, jumlah_anggaran, sumber_dana')
                     .or(`kode_unik.ilike.${targetPrefix}%,kode_unik_full.ilike.${targetPrefix}%,kode_kegiatan.ilike.${targetPrefix}%,kode_unik.ilike.${prefixClean}%,kode_unik_full.ilike.${prefixClean}%`);
                 if (resNoYear.data && resNoYear.data.length > 0) data = resNoYear.data;
             }
 
             if (data && data.length > 0) {
                 matchedRows = data;
-            } else {
+            } else if (matchedRows.length === 0) {
                 // Fallback to rkpdes table
                 let rkpRes = await client
                     .from('rkpdes')
-                    .select('*')
+                    .select('id, kode_unik_full, kode_unik, tahun, jenis_kegiatan, bidang, lokasi, volume, satuan, prakiraan_biaya, sumber_pembiayaan, pola_pelaksanaan, waktu_pelaksanaan, stunting, updated_at')
                     .or(`kode_unik.ilike.${targetPrefix}%,kode_unik_full.ilike.${targetPrefix}%,kode_kegiatan.ilike.${targetPrefix}%,kode_unik.ilike.${prefixClean}%,kode_unik_full.ilike.${prefixClean}%`);
                 if (rkpRes.data && rkpRes.data.length > 0) {
                     matchedRows = rkpRes.data;
@@ -1317,6 +1311,27 @@ async function cetakPdfByGroup() {
         } catch (e) {
             console.warn("Fallback multi-column query error:", e);
         }
+    }
+
+    // 2B. JIKA MASIH BELUM MEMILIKI ITEMS (DITARIK DARI SUMMARY LIST), FETCH DETAIL PER ITEM
+    if (!matchedRows.some(r => r.items && (Array.isArray(r.items) ? r.items.length > 0 : true)) && matchedRows.length > 0) {
+        try {
+            const enriched = await Promise.all(matchedRows.map(async (row) => {
+                if (row.items && Array.isArray(row.items) && row.items.length > 0) return row;
+                try {
+                    const targetK = row.kode_unik_full || row.kode_unik;
+                    if (targetK) {
+                        const res = await fetch(`/api/rab?kode_unik_full=${encodeURIComponent(targetK)}&tahun=${tahunNum}`);
+                        const json = await res.json();
+                        if (json.success && json.data && json.data.items) {
+                            return { ...row, items: json.data.items, rpjm_data: json.data.rpjm_data || row.rpjm_data };
+                        }
+                    }
+                } catch (e) {}
+                return row;
+            }));
+            matchedRows = enriched;
+        } catch (e) {}
     }
 
     // 3. CETAK TABEL PDF METODE UNPACK RINCIAN ITEMS

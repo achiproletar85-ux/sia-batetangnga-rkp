@@ -3,51 +3,46 @@
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    const storedYear = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027';
-    const selectDashEl = document.getElementById('selectDashboardTahun');
-    if (selectDashEl) selectDashEl.value = storedYear;
-
     loadDashboardMetrics();
-    window.addEventListener('tahunChanged', (e) => {
-        if (e && e.detail && e.detail.tahun) {
-            if (selectDashEl) selectDashEl.value = e.detail.tahun;
-        }
-        loadDashboardMetrics();
-    });
 });
-
-function cleanBudgetNumber(val) {
-    let num = Number(val || 0);
-    if (isNaN(num) || num <= 0) return 0;
-    // Jika angka melebihi 10 Miliar (inflasi input akibat pemformatan awal), bagi 1.000 agar masuk akal per desa
-    while (num > 10000000000) {
-        num = Math.round(num / 1000);
-    }
-    return num;
-}
-
-function getItemBudget(item) {
-    if (!item) return 0;
-    const raw = item.prakiraan_biaya ?? item.pagu_rpjm ?? item.total_rab ?? item.jumlah_anggaran ?? item.total_anggaran ?? item.biaya ?? item.jumlah ?? item.pagu ?? item.nominal ?? 0;
-    return cleanBudgetNumber(raw);
-}
 
 async function loadDashboardMetrics() {
     try {
-        const tahun = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || 2027;
+        const tahun = 2027;
         console.log('📊 Loading dashboard metrics for tahun', tahun);
         
-        let activeYearItems = [];
+        // 1. RPJMDes Master
+        try {
+            const rpjmRes = await fetch('/api/master');
+            if (rpjmRes.ok) {
+                const rpjmData = await rpjmRes.json();
+                if (rpjmData.success && Array.isArray(rpjmData.data)) {
+                    const masterList = rpjmData.data;
+                    const totalPagu = masterList.reduce((sum, item) => sum + Number(item.pagu_rpjm || item.pagu || 0), 0);
+                    
+                    if (document.getElementById('stat-rpjmdes-pagu')) {
+                        document.getElementById('stat-rpjmdes-pagu').innerText = `Rp ${totalPagu.toLocaleString('id-ID')}`;
+                    }
+                    if (document.getElementById('stat-rpjmdes-count')) {
+                        document.getElementById('stat-rpjmdes-count').innerText = `${masterList.length} Kegiatan Master`;
+                    }
 
-        // 1. Fetch RKPDes Data untuk Tahun Terpilih
+                    calculateBidangDistribution(masterList, totalPagu);
+                }
+            }
+        } catch (e) {
+            console.warn('⚠️ RPJMDes API error:', e.message);
+        }
+
+        // 2. RKPDes
         try {
             const rkpRes = await fetch(`/api/rkpdes?tahun=${tahun}`);
             if (rkpRes.ok) {
                 const rkpData = await rkpRes.json();
+                console.log('✅ RKPDes data:', rkpData.data?.length || 0);
                 if (rkpData.success && Array.isArray(rkpData.data)) {
                     const rkpList = rkpData.data;
-                    activeYearItems = rkpList;
-                    const totalRkpPagu = rkpList.reduce((sum, item) => sum + getItemBudget(item), 0);
+                    const totalRkpPagu = rkpList.reduce((sum, item) => sum + Number(item.jumlah || item.biaya || item.pagu || 0), 0);
 
                     if (document.getElementById('stat-rkpdes-total')) {
                         document.getElementById('stat-rkpdes-total').innerText = `Rp ${totalRkpPagu.toLocaleString('id-ID')}`;
@@ -56,20 +51,22 @@ async function loadDashboardMetrics() {
                         document.getElementById('stat-rkpdes-count').innerText = `${rkpList.length} Kegiatan Disetujui`;
                     }
                 }
+            } else {
+                console.warn('⚠️ RKPDes API tidak tersedia (status:', rkpRes.status, ')');
             }
         } catch (e) {
             console.warn('⚠️ RKPDes API error:', e.message);
         }
-
-        // 2. Fetch RAB Data untuk Tahun Terpilih
+        
+        // 3. RAB
         try {
             const rabRes = await fetch(`/api/rab?tahun=${tahun}`);
             if (rabRes.ok) {
                 const rabData = await rabRes.json();
+                console.log('✅ RAB data:', rabData.data?.length || 0);
                 if (rabData.success && Array.isArray(rabData.data)) {
                     const rabList = rabData.data;
-                    if (activeYearItems.length === 0) activeYearItems = rabList;
-                    const totalRabPagu = rabList.reduce((sum, item) => sum + getItemBudget(item), 0);
+                    const totalRabPagu = rabList.reduce((sum, item) => sum + Number(item.jumlah_anggaran || item.total_anggaran || item.pagu || 0), 0);
 
                     if (document.getElementById('stat-rab-total')) {
                         document.getElementById('stat-rab-total').innerText = `Rp ${totalRabPagu.toLocaleString('id-ID')}`;
@@ -78,48 +75,22 @@ async function loadDashboardMetrics() {
                         document.getElementById('stat-rab-count').innerText = `${rabList.length} Proposal RAB`;
                     }
                 }
+            } else {
+                console.warn('⚠️ RAB API tidak tersedia (status:', rabRes.status, ')');
             }
         } catch (e) {
             console.warn('⚠️ RAB API error:', e.message);
         }
-
-        // 3. Fallback ke DU-RKPDes / Master jika belum ada RKP/RAB
-        if (activeYearItems.length === 0) {
-            try {
-                const duRes = await fetch(`/api/du-rkpdes?tahun=${tahun}`);
-                if (duRes.ok) {
-                    const duData = await duRes.json();
-                    if (duData.success && Array.isArray(duData.data) && duData.data.length > 0) {
-                        activeYearItems = duData.data;
-                    }
-                }
-            } catch (e) {
-                console.warn('⚠️ DU-RKP API error:', e.message);
-            }
-        }
-
-        // Hitung Distribusi 5 Bidang APBDes untuk Tahun Terpilih
-        calculateBidangDistribution(activeYearItems);
-
-        // 4. RPJMDes Master Stat
+        
+        // 4. DU-RKP
         try {
-            const rpjmRes = await fetch('/api/master');
-            if (rpjmRes.ok) {
-                const rpjmData = await rpjmRes.json();
-                if (rpjmData.success && Array.isArray(rpjmData.data)) {
-                    const masterList = rpjmData.data;
-                    const totalPagu = masterList.reduce((sum, item) => sum + getItemBudget(item), 0);
-                    
-                    if (document.getElementById('stat-rpjmdes-pagu')) {
-                        document.getElementById('stat-rpjmdes-pagu').innerText = `Rp ${totalPagu.toLocaleString('id-ID')}`;
-                    }
-                    if (document.getElementById('stat-rpjmdes-count')) {
-                        document.getElementById('stat-rpjmdes-count').innerText = `${masterList.length} Kegiatan Master`;
-                    }
-                }
+            const duRes = await fetch(`/api/du-rkpdes?tahun=${tahun}`);
+            if (duRes.ok) {
+                const duData = await duRes.json();
+                console.log('✅ DU-RKP data:', duData.data?.length || 0);
             }
         } catch (e) {
-            console.warn('⚠️ RPJMDes API error:', e.message);
+            console.warn('⚠️ DU-RKP API error:', e.message);
         }
 
         // 5. Stunting Summary
@@ -129,7 +100,7 @@ async function loadDashboardMetrics() {
                 const stuntingData = await stuntingRes.json();
                 if (stuntingData.success && Array.isArray(stuntingData.data)) {
                     const stuntingList = stuntingData.data;
-                    const totalStuntingPagu = stuntingList.reduce((sum, item) => sum + getItemBudget(item), 0);
+                    const totalStuntingPagu = stuntingList.reduce((sum, item) => sum + Number(item.biaya || item.anggaran || 0), 0);
 
                     if (document.getElementById('stat-stunting-total')) {
                         document.getElementById('stat-stunting-total').innerText = `Rp ${totalStuntingPagu.toLocaleString('id-ID')}`;
@@ -148,39 +119,30 @@ async function loadDashboardMetrics() {
     }
 }
 
-function calculateBidangDistribution(items) {
-    if (!items || !Array.isArray(items) || items.length === 0) return;
+function calculateBidangDistribution(items, totalPagu) {
+    if (!items || items.length === 0 || totalPagu === 0) return;
 
     const b = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-    let grandTotal = 0;
 
     items.forEach(item => {
-        const bName = String(item.bidang || item.jenis_bidang || item.sub_bidang || '').toLowerCase();
-        const pagu = getItemBudget(item);
-        if (pagu <= 0) return;
+        const bidangStr = (item.bidang || '').toLowerCase();
+        const pagu = Number(item.pagu_rpjm || item.pagu || 0);
 
-        let category = 1;
-        if (bName.includes('pembangunan')) category = 2;
-        else if (bName.includes('pembinaan') || bName.includes('kemasyarakatan')) category = 3;
-        else if (bName.includes('pemberdayaan')) category = 4;
-        else if (bName.includes('bencana') || bName.includes('darurat') || bName.includes('mendesak')) category = 5;
-        else if (bName.includes('pemerintahan')) category = 1;
-        else category = (parseInt(item.bidang, 10) >= 1 && parseInt(item.bidang, 10) <= 5) ? parseInt(item.bidang, 10) : 1;
-
-        b[category] += pagu;
-        grandTotal += pagu;
+        if (bidangStr.includes('pemerintahan')) b[1] += pagu;
+        else if (bidangStr.includes('pembangunan')) b[2] += pagu;
+        else if (bidangStr.includes('pembinaan') || bidangStr.includes('kemasyarakatan')) b[3] += pagu;
+        else if (bidangStr.includes('pemberdayaan')) b[4] += pagu;
+        else b[5] += pagu;
     });
-
-    if (grandTotal === 0) grandTotal = 1;
 
     for (let i = 1; i <= 5; i++) {
         const val = b[i];
-        const pct = Math.round((val / grandTotal) * 100);
+        const pct = Math.round((val / totalPagu) * 100) || 5;
 
         const labelEl = document.getElementById(`label-bidang-${i}`);
         const barEl = document.getElementById(`bar-bidang-${i}`);
 
         if (labelEl) labelEl.innerText = `Rp ${val.toLocaleString('id-ID')} (${pct}%)`;
-        if (barEl) barEl.style.width = `${Math.max(pct, 2)}%`;
+        if (barEl) barEl.style.width = `${Math.max(pct, 4)}%`;
     }
 }

@@ -2,14 +2,8 @@ function switchTab(tab) {
     window.location.href = tab + '.html';
 }
 
-let activeYear = Number(localStorage.getItem('ACTIVE_TAHUN_ANGGARAN')) || 2027;
-
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        activeYear = Number(e.detail.tahun) || 2027;
-        if (typeof loadPembiayaanData === 'function') loadPembiayaanData();
-    }
-});
+let pembiayaanList = [];
+let activeYear = 2027;
 
 const masterBidangList = [
     { key: 1, name: 'Bidang Penyelenggaraan Pemerintahan Desa' },
@@ -102,7 +96,7 @@ function updateFooterPrint() {
         if (nama.includes('|')) {
             nama = nama.split('|')[0];
         }
-        elTimText.textContent = nama ? `( ${nama} )` : '( ABDUL AZIS, S. Pd )';
+        elTimText.textContent = nama ? `( ${nama.toUpperCase()} )` : '( ABDUL AZIS, S. Pd )';
     }
 }
 

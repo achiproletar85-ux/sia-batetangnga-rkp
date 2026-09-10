@@ -49,15 +49,9 @@ function skorHeader(item, headerCol, skorCol) {
     return Number.isNaN(h) ? 75 : Math.min(100, Math.max(0, h));
 }
 
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        if (typeof loadPrioritasData === 'function') loadPrioritasData();
-    }
-});
-
 // 2. Load Data dari Supabase (tabel prioritas_rkpdes; jika kosong, auto-sync dari rancangan_rkpdes)
 async function loadPrioritasData() {
-    const year = parseInt(localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || document.getElementById('select-year')?.value || '2027', 10);
+    const year = parseInt(document.getElementById('select-year')?.value || '2027', 10);
     const bidang = document.getElementById('select-bidang')?.value || 'BIDANG SEMUA';
 
     const bidangSel = document.getElementById('select-bidang');

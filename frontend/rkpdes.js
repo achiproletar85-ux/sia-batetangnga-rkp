@@ -34,18 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         localStorage.removeItem('rkpdes_cache');
     } catch(e) {}
-
-    const storedYear = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027';
-    const selectYearEl = document.getElementById('select-year');
-    if (selectYearEl) selectYearEl.value = storedYear;
-
-    window.addEventListener('tahunChanged', (e) => {
-        if (e && e.detail && e.detail.tahun) {
-            if (selectYearEl) selectYearEl.value = e.detail.tahun;
-            loadRkpdesData();
-        }
-    });
-
     loadRkpdesData();
 });
 

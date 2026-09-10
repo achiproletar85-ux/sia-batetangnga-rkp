@@ -1,32 +1,5 @@
 <!-- navbar.html - Premium Dark Indigo Header with Seamless Hover Buffer & Z-Index -->
 <style>
-    /* GLOBAL PRINT PROTECTION: HIDE ALL NAVBARS & CONTROL ELEMENTS WHEN PRINTING TO PDF */
-    @media print {
-        header, 
-        nav, 
-        #navbar-container, 
-        #navbar-placeholder, 
-        .navbar, 
-        .no-print, 
-        .print-hidden, 
-        [class*="no-print"], 
-        [id*="navbar"], 
-        #toast, 
-        #modalLogoutConfirm,
-        .modal-overlay-bg,
-        .modal-card {
-            display: none !important;
-            visibility: hidden !important;
-            height: 0 !important;
-            min-height: 0 !important;
-            max-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            opacity: 0 !important;
-            overflow: hidden !important;
-        }
-    }
-
     .nav-dropdown {
         position: relative;
         z-index: 100;
@@ -133,7 +106,7 @@
     }
 </style>
 
-<nav class="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 text-slate-100 shadow-xl sticky top-0 z-[9999] w-full border-b border-indigo-900/50 backdrop-blur-md no-print print:hidden">
+<nav class="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 text-slate-100 shadow-xl sticky top-0 z-[9999] w-full border-b border-indigo-900/50 backdrop-blur-md">
     <div class="max-w-7xl mx-auto px-4 py-1.5 flex items-center justify-between gap-3 overflow-visible">
         
         <!-- BRAND LOGO -->
@@ -288,26 +261,8 @@
 
         </div>
 
-        <!-- RIGHT SIDE: TAHUN ANGGARAN SELECTOR, AKUN & LOGOUT BUTTON -->
-        <div class="flex items-center gap-2.5 shrink-0 pl-3 border-l border-slate-800">
-            
-            <!-- GLOBAL TAHUN ANGGARAN SELECTOR -->
-            <div class="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 rounded-xl px-2.5 py-1 text-xs">
-                <i class="fas fa-calendar-alt text-amber-400 text-xs"></i>
-                <span class="text-[10px] font-extrabold uppercase text-amber-300 hidden lg:inline">Tahun:</span>
-                <select id="globalActiveTahun" onchange="window.setGlobalActiveTahun(this.value)" class="bg-slate-950 text-amber-300 font-black text-xs border border-amber-500/40 rounded-lg px-2 py-0.5 outline-none cursor-pointer focus:ring-1 focus:ring-amber-400">
-                    <option value="2022">2022</option>
-                    <option value="2023">2023</option>
-                    <option value="2024">2024</option>
-                    <option value="2025">2025</option>
-                    <option value="2026">2026</option>
-                    <option value="2027">2027</option>
-                    <option value="2028">2028</option>
-                    <option value="2029">2029</option>
-                    <option value="2030">2030</option>
-                </select>
-            </div>
-
+        <!-- RIGHT SIDE: AKUN & LOGOUT BUTTON -->
+        <div class="flex items-center gap-2 shrink-0 pl-3 border-l border-slate-800">
             <!-- User Profile & Options -->
             <div class="nav-dropdown">
                 <button type="button" onclick="toggleNavDropdown(event, this)" class="flex items-center gap-2 bg-slate-900/80 px-2.5 py-1 rounded-xl border border-slate-800 hover:border-slate-700 cursor-pointer">
@@ -370,28 +325,6 @@
 
 <!-- Self-Executing Script on innerHTML Injection -->
 <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" style="display:none;" onerror="if (this.dataset.done) return; this.dataset.done = 1; (function(){
-    window.setGlobalActiveTahun = function(tahunVal) {
-        if (!tahunVal) return;
-        var t = String(tahunVal).trim();
-        localStorage.setItem('ACTIVE_TAHUN_ANGGARAN', t);
-
-        // Sync all year dropdowns on current page
-        document.querySelectorAll('#globalActiveTahun, #selectDashboardTahun, #selectTahunDokumenDesa, #select-year, #select-tahun, #select-tahun-data').forEach(function(sel) {
-            if (sel && sel.value !== t) {
-                sel.value = t;
-            }
-        });
-        document.querySelectorAll('.display-active-tahun').forEach(function(el) {
-            if (el) el.textContent = t;
-        });
-
-        // Broadcast event for active scripts
-        window.dispatchEvent(new CustomEvent('tahunChanged', { detail: { tahun: t } }));
-    };
-
-    var storedYear = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027';
-    window.setGlobalActiveTahun(storedYear);
-
     window.toggleNavDropdown = function(e, btn) {
         if (e) e.stopPropagation();
         var dropdown = btn.closest('.nav-dropdown');

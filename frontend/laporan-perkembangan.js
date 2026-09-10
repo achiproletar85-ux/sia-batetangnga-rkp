@@ -30,16 +30,9 @@ function getBulanNumber(bulan) {
     return map[bulan] || 1;
 }
 
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        if (typeof updateJudul === 'function') updateJudul();
-        if (typeof loadLaporanData === 'function') loadLaporanData();
-    }
-});
-
 function updateJudul() {
     const bulan = document.getElementById('select-bulan')?.value || 'Agustus';
-    const tahun = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || document.getElementById('select-tahun')?.value || '2027';
+    const tahun = document.getElementById('select-tahun')?.value || '2027';
     const tahunTarik = (parseInt(tahun) || 2027) - 1;
 
     const bulanEl = document.getElementById('judul-bulan');
@@ -126,7 +119,7 @@ function buildLaporanItemFromRkp(item, tahun, bulan) {
 // 1. Load Laporan Perkembangan — selalu menarik dari RKPDes (tahun terpilih − 1)
 // sebagai sumber kebenaran, lalu menggabungkan kolom manual yang sudah tersimpan di DB.
 async function loadLaporanData() {
-    const tahun = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || document.getElementById('select-tahun')?.value || '2027';
+    const tahun = document.getElementById('select-tahun')?.value || '2027';
     const bulan = document.getElementById('select-bulan')?.value || 'Agustus';
     const tahunTarik = (parseInt(tahun) || 2027) - 1;
 

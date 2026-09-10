@@ -104,15 +104,9 @@ function evalBidangNumRow(resolved) {
     return 1;
 }
 
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        if (typeof loadEvaluasiData === 'function') loadEvaluasiData();
-    }
-});
-
 // 1. Load Data Evaluasi
 async function loadEvaluasiData() {
-    const rkpYear = parseInt(localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || document.getElementById('select-year')?.value || '2027');
+    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2027');
 
     console.log(`📡 Memuat Data Evaluasi RKP Tahun ${rkpYear}...`);
 

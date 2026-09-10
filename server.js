@@ -10,7 +10,7 @@ const supabase = require('./backend/config/supabase');
 
 const app = express();
 const os = require('os');
-const WRITABLE_BASE = process.env.USER_DATA_PATH || (process.env.VERCEL ? os.tmpdir() : __dirname);
+const WRITABLE_BASE = process.env.VERCEL ? os.tmpdir() : (process.env.USER_DATA_PATH || __dirname);
 
 const FRONTEND_PATH = path.resolve(__dirname, 'frontend');
 const TEMPLATES_PATH = path.resolve(WRITABLE_BASE, 'templates');
@@ -19,52 +19,147 @@ app.use(cors());
 // ✅ INCREASE PAYLOAD LIMIT
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// --- GLOBAL MASTER CACHE UNTUK MENGURANGI SUPABASE EGRESS ---
-const MasterCache = {
-    rpjmdesStandar: null,
-    lastFetch: 0
-};
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 Jam
-
-async function getCachedRpjmdesStandar() {
-    const now = Date.now();
-    if (MasterCache.rpjmdesStandar && (now - MasterCache.lastFetch) < CACHE_TTL_MS) {
-        return MasterCache.rpjmdesStandar;
-    }
-    const { data } = await supabase.from('rpjmdes_standar').select('*'); // Ambil sekali saja per jam
-    if (data && data.length > 0) {
-        MasterCache.rpjmdesStandar = data;
-        MasterCache.lastFetch = now;
-    }
-    return data || [];
+app.use(express.static(FRONTEND_PATH));
+const PUBLIC_PATH = path.resolve(__dirname, 'public');
+if (fs.existsSync(PUBLIC_PATH)) {
+    app.use(express.static(PUBLIC_PATH));
 }
-// -----------------------------------------------------------
 
-//  Frontend Middleware: Sajikan semua file statis dari folder 'frontend' dengan header NO-CACHE
-app.use(express.static(FRONTEND_PATH, {
-    etag: false,
-    maxAge: 0,
-    setHeaders: (res) => {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
+// Rute root '/' menyajikan frontend index.html secara aman
+app.get(['/', '/index.html'], (req, res) => {
+    const indexPath = path.join(FRONTEND_PATH, 'index.html');
+    if (fs.existsSync(indexPath)) {
+        return res.sendFile(indexPath);
     }
-}));
+    const publicIndexPath = path.join(PUBLIC_PATH, 'index.html');
+    if (fs.existsSync(publicIndexPath)) {
+        return res.sendFile(publicIndexPath);
+    }
+    return res.sendFile(path.resolve(__dirname, 'index.html'));
+});
 
 app.use((req, res, next) => {
     console.log(`➡️ ${req.method} ${req.url}`);
     next();
 });
 
-const uploadDir = path.join(WRITABLE_BASE, 'uploads', 'templates');
+// GET /api/dokumen-form-data/:code/:tahun (memuat data form & tabel tersimpan dari Supabase)
+app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
+  try {
+    const { code, tahun } = req.params;
+    const tahunInt = parseInt(tahun, 10);
+    if (!tahunInt) {
+        return res.status(400).json({ success: false, error: 'Tahun tidak valid.' });
+    }
+
+    const { data, error } = await supabase
+      .from('dokumen_form_data')
+      .select('doc_code, google_docs_id, fields, tables, last_generated_doc_id, last_generated_pdf_url, updated_at')
+      .eq('doc_code', code)
+      .eq('tahun', tahunInt)
+      .maybeSingle();
+      
+    if (error) throw error;
+
+    if (!data) {
+      return res.json({ success: true, fields: {}, tables: {}, last_doc_id: null });
+    }
+    res.json({
+      success: true,
+      doc_code: data.doc_code,
+      google_docs_id: data.google_docs_id,
+      fields: data.fields || {},
+      tables: data.tables || {},
+      last_doc_id: data.last_generated_doc_id || null,
+      preview_url: data.last_generated_pdf_url || null,
+      updated_at: data.updated_at
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sync-document (menyimpan data form & tabel ke Supabase)
+app.post('/api/sync-document', async (req, res) => {
+    try {
+        const { doc_code, tahun, fields, tables, google_docs_id } = req.body;
+        const tahunInt = parseInt(tahun, 10);
+
+        if (!doc_code || !tahunInt) {
+            return res.status(400).json({ success: false, error: 'doc_code dan tahun wajib diisi.' });
+        }
+        
+        const upsertPayload = {
+            doc_code: doc_code,
+            tahun: tahunInt,
+            fields: fields || {},
+            tables: tables || {},
+            updated_at: new Date().toISOString(),
+        };
+        if (google_docs_id) {
+            upsertPayload.google_docs_id = google_docs_id;
+        }
+
+        const { data, error } = await supabase
+            .from('dokumen_form_data')
+            .upsert(upsertPayload, { onConflict: 'doc_code,tahun' })
+            .select('id')
+            .single();
+
+        if (error) {
+            if (error.code === '23505' || error.message.includes('unique constraint') || error.message.includes('violates unique constraint')) {
+                 console.error('Kesalahan unique constraint. Pastikan Anda sudah menjalankan SQL untuk memperbaiki index (doc_code, tahun).', error);
+                 return res.status(500).json({ 
+                    success: false, 
+                    error: 'Gagal menyimpan karena kesalahan database. Index unique `(doc_code, tahun)` mungkin belum dibuat. Silakan jalankan skrip SQL perbaikan.',
+                    details: error.message
+                });
+            }
+             if (error.message.includes('no unique or exclusion constraint matching the ON CONFLICT')) {
+                console.error('Kesalahan ON CONFLICT. Constraint (doc_code, tahun) tidak ditemukan.', error);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Gagal menyimpan karena konfigurasi database salah. Constraint untuk `(doc_code, tahun)` tidak ditemukan. Silakan jalankan skrip SQL perbaikan.',
+                    details: error.message
+                });
+            }
+            throw error;
+        }
+
+        // Frontend mengharapkan new_document_id, kita kembalikan null agar tidak memicu fallback ke GAS
+        res.json({ 
+            success: true, 
+            message: 'Data form dan tabel berhasil disimpan ke database.',
+            data: data,
+            new_document_id: null, // Penting agar frontend tidak fallback ke GAS
+            synced_fields_count: Object.keys(fields || {}).length
+        });
+
+    } catch (error) {
+        console.error('Server-side /api/sync-document error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+const uploadDir = process.env.VERCEL 
+  ? path.join(os.tmpdir(), 'uploads', 'templates')
+  : path.join(WRITABLE_BASE, 'uploads', 'templates');
+
 try {
+  if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
-    fs.mkdirSync(TEMPLATES_PATH, { recursive: true });
+  }
 } catch (err) {
-    console.warn('⚠️ Warning: Gagal membuat direktori upload:', err.message);
+  console.warn('⚠️ Gagal membuat direktori uploads (diabaikan di lingkungan read-only):', err.message);
 }
 
+try {
+  if (!fs.existsSync(TEMPLATES_PATH)) {
+    fs.mkdirSync(TEMPLATES_PATH, { recursive: true });
+  }
+} catch (err) {
+  console.warn('⚠️ Gagal membuat direktori templates (diabaikan di lingkungan read-only):', err.message);
+}
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -99,7 +194,7 @@ function writeDokumenStorage(records) {
 
 async function saveDokumenToSupabase(payload) {
     try {
-        const { data, error } = await supabase.from('dokumen_desa').insert([payload]).select();
+        const { data, error } = await supabase.from('dokumen_desa').insert([payload]).select('id, docid, tahun, nama_dokumen, kategori, created_at, updated_at');
         if (!error && data) return { success: true, data: data[0] };
         return { success: false, error: error?.message || 'Supabase insert failed' };
     } catch (error) {
@@ -109,13 +204,46 @@ async function saveDokumenToSupabase(payload) {
 
 async function getDokumenFromSupabase(tahun) {
     try {
-        const { data, error } = await supabase.from('dokumen_desa').select('*').eq('tahun', parseInt(tahun || '2027')).order('created_at', { ascending: true });
+        const { data, error } = await supabase.from('dokumen_desa').select('id, docid, tahun, nama_dokumen, kategori, template_id, created_at, updated_at').eq('tahun', parseInt(tahun || '2027')).order('created_at', { ascending: true });
         if (!error && Array.isArray(data)) return data;
         return [];
     } catch (error) {
         return [];
     }
 }
+
+app.get('/rab.html', (req, res) => {
+    const filePath = path.join(FRONTEND_PATH, 'rab.html');
+    console.log('GET /rab.html file', filePath, fs.existsSync(filePath));
+    res.sendFile(filePath, err => {
+        if (err) {
+            console.error('SENDFILE /rab.html ERROR', err);
+            res.status(err.status || 500).send(err.message);
+        }
+    });
+});
+
+app.get('/rab', (req, res) => {
+    const filePath = path.join(FRONTEND_PATH, 'rab.html');
+    console.log('GET /rab file', filePath, fs.existsSync(filePath));
+    res.sendFile(filePath, err => {
+        if (err) {
+            console.error('SENDFILE /rab ERROR', err);
+            res.status(err.status || 500).send(err.message);
+        }
+    });
+});
+
+app.get('/rab.js', (req, res) => {
+    const filePath = path.join(FRONTEND_PATH, 'rab.js');
+    console.log('GET /rab.js file', filePath, fs.existsSync(filePath));
+    res.sendFile(filePath, err => {
+        if (err) {
+            console.error('SENDFILE /rab.js ERROR', err);
+            res.status(err.status || 500).send(err.message);
+        }
+    });
+});
 
 const RAB_TABLE = 'rab';
 
@@ -163,10 +291,15 @@ function sortHierarchical(dataArray) {
     });
 }
 
+// Kolom lengkap satu baris RAB (dipakai endpoint detail /api/rab?kode_unik_full=...)
+// dan pemetaan baris gabungan. Kolom JSON items/rpjm_data hanya untuk detail
+// atau endpoint yang benar-benar merender rincian anggaran.
+const RAB_FULL_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, saved_at, created_at, updated_at';
+
 async function getRabFromDb(kode_unik_full, tahun) {
     const { data, error } = await supabase
         .from(RAB_TABLE)
-        .select('*')
+        .select(RAB_FULL_COLUMNS)
         .eq('kode_unik_full', kode_unik_full)
         .eq('tahun', tahun)
         .maybeSingle();
@@ -194,7 +327,7 @@ async function getMergedRkpRows(tahunInt, extraRabFields) {
 
     const { data: rabData, error: rabError } = await supabase
         .from(RAB_TABLE)
-        .select('*')
+        .select(RAB_SYNC_COLUMNS)
         .eq('tahun', tahunInt);
 
     if (rabError) {
@@ -328,7 +461,7 @@ async function saveRabToDb(record) {
                 .from('rab')
                 .update(dbPayload)
                 .eq('id', existingRows[0].id)
-                .select();
+                .select('id');
             if (updErr) {
                 console.error("Supabase Error Details (update):", updErr);
                 throw updErr;
@@ -344,7 +477,7 @@ async function saveRabToDb(record) {
             const { data: ins, error: insErr } = await supabase
                 .from('rab')
                 .insert([{ id: nextId, ...dbPayload }])
-                .select();
+                .select('id');
             if (insErr) {
                 console.error("Supabase Error Details (insert):", insErr);
                 throw insErr;
@@ -374,7 +507,8 @@ async function saveRabToDb(record) {
                         uraian_rab: JSON.stringify(itemsArray),
                         updated_at: new Date().toISOString()
                     })
-                    .eq('id', rpjmRows[0].id);
+                    .eq('id', rpjmRows[0].id)
+                    .select('id');
             }
         } catch (eRpjm) {
             console.warn('⚠️ Sync to rpjmdes_standar skipped:', eRpjm.message);
@@ -387,10 +521,14 @@ async function saveRabToDb(record) {
     }
 }
 
+// Daftar RAB untuk tabel ringkasan: kolom skalar tanpa items JSON array besar.
+// Kolom items & rpjm_data hanya ditarik saat modal/detail dibuka via /api/rab?kode_unik_full=...
+const RAB_LIST_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, saved_at';
+
 async function listRabsFromDb() {
     const { data, error } = await supabase
         .from(RAB_TABLE)
-        .select('*')
+        .select(RAB_LIST_COLUMNS)
         .order('kode_unik_full', { ascending: true });
 
     if (error) throw error;
@@ -453,7 +591,7 @@ async function saveUnitToDb(name) {
     const { data, error } = await supabase
         .from(UNITS_TABLE)
         .upsert([record], { onConflict: ['name'] })
-        .select()
+        .select('name')
         .single();
 
     if (error) throw error;
@@ -481,46 +619,48 @@ async function deleteUnitFromDb(name) {
 // ke Supabase (kolom fields & table_headers) setiap kali ada perubahan.
 const templateConfigCache = {};
 
+// In-memory cache untuk metadata 28 dokumen_templates dengan TTL (Default: 5 menit)
+const templatesCache = {
+    data: null,
+    timestamp: 0,
+    ttl: 5 * 60 * 1000 // 5 menit TTL
+};
+
+function invalidateTemplatesCache() {
+    templatesCache.data = null;
+    templatesCache.timestamp = 0;
+}
+
 async function seedTemplateConfigCache() {
     try {
-        const { data, error } = await supabase
-            .from('dokumen_templates')
-            .select('code, fields, table_headers');
-        if (error) throw error;
-        for (const row of data || []) {
-            if (row && row.code && (row.fields || row.table_headers)) {
+        const templates = await loadTemplatesFromDb(true);
+        for (const row of templates || []) {
+            if (row && row.code && (row.fields || row.tableHeaders)) {
                 templateConfigCache[row.code] = {
                     fields: row.fields || [],
-                    tableHeaders: row.table_headers || []
+                    tableHeaders: row.tableHeaders || []
                 };
             }
         }
-        console.log(`🧠 TemplateConfig cache ter-seed: ${Object.keys(templateConfigCache).length} template`);
+        console.log(`🧠 TemplateConfig & templates cache ter-seed: ${Object.keys(templateConfigCache).length} template`);
     } catch (e) {
         console.warn('⚠️ TemplateConfig seed gagal:', e.message);
     }
 }
-const DEFAULT_DOC_TABLE_HEADERS = {
-    'DOC-02B': ['No', 'Nama', 'Tempat, Tanggal Lahir', 'Jabatan', 'Unsur'],
-    'DOC-20': ['No', 'Nama Peserta', 'Alamat / Dusun', 'Jabatan / Unsur', 'Tanda Tangan'],
-    'DOC-27': ['No', 'Jenis Kegiatan', 'Lokasi Kegiatan', 'Volume / Satuan', 'Pagu Indikatif (Rp)', 'Sumber Dana'],
-    'DOC-34': ['No', 'Nama Tim Verifikasi', 'Jabatan / Instansi', 'Keterangan']
-};
 
 // Helper to get the specific template config (dari cache; fallback ke default).
 function getTemplateSettings(docCode) {
-    const codeUpper = String(docCode || '').toUpperCase();
-    if (!templateConfigCache[codeUpper]) {
-        templateConfigCache[codeUpper] = {
+    if (!templateConfigCache[docCode]) {
+        templateConfigCache[docCode] = {
             fields: [
                 { key: 'sk_tim', label: 'Nomor SK Tim', type: 'text' },
                 { key: 'tahun', label: 'Tahun Anggaran', type: 'text' },
                 { key: 'tgl_musdes_tim_hari', label: 'Hari & Tanggal Musdes', type: 'text' }
             ],
-            tableHeaders: DEFAULT_DOC_TABLE_HEADERS[codeUpper] || []
+            tableHeaders: ['No', 'Nama', 'Tempat, Tanggal Lahir', 'Jabatan', 'Unsur']
         };
     }
-    return templateConfigCache[codeUpper];
+    return templateConfigCache[docCode];
 }
 
 // Simpan config ke cache + Supabase (kolom fields & table_headers).
@@ -528,6 +668,7 @@ function getTemplateSettings(docCode) {
 // UI pada sesi ini) tapi dictandai persisted:false agar frontend bisa memberi tahu.
 async function saveTemplateSettings(docCode, settings) {
     templateConfigCache[docCode] = settings;
+    invalidateTemplatesCache();
     try {
         const { error } = await supabase
             .from('dokumen_templates')
@@ -536,7 +677,8 @@ async function saveTemplateSettings(docCode, settings) {
                 fields: settings.fields || [],
                 table_headers: settings.tableHeaders || [],
                 updated_at: new Date().toISOString()
-            }, { onConflict: 'code' });
+            }, { onConflict: 'code' })
+            .select('id');
         if (error) {
             const missingColumns = error.code === 'PGRST204' || /Could not find the 'fields' column/.test(error.message) || /Could not find the 'table_headers' column/.test(error.message);
             if (missingColumns) {
@@ -551,29 +693,110 @@ async function saveTemplateSettings(docCode, settings) {
     }
 }
 
+// GET /api/dokumen-form-data/:code/:tahun (memuat data form & tabel tersimpan dari Supabase)
+app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
+  try {
+    const { code, tahun } = req.params;
+    const tahunInt = parseInt(tahun, 10);
+    if (!tahunInt) {
+        return res.status(400).json({ success: false, error: 'Tahun tidak valid.' });
+    }
+
+    const { data, error } = await supabase
+      .from('dokumen_form_data')
+      .select('doc_code, google_docs_id, fields, tables, last_generated_doc_id, last_generated_pdf_url, updated_at')
+      .eq('doc_code', code)
+      .eq('tahun', tahunInt)
+      .maybeSingle();
+      
+    if (error) throw error;
+
+    if (!data) {
+      return res.json({ success: true, fields: {}, tables: {}, last_doc_id: null });
+    }
+    res.json({
+      success: true,
+      doc_code: data.doc_code,
+      google_docs_id: data.google_docs_id,
+      fields: data.fields || {},
+      tables: data.tables || {},
+      last_doc_id: data.last_generated_doc_id || null,
+      preview_url: data.last_generated_pdf_url || null,
+      updated_at: data.updated_at
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sync-document (menyimpan data form & tabel ke Supabase)
+app.post('/api/sync-document', async (req, res) => {
+    try {
+        const { doc_code, tahun, fields, tables, google_docs_id } = req.body;
+        const tahunInt = parseInt(tahun, 10);
+
+        if (!doc_code || !tahunInt) {
+            return res.status(400).json({ success: false, error: 'doc_code dan tahun wajib diisi.' });
+        }
+        
+        const upsertPayload = {
+            doc_code: doc_code,
+            tahun: tahunInt,
+            fields: fields || {},
+            tables: tables || {},
+            updated_at: new Date().toISOString(),
+        };
+        if (google_docs_id) {
+            upsertPayload.google_docs_id = google_docs_id;
+        }
+
+        const { data, error } = await supabase
+            .from('dokumen_form_data')
+            .upsert(upsertPayload, { onConflict: 'doc_code,tahun' })
+            .select('id')
+            .single();
+
+        if (error) {
+            if (error.code === '23505' || error.message.includes('unique constraint') || error.message.includes('violates unique constraint')) {
+                 console.error('Kesalahan unique constraint. Pastikan Anda sudah menjalankan SQL untuk memperbaiki index (doc_code, tahun).', error);
+                 return res.status(500).json({ 
+                    success: false, 
+                    error: 'Gagal menyimpan karena kesalahan database. Index unique `(doc_code, tahun)` mungkin belum dibuat. Silakan jalankan skrip SQL perbaikan.',
+                    details: error.message
+                });
+            }
+             if (error.message.includes('no unique or exclusion constraint matching the ON CONFLICT')) {
+                console.error('Kesalahan ON CONFLICT. Constraint (doc_code, tahun) tidak ditemukan.', error);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Gagal menyimpan karena konfigurasi database salah. Constraint untuk `(doc_code, tahun)` tidak ditemukan. Silakan jalankan skrip SQL perbaikan.',
+                    details: error.message
+                });
+            }
+            throw error;
+        }
+
+        // Frontend mengharapkan new_document_id, kita kembalikan null agar tidak memicu fallback ke GAS
+        res.json({ 
+            success: true, 
+            message: 'Data form dan tabel berhasil disimpan ke database.',
+            data: data,
+            new_document_id: google_docs_id || 'SAVED_SUPABASE_DOC',
+            synced_fields_count: Object.keys(fields || {}).length
+        });
+
+    } catch (error) {
+        console.error('Server-side /api/sync-document error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 // GET /api/templates/:code/fields
 // Also serves as the main endpoint to get all settings for the modal
-app.get('/api/templates/:code/fields', async (req, res) => {
+app.get('/api/templates/:code/fields', (req, res) => {
     try {
         const { code } = req.params;
-        const codeUpper = String(code).toUpperCase();
-
-        const { data } = await supabase
-            .from('dokumen_templates')
-            .select('fields, table_headers')
-            .eq('code', codeUpper)
-            .maybeSingle();
-
-        if (data && (Array.isArray(data.fields) && data.fields.length > 0 || Array.isArray(data.table_headers) && data.table_headers.length > 0)) {
-            return res.json({
-                success: true,
-                fields: data.fields || [],
-                tableHeaders: data.table_headers || []
-            });
-        }
-
-        const settings = getTemplateSettings(codeUpper);
+        const settings = getTemplateSettings(code);
         res.json({
             success: true,
             fields: settings.fields || [],
@@ -589,19 +812,18 @@ app.post('/api/templates/:code/fields', async (req, res) => {
     try {
         const { code } = req.params;
         const { key, label, type } = req.body;
-        const codeUpper = String(code).toUpperCase();
         if (!key || !label) {
             return res.status(400).json({ success: false, message: 'Key and label are required.' });
         }
 
-        const settings = getTemplateSettings(codeUpper);
+        const settings = getTemplateSettings(code);
         if (settings.fields.some(f => f.key === key)) {
             return res.status(400).json({ success: false, message: `Field with key "${key}" already exists.` });
         }
 
         const newField = { key, label, type: type || 'text' };
         settings.fields.push(newField);
-        const saved = await saveTemplateSettings(codeUpper, settings);
+        const saved = await saveTemplateSettings(code, settings);
         if (!saved.success) {
             return res.status(500).json({ success: false, message: `GAGAL simpan ke Supabase: ${saved.error}` });
         }
@@ -616,13 +838,14 @@ app.post('/api/templates/:code/fields', async (req, res) => {
 app.put('/api/templates/:code/fields', async (req, res) => {
     try {
         const { code } = req.params;
+        // According to the new UI, we only edit one label at a time.
+        // A bulk update can be complex. Let's handle a single field update.
         const { key, label } = req.body;
-        const codeUpper = String(code).toUpperCase();
         if (!key || !label) {
             return res.status(400).json({ success: false, message: 'Key and label are required for update.' });
         }
 
-        const settings = getTemplateSettings(codeUpper);
+        const settings = getTemplateSettings(code);
         const field = settings.fields.find(f => f.key === key);
 
         if (!field) {
@@ -630,7 +853,7 @@ app.put('/api/templates/:code/fields', async (req, res) => {
         }
 
         field.label = label;
-        const saved = await saveTemplateSettings(codeUpper, settings);
+        const saved = await saveTemplateSettings(code, settings);
         if (!saved.success) {
             return res.status(500).json({ success: false, message: `GAGAL simpan ke Supabase: ${saved.error}` });
         }
@@ -642,31 +865,55 @@ app.put('/api/templates/:code/fields', async (req, res) => {
 });
 
 
-// PUT /api/templates/:code/all (Save all changes at once to Supabase)
+// PUT /api/templates/:code/all (Save all changes at once)
 app.put('/api/templates/:code/all', async (req, res) => {
     try {
         const { code } = req.params;
         const { fields, tableHeaders } = req.body;
-        const codeUpper = String(code).toUpperCase();
 
         if (!Array.isArray(fields) || !Array.isArray(tableHeaders)) {
             return res.status(400).json({ success: false, message: '`fields` and `tableHeaders` must be arrays.' });
         }
 
-        const settings = getTemplateSettings(codeUpper);
+        const settings = getTemplateSettings(code);
         settings.fields = fields;
         settings.tableHeaders = tableHeaders;
-
-        const saved = await saveTemplateSettings(codeUpper, settings);
+        const saved = await saveTemplateSettings(code, settings);
         if (!saved.success) {
             return res.status(500).json({ success: false, message: `GAGAL simpan ke Supabase: ${saved.error}` });
         }
+        const notPersisted = saved.persisted === false;
 
-        res.json({
-            success: true,
-            persisted: true,
-            message: `Konfigurasi template ${codeUpper} (fields & tableHeaders) berhasil disimpan permanen ke Supabase.`
-        });
+        // --- Google Apps Script Integration ---
+        const RKP_TEMPLATES = readDokumenStorage();
+        const tpl = RKP_TEMPLATES.find(t => t.code === code);
+        const documentId = tpl ? tpl.documentId : null;
+
+        if (documentId && process.env.GAS_WEB_APP_URL) {
+            // We can make one call to GAS to update everything
+            const response = await fetch(process.env.GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateTemplate',
+                    templateId: documentId,
+                    headers: tableHeaders,
+                    fields: fields // Pass fields for potential future use (e.g., adding/removing placeholders)
+                })
+            });
+            const result = await response.json();
+            if (!result.success) {
+                // Still return success to client, but log the GAS error
+                console.error('GAS Error:', result.error);
+                return res.json({ success: true, message: 'Settings saved locally, but failed to sync to Google Docs.' });
+            }
+        } else {
+            console.warn('GAS_WEB_APP_URL not set or documentId not found. Skipping Google Docs sync.');
+        }
+
+        res.json({ success: true, persisted: !notPersisted, message: notPersisted
+            ? 'Perubahan tersimpan sementara (kolom fields/table_headers belum dibuat di Supabase). Jalankan supabase_add_template_config_columns.sql agar permanen.'
+            : 'Changes saved and synced to Google Docs successfully.' });
 
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -674,31 +921,11 @@ app.put('/api/templates/:code/all', async (req, res) => {
 });
 
 
-// GET /api/templates/:code/all (load fields & tableHeaders langsung dari Supabase)
-app.get('/api/templates/:code/all', async (req, res) => {
+// GET /api/templates/:code/all (load fields & tableHeaders untuk modal pengaturan)
+app.get('/api/templates/:code/all', (req, res) => {
     try {
         const { code } = req.params;
-        const codeUpper = String(code).toUpperCase();
-
-        const { data } = await supabase
-            .from('dokumen_templates')
-            .select('fields, table_headers')
-            .eq('code', codeUpper)
-            .maybeSingle();
-
-        if (data && (Array.isArray(data.fields) && data.fields.length > 0 || Array.isArray(data.table_headers) && data.table_headers.length > 0)) {
-            templateConfigCache[codeUpper] = {
-                fields: data.fields || [],
-                tableHeaders: data.table_headers || []
-            };
-            return res.json({
-                success: true,
-                fields: data.fields || [],
-                tableHeaders: data.table_headers || []
-            });
-        }
-
-        const settings = getTemplateSettings(codeUpper);
+        const settings = getTemplateSettings(code);
         res.json({
             success: true,
             fields: settings.fields || [],
@@ -774,6 +1001,37 @@ app.put('/api/templates/:code/table-header', async (req, res) => {
 // ========== TEST ENDPOINTS ===================================
 // ============================================================
 
+app.get('/', (req, res) => {
+    const filePath = path.join(FRONTEND_PATH, 'index.html');
+    console.log('GET / file', filePath, fs.existsSync(filePath));
+    res.sendFile(filePath, err => {
+        if (err) {
+            console.error('SENDFILE / ERROR', err);
+            res.status(err.status || 500).send(err.message);
+        }
+    });
+});
+
+app.get('/index.html', (req, res) => {
+    const filePath = path.join(FRONTEND_PATH, 'index.html');
+    console.log('GET /index.html file', filePath, fs.existsSync(filePath));
+    res.sendFile(filePath, err => {
+        if (err) {
+            console.error('SENDFILE /index.html ERROR', err);
+            res.status(err.status || 500).send(err.message);
+        }
+    });
+});
+
+app.get('/dokumen-desa', (req, res) => {
+    const filePath = path.join(FRONTEND_PATH, 'dokumen-desa.html');
+    res.sendFile(filePath, err => {
+        if (err) {
+            res.status(err.status || 500).send(err.message);
+        }
+    });
+});
+
 app.get('/api/test-db', async (req, res) => {
     try {
         const { data, error, count } = await supabase
@@ -798,18 +1056,53 @@ app.get('/api/test-db', async (req, res) => {
 });
 
 // ============================================================
+// ========== IN-MEMORY CACHE: DATA REFERENSI STATIS ==========
+// Data referensi kecil & jarang berubah di-cache agar tidak
+// di-fetch ulang pada setiap request (penghematan egress).
+// Pola sama dengan templateConfigCache.
+// ============================================================
+// Cache referensi statis dengan TTL (egress hemat: 1 fetch per TTL, bukan per request)
+const REF_CACHE_TTL_MS = 60 * 60 * 1000; // 1 jam
+const refCache = {
+    sdgs: { data: null, ts: 0 },             // dropdown_sdgs
+    sumberDana: { data: null, ts: 0 },       // anggaran (sumber dana)
+    masterKlasifikasi: { data: null, ts: 0 } // master_klasifikasi
+};
+
+function refCacheGet(key) {
+    const c = refCache[key];
+    if (c && c.data && (Date.now() - c.ts) < REF_CACHE_TTL_MS) return c.data;
+    return null;
+}
+function refCacheSet(key, data) {
+    refCache[key] = { data, ts: Date.now() };
+}
+function refCacheInvalidate(key) {
+    if (key && refCache[key]) {
+        delete refCache[key];
+    }
+}
+
+// ============================================================
 // ========== DROPDOWN ENDPOINTS ===============================
 // ============================================================
 
 app.get('/api/master-klasifikasi', async (req, res) => {
     try {
+        // Cache in-memory + TTL: master klasifikasi statis, cukup di-fetch sekali per TTL
+        const cachedKlas = refCacheGet('masterKlasifikasi');
+        if (cachedKlas) {
+            return res.json({ success: true, data: cachedKlas, cached: true });
+        }
+
         let resultData = [];
 
-        // 1. Query master_klasifikasi
+        // 1. Query master_klasifikasi (kolom nyata: id, bidang, sub_bidang, jenis_kegiatan, kode_klasifikasi)
         try {
             const { data, error } = await supabase
                 .from('master_klasifikasi')
-                .select('*');
+                .select('id, bidang, sub_bidang, jenis_kegiatan, kode_klasifikasi')
+                .limit(2000);
 
             if (!error && Array.isArray(data) && data.length > 0) {
                 resultData = data;
@@ -833,6 +1126,10 @@ app.get('/api/master-klasifikasi', async (req, res) => {
             sortHierarchical(resultData);
         }
 
+        if (resultData.length > 0) {
+            refCacheSet('masterKlasifikasi', resultData);
+        }
+
         res.json({ success: true, data: resultData || [] });
     } catch (err) {
         console.error('❌ Error /api/master-klasifikasi:', err.message);
@@ -853,13 +1150,21 @@ app.get('/api/bidang-list', (req, res) => {
 
 app.get('/api/sdgs', async (req, res) => {
     try {
+        // Cache in-memory + TTL: daftar SDGs statis
+        const cachedSdgs = refCacheGet('sdgs');
+        if (cachedSdgs) {
+            return res.json({ success: true, data: cachedSdgs, cached: true });
+        }
+
         const { data, error } = await supabase
             .from('dropdown_sdgs')
-            .select('*')
-            .order('no', { ascending: true });
+            .select('id, no, sdgs')
+            .order('no', { ascending: true })
+            .limit(100);
 
         if (error) throw error;
-        res.json({ success: true, data });
+        refCacheSet('sdgs', data || []);
+        res.json({ success: true, data: data || [] });
     } catch (error) {
         console.log('❌ Error /api/sdgs:', error.message);
         res.status(500).json({ success: false, error: error.message });
@@ -868,13 +1173,23 @@ app.get('/api/sdgs', async (req, res) => {
 
 app.get('/api/sumber-dana', async (req, res) => {
     try {
+        // Cache in-memory + TTL: daftar sumber dana statis
+        const cachedSumber = refCacheGet('sumberDana');
+        if (cachedSumber) {
+            return res.json({ success: true, data: cachedSumber, cached: true });
+        }
+
         const { data, error } = await supabase
             .from('anggaran')
             .select('sumber')
-            .order('id', { ascending: true });
+            .order('id', { ascending: true })
+            .limit(50);
 
         if (error) throw error;
         const sumberList = data.map(item => item.sumber).filter(Boolean);
+        if (sumberList.length > 0) {
+            refCacheSet('sumberDana', sumberList);
+        }
         res.json({ success: true, data: sumberList });
     } catch (error) {
         console.log('❌ Error /api/sumber-dana:', error.message);
@@ -886,9 +1201,149 @@ app.get('/api/sumber-dana', async (req, res) => {
 // SUMBER DATA RAB: tarik langsung dari rpjmdes_standar
 // rpjmdes_standar TIDAK punya kolom 'tahun'. Tahun ditentukan lewat
 // kolom target_2023..target_2030 (berisi tahun "2027"/"2028" atau
-// "Ya" = ditarik; "-"/kosong = tidak). Kirim SEMUA kolom agar
-// frontend RAB dapat menyimpan data lengkap tanpa parsial.
+// "Ya" = ditarik; "-"/kosong = tidak).
+// ZERO-WILDCARD: daftar kolom eksplisit sesuai yang dipakai frontend.
 // ============================================================
+
+// Daftar kolom tabel rancangan_rkpdes yang dibutuhkan endpoint daftar/tarik
+// (semua konsumen server.js: duMapFromRancangan, tarik-prioritas, tarik-rancangan,
+//  rab-activities, sdgs-rancangan, prioritas-rkpdes sync, dll). Kolom ini SEMUA
+// dipakai minimal satu konsumen; tidak ada kolom "jaga-jaga".
+const RANCANGAN_LIST_COLUMNS = [
+    'id', 'tahun',
+    'bidang', 'kode_bidang', 'kode_sub', 'kode_kegiatan',
+    'kode_unik', 'kode_unik_full',
+    'jenis_bidang', 'jenis_kegiatan', 'nama_kegiatan', 'sub_kegiatan',
+    'mendukung_sdgs', 'sdgs',
+    'data_eksisting', 'data_existing',
+    'lokasi', 'lokasi_kegiatan',
+    'volume_satuan', 'volume_kegiatan',
+    'penerima_laki', 'penerima_perempuan', 'penerima_rtm',
+    'manfaat_l', 'manfaat_p', 'manfaat_rtm', 'total_manfaat',
+    'prakiraan_biaya', 'pagu_rpjm',
+    'sumber_pembiayaan', 'sumber_dana',
+    'waktu_pelaksanaan', 'id_rpjm_ref',
+    'nama_pengusul', 'no_urut', 'urutan_prioritas',
+    'skor_kewenangan', 'skor_sdgs', 'skor_kabupaten', 'skor_sumber_daya', 'total_skor', 'ranking',
+    'updated_at'
+].join(', ');
+
+const RPJMDES_LIST_COLUMNS = [
+    'id',
+    'kode_bidang', 'kode_sub', 'kode_kegiatan',
+    'kode_unik_full', 'kode_unik', 'kode_unik_h', 'no_urut',
+    'bidang', 'jenis_bidang', 'jenis_kegiatan', 'nama_kegiatan',
+    'sifat_kegiatan', 'lokasi_kegiatan', 'usulan_berdasarkan', 'nama_pengusul',
+    'data_existing', 'sdgs',
+    'uraian_rab', 'volume_rab', 'satuan_rab', 'harga_satuan_rab', 'total_rab',
+    'volume_kegiatan', 'pagu_rpjm', 'anggaran_perubahan', 'sumber_dana', 'pola_pelaksanaan',
+    'manfaat_l', 'manfaat_p', 'manfaat_rtm', 'total_manfaat', 'penerima_manfaat_bg',
+    'target_2023', 'target_2024', 'target_2025', 'target_2026',
+    'target_2027', 'target_2028', 'target_2029', 'target_2030',
+    'waktu_pelaksanaan',
+    'masalah', 'penyebab', 'potensi', 'alternatif_pemecahan', 'tindakan_masalah', 'tindakan_layak',
+    'dirasakan', 'parah', 'hambat', 'sering', 'potensi_skor', 'jumlah_nilai_total', 'uraian_peringkat',
+    'visi_misi', 'pokok_bpd', 'program_masyarakat', 'prioritas_sdgs_skor', 'total_kesesuaian',
+    'skala_prioritas', 'urutan_prioritas', 'ranking', 'status_sembunyi',
+    'updated_at', 'created_at'
+].join(', ');
+
+// ==== EGRESS POLICY (zero-wildcard): daftar kolom eksplisit per tabel ====
+// Hanya kolom yang benar-benar dirender/dipakai UI. Data besar (items/rpjm_data)
+// hanya ditarik pada endpoint yang memang membutuhkannya.
+const RAB_SYNC_COLUMNS = [
+    'id', 'kode_unik', 'kode_unik_full', 'tahun', 'nama_kegiatan', 'uraian',
+    'bidang', 'status', 'group_nama', 'sub_group_nama', 'lokasi', 'lokasi_kegiatan',
+    'jenis_kegiatan', 'volume', 'satuan', 'harga_satuan',
+    'jumlah_anggaran', 'sumber_dana', 'items', 'rpjm_data', 'saved_at'
+].join(', ');
+
+const PRIORITAS_COLUMNS = [
+    'id', 'tahun', 'kode_unik', 'kode_unik_full', 'kode_bidang', 'kode_sub', 'kode_kegiatan',
+    'bidang', 'bidang_kode', 'nama_bidang', 'sub_bidang',
+    'jenis_bidang', 'jenis_kegiatan', 'nama_kegiatan', 'sub_kegiatan',
+    'mendukung_sdgs', 'data_eksisting', 'lokasi', 'volume', 'volume_satuan',
+    'penerima_manfaat', 'total_manfaat', 'prakiraan_biaya', 'pagu_rpjm',
+    'sumber_pembiayaan', 'waktu_pelaksanaan',
+    'skor_kewenangan', 'skor_sdgs', 'skor_kabupaten', 'skor_sumber_daya',
+    'total_skor', 'ranking', 'updated_at'
+].join(', ');
+
+const EVALUASI_COLUMNS = [
+    'id', 'tahun', 'kode_bidang', 'bidang', 'no_urut', 'kegiatan',
+    'lokasi_kegiatan', 'nominal_anggaran', 'realisasi', 'keterangan', 'created_at'
+].join(', ');
+
+const RKPDES_COLUMNS = [
+    'id', 'tahun', 'kode_unik_full', 'bidang', 'jenis_kegiatan', 'lokasi',
+    'volume', 'satuan', 'sasaran_manfaat', 'penerima_manfaat', 'total_manfaat',
+    'prakiraan_biaya', 'sumber_pembiayaan', 'pola_pelaksanaan', 'target_capaian',
+    'waktu_pelaksanaan', 'status_rab', 'stunting', 'verifikasi_proposal',
+    'data_eksisting', 'mendukung_sdgs', 'updated_at', 'created_at'
+].join(', ');
+
+const VERIF_PROPOSAL_COLUMNS = [
+    'id', 'tahun', 'bidang', 'kegiatan', 'lokasi', 'volume', 'dinas_instansi',
+    'pendamping_profesional', 'wakil_masyarakat', 'hasil_layak', 'catatan',
+    'tanggal_pemeriksaan',
+    'item1', 'item2', 'item3', 'item4', 'item5', 'item6', 'item7', 'item8',
+    'item9', 'item10', 'item11', 'item12', 'item13', 'item14',
+    'created_at', 'updated_at'
+].join(', ');
+
+const USULAN_COLUMNS = [
+    'id', 'tahun', 'kode_unik', 'kode_unik_full', 'bidang',
+    'nama_kegiatan', 'kegiatan', 'sasaran', 'lokasi', 'volume', 'biaya',
+    'laki_laki', 'perempuan', 'rtm', 'prioritas', 'sdgs', 'sumber_dana',
+    'data_eksisting', 'pengusul', 'created_at', 'updated_at'
+].join(', ');
+
+const USULAN_SDGS_COLUMNS = 'id, tahun, sdgs_ke, uraian_kegiatan, pengusul, lokasi_kegiatan, prakiraan_volume, penerima_l, penerima_p, penerima_rtm, created_at';
+
+// Lookup ramping rpjmdes_standar (stdMap / enrich / loadRpjmLookup) —
+// hanya kolom yang dibaca konsumen map; tidak termasuk kolom narasi besar.
+const RPJM_LOOKUP_COLUMNS = [
+    'id', 'kode_unik', 'kode_unik_full', 'kode_bidang', 'kode_sub', 'kode_kegiatan',
+    'bidang', 'jenis_bidang', 'jenis_kegiatan', 'nama_kegiatan',
+    'data_existing', 'sdgs', 'volume_kegiatan', 'pagu_rpjm', 'sumber_dana',
+    'manfaat_l', 'manfaat_p', 'manfaat_rtm', 'total_manfaat',
+    'lokasi_kegiatan', 'waktu_pelaksanaan', 'updated_at'
+].join(', ');
+
+// Dropdown verifikasi-proposal/rab-list (kolom yang dirender modal tarik)
+const VERIF_RAB_DROPDOWN_COLUMNS = [
+    'id', 'kode_unik_full', 'nama_kegiatan', 'uraian', 'jenis_kegiatan',
+    'bidang', 'lokasi', 'lokasi_kegiatan', 'volume', 'satuan'
+].join(', ');
+
+// Autentikasi users (password hash wajib utk bcrypt.compare; tanpa kolom lain)
+const USERS_AUTH_COLUMNS = 'id, username, name, role, password, is_active';
+
+const LAPORAN_PERKEMBANGAN_COLUMNS = [
+    'id', 'tahun', 'bulan', 'bidang', 'sub_bidang', 'nama_kegiatan', 'lokasi',
+    'volume_satuan', 'biaya', 'penerima_jumlah', 'penerima_lk', 'penerima_pr',
+    'penerima_rtm', 'rencana_hari', 'tgl_mulai', 'progres_fisik', 'progres_biaya',
+    'keterangan', 'created_at', 'updated_at'
+].join(', ');
+
+const LAPORAN_MANUAL_COLUMNS = 'id, tahun, tipe, uraian, keterangan, created_at, updated_at';
+
+const TIM_PENYUSUN_COLUMNS = 'id, tahun, nama, jabatan_tim, created_at';
+
+const PEMBIAYAAN_COLUMNS = [
+    'id', 'tahun', 'silpa_tahun_sebelumnya', 'hasil_penjualan_kekayaan',
+    'pencairan_dana_cadangan', 'pembentukan_dana_cadangan', 'penyertaan_modal_desa',
+    'created_at', 'updated_at'
+].join(', ');
+
+const PAGU_ANGGARAN_COLUMNS = 'id, tahun, pagu, sumber_dana, keterangan, updated_at';
+
+const ANGGARAN_COLUMNS = 'id, kode_unik, sumber, created_at';
+
+const TEMPLATES_COLUMNS = 'id, code, name, stage, documentid, is_real, fields, table_headers, updated_at';
+
+const RKTL_COLUMNS = 'id, tahun, rktl_items, ketua_tim, tim_penyusun, fasilitator, tanggal_ttd, updated_at';
+
 app.get('/api/rpjmdes-standar', async (req, res) => {
     try {
         const { tahun } = req.query;
@@ -897,13 +1352,7 @@ app.get('/api/rpjmdes-standar', async (req, res) => {
 
         const { data, error } = await supabase
             .from('rpjmdes_standar')
-            .select('*');
-
-        if (error) throw error;
-
-        if (!data || data.length === 0) {
-            return res.json({ success: true, data: [], message: 'Data RPJMDes standar tidak ditemukan.' });
-        }
+            .select(RPJMDES_LIST_COLUMNS);
 
         // Hanya kegiatan dengan nilai "Ya" atau teks tahun tsb di kolom
         // target_<TAHUN> yang dianggap ditarik (nilai Tidak/'-'/kosong = tidak).
@@ -1042,7 +1491,7 @@ app.get('/api/du-rkpdes', async (req, res) => {
 
         const { data, error } = await supabase
             .from('du_rkpdes')
-            .select('*')
+            .select('id, tahun, kode_unik_full, kode_unik, bidang, jenis_bidang, jenis_kegiatan, nama_kegiatan, sub_kegiatan, volume_satuan, mendukung_sdgs, data_eksisting, lokasi, volume, penerima_manfaat, waktu_pelaksanaan, prakiraan_biaya, pagu_rpjm, sumber_pembiayaan, total_manfaat, penerima_laki, penerima_perempuan, penerima_rtm, skor_kewenangan, skor_sdgs, skor_kabupaten, skor_sumber_daya, total_skor, urutan_prioritas, updated_at, created_at')
             .eq('tahun', tahunInt)
             .order('bidang', { ascending: true })
             .order('kode_unik_full', { ascending: true });
@@ -1121,7 +1570,8 @@ app.post('/api/du-rkpdes', async (req, res) => {
         if (payload.length > 0) {
             const { error: insErr } = await supabase
                 .from('du_rkpdes')
-                .insert(payload);
+                .insert(payload)
+                .select('id');
             if (insErr) throw insErr;
         }
 
@@ -1145,7 +1595,7 @@ app.get('/api/du-rkpdes/tarik-rancangan', async (req, res) => {
 
         const { data, error } = await supabase
             .from('rancangan_rkpdes')
-            .select('*')
+            .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunInt)
             .order('kode_unik_full', { ascending: true });
         if (error) throw error;
@@ -1186,7 +1636,7 @@ app.post('/api/du-rkpdes/sync', async (req, res) => {
 
         const { data: rncData, error: rncErr } = await supabase
             .from('rancangan_rkpdes')
-            .select('*')
+            .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunTgt)
             .order('kode_unik_full', { ascending: true });
         if (rncErr) throw rncErr;
@@ -1213,7 +1663,7 @@ app.post('/api/du-rkpdes/sync', async (req, res) => {
         let count = 0;
         if (uniqueRancangan.length > 0) {
             const payload = uniqueRancangan.map(row => duMapFromRancangan(row, tahunTgt));
-            const { error: insErr } = await supabase.from('du_rkpdes').insert(payload);
+            const { error: insErr } = await supabase.from('du_rkpdes').insert(payload).select('id');
             if (insErr) throw insErr;
             count = payload.length;
         }
@@ -1295,7 +1745,7 @@ app.get('/api/prioritas-usulan', async (req, res) => {
 
         const { data, error } = await supabase
             .from('prioritas_usulan')
-            .select('*')
+            .select('id, tahun, kode_unik_full, kode_unik, no_urut, nama_kegiatan, jenis_bidang, jenis_kegiatan, urutan_prioritas, skala_prioritas, bidang, data_existing, lokasi_kegiatan, volume_kegiatan, waktu_pelaksanaan, sdgs, manfaat_l, manfaat_p, manfaat_rtm, total_manfaat, sumber_dana, pagu_rpjm, updated_at, created_at')
             .eq('tahun', tahunInt)
             .order('bidang', { ascending: true })
             .order('kode_unik_full', { ascending: true });
@@ -1350,7 +1800,7 @@ app.post('/api/prioritas-usulan/sync', async (req, res) => {
 
         let inserted = 0;
         if (payload.length > 0) {
-            const { error: insErr } = await supabase.from('prioritas_usulan').insert(payload);
+            const { error: insErr } = await supabase.from('prioritas_usulan').insert(payload).select('id');
             if (insErr) throw insErr;
             inserted = payload.length;
         }
@@ -1377,8 +1827,8 @@ app.get('/api/prioritas-usulan/tarik-rpjm', async (req, res) => {
         }
         console.log(`📡 GET /api/prioritas-usulan/tarik-rpjm?tahun=${tahunInt}`);
 
-        const data = await getCachedRpjmdesStandar();
-        const error = null;
+        const { data, error } = await supabase.from('rpjmdes_standar').select(RPJMDES_LIST_COLUMNS).limit(5000);
+        if (error) throw error;
 
         const filtered = (data || []).filter(item => isRpjmTargetDitarik(item, tahunInt));
         const payload = filtered.map(row => buildPrioritasInsertItem(row, tahunInt));
@@ -1409,7 +1859,7 @@ app.put('/api/prioritas-usulan', async (req, res) => {
         patch.updated_at = new Date().toISOString();
         delete patch.tahun;
 
-        const { error } = await supabase.from('prioritas_usulan').update(patch).eq('id', id);
+        const { error } = await supabase.from('prioritas_usulan').update(patch).eq('id', id).select('id');
         if (error) throw error;
 
         res.json({ success: true, message: 'baris prioritas usulan berhasil diupdate.' });
@@ -1513,7 +1963,7 @@ app.get('/api/rancangan-rkpdes', async (req, res) => {
 
         const { data, error } = await supabase
             .from('rancangan_rkpdes')
-            .select('*')
+            .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunInt)
             .order('kode_unik_full', { ascending: true });
         if (error) throw error;
@@ -1541,8 +1991,9 @@ app.get('/api/rancangan-rkpdes/tarik-rpjm', async (req, res) => {
 
         const { data, error } = await supabase
             .from('rpjmdes_standar')
-            .select('*')
-            .order('kode_unik_full', { ascending: true });
+            .select(RPJMDES_LIST_COLUMNS)
+            .order('kode_unik_full', { ascending: true })
+            .limit(5000);
         if (error) throw error;
 
         const filtered = (data || []).filter(item => isRpjmTargetDitarik(item, tahunInt));
@@ -1616,7 +2067,7 @@ app.get('/api/rancangan-rkpdes/tarik-prioritas', async (req, res) => {
 
         const { data, error } = await supabase
             .from('prioritas_usulan')
-            .select('*')
+            .select('id, tahun, kode_unik_full, kode_unik, no_urut, nama_kegiatan, jenis_bidang, jenis_kegiatan, urutan_prioritas, skala_prioritas, bidang, data_existing, lokasi_kegiatan, volume_kegiatan, waktu_pelaksanaan, sdgs, manfaat_l, manfaat_p, manfaat_rtm, total_manfaat, sumber_dana, pagu_rpjm, visi_misi, pokok_bpd, program_masyarakat, prioritas_sdgs_skor, total_kesesuaian, ranking, updated_at, created_at')
             .eq('tahun', tahunInt)
             .order('kode_unik_full', { ascending: true });
         if (error) throw error;
@@ -1655,11 +2106,11 @@ app.get('/api/rancangan-rkpdes/tarik-prioritas', async (req, res) => {
             sumber_pembiayaan: row.sumber_dana || 'ADD',
             sumber_dana: row.sumber_dana || 'ADD',
             waktu_pelaksanaan: row.waktu_pelaksanaan || '12 Bulan',
-            skor_kewenangan: Number(row.skor_kewenangan ?? row.visi_misi ?? 0),
-            skor_sdgs: Number(row.skor_sdgs ?? row.pokok_bpd ?? 0),
-            skor_kabupaten: Number(row.skor_kabupaten ?? row.program_masyarakat ?? 0),
-            skor_sumber_daya: Number(row.skor_sumber_daya ?? row.prioritas_sdgs_skor ?? 0),
-            total_skor: Number(row.total_skor ?? 0),
+            skor_kewenangan: Number(row.visi_misi ?? 0),
+            skor_sdgs: Number(row.pokok_bpd ?? 0),
+            skor_kabupaten: Number(row.program_masyarakat ?? 0),
+            skor_sumber_daya: Number(row.prioritas_sdgs_skor ?? 0),
+            total_skor: Number(row.total_kesesuaian ?? 0),
             ranking: row.ranking || ''
         }));
 
@@ -1687,8 +2138,9 @@ app.post('/api/rancangan-rkpdes/sync', async (req, res) => {
         if (!Array.isArray(sourceRows) || sourceRows.length === 0) {
             const { data: rpjmData, error: rpjmErr } = await supabase
                 .from('rpjmdes_standar')
-                .select('*')
-                .order('kode_unik_full', { ascending: true });
+                .select(RPJMDES_LIST_COLUMNS)
+                .order('kode_unik_full', { ascending: true })
+                .limit(5000);
             if (rpjmErr) throw rpjmErr;
             sourceRows = (rpjmData || []).filter(item => isRpjmTargetDitarik(item, tahunInt));
         }
@@ -1723,7 +2175,8 @@ app.post('/api/rancangan-rkpdes/sync', async (req, res) => {
             const payload = validRows.map(r => buildRancanganInsertItem(r, tahunInt));
             const { error: insErr } = await supabase
                 .from('rancangan_rkpdes')
-                .insert(payload);
+                .insert(payload)
+                .select('id');
             if (insErr) throw insErr;
             inserted = payload.length;
         }
@@ -1758,6 +2211,14 @@ app.delete('/api/rancangan-rkpdes', async (req, res) => {
     }
 });
 
+const parseNumScore = (val, fallback = 100) => {
+    if (val !== null && val !== undefined && val !== '') {
+        const n = parseInt(val, 10);
+        if (!isNaN(n)) return Math.min(100, Math.max(0, n));
+    }
+    return fallback;
+};
+
 // GET /api/prioritas-rkpdes/tarik-rancangan?tahun=2027 -> tarik data dari tabel rancangan_rkpdes
 app.get('/api/prioritas-rkpdes/tarik-rancangan', async (req, res) => {
     try {
@@ -1767,9 +2228,19 @@ app.get('/api/prioritas-rkpdes/tarik-rancangan', async (req, res) => {
 
         const { data, error } = await supabase
             .from('rancangan_rkpdes')
-            .select('*')
+            .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunInt);
         if (error) throw error;
+
+        const { data: rpjmRows } = await supabase
+            .from('rpjmdes_standar')
+            .select('kode_unik_full, visi_misi, pokok_bpd, program_masyarakat, prioritas_sdgs_skor');
+
+        const rpjmScoreMap = new Map();
+        (rpjmRows || []).forEach(rp => {
+            const k = String(rp.kode_unik_full || '').trim();
+            if (k) rpjmScoreMap.set(k, rp);
+        });
 
         const seenKode = new Set();
         const validRows = [];
@@ -1813,7 +2284,7 @@ app.post('/api/prioritas-rkpdes/sync', async (req, res) => {
 
         const { data: rancanganRows, error: rErr } = await supabase
             .from('rancangan_rkpdes')
-            .select('*')
+            .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunInt);
         if (rErr) throw rErr;
 
@@ -1829,7 +2300,7 @@ app.post('/api/prioritas-rkpdes/sync', async (req, res) => {
 
         const { data: existingPrioritas } = await supabase
             .from('prioritas_rkpdes')
-            .select('*')
+            .select(PRIORITAS_COLUMNS)
             .eq('tahun', tahunInt);
         
         const existingScoreMap = new Map();
@@ -1918,7 +2389,8 @@ app.post('/api/prioritas-rkpdes/sync', async (req, res) => {
 
             const { error: insErr } = await supabase
                 .from('prioritas_rkpdes')
-                .insert(payload);
+                .insert(payload)
+                .select('id');
             if (insErr) throw insErr;
             inserted = payload.length;
         }
@@ -2001,12 +2473,12 @@ app.get('/api/prioritas-rkpdes', async (req, res) => {
 
         const { data: rancanganRows } = await supabase
             .from('rancangan_rkpdes')
-            .select('*')
+            .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunInt);
 
         const { data: existingPrioritas, error: fetchErr } = await supabase
             .from('prioritas_rkpdes')
-            .select('*')
+            .select(PRIORITAS_COLUMNS)
             .eq('tahun', tahunInt);
         if (fetchErr) throw fetchErr;
 
@@ -2120,19 +2592,19 @@ app.get('/api/prioritas-rkpdes', async (req, res) => {
         }
 
         if (itemsToInsert.length > 0) {
-            await supabase.from('prioritas_rkpdes').insert(itemsToInsert);
+            await supabase.from('prioritas_rkpdes').insert(itemsToInsert).select('id');
         }
 
         if (itemsToUpdate.length > 0) {
             for (const up of itemsToUpdate) {
                 const { id, ...updateData } = up;
-                await supabase.from('prioritas_rkpdes').update(updateData).eq('id', id);
+                await supabase.from('prioritas_rkpdes').update(updateData).eq('id', id).select('id');
             }
         }
 
         const { data: finalRows, error: getErr } = await supabase
             .from('prioritas_rkpdes')
-            .select('*')
+            .select(PRIORITAS_COLUMNS)
             .eq('tahun', tahunInt);
         if (getErr) throw getErr;
 
@@ -2180,7 +2652,7 @@ app.post('/api/prioritas-rkpdes/upsert', async (req, res) => {
         // Kunci uniqueness: (tahun, kode_unik_full). Ambil semua baris lama utk kolisi & mapping update.
         const { data: existing, error: exErr } = await supabase
             .from('prioritas_rkpdes')
-            .select('id, kode_unik_full, kode_unik, nama_kegiatan, jenis_bidang, jenis_kegiatan, lokasi, sub_kegiatan, volume, volume_satuan, mendukung_sdgs')
+            .select(PRIORITAS_COLUMNS)
             .eq('tahun', tahunInt);
         if (exErr) throw exErr;
 
@@ -2240,11 +2712,11 @@ app.post('/api/prioritas-rkpdes/upsert', async (req, res) => {
         }
 
         if (upsertRows.length > 0) {
-            const { error: insErr } = await supabase.from('prioritas_rkpdes').insert(upsertRows);
+            const { error: insErr } = await supabase.from('prioritas_rkpdes').insert(upsertRows).select('id');
             if (insErr) throw insErr;
         }
         for (const pair of updatePairs) {
-            const { error: updErr } = await supabase.from('prioritas_rkpdes').update(pair.data).eq('id', pair.id);
+            const { error: updErr } = await supabase.from('prioritas_rkpdes').update(pair.data).eq('id', pair.id).select('id');
             if (updErr) throw updErr;
         }
 
@@ -2345,7 +2817,7 @@ app.post('/api/du-rkpdes/tetapkan-prioritas', async (req, res) => {
                     updated_at: new Date().toISOString()
                 };
             });
-            const { error: insErr } = await supabase.from('du_rkpdes').insert(payload);
+            const { error: insErr } = await supabase.from('du_rkpdes').insert(payload).select('id');
             if (insErr) throw insErr;
             inserted = payload.length;
         }
@@ -2406,7 +2878,7 @@ app.post('/api/rab/fix-data', async (req, res) => {
                 }
             }
             patch.updated_at = new Date().toISOString();
-            const { error: updErr } = await supabase.from('rab').update(patch).eq('id', row.id);
+            const { error: updErr } = await supabase.from('rab').update(patch).eq('id', row.id).select('id');
             if (!updErr) fixedCount++;
         }
 
@@ -2428,7 +2900,7 @@ app.get('/api/rab-activities', async (req, res) => {
 
         let { data: rancanganRows, error } = await supabase
             .from('rancangan_rkpdes')
-            .select('*')
+            .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunInt);
 
         if (error) throw error;
@@ -2436,7 +2908,7 @@ app.get('/api/rab-activities', async (req, res) => {
         // Auto-pull dari rpjmdes_standar jika DB rancangan_rkpdes masih kosong untuk tahun tersebut
         if (!rancanganRows || rancanganRows.length === 0) {
             console.log(`🔄 DB rancangan_rkpdes kosong untuk tahun ${tahunInt}, menarik dari rpjmdes_standar...`);
-            const stdData = await getCachedRpjmdesStandar();
+            const { data: stdData } = await supabase.from('rpjmdes_standar').select(RPJM_LOOKUP_COLUMNS);
             if (Array.isArray(stdData) && stdData.length > 0) {
                 const targetCol = `target_${tahunInt}`;
                 const validToInsert = stdData.filter(item => {
@@ -2464,8 +2936,8 @@ app.get('/api/rab-activities', async (req, res) => {
                 });
 
                 if (validToInsert.length > 0) {
-                    await supabase.from('rancangan_rkpdes').insert(validToInsert);
-                    const { data: reFetched } = await supabase.from('rancangan_rkpdes').select('*').eq('tahun', tahunInt);
+                    await supabase.from('rancangan_rkpdes').insert(validToInsert).select('id');
+                    const { data: reFetched } = await supabase.from('rancangan_rkpdes').select(RANCANGAN_LIST_COLUMNS).eq('tahun', tahunInt);
                     if (reFetched) rancanganRows = reFetched;
                 }
             }
@@ -2513,7 +2985,7 @@ app.get('/api/rab', async (req, res) => {
             let data = [];
             const { data: supaData, error } = await supabase
                 .from('rab')
-                .select('*')
+                .select(RAB_LIST_COLUMNS)
                 .eq('tahun', tahunInt);
 
             if (!error && supaData) {
@@ -2580,7 +3052,9 @@ app.post('/api/rab', async (req, res) => {
         // sehingga tab RKPDes/Stouting tampil tanpa perlu menekan "Sync / Import RAB".
         try {
             const tahunSync = Number(tahun || record.tahun || saved.tahun) || 2027;
-            await mergeRkpFromRab(tahunSync);
+            if (typeof mergeRkpFromRab === 'function') {
+                await mergeRkpFromRab(tahunSync);
+            }
         } catch (syncErr) {
             console.warn('⚠️ Auto-sync RAB→RKPDes gagal (tetap dilanjutkan):', syncErr.message);
         }
@@ -2655,7 +3129,7 @@ app.get('/api/verifikasi-proposal', async (req, res) => {
         }
         const { data, error } = await supabase
             .from('verifikasi_proposal')
-            .select('*')
+            .select(VERIF_PROPOSAL_COLUMNS)
             .eq('tahun', tahunInt)
             .order('created_at', { ascending: false });
         if (error) throw error;
@@ -2673,7 +3147,7 @@ app.get('/api/verifikasi-proposal/rab-list', async (req, res) => {
         const tahunInt = parseInt(tahun, 10) || 2027;
         const { data, error } = await supabase
             .from('rab')
-            .select('*')
+            .select(VERIF_RAB_DROPDOWN_COLUMNS)
             .eq('tahun', tahunInt)
             .order('nama_kegiatan', { ascending: true });
         if (error) throw error;
@@ -2719,7 +3193,7 @@ app.post('/api/verifikasi-proposal', async (req, res) => {
         const { data, error } = await supabase
             .from('verifikasi_proposal')
             .insert([record])
-            .select();
+            .select('id');
         if (error) throw error;
         res.json({ success: true, data: data && data[0] ? data[0] : { id: null } });
     } catch (error) {
@@ -2756,7 +3230,7 @@ app.put('/api/verifikasi-proposal', async (req, res) => {
             .from('verifikasi_proposal')
             .update(record)
             .eq('id', id)
-            .select();
+            .select('id');
         if (error) throw error;
         res.json({ success: true, data: data && data[0] ? data[0] : { id } });
     } catch (error) {
@@ -2815,12 +3289,12 @@ app.get('/api/evaluasi', async (req, res) => {
         }
         const { data, error } = await supabase
             .from('evaluasi_rkpdes')
-            .select('*')
+            .select(EVALUASI_COLUMNS)
             .eq('tahun', tahunInt)
             .order('id', { ascending: true });
         if (error) throw error;
 
-        const stdData = await getCachedRpjmdesStandar();
+        const { data: stdData } = await supabase.from('rpjmdes_standar').select(RPJM_LOOKUP_COLUMNS);
         const stdMap = new Map();
         if (Array.isArray(stdData)) {
             stdData.forEach(s => {
@@ -2867,7 +3341,7 @@ app.get('/api/evaluasi/tarik-rab', async (req, res) => {
         }
         const { data, error } = await supabase
             .from('rkpdes')
-            .select('*')
+            .select(RKPDES_COLUMNS)
             .eq('tahun', tahunInt)
             .order('kode_unik_full', { ascending: true });
         if (error) throw error;
@@ -2931,7 +3405,8 @@ app.post('/api/evaluasi/sync', async (req, res) => {
         if (payload.length > 0) {
             const { error: insError } = await supabase
                 .from('evaluasi_rkpdes')
-                .insert(payload);
+                .insert(payload)
+                .select('id');
             if (insError) throw insError;
         }
 
@@ -2962,7 +3437,8 @@ app.put('/api/evaluasi', async (req, res) => {
                 realisasi: r.realisasi ? 'Ya' : 'Tidak',
                 keterangan: r.keterangan || ''
             })
-            .eq('id', id);
+            .eq('id', id)
+            .select('id');
         if (error) throw error;
         res.json({ success: true, message: 'Data evaluasi berhasil diupdate.' });
     } catch (error) {
@@ -3081,7 +3557,7 @@ app.get('/api/master', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('rpjmdes_standar')
-            .select('*')
+            .select(RPJMDES_LIST_COLUMNS)
             .order('kode_bidang', { ascending: true })
             .order('kode_sub', { ascending: true })
             .order('kode_kegiatan', { ascending: true })
@@ -3120,7 +3596,7 @@ app.post('/api/master', async (req, res) => {
         const { data, error } = await supabase
             .from('rpjmdes_standar')
             .insert([payload])
-            .select();
+            .select('id');
 
         if (error) throw error;
         res.json({ success: true, data });
@@ -3138,7 +3614,7 @@ app.put('/api/master/:id', async (req, res) => {
             .from('rpjmdes_standar')
             .update(payload)
             .eq('id', id)
-            .select();
+            .select('id');
 
         if (error) throw error;
         res.json({ success: true, data });
@@ -3198,7 +3674,7 @@ app.get('/api/rpjmdes', async (req, res) => {
 
         let { data, error } = await supabase
             .from('rpjmdes_standar')
-            .select('*')
+            .select(RPJMDES_LIST_COLUMNS)
             .order('id', { ascending: true });
 
         if (error) throw error;
@@ -3257,7 +3733,7 @@ app.get('/api/rpjmdes/:id', async (req, res) => {
         const { id } = req.params;
         const { data, error } = await supabase
             .from('rpjmdes_standar')
-            .select('*')
+            .select(RPJMDES_LIST_COLUMNS)
             .eq('id', id)
             .single();
 
@@ -3274,7 +3750,7 @@ app.get('/api/rpjmdes/by-kode/:kodeUnik', async (req, res) => {
         const { kodeUnik } = req.params;
         const { data, error } = await supabase
             .from('rpjmdes_standar')
-            .select('*')
+            .select(RPJMDES_LIST_COLUMNS)
             .eq('kode_unik_full', kodeUnik)
             .single();
 
@@ -3373,7 +3849,7 @@ app.post('/api/rpjmdes', async (req, res) => {
         const { data, error } = await supabase
             .from('rpjmdes_standar')
             .insert([payload])
-            .select();
+            .select('id');
 
         if (error) {
             console.log('❌ Error insert:', error.message);
@@ -3407,7 +3883,7 @@ app.put('/api/rpjmdes/:id', async (req, res) => {
             .from('rpjmdes_standar')
             .update(payload)
             .eq('id', id)
-            .select();
+            .select('id');
 
         if (error) throw error;
         res.json({ success: true, data });
@@ -3440,7 +3916,7 @@ app.get('/api/usulan-sdgs', async (req, res) => {
     try {
         const { tahun } = req.query;
 
-        let query = supabase.from('usulan_sdgs').select('*').limit(200);
+        let query = supabase.from('usulan_sdgs').select(USULAN_SDGS_COLUMNS);
 
         if (tahun) {
             query = query.eq('tahun', parseInt(tahun));
@@ -3468,7 +3944,7 @@ app.get('/api/usulan-sdgs', async (req, res) => {
 app.post('/api/usulan-sdgs', async (req, res) => {
     try {
         const payload = req.body;
-        const { data, error } = await supabase.from('usulan_sdgs').insert([payload]).select();
+        const { data, error } = await supabase.from('usulan_sdgs').insert([payload]).select('id');
         if (error) throw error;
         res.json({ success: true, data });
     } catch (err) {
@@ -3481,7 +3957,7 @@ app.put('/api/usulan-sdgs/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const payload = req.body;
-        const { data, error } = await supabase.from('usulan_sdgs').update(payload).eq('id', id).select();
+        const { data, error } = await supabase.from('usulan_sdgs').update(payload).eq('id', id).select('id');
         if (error) throw error;
         res.json({ success: true, data });
     } catch (err) {
@@ -3515,7 +3991,7 @@ app.get('/api/sdgs-prioritas', async (req, res) => {
 
         const { data, error } = await supabase
             .from('prioritas_rkpdes')
-            .select('*')
+            .select(PRIORITAS_COLUMNS)
             .eq('tahun', tahunInt)
             .order('id', { ascending: true });
         if (error) throw error;
@@ -3576,7 +4052,7 @@ app.put('/api/sdgs-prioritas/:id', async (req, res) => {
             .from('prioritas_rkpdes')
             .update(updateData)
             .eq('id', id)
-            .select();
+            .select('id');
         if (error) throw error;
         return res.json({ success: true, data });
     } catch (err) {
@@ -3607,7 +4083,7 @@ app.get('/api/sdgs-rancangan', async (req, res) => {
 
         const { data, error } = await supabase
             .from('rancangan_rkpdes')
-            .select('*')
+            .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunInt)
             .order('kode_unik_full', { ascending: true });
         if (error) throw error;
@@ -3694,7 +4170,7 @@ app.put('/api/sdgs-rancangan/:id', async (req, res) => {
             .from('rancangan_rkpdes')
             .update(updateData)
             .eq('id', id)
-            .select();
+            .select('id');
         if (error) throw error;
         return res.json({ success: true, data });
     } catch (err) {
@@ -3732,7 +4208,7 @@ app.post('/api/sdgs-rancangan', async (req, res) => {
         const { data, error } = await supabase
             .from('rancangan_rkpdes')
             .insert(payload)
-            .select();
+            .select('id');
         if (error) throw error;
         return res.json({ success: true, data });
     } catch (err) {
@@ -3761,7 +4237,7 @@ const USULAN_TABLE = 'usulan';
 app.get('/api/usulan', async (req, res) => {
     try {
         const { tahun } = req.query;
-        let query = supabase.from(USULAN_TABLE).select('*').order('id', { ascending: true }).limit(200);
+        let query = supabase.from(USULAN_TABLE).select(USULAN_COLUMNS).order('id', { ascending: true });
         if (tahun) {
             query = query.eq('tahun', parseInt(tahun, 10));
         }
@@ -3805,12 +4281,12 @@ app.post('/api/usulan', async (req, res) => {
         let result;
         if (p.id) {
             const { data: upd, error: updErr } = await supabase
-                .from(USULAN_TABLE).update(payload).eq('id', p.id).select();
+                .from(USULAN_TABLE).update(payload).eq('id', p.id).select('id, updated_at');
             if (updErr) throw updErr;
             result = Array.isArray(upd) && upd.length > 0 ? upd[0] : payload;
         } else {
             const { data: data2, error: err2 } = await supabase
-                .from(USULAN_TABLE).insert([payload]).select();
+                .from(USULAN_TABLE).insert([payload]).select('id, updated_at');
             if (err2) throw err2;
             result = Array.isArray(data2) && data2.length > 0 ? data2[0] : payload;
         }
@@ -3827,7 +4303,7 @@ app.put('/api/usulan/:id', async (req, res) => {
         const { id } = req.params;
         const p = req.body || {};
         const payload = { ...p, updated_at: new Date().toISOString() };
-        const { data, error } = await supabase.from(USULAN_TABLE).update(payload).eq('id', id).select();
+        const { data, error } = await supabase.from(USULAN_TABLE).update(payload).eq('id', id).select('id, updated_at');
         if (error) throw error;
         res.json({ success: true, data });
     } catch (err) {
@@ -3960,7 +4436,7 @@ app.get('/api/rkpdes', async (req, res) => {
 
         let { data, error } = await supabase
             .from('rkpdes') // Sumber data utama RKPDes
-            .select('*')
+            .select(RKPDES_COLUMNS)
             .eq('tahun', tahunInt);
         
         if (error) {
@@ -3977,7 +4453,7 @@ app.get('/api/rkpdes', async (req, res) => {
         if (data.length === 0) {
             console.log(`⚠️ Tabel 'rkpdes' kosong untuk tahun ${tahunInt}, mencoba fallback hanya dari data RAB tahun ini...`);
             try {
-                const { data: rabData } = await supabase.from('rab').select('id, kode_unik, kode_unik_full, nama_kegiatan, jenis_kegiatan, bidang, jenis_bidang, lokasi, lokasi_kegiatan, volume, satuan, waktu_pelaksanaan, jumlah_anggaran, total_biaya, sumber_dana, sasaran_kegiatan, penerima_manfaat, items, rpjm_data, tahun').eq('tahun', tahunInt);
+                const { data: rabData } = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt);
 
                 const rabMapByCode = new Map();
                 if (Array.isArray(rabData)) {
@@ -4029,8 +4505,8 @@ app.get('/api/rkpdes', async (req, res) => {
         }
 
         try {
-            const enrichStd = await getCachedRpjmdesStandar();
-            const { data: enrichRab } = await supabase.from('rab').select('id, kode_unik, kode_unik_full, nama_kegiatan, jenis_kegiatan, jumlah_anggaran, total_biaya, items, tahun').eq('tahun', tahunInt);
+            const { data: enrichStd } = await supabase.from('rpjmdes_standar').select(RPJM_LOOKUP_COLUMNS);
+            const { data: enrichRab } = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt);
             const stdMap = new Map();
             const stdNameMap = new Map();
             if (Array.isArray(enrichStd)) {
@@ -4140,6 +4616,51 @@ app.get('/api/rkpdes', async (req, res) => {
     }
 });
 
+async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
+    let rabData = preloadedRab;
+    if (!rabData) {
+        const { data, error } = await supabase
+            .from('rab')
+            .select(RAB_SYNC_COLUMNS)
+            .eq('tahun', tahunInt);
+        if (error) throw error;
+        rabData = data || [];
+    }
+    const rows = (rabData || []).map(rb => {
+        let rpjmObj = {};
+        if (rb.rpjm_data) {
+            try {
+                rpjmObj = typeof rb.rpjm_data === 'string' ? JSON.parse(rb.rpjm_data) : rb.rpjm_data;
+            } catch (e) {
+                rpjmObj = rb.rpjm_data;
+            }
+        }
+        const items = Array.isArray(rb.items) ? rb.items : [];
+        const totalBiaya = Number(rb.jumlah_anggaran || rb.total_biaya || 0) || items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+        const code = String(rb.kode_unik_full || rb.kode_unik || '').trim();
+        return {
+            tahun: tahunInt,
+            kode_unik_full: code,
+            bidang: rb.bidang || rpjmObj.bidang || 'Bidang Penyelenggaraan Pemerintah Desa',
+            jenis_bidang: rb.jenis_bidang || rpjmObj.jenis_bidang || '-',
+            jenis_kegiatan: rpjmObj.jenis_kegiatan || rb.jenis_kegiatan || rb.nama_kegiatan || '-',
+            nama_kegiatan: rb.nama_kegiatan || rpjmObj.nama_kegiatan || '-',
+            lokasi: rb.lokasi || rb.lokasi_kegiatan || rpjmObj.lokasi_kegiatan || 'Desa Batetangnga',
+            volume: String(rb.volume || items[0]?.volume || 1),
+            satuan: rb.satuan || rpjmObj.satuan_rab || 'Paket',
+            waktu_pelaksanaan: rpjmObj.waktu_pelaksanaan || '12 Bulan',
+            prakiraan_biaya: totalBiaya,
+            sumber_pembiayaan: rb.sumber_dana || rpjmObj.sumber_dana || 'DDS',
+            pola_pelaksanaan: rpjmObj.pola_pelaksanaan || 'Swakelola',
+            status_rab: 'Sudah Dibuat',
+            data_eksisting: rpjmObj.data_existing || rpjmObj.data_eksisting || '-',
+            target_capaian: rpjmObj.target_capaian || String(rb.volume || 1),
+            mendukung_sdgs: rpjmObj.sdgs || '-'
+        };
+    });
+    return { rows };
+}
+
 app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
     try {
         const { tahun } = req.body;
@@ -4153,7 +4674,7 @@ app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
         //    agar tidak hilang setelah sinkronisasi ulang (perbaikan "ceklis direset").
         const { data: preExisting } = await supabase
             .from('rkpdes')
-            .select('*')
+            .select('id, kode_unik_full, stunting, verifikasi_proposal')
             .eq('tahun', tahunInt);
         const flagByKode = new Map();
         if (Array.isArray(preExisting)) {
@@ -4177,7 +4698,7 @@ app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
         // 2. Ambil data dari tabel RAB
         const { data: rabData, error: rabError } = await supabase
             .from('rab')
-            .select('*')
+            .select(RAB_SYNC_COLUMNS)
             .eq('tahun', tahunInt);
 
         if (rabError) throw rabError;
@@ -4186,8 +4707,8 @@ app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
             return res.json({ success: true, message: 'Tidak ada data RAB untuk tahun ini. Tabel RKPDes telah dikosongkan.' });
         }
 
-// 3. Transformasi dan masukkan data dari RAB ke RKPDes
-        const { rows: rkpdesPayload } = await buildRkpPayLoadFromRAB(tahunInt);
+        // 3. Transformasi dan masukkan data dari RAB ke RKPDes
+        const { rows: rkpdesPayload } = await buildRkpPayLoadFromRAB(tahunInt, rabData);
 
         // Terapkan kembali flag manual yang disimpan sebelumnya
         rkpdesPayload.forEach(row => {
@@ -4202,7 +4723,8 @@ app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
         if (rkpdesPayload.length > 0) {
             const { error: insertError } = await supabase
                 .from('rkpdes')
-                .insert(rkpdesPayload);
+                .insert(rkpdesPayload)
+                .select('id');
 
             if (insertError) throw insertError;
         }
@@ -4344,19 +4866,29 @@ function findRpjmByKode(rpjmMap, kode) {
 }
 
 // Muat seluruh rpjmdes_standar sekali lalu jadikan map {kode_unik_full: record}.
+// Cache in-memory + TTL utk lookup rpjmdes_standar (data referensi, jarang berubah).
+let rpjmLookupCache = null;
+let rpjmLookupCacheTs = 0;
+const RPJM_LOOKUP_TTL_MS = 30 * 60 * 1000; // 30 menit
+
 async function loadRpjmLookup() {
+    if (rpjmLookupCache && (Date.now() - rpjmLookupCacheTs) < RPJM_LOOKUP_TTL_MS) {
+        return rpjmLookupCache;
+    }
     const { data, error } = await supabase
         .from('rpjmdes_standar')
-        .select('*');
+        .select(RPJM_LOOKUP_COLUMNS);
     if (error) {
         console.warn('⚠️ Gagal memuat rpjmdes_standar:', error.message);
-        return new Map();
+        return rpjmLookupCache || new Map();
     }
     const map = new Map();
     (data || []).forEach(rec => {
         const k = String(rec.kode_unik_full || rec.kode_unik || '').trim().replace(/\.+$/, '');
         if (k) map.set(k, rec);
     });
+    rpjmLookupCache = map;
+    rpjmLookupCacheTs = Date.now();
     return map;
 }
 
@@ -4371,7 +4903,7 @@ app.get('/api/stunting', async (req, res) => {
         const tahunInt = parseInt(tahun) || 2027;
         const { data, error } = await supabase
             .from('rkpdes')
-            .select('*')
+            .select(RKPDES_COLUMNS)
             .eq('tahun', tahunInt)
             .eq('stunting', 'Ya')
             .order('kode_unik_full', { ascending: true });
@@ -4391,7 +4923,7 @@ app.get('/api/stunting/tarik-rab', async (req, res) => {
         const tahunInt = parseInt(tahun) || 2027;
         const { data, error } = await supabase
             .from('rkpdes')
-            .select('*')
+            .select(RKPDES_COLUMNS)
             .eq('tahun', tahunInt)
             .not('jenis_kegiatan', 'is', null)
             .order('kode_unik_full', { ascending: true });
@@ -4436,7 +4968,8 @@ app.post('/api/stunting/tarik-rab', async (req, res) => {
         const { error } = await supabase
             .from('rkpdes')
             .update({ stunting: 'Ya', updated_at: new Date().toISOString() })
-            .in('id', cleanIds);
+            .in('id', cleanIds)
+            .select('id');
         if (error) throw error;
         return res.json({ success: true, message: `${cleanIds.length} kegiatan ditandai sebagai penanganan stunting.` });
     } catch (err) {
@@ -4466,7 +4999,7 @@ app.put('/api/stunting', async (req, res) => {
         };
         let result;
         if (rkpdesId) {
-            const { data, error } = await supabase.from('rkpdes').update(payload).eq('id', rkpdesId).select();
+            const { data, error } = await supabase.from('rkpdes').update(payload).eq('id', rkpdesId).select('id');
             if (error) throw error;
             result = Array.isArray(data) && data.length > 0 ? data[0] : null;
         } else {
@@ -4477,7 +5010,7 @@ app.put('/api/stunting', async (req, res) => {
                 bidang: bidangText,
                 status_rab: 'Belum Dibuat',
                 ...payload
-            }]).select();
+            }]).select('id');
             if (error) throw error;
             result = Array.isArray(data) && data.length > 0 ? data[0] : null;
         }
@@ -4497,7 +5030,8 @@ app.delete('/api/stunting', async (req, res) => {
         const { error } = await supabase
             .from('rkpdes')
             .update({ stunting: 'Tidak', updated_at: new Date().toISOString() })
-            .eq('id', parseInt(id, 10));
+            .eq('id', parseInt(id, 10))
+            .select('id');
         if (error) throw error;
         return res.json({ success: true, message: 'Kegiatan dihapus dari laporan stunting (tetap tersimpan di RKPDes).' });
     } catch (err) {
@@ -4539,11 +5073,12 @@ app.post('/api/stunting/sync', async (req, res) => {
                 const { error } = await supabase
                     .from('rkpdes')
                     .update(payload)
-                    .eq('id', rkpId);
+                    .eq('id', rkpId)
+                    .select('id');
                 if (error) throw error;
                 updated++;
             } else {
-                const { error } = await supabase.from('rkpdes').insert(payload);
+                const { error } = await supabase.from('rkpdes').insert(payload).select('id');
                 if (error) throw error;
                 inserted++;
             }
@@ -4644,7 +5179,7 @@ app.get('/api/laporan-perkembangan', async (req, res) => {
 
         const { data, error } = await supabase
             .from('laporan_perkembangan')
-            .select('*')
+            .select(LAPORAN_PERKEMBANGAN_COLUMNS)
             .eq('tahun', tahunInt);
         if (error) throw error;
 
@@ -4669,7 +5204,7 @@ app.get('/api/laporan-perkembangan/tarik-rab', async (req, res) => {
         const rpjmMap = await loadRpjmLookup();
         const { data, error } = await supabase
             .from('rkpdes')
-            .select('*')
+            .select(RKPDES_COLUMNS)
             .eq('tahun', tahunInt)
             .order('kode_unik_full', { ascending: true });
         if (error) throw error;
@@ -4696,7 +5231,7 @@ app.put('/api/laporan-perkembangan', async (req, res) => {
                 .from('laporan_perkembangan')
                 .update(payload)
                 .eq('id', item.id)
-                .select();
+                .select('id');
             if (error) throw error;
             result = Array.isArray(data) && data.length > 0 ? data[0] : null;
         } else {
@@ -4704,7 +5239,7 @@ app.put('/api/laporan-perkembangan', async (req, res) => {
             const { data, error } = await supabase
                 .from('laporan_perkembangan')
                 .insert(fullPayload)
-                .select();
+                .select('id');
             if (error) throw error;
             result = Array.isArray(data) && data.length > 0 ? data[0] : null;
         }
@@ -4761,13 +5296,15 @@ app.post('/api/laporan-perkembangan/sync', async (req, res) => {
                 const { error } = await supabase
                     .from('laporan_perkembangan')
                     .update(payload)
-                    .eq('id', item.id);
+                    .eq('id', item.id)
+                    .select('id');
                 if (error) throw error;
                 updated++;
             } else {
                 const { error } = await supabase
                     .from('laporan_perkembangan')
-                    .insert(payload);
+                    .insert(payload)
+                    .select('id');
                 if (error) throw error;
                 inserted++;
             }
@@ -4793,7 +5330,7 @@ app.get('/api/laporan-manual', async (req, res) => {
         const tahunInt = parseInt(tahun) || 2027;
         const { data, error } = await supabase
             .from('laporan_manual')
-            .select('*')
+            .select(LAPORAN_MANUAL_COLUMNS)
             .eq('tahun', tahunInt)
             .order('id', { ascending: true });
         if (error) throw error;
@@ -4817,7 +5354,7 @@ app.post('/api/laporan-manual', async (req, res) => {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
         };
-        const { data, error } = await supabase.from('laporan_manual').insert(payload).select();
+        const { data, error } = await supabase.from('laporan_manual').insert(payload).select(LAPORAN_MANUAL_COLUMNS);
         if (error) throw error;
         res.status(201).json({ success: true, data: data[0] });
     } catch (err) {
@@ -4839,7 +5376,7 @@ app.put('/api/laporan-manual', async (req, res) => {
             .from('laporan_manual')
             .update(patch)
             .eq('id', p.id)
-            .select();
+            .select(LAPORAN_MANUAL_COLUMNS);
         if (error) throw error;
         return res.json({ success: true, data: data && data.length > 0 ? data[0] : null });
     } catch (err) {
@@ -4880,7 +5417,7 @@ const PAGU_TABLE = 'anggaran';
 
 function readPaguStorage() {
     try {
-        const { data, error } = supabase.from(PAGU_TABLE).select('*');
+        const { data, error } = supabase.from(PAGU_TABLE).select(ANGGARAN_COLUMNS);
         if (error) return [];
         return data || [];
     } catch (e) {
@@ -4892,7 +5429,7 @@ app.get('/api/pagu-indikatif', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('anggaran')
-            .select('*')
+            .select(ANGGARAN_COLUMNS)
             .order('tahun', { ascending: false });
 
         if (error) {
@@ -4900,7 +5437,7 @@ app.get('/api/pagu-indikatif', async (req, res) => {
                 console.warn('⚠️ Tabel `anggaran` tidak ditemukan, fallback ke `pagu_anggaran`.');
                 const { data: fallback, error: fbError } = await supabase
                     .from('pagu_anggaran')
-                    .select('*')
+                    .select(PAGU_ANGGARAN_COLUMNS)
                     .order('tahun', { ascending: false });
                 if (fbError) {
                     console.error('Error fetching pagu_anggaran fallback:', fbError.message);
@@ -4923,7 +5460,8 @@ app.post('/api/pagu-indikatif', async (req, res) => {
         const payload = req.body;
         const { data, error } = await supabase
             .from('anggaran')
-            .upsert([payload], { onConflict: ['tahun', 'sumber'] });
+            .upsert([payload], { onConflict: ['tahun', 'sumber'] })
+            .select('id');
 
         if (error) {
             console.error('Error saving pagu:', error.message);
@@ -4943,10 +5481,15 @@ app.get('/api/pagu-anggaran', async (req, res) => {
     try {
         const { tahun } = req.query;
         const tahunInt = parseInt(tahun) || 2027;
+        const cacheKey = `paguAnggaran_${tahunInt}`;
+        const cached = refCacheGet(cacheKey);
+        if (cached) {
+            return res.json({ success: true, data: cached, cached: true });
+        }
 
         const { data, error } = await supabase
             .from('pagu_anggaran')
-            .select('*')
+            .select(PAGU_ANGGARAN_COLUMNS)
             .eq('tahun', tahunInt);
 
         if (error) {
@@ -4971,6 +5514,7 @@ app.get('/api/pagu-anggaran', async (req, res) => {
             });
         }
 
+        refCacheSet(cacheKey, paguMap);
         res.json({ success: true, data: paguMap });
     } catch (error) {
         console.error('Catch error fetching pagu_anggaran:', error.message);
@@ -4996,13 +5540,15 @@ app.post('/api/pagu-anggaran', async (req, res) => {
 
         const { data, error } = await supabase
             .from('pagu_anggaran')
-            .upsert(rowsToUpsert, { onConflict: ['tahun', 'sumber_dana'] });
+            .upsert(rowsToUpsert, { onConflict: ['tahun', 'sumber_dana'] })
+            .select('id');
 
         if (error) {
             console.error('Error upserting pagu_anggaran:', error.message);
             return res.status(500).json({ success: false, error: error.message });
         }
 
+        refCacheInvalidate(`paguAnggaran_${tahunInt}`);
         res.json({ success: true, message: 'Pagu anggaran berhasil disimpan', data });
     } catch (error) {
         console.error('Catch error saving pagu_anggaran:', error.message);
@@ -5015,10 +5561,15 @@ app.get('/api/pembiayaan', async (req, res) => {
     try {
         const { tahun } = req.query;
         const th = parseInt(tahun) || 2027;
+        const cacheKey = `pembiayaan_${th}`;
+        const cached = refCacheGet(cacheKey);
+        if (cached) {
+            return res.json({ success: true, data: cached, cached: true });
+        }
 
         const { data, error } = await supabase
             .from('pembiayaan')
-            .select('*')
+            .select(PEMBIAYAAN_COLUMNS)
             .eq('tahun', th)
             .maybeSingle();
 
@@ -5027,6 +5578,9 @@ app.get('/api/pembiayaan', async (req, res) => {
             return res.status(500).json({ success: false, error: error.message });
         }
 
+        if (data) {
+            refCacheSet(cacheKey, data);
+        }
         res.json({ success: true, data });
     } catch (error) {
         console.error('Catch error fetching pembiayaan:', error.message);
@@ -5047,13 +5601,15 @@ app.post('/api/pembiayaan', async (req, res) => {
 
         const { data, error } = await supabase
             .from('pembiayaan')
-            .upsert(payload, { onConflict: ['tahun'] });
+            .upsert(payload, { onConflict: ['tahun'] })
+            .select('id');
 
         if (error) {
             console.error('Error upserting pembiayaan:', error.message);
             return res.status(500).json({ success: false, error: error.message });
         }
 
+        refCacheInvalidate(`pembiayaan_${th}`);
         res.json({ success: true, message: 'Data pembiayaan berhasil disimpan', data });
     } catch (error) {
         console.error('Catch error saving pembiayaan:', error.message);
@@ -5073,7 +5629,7 @@ app.post('/api/rkpdes-data/import', async (req, res) => {
 
         const { data: rabData, error: rabError } = await supabase
             .from('rab')
-            .select('*')
+            .select(RAB_SYNC_COLUMNS)
             .eq('tahun', tahunInt);
 
         if (rabError) throw rabError;
@@ -5096,7 +5652,7 @@ app.get('/api/tim-penyusun', async (req, res) => {
 
         const { data, error } = await supabase
             .from('tim_penyusun')
-            .select('*')
+            .select(TIM_PENYUSUN_COLUMNS)
             .eq('tahun', parseInt(tahun));
         if (error) throw error;
         res.json({ success: true, data });
@@ -5111,7 +5667,7 @@ app.post('/api/tim-penyusun', async (req, res) => {
         if (!Array.isArray(payload)) {
             return res.status(400).json({ success: false, error: 'Payload harus berupa array' });
         }
-        const { data, error } = await supabase.from('tim_penyusun').insert(payload).select();
+        const { data, error } = await supabase.from('tim_penyusun').insert(payload).select(TIM_PENYUSUN_COLUMNS);
         if (error) throw error;
         res.status(201).json({ success: true, data });
     } catch (error) {
@@ -5126,7 +5682,7 @@ app.put('/api/tim-penyusun/batch', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Payload harus berupa array' });
         }
         // Asumsi upsert lebih aman di sini
-        const { data, error } = await supabase.from('tim_penyusun').upsert(payload, { onConflict: 'id' }).select();
+        const { data, error } = await supabase.from('tim_penyusun').upsert(payload, { onConflict: 'id' }).select(TIM_PENYUSUN_COLUMNS);
         if (error) throw error;
         res.json({ success: true, data });
     } catch (error) {
@@ -5173,7 +5729,7 @@ app.post('/api/tim-penyusun/sync', async (req, res) => {
             jabatan_tim: String(r.jabatan_tim || r.jabatan || 'Anggota')
         }));
 
-        const { error: insErr } = await supabase.from('tim_penyusun').insert(payload);
+        const { error: insErr } = await supabase.from('tim_penyusun').insert(payload).select('id');
         if (insErr) throw insErr;
 
         res.json({ success: true, message: `Berhasil menyimpan ${payload.length} anggota tim penyusun tahun ${tahunInt}.`, count: payload.length });
@@ -5183,6 +5739,283 @@ app.post('/api/tim-penyusun/sync', async (req, res) => {
     }
 });
 
+
+// ============================================================
+// KERJASAMA PIHAK KETIGA & PROGRAM MASUK DESA API
+// ============================================================
+
+// Kolom eksplisit (zero-wildcard policy) — sesuai kolom LIVE di Supabase
+const KERJASAMA_LIST_COLUMNS = 'id,tahun,bidang_ke,nomor_urut,nama_kegiatan,sdgs_desa,lokasi,volume_satuan,penerima_manfaat,biaya_desa,sumber_dana,biaya_pihak_ketiga,nama_pihak_ketiga';
+const PROGRAM_MASUK_DESA_COLUMNS = 'id,tahun,bidang,sub_kegiatan,instansi_pemberi,mendukung_sdgs,tahun_pelaksanaan,lokasi,volume,satuan,total_pagu';
+
+// Helper: map payload frontend -> kolom live (dua halaman pakai nama kolom beda utk hal sama)
+function mapKerjasamaRow(r, tahunInt) {
+    return {
+        tahun: tahunInt,
+        bidang_ke: r.bidang_ke != null ? r.bidang_ke : (r.bidang != null ? r.bidang : null),
+        nama_kegiatan: String(r.nama_kegiatan || r.sub_kegiatan || ''),
+        sdgs_desa: String(r.sdgs_desa || r.mendukung_sdgs || ''),
+        lokasi: String(r.lokasi || ''),
+        volume_satuan: String(r.volume_satuan || r.volume || ''),
+        penerima_manfaat: String(r.penerima_manfaat || ''),
+        biaya_desa: r.biaya_desa != null ? (parseInt(r.biaya_desa, 10) || 0) : 0,
+        sumber_dana: String(r.sumber_dana || ''),
+        biaya_pihak_ketiga: r.biaya_pihak_ketiga != null ? (parseInt(r.biaya_pihak_ketiga, 10) || 0) : 0,
+        nama_pihak_ketiga: String(r.nama_pihak_ketiga || '')
+    };
+}
+
+// GET /api/kerjasama?tahun=XXXX
+app.get('/api/kerjasama', async (req, res) => {
+    try {
+        const { tahun } = req.query;
+        if (!tahun) return res.status(400).json({ success: false, error: 'Tahun diperlukan' });
+        const { data, error } = await supabase
+            .from('kerjasama_pihak_ketiga')
+            .select(KERJASAMA_LIST_COLUMNS)
+            .eq('tahun', parseInt(tahun, 10))
+            .order('bidang_ke', { ascending: true })
+            .order('nomor_urut', { ascending: true })
+            .limit(500);
+        if (error) throw error;
+        res.json({ success: true, data: data || [] });
+    } catch (error) {
+        console.error('❌ Error GET /api/kerjasama:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// POST /api/kerjasama — sync replace-all utk tahun tsb (body: { tahun, data })
+app.post('/api/kerjasama', async (req, res) => {
+    try {
+        const { tahun, data: rows } = req.body || {};
+        const tahunInt = parseInt(tahun, 10);
+        if (!tahunInt) return res.status(400).json({ success: false, error: 'Parameter tahun diperlukan.' });
+        if (!Array.isArray(rows)) return res.status(400).json({ success: false, error: 'Data harus berupa array.' });
+
+        const { error: delErr } = await supabase.from('kerjasama_pihak_ketiga').delete().eq('tahun', tahunInt);
+        if (delErr) throw delErr;
+
+        if (rows.length === 0) return res.json({ success: true, message: `Kerjasama tahun ${tahunInt} dikosongkan.`, count: 0 });
+
+        const payload = rows.map(r => mapKerjasamaRow(r, tahunInt)).filter(r => r.nama_kegiatan);
+        const { error: insErr } = await supabase.from('kerjasama_pihak_ketiga').insert(payload).select('id');
+        if (insErr) throw insErr;
+        res.json({ success: true, message: `Berhasil menyimpan ${payload.length} baris kerjasama tahun ${tahunInt}.`, count: payload.length });
+    } catch (error) {
+        console.error('❌ Error POST /api/kerjasama:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// PUT /api/kerjasama — update satu baris (body = item)
+app.put('/api/kerjasama', async (req, res) => {
+    try {
+        const item = req.body || {};
+        if (!item.id) return res.status(400).json({ success: false, error: 'ID wajib diisi' });
+        const tahunInt = parseInt(item.tahun, 10) || 2027;
+        const payload = mapKerjasamaRow(item, tahunInt);
+        const { data, error } = await supabase
+            .from('kerjasama_pihak_ketiga')
+            .update(payload)
+            .eq('id', item.id)
+            .select(KERJASAMA_LIST_COLUMNS);
+        if (error) throw error;
+        res.json({ success: true, data: data && data[0] });
+    } catch (error) {
+        console.error('❌ Error PUT /api/kerjasama:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// DELETE /api/kerjasama?id=xxx
+app.delete('/api/kerjasama', async (req, res) => {
+    try {
+        const { id } = req.query;
+        if (!id) return res.status(400).json({ success: false, error: 'ID diperlukan' });
+        const { error } = await supabase.from('kerjasama_pihak_ketiga').delete().eq('id', id);
+        if (error) throw error;
+        res.json({ success: true, message: 'Data kerjasama dihapus.' });
+    } catch (error) {
+        console.error('❌ Error DELETE /api/kerjasama:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// GET /api/kerjasama-pihak-ketiga?tahun=XXXX
+app.get('/api/kerjasama-pihak-ketiga', async (req, res) => {
+    try {
+        const { tahun } = req.query;
+        if (!tahun) return res.status(400).json({ success: false, error: 'Tahun diperlukan' });
+        const { data, error } = await supabase
+            .from('kerjasama_pihak_ketiga')
+            .select(KERJASAMA_LIST_COLUMNS)
+            .eq('tahun', parseInt(tahun, 10))
+            .order('bidang_ke', { ascending: true })
+            .order('nomor_urut', { ascending: true })
+            .limit(500);
+        if (error) throw error;
+        res.json({ success: true, data: data || [] });
+    } catch (error) {
+        console.error('❌ Error GET /api/kerjasama-pihak-ketiga:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// POST /api/kerjasama-pihak-ketiga — update satu baris (body = item)
+app.post('/api/kerjasama-pihak-ketiga', async (req, res) => {
+    try {
+        const item = req.body || {};
+        if (!item.id) return res.status(400).json({ success: false, error: 'ID wajib diisi' });
+        const tahunInt = parseInt(item.tahun, 10) || 2027;
+        const payload = mapKerjasamaRow(item, tahunInt);
+        const { data, error } = await supabase
+            .from('kerjasama_pihak_ketiga')
+            .update(payload)
+            .eq('id', item.id)
+            .select(KERJASAMA_LIST_COLUMNS);
+        if (error) throw error;
+        res.json({ success: true, data: data && data[0] });
+    } catch (error) {
+        console.error('❌ Error POST /api/kerjasama-pihak-ketiga:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// POST /api/kerjasama-pihak-ketiga/sync — replace-all utk tahun tsb (body: { tahun, data })
+app.post('/api/kerjasama-pihak-ketiga/sync', async (req, res) => {
+    try {
+        const { tahun, data: rows } = req.body || {};
+        const tahunInt = parseInt(tahun, 10);
+        if (!tahunInt) return res.status(400).json({ success: false, error: 'Parameter tahun diperlukan.' });
+        if (!Array.isArray(rows)) return res.status(400).json({ success: false, error: 'Data harus berupa array.' });
+
+        const { error: delErr } = await supabase.from('kerjasama_pihak_ketiga').delete().eq('tahun', tahunInt);
+        if (delErr) throw delErr;
+
+        if (rows.length === 0) return res.json({ success: true, message: `Kerjasama pihak ketiga tahun ${tahunInt} dikosongkan.`, count: 0 });
+
+        const payload = rows.map(r => mapKerjasamaRow(r, tahunInt)).filter(r => r.nama_kegiatan);
+        const { error: insErr } = await supabase.from('kerjasama_pihak_ketiga').insert(payload).select('id');
+        if (insErr) throw insErr;
+        res.json({ success: true, message: `Berhasil menyimpan ${payload.length} baris kerjasama pihak ketiga tahun ${tahunInt}.`, count: payload.length });
+    } catch (error) {
+        console.error('❌ Error POST /api/kerjasama-pihak-ketiga/sync:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// DELETE /api/kerjasama-pihak-ketiga?id=xxx
+app.delete('/api/kerjasama-pihak-ketiga', async (req, res) => {
+    try {
+        const { id } = req.query;
+        if (!id) return res.status(400).json({ success: false, error: 'ID diperlukan' });
+        const { error } = await supabase.from('kerjasama_pihak_ketiga').delete().eq('id', id);
+        if (error) throw error;
+        res.json({ success: true, message: 'Data kerjasama pihak ketiga dihapus.' });
+    } catch (error) {
+        console.error('❌ Error DELETE /api/kerjasama-pihak-ketiga:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// GET /api/program-masuk-desa?tahun=XXXX
+app.get('/api/program-masuk-desa', async (req, res) => {
+    try {
+        const { tahun } = req.query;
+        if (!tahun) return res.status(400).json({ success: false, error: 'Tahun diperlukan' });
+        const { data, error } = await supabase
+            .from('program_masuk_desa')
+            .select(PROGRAM_MASUK_DESA_COLUMNS)
+            .eq('tahun', parseInt(tahun, 10))
+            .order('bidang', { ascending: true })
+            .limit(500);
+        if (error) throw error;
+        res.json({ success: true, data: data || [] });
+    } catch (error) {
+        console.error('❌ Error GET /api/program-masuk-desa:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// POST /api/program-masuk-desa — update satu baris (body = item)
+app.post('/api/program-masuk-desa', async (req, res) => {
+    try {
+        const item = req.body || {};
+        if (!item.id) return res.status(400).json({ success: false, error: 'ID wajib diisi' });
+        const tahunInt = parseInt(item.tahun, 10) || 2027;
+        const payload = {
+            tahun: tahunInt,
+            bidang: item.bidang != null ? item.bidang : null,
+            sub_kegiatan: String(item.sub_kegiatan || item.nama_kegiatan || ''),
+            instansi_pemberi: String(item.instansi_pemberi || ''),
+            mendukung_sdgs: String(item.mendukung_sdgs || ''),
+            tahun_pelaksanaan: item.tahun_pelaksanaan != null ? (parseInt(item.tahun_pelaksanaan, 10) || null) : null,
+            lokasi: String(item.lokasi || ''),
+            volume: String(item.volume || ''),
+            satuan: String(item.satuan || ''),
+            total_pagu: item.total_pagu != null ? (parseInt(item.total_pagu, 10) || 0) : 0
+        };
+        const { data, error } = await supabase
+            .from('program_masuk_desa')
+            .update(payload)
+            .eq('id', item.id)
+            .select(PROGRAM_MASUK_DESA_COLUMNS);
+        if (error) throw error;
+        res.json({ success: true, data: data && data[0] });
+    } catch (error) {
+        console.error('❌ Error POST /api/program-masuk-desa:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// POST /api/program-masuk-desa/sync — replace-all utk tahun tsb (body: { tahun, data })
+app.post('/api/program-masuk-desa/sync', async (req, res) => {
+    try {
+        const { tahun, data: rows } = req.body || {};
+        const tahunInt = parseInt(tahun, 10);
+        if (!tahunInt) return res.status(400).json({ success: false, error: 'Parameter tahun diperlukan.' });
+        if (!Array.isArray(rows)) return res.status(400).json({ success: false, error: 'Data harus berupa array.' });
+
+        const { error: delErr } = await supabase.from('program_masuk_desa').delete().eq('tahun', tahunInt);
+        if (delErr) throw delErr;
+
+        if (rows.length === 0) return res.json({ success: true, message: `Program masuk desa tahun ${tahunInt} dikosongkan.`, count: 0 });
+
+        const payload = rows.map(r => ({
+            tahun: tahunInt,
+            bidang: r.bidang != null ? r.bidang : null,
+            sub_kegiatan: String(r.sub_kegiatan || r.nama_kegiatan || ''),
+            instansi_pemberi: String(r.instansi_pemberi || ''),
+            mendukung_sdgs: String(r.mendukung_sdgs || ''),
+            tahun_pelaksanaan: r.tahun_pelaksanaan != null ? (parseInt(r.tahun_pelaksanaan, 10) || null) : null,
+            lokasi: String(r.lokasi || ''),
+            volume: String(r.volume || ''),
+            satuan: String(r.satuan || ''),
+            total_pagu: r.total_pagu != null ? (parseInt(r.total_pagu, 10) || 0) : 0
+        })).filter(r => r.sub_kegiatan);
+        const { error: insErr } = await supabase.from('program_masuk_desa').insert(payload).select('id');
+        if (insErr) throw insErr;
+        res.json({ success: true, message: `Berhasil menyimpan ${payload.length} baris program masuk desa tahun ${tahunInt}.`, count: payload.length });
+    } catch (error) {
+        console.error('❌ Error POST /api/program-masuk-desa/sync:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// DELETE /api/program-masuk-desa?id=xxx
+app.delete('/api/program-masuk-desa', async (req, res) => {
+    try {
+        const { id } = req.query;
+        if (!id) return res.status(400).json({ success: false, error: 'ID diperlukan' });
+        const { error } = await supabase.from('program_masuk_desa').delete().eq('id', id);
+        if (error) throw error;
+        res.json({ success: true, message: 'Data program masuk desa dihapus.' });
+    } catch (error) {
+        console.error('❌ Error DELETE /api/program-masuk-desa:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 // ============================================================
 // RKTL (RENCANA KERJA DAN TINDAK LANJUT) API
@@ -5196,7 +6029,7 @@ app.get('/api/rktl', async (req, res) => {
 
         const { data, error } = await supabase
             .from('rktl')
-            .select('*')
+            .select(RKTL_COLUMNS)
             .eq('tahun', parseInt(tahun))
             .maybeSingle();
         if (error) throw error;
@@ -5256,7 +6089,7 @@ app.post('/api/rktl/sync', async (req, res) => {
         };
 
         if (itemsData.length > 0) {
-            const { error: insErr } = await supabase.from('rktl').insert(payload);
+            const { error: insErr } = await supabase.from('rktl').insert(payload).select('id');
             if (insErr) throw insErr;
         }
 
@@ -5328,8 +6161,8 @@ app.put('/api/dokumen-desa/:id', async (req, res) => {
         const { data, error } = await supabase
             .from('dokumen_desa')
             .update({ status, notes, updated_at: new Date().toISOString() })
-            .eq('id', parseInt(id))
-            .select();
+            .eq('id', id)
+            .select('id, updated_at');
 
         if (error) throw error;
         res.json({ success: true, data: data[0] });
@@ -5345,7 +6178,7 @@ app.delete('/api/dokumen-desa/:id', async (req, res) => {
         const { error } = await supabase
             .from('dokumen_desa')
             .delete()
-            .eq('id', parseInt(id));
+            .eq('id', id);
 
         if (error) throw error;
         res.json({ success: true, message: 'Dokumen berhasil dihapus' });
@@ -5384,26 +6217,37 @@ function defaultTemplateSeed() {
   ];
 }
 
-async function loadTemplatesFromDb() {
+async function loadTemplatesFromDb(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && templatesCache.data && (now - templatesCache.timestamp < templatesCache.ttl)) {
+    return templatesCache.data;
+  }
   try {
-    const { data, error } = await supabase.from('dokumen_templates').select('*').order('code', { ascending: true });
+    const { data, error } = await supabase.from('dokumen_templates').select(TEMPLATES_COLUMNS).order('code', { ascending: true });
     if (error) {
       console.warn('⚠️ [Templates] Baca dari Supabase gagal:', error.message);
-      return defaultTemplateSeed();
+      return templatesCache.data || defaultTemplateSeed();
     }
     if (!data || data.length === 0) return defaultTemplateSeed();
-    return data.map(t => {
+    const formatted = data.map(t => {
       const docId = (t.documentid || t.documentId || t.document_id || '').trim();
       return {
+        id: t.id,
         code: t.code,
         stage: t.stage || 'A',
         name: t.name || t.code,
         documentId: docId || DEFAULT_MASTER_DOC_ID,
-        isReal: true
+        isReal: typeof t.is_real === 'boolean' ? t.is_real : !!docId,
+        fields: t.fields || [],
+        tableHeaders: t.table_headers || [],
+        updated_at: t.updated_at
       };
     });
+    templatesCache.data = formatted;
+    templatesCache.timestamp = now;
+    return formatted;
   } catch (e) {
-    return defaultTemplateSeed();
+    return templatesCache.data || defaultTemplateSeed();
   }
 }
 
@@ -5420,9 +6264,11 @@ async function saveTemplatesToDb(templates) {
           documentid: t.documentId || '',
           is_real: t.isReal || t.is_real || false,
           updated_at: new Date().toISOString()
-        }, { onConflict: 'code' });
+        }, { onConflict: 'code' })
+        .select('id');
       if (error) errs.push(error.message);
     }
+    invalidateTemplatesCache();
     return errs;
   } catch (e) {
     return [e.message];
@@ -5455,8 +6301,10 @@ app.post('/api/templates', async (req, res) => {
         stage: stage || 'A',
         is_real: false,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'code' });
+      }, { onConflict: 'code' })
+      .select('id');
     if (error) throw error;
+    invalidateTemplatesCache();
     res.status(201).json({ success: true, message: 'Template berhasil ditambahkan.' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -5482,8 +6330,10 @@ app.put('/api/templates/:code', async (req, res) => {
         stage: stage || 'A',
         is_real: true, // This marks the template as having a valid ID
         updated_at: new Date().toISOString()
-      }, { onConflict: 'code' });
+      }, { onConflict: 'code' })
+      .select('id');
     if (error) throw error;
+    invalidateTemplatesCache();
     res.json({ success: true, message: `Document ID untuk ${code} berhasil disimpan.` });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -5496,6 +6346,7 @@ app.delete('/api/templates/:code', async (req, res) => {
     const { code } = req.params;
     const { error } = await supabase.from('dokumen_templates').delete().eq('code', code.toUpperCase());
     if (error) throw error;
+    invalidateTemplatesCache();
     res.json({ success: true, message: 'Template berhasil dihapus.' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -5542,15 +6393,13 @@ app.post('/api/scan-placeholders', async (req, res) => {
     }
 
     if (doc_code) {
-      const tahunVal = parseInt(req.body.tahun || req.query.tahun || 2026, 10);
       try {
         await supabase.from('dokumen_form_data').upsert({
           doc_code,
-          tahun: tahunVal,
           google_docs_id,
           scanned_fields: fields,
           updated_at: new Date()
-        }, { onConflict: 'doc_code,tahun' });
+        }, { onConflict: 'doc_code,tahun' }).select('id');
       } catch (e) {}
     }
 
@@ -5565,22 +6414,6 @@ app.post('/api/scan-placeholders', async (req, res) => {
 // DOKUMEN ENGINE — FORM DATA & SYNC (Supabase-backed)
 // ============================================================
 
-const DOC_TABLE_KEY_MAP = {
-  'DOC-02B': 'tabel_sk_tim_penyusun',
-  'DOC-20': 'tabel_daftar_hadir',
-  'DOC-27': 'tabel_kegiatan',
-  'DOC-34': 'tabel_tim_verifikasi'
-};
-
-function sanitizeTablesForDocCode(docCode, rawTables) {
-  const allowedKey = DOC_TABLE_KEY_MAP[docCode] || 'table_rows';
-  if (!allowedKey || !rawTables || typeof rawTables !== 'object') {
-    return {};
-  }
-  const rowArray = Array.isArray(rawTables[allowedKey]) ? rawTables[allowedKey] : [];
-  return { [allowedKey]: rowArray };
-}
-
 // GET /api/dokumen-form-data/:code/:tahun (memuat data form & tabel tersimpan dari Supabase)
 app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
   try {
@@ -5590,7 +6423,7 @@ app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
 
     const { data, error } = await supabase
       .from('dokumen_form_data')
-      .select('*')
+      .select('doc_code, google_docs_id, fields, tables, last_generated_doc_id, last_generated_pdf_url, updated_at')
       .eq('doc_code', code)
       .eq('tahun', tahunInt)
       .maybeSingle();
@@ -5600,15 +6433,12 @@ app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
     if (!data) {
       return res.json({ success: true, fields: {}, tables: {}, last_doc_id: null });
     }
-
-    const cleanTables = (code === 'GLOBAL_MASTER') ? {} : sanitizeTablesForDocCode(data.doc_code, data.tables);
-
     res.json({
       success: true,
       doc_code: data.doc_code,
       google_docs_id: data.google_docs_id,
       fields: data.fields || {},
-      tables: cleanTables,
+      tables: data.tables || {},
       last_doc_id: data.last_generated_doc_id || null,
       preview_url: data.last_generated_pdf_url || null,
       updated_at: data.updated_at
@@ -5618,64 +6448,6 @@ app.get('/api/dokumen-form-data/:code/:tahun', async (req, res) => {
   }
 });
 
-// POST /api/dokumen-form-data (Simpan Draf data form & tabel ke Supabase tanpa Sync GAS)
-app.post('/api/dokumen-form-data', async (req, res) => {
-  try {
-    const { google_docs_id, doc_code, tahun, fields, tables } = req.body;
-    const tahunInt = parseInt(tahun, 10);
-
-    if (!doc_code || !tahunInt) {
-      return res.status(400).json({ success: false, error: 'doc_code dan tahun wajib diisi.' });
-    }
-
-    const cleanTables = (doc_code === 'GLOBAL_MASTER') ? {} : sanitizeTablesForDocCode(doc_code, tables);
-
-    const upsertPayload = {
-      doc_code,
-      tahun: tahunInt,
-      fields: fields || {},
-      tables: cleanTables,
-      updated_at: new Date().toISOString(),
-    };
-    if (google_docs_id) {
-      upsertPayload.google_docs_id = google_docs_id;
-    }
-
-    const { error: dbError } = await supabase
-      .from('dokumen_form_data')
-      .upsert(upsertPayload, { onConflict: 'doc_code,tahun' });
-
-    if (dbError) {
-      console.warn('⚠️ Upsert error, executing fallback update/insert:', dbError.message);
-      const { data: existingList } = await supabase
-        .from('dokumen_form_data')
-        .select('id')
-        .eq('doc_code', doc_code)
-        .eq('tahun', tahunInt)
-        .limit(1);
-
-      const existing = existingList && existingList[0];
-      if (existing && existing.id) {
-        const { error: updErr } = await supabase.from('dokumen_form_data').update(upsertPayload).eq('id', existing.id);
-        if (updErr) throw new Error('Fallback Update Error: ' + updErr.message);
-      } else {
-        const { error: insErr } = await supabase.from('dokumen_form_data').insert(upsertPayload);
-        if (insErr) throw new Error('Fallback Insert Error: ' + insErr.message);
-      }
-    }
-
-    res.json({
-      success: true,
-      message: `Draf ${doc_code} (${tahunInt}) berhasil disimpan ke Supabase database.`,
-      doc_code,
-      tahun: tahunInt,
-      synced_fields_count: Object.keys(fields || {}).length
-    });
-  } catch (error) {
-    console.error('Error simpan draf ke Supabase:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 // POST /api/sync-document (Simpan ke Supabase DAN sinkronisasi ke Google Apps Script)
 app.post('/api/sync-document', async (req, res) => {
@@ -5683,42 +6455,8 @@ app.post('/api/sync-document', async (req, res) => {
     const { google_docs_id, doc_code, tahun, fields, tables } = req.body;
     const tahunInt = parseInt(tahun, 10);
 
-    if (!doc_code || !tahunInt) {
-      return res.status(400).json({ success: false, error: 'doc_code dan tahun wajib diisi.' });
-    }
-
-    const cleanTables = (doc_code === 'GLOBAL_MASTER') ? {} : sanitizeTablesForDocCode(doc_code, tables);
-
-    // ====================================================================
-    // JAGA DATA: jangan timpa tabel yang masih berisi data dengan array
-    // kosong. Data lama dipertahankan sampai ada data baru yang menggantikannya
-    // (hanya berlaku untuk dokumen tabel = yang punya header tersimpan).
-    // ====================================================================
-    if (doc_code !== 'GLOBAL_MASTER' && typeof cleanTables === 'object') {
-      const allowedKey = DOC_TABLE_KEY_MAP[doc_code] || 'table_rows';
-      const incomingRows = Array.isArray(cleanTables[allowedKey]) ? cleanTables[allowedKey] : null;
-      if (incomingRows !== null && incomingRows.length === 0) {
-        try {
-          const { data: tplHead } = await supabase
-            .from('dokumen_templates')
-            .select('table_headers')
-            .eq('code', doc_code)
-            .maybeSingle();
-          const hasHeaders = Array.isArray(tplHead?.table_headers) && tplHead.table_headers.length > 0;
-          if (hasHeaders) {
-            const { data: existingRow } = await supabase
-              .from('dokumen_form_data')
-              .select('tables')
-              .eq('doc_code', doc_code)
-              .eq('tahun', tahunInt)
-              .maybeSingle();
-            const existingRows = existingRow?.tables?.[allowedKey];
-            if (Array.isArray(existingRows) && existingRows.length > 0) {
-              cleanTables[allowedKey] = existingRows;
-            }
-          }
-        } catch (e) {}
-      }
+    if (!google_docs_id || !doc_code || !tahunInt) {
+      return res.status(400).json({ success: false, error: 'google_docs_id, doc_code, dan tahun wajib diisi.' });
     }
 
     // ====================================================================
@@ -5728,35 +6466,18 @@ app.post('/api/sync-document', async (req, res) => {
         const upsertPayload = {
             doc_code,
             tahun: tahunInt,
+            google_docs_id,
             fields: fields || {},
-            tables: cleanTables,
+            tables: tables || {},
             updated_at: new Date().toISOString(),
         };
-        if (google_docs_id) {
-            upsertPayload.google_docs_id = google_docs_id;
-        }
-
         const { error: dbError } = await supabase
             .from('dokumen_form_data')
-            .upsert(upsertPayload, { onConflict: 'doc_code,tahun' });
+            .upsert(upsertPayload, { onConflict: 'doc_code,tahun' })
+            .select('id');
 
         if (dbError) {
-             console.warn('⚠️ Upsert onConflict error, executing fallback update/insert:', dbError.message);
-             const { data: existingList } = await supabase
-                 .from('dokumen_form_data')
-                 .select('id')
-                 .eq('doc_code', doc_code)
-                 .eq('tahun', tahunInt)
-                 .limit(1);
-
-             const existing = existingList && existingList[0];
-             if (existing && existing.id) {
-                 const { error: updErr } = await supabase.from('dokumen_form_data').update(upsertPayload).eq('id', existing.id);
-                 if (updErr) throw new Error('Fallback Update Error: ' + updErr.message);
-             } else {
-                 const { error: insErr } = await supabase.from('dokumen_form_data').insert(upsertPayload);
-                 if (insErr) throw new Error('Fallback Insert Error: ' + insErr.message);
-             }
+             console.error('⚠️ Gagal menyimpan form ke Supabase sebelum sinkronisasi:', dbError.message);
         } else {
             console.log(`✅ Form data for ${doc_code} (${tahunInt}) saved to Supabase.`);
         }
@@ -5784,7 +6505,7 @@ app.post('/api/sync-document', async (req, res) => {
     } catch (e) {}
 
     try {
-      await supabase.from('dokumen_form_data').update({ syncing: true }).eq('doc_code', doc_code).eq('tahun', tahunInt);
+      await supabase.from('dokumen_form_data').update({ syncing: true }).eq('doc_code', doc_code).eq('tahun', tahunInt).select('id');
     } catch (e) {}
 
     let syncResult = { success: false };
@@ -5822,10 +6543,10 @@ app.post('/api/sync-document', async (req, res) => {
           last_generated_pdf_url: previewUrl,
           synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        }).eq('doc_code', doc_code).eq('tahun', tahunInt);
+        }).eq('doc_code', doc_code).eq('tahun', tahunInt).select('id');
       } catch (e) {}
 
-      return res.json({
+      res.json({
         success: true,
         message: syncResult.message || 'Dokumen berhasil disinkronkan ke Google Docs.',
         new_document_id: newDocId,
@@ -5835,14 +6556,12 @@ app.post('/api/sync-document', async (req, res) => {
       });
     } else {
       try {
-        await supabase.from('dokumen_form_data').update({ syncing: false }).eq('doc_code', doc_code).eq('tahun', tahunInt);
+        await supabase.from('dokumen_form_data').update({ syncing: false }).eq('doc_code', doc_code).eq('tahun', tahunInt).select('id');
       } catch (e) {}
-      return res.json({
-        success: true,
-        db_saved: true,
-        gas_synced: false,
-        message: `Data tersimpan di Supabase. Sync Google Docs: ${syncResult.error || syncResult.message || 'Respons GAS pending'}`,
-        warning: syncResult.error || 'GAS request skipped or failed'
+      res.status(500).json({
+        success: false,
+        message: `Gagal sinkron ke Google Docs: ${syncResult.error || syncResult.message || 'Respons GAS gagal.'}`,
+        error: syncResult.error || 'GAS request failed'
       });
     }
   } catch (error) {
@@ -5862,7 +6581,8 @@ app.delete('/api/dokumen-desa/reset-form-data/:code/:tahun', async (req, res) =>
       .from('dokumen_form_data')
       .update({ fields: {}, tables: {}, last_generated_doc_id: null, updated_at: new Date().toISOString() })
       .eq('doc_code', code)
-      .eq('tahun', tahunInt);
+      .eq('tahun', tahunInt)
+      .select('id');
 
     if (error) throw error;
     res.json({ success: true, message: 'Data form berhasil direset.' });
@@ -5880,7 +6600,7 @@ app.get('/api/sync-status/:code/:tahun', async (req, res) => {
 
     const { data, error } = await supabase
       .from('dokumen_form_data')
-      .select('*')
+      .select('doc_code, google_docs_id, last_generated_doc_id, last_generated_pdf_url, syncing, updated_at')
       .eq('doc_code', code)
       .eq('tahun', tahunInt)
       .maybeSingle();
@@ -5925,7 +6645,7 @@ app.post('/api/login', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('users')
-            .select('*')
+            .select(USERS_AUTH_COLUMNS)
             .eq('username', username)
             .single();
 
@@ -6002,7 +6722,7 @@ app.post('/api/ganti-password', async (req, res) => {
         // 1. Cari pengguna berdasarkan username
         const { data: user, error } = await supabase
             .from('users')
-            .select('*')
+            .select(USERS_AUTH_COLUMNS)
             .eq('username', username)
             .maybeSingle();
 
@@ -6029,7 +6749,8 @@ app.post('/api/ganti-password', async (req, res) => {
                 password: password_hash, 
                 updated_at: new Date().toISOString() 
             })
-            .eq('username', username);
+            .eq('username', username)
+            .select('id');
 
         if (updateErr) throw updateErr;
 
@@ -6078,9 +6799,7 @@ function startServer(preferredPort = 5500) {
     return new Promise((resolve, reject) => {
         const initialPort = parseInt(preferredPort || process.env.PORT || 5500, 10);
         const server = app.listen(initialPort, () => {
-            const addr = server.address();
-            if (!addr) return;
-            const actualPort = addr.port;
+            const actualPort = server.address().port;
             console.log(`🚀 Server berjalan di http://localhost:${actualPort}`);
             console.log(`📊 Test API: http://localhost:${actualPort}/api/test-db`);
             console.log(`📋 Master API: http://localhost:${actualPort}/api/master`);
@@ -6093,8 +6812,7 @@ function startServer(preferredPort = 5500) {
             if (err.code === 'EADDRINUSE') {
                 console.warn(`⚠️ Port ${initialPort} terpakai, mencoba mencari port acak...`);
                 const fallbackServer = app.listen(0, () => {
-                    const fbAddr = fallbackServer.address();
-                    const actualPort = fbAddr ? fbAddr.port : 0;
+                    const actualPort = fallbackServer.address().port;
                     console.log(`🚀 Server berjalan di http://localhost:${actualPort}`);
                     seedTemplateConfigCache();
                     resolve(actualPort);
@@ -6107,10 +6825,15 @@ function startServer(preferredPort = 5500) {
     });
 }
 
-if (require.main === module) {
-    startServer(process.env.PORT || 5500).catch((err) => {
-        console.error('❌ Gagal menjalankan server:', err);
-    });
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    if (require.main === module) {
+        startServer(process.env.PORT || 5500).catch((err) => {
+            console.error('❌ Gagal menjalankan server:', err);
+        });
+    }
 }
 
+app.startServer = startServer;
 module.exports = app;
+module.exports.app = app;
+module.exports.startServer = startServer;

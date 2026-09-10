@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Matriks SDGs Desa</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/global-tahun.js"></script>
     <style>
 @media print {
     /* Sembunyikan elemen kontrol dan kolom aksi mutlak */
@@ -49,7 +48,7 @@
 </style>
 </head>
 <body class="bg-slate-100">
-    <div id="navbar-container" class="no-print print:hidden"></div>
+    <div id="navbar-container"></div>
     <div class="container mx-auto p-4">
         <div class="bg-white p-4 rounded-lg shadow-md mb-4">
             <div class="flex justify-between items-center mb-2">
@@ -75,12 +74,18 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700">Tahun Target SDGs:</label>
-                    <div class="bg-indigo-50 border border-indigo-200 px-3.5 py-1.5 rounded-xl flex items-center gap-2 mt-1">
-                        <i class="fas fa-calendar-alt text-indigo-600 text-sm"></i>
-                        <span class="text-xs font-bold text-slate-700">Tahun Aktif:</span>
-                        <span class="display-active-tahun font-black text-indigo-700 text-sm">2027</span>
-                    </div>
+                    <label for="tahun-select" class="block text-sm font-medium text-slate-700">Tahun Target:</label>
+                    <select id="tahun-select" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <option value="2022">2022</option>
+                        <option value="2023">2023</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027" selected>2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                        <option value="2030">2030</option>
+                    </select>
                 </div>
             </div>
         </div>

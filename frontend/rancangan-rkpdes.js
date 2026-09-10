@@ -160,15 +160,11 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        if (typeof loadRancanganData === 'function') loadRancanganData();
-    }
-});
+let autoSyncTahunRancangan = null;
 
 // 2. Load Data dari DB (dari tabel rancangan_rkpdes; jika kosong, auto-pull dari rpjmdes_standar)
 async function loadRancanganData() {
-    const rkpYear = parseInt(localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || document.getElementById('select-year')?.value || '2027', 10);
+    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2027', 10);
     showAllRows = false;
     currentPage = 1;
     console.log(`📡 Load Rancangan RKPDes tahun ${rkpYear} dari tabel rancangan_rkpdes...`);

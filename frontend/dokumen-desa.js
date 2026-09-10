@@ -36,75 +36,50 @@ let RKP_TEMPLATES = [
   { code: 'DOC-34', stage: 'E', name: 'BA Pembentukan Tim Verifikasi', documentId: DEFAULT_MASTER_DOC_ID, isReal: true, hasTable: true, fields: [], tableHeaders: ['No', 'Nama Tim Verifikasi', 'Jabatan / Instansi', 'Keterangan'] }
 ];
 
-const savedDocCode = (function() {
-  try {
-    const saved = localStorage.getItem('LAST_ACTIVE_DOC_CODE');
-    if (saved && typeof saved === 'string' && saved.startsWith('DOC-')) return saved;
-  } catch (e) {}
-  return 'DOC-02B';
-})();
-
 let appState = {
   currentRoute: '/admin/templates',
-  activeDocCode: savedDocCode,
-  activeTahun: localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027',
+  activeDocCode: 'DOC-02B',
+  activeTahun: '2025',
   globalSharedFields: JSON.parse(localStorage.getItem('GLOBAL_SHARED_FIELDS') || '{}'),
-  globalSharedTables: JSON.parse(localStorage.getItem('GLOBAL_SHARED_TABLES') || '[]'),
   documentFields: {},
   documentTables: {},
   autoSaveTimer: null
 };
 
+const MASTER_SHARED_DEFAULTS = {
+  tahun: '2025',
+  tahun1: '2025',
+  tahun_anggaran: '2025',
+  nama_desa: 'Desa Batetangnga',
+  kades: 'SUMAILA DAMANG',
+  nama_kepala_desa: 'SUMAILA DAMANG',
+  nama_ketua_bpd: 'HAERUDDIN, S.Pd.',
+  tempat: 'Aula Kantor Desa Batetangnga',
+  tempat_musrembang: 'Aula Kantor Desa Batetangnga',
+  sk_tim: '188.4/05/SK-DES/X/2024',
+  ska: '188.4/05/SK-DES/X/2024',
+  pimpinan_musrembang: 'SUMAILA DAMANG',
+  tgl_musdes_tim_hari: 'Kamis, 15 Oktober 2024',
+  tgl_musdes_tim_bulan: '15 Oktober 2024',
+  tgl_musdes_tim_terbilang: 'Lima belas bulan Oktober tahun dua ribu dua puluh empat',
+  tgl_surat_tim: '15 Oktober 2024',
+  tgl_musrembang_hari: 'Kamis, 24 Oktober 2024',
+  tgl_tatip_bulan: '24 Oktober 2024',
+  rpjmdes1: 'Rencana Pembangunan Jangka Menengah Desa Batetangnga Tahun 2020-2026',
+  kewenangan1: 'Peraturan Desa Batetangnga Nomor 03 Tahun 2021 tentang Kewenangan Desa',
+  apbdes1: 'Anggaran Pendapatan dan Belanja Desa (APBDes) Batetangnga Tahun 2025',
+  kecamatan: 'Binuang',
+  kabupaten: 'Polewali Mandar',
+  provinsi: 'Sulawesi Barat',
+  alamat_kantor: 'Jl. Poros Batetangnga No. 01, Desa Batetangnga'
+};
+
 // State for the template settings module
 let templateSettingsState = {
-  activeCode: savedDocCode,
+  activeCode: 'DOC-02B',
   fields: [],
   tableHeaders: ['No', 'Nama', 'Tempat, Tanggal Lahir', 'Jabatan', 'Unsur']
 };
-
-const MASTER_SHARED_DEFAULTS = {
-  tahun0: '',
-  tahun: '',
-  tahun1: '',
-  tahun2: '',
-  rpjmdes1: '',
-  kewenangan1: '',
-  rkpdes1: '',
-  apbdes1: '',
-  nama_desa: '',
-  kades: '',
-  nama_kepala_desa: '',
-  nama_ketua_bpd: '',
-  tempat: '',
-  tempat_musrembang: '',
-  sk_tim: '',
-  ska: '',
-  pimpinan_musrembang: '',
-  tgl_musdes_tim_hari: '',
-  tgl_musdes_tim_bulan: '',
-  tgl_musdes_tim_terbilang: '',
-  tgl_surat_tim: '',
-  tgl_musrembang_hari: '',
-  tgl_tatip_bulan: '',
-  kecamatan: '',
-  kabupaten: '',
-  provinsi: '',
-  alamat_kantor: ''
-};
-
-function setActiveDocCode(code) {
-  if (!code) return;
-  appState.activeDocCode = code;
-  templateSettingsState.activeCode = code;
-  try {
-    localStorage.setItem('LAST_ACTIVE_DOC_CODE', code);
-  } catch (e) {}
-
-  const selectSettings = document.getElementById('selectSettingTemplateCode');
-  const selectActive = document.getElementById('selectActiveTemplate');
-  if (selectSettings && selectSettings.value !== code) selectSettings.value = code;
-  if (selectActive && selectActive.value !== code) selectActive.value = code;
-}
 
 function saveStateToLocalStorage() {
   try {
@@ -147,7 +122,6 @@ async function initApp() {
   await loadTemplatesFromStorageOrBackend();
   renderTemplatesTable();
   populateTemplateSelector();
-  mulaiAutoScanPlaceholders();
 }
 
 async function loadTemplatesFromStorageOrBackend() {
@@ -167,10 +141,6 @@ async function loadTemplatesFromStorageOrBackend() {
           
           item.fields = t.fields || item.fields || [];
           item.tableHeaders = t.tableHeaders || item.tableHeaders || [];
-          // Status tabel ikut disinkronkan dari server: server punya header → tabel AKTIF
-          if (Array.isArray(t.tableHeaders) && t.tableHeaders.length > 0) {
-            item.hasTable = true;
-          }
         } else {
           RKP_TEMPLATES.push({
             code: t.code,
@@ -216,18 +186,9 @@ function populateTemplateSelector() {
   if (selectActive && appState.activeDocCode) {
     selectActive.value = appState.activeDocCode;
   }
-  if (selectSettings && appState.activeDocCode) {
-    selectSettings.value = appState.activeDocCode;
-  }
 }
 
-function bukaPengaturanDocCode(codeParam) {
-  const code = codeParam || appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B';
-  setActiveDocCode(code);
-  bukaModul('/admin/templates/settings');
-  muatPengaturanTemplate(code);
-}
-
+// 3. MODUL 1: PANEL KELOLA TEMPLATE (CRUD) RENDERER
 function renderTemplatesTable() {
   const tbody = document.getElementById('tableTemplatesBody');
   if (!tbody) return;
@@ -261,15 +222,12 @@ function renderTemplatesTable() {
           </a>
         </td>
         <td class="p-4 text-center">
-          <div class="flex items-center justify-center gap-1.5 flex-wrap">
-            <button onclick="bukaDokumenEdit('${tpl.code}')" class="bg-brand-500 hover:bg-brand-600 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg shadow" title="Buka Form Edit &amp; Preview">
+          <div class="flex items-center justify-center gap-1.5">
+            <button onclick="bukaDokumenEdit('${tpl.code}')" class="bg-brand-500 hover:bg-brand-600 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg shadow" title="Buka Form Edit & Preview">
               <i class="fas fa-edit"></i> Edit
             </button>
             <button onclick="bukaHalamanScan('${tpl.code}')" class="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-2 py-1.5 rounded-lg shadow" title="Scan Placeholder {{...}}">
               <i class="fas fa-search font-mono"></i> Scan
-            </button>
-            <button onclick="bukaPengaturanDocCode('${tpl.code}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold px-2 py-1.5 rounded-lg shadow" title="Buka Pengaturan Template (Fields &amp; Header Tabel)">
-              <i class="fas fa-cog"></i> Setup
             </button>
             <button onclick="bukaModalEditTemplateId('${tpl.code}', '${tpl.documentId}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold px-2 py-1.5 rounded-lg border" title="Edit Document ID">
               <i class="fas fa-key"></i>
@@ -525,13 +483,9 @@ function tutupModalTambahTemplate() {
 }
 
 async function simpanTambahTemplateBaru() {
-  const codeEl = document.getElementById('tambahModalCode');
-  const nameEl = document.getElementById('tambahModalName');
-  const gdocIdEl = document.getElementById('tambahModalGDocId');
-
-  const code = codeEl?.value?.toUpperCase()?.trim();
-  const name = nameEl?.value?.trim();
-  const gdocId = gdocIdEl?.value?.trim();
+  const code = document.getElementById('tambahModalCode')?.value?.toUpperCase();
+  const name = document.getElementById('tambahModalName')?.value;
+  const gdocId = document.getElementById('tambahModalGDocId')?.value;
 
   if (!code || !gdocId) {
     showToast('⚠️ Mohon isi Kode Dokumen dan Document ID!', 'error');
@@ -539,13 +493,7 @@ async function simpanTambahTemplateBaru() {
   }
 
   const newTpl = { code, name: name || code, documentId: gdocId, stage: 'A', isReal: true, fields: [], tableHeaders: [] };
-  
-  const existingIdx = RKP_TEMPLATES.findIndex(x => x.code === code);
-  if (existingIdx >= 0) {
-    RKP_TEMPLATES[existingIdx] = { ...RKP_TEMPLATES[existingIdx], name: name || code, documentId: gdocId, isReal: true };
-  } else {
-    RKP_TEMPLATES.push(newTpl);
-  }
+  RKP_TEMPLATES.push(newTpl);
 
   try {
     await fetch(`${getApiBase()}/api/templates`, {
@@ -557,21 +505,10 @@ async function simpanTambahTemplateBaru() {
     console.warn('Gagal menyimpan ke backend:', e);
   }
 
-  if (codeEl) codeEl.value = '';
-  if (nameEl) nameEl.value = '';
-  if (gdocIdEl) gdocIdEl.value = '';
-
   tutupModalTambahTemplate();
   renderTemplatesTable();
   populateTemplateSelector();
-  
-  // Set template baru sebagai template aktif lintas modul
-  setActiveDocCode(code);
-
-  showToast(`✅ Template baru "${code}" berhasil ditambahkan & disinkronkan ke seluruh modul! Memindai placeholder...`, 'success');
-
-  // Otomatis jalankan pemindaian tag {{...}} di latar belakang untuk template baru
-  scanDanMuatUlangPengaturan(code, true).catch(() => {});
+  showToast(`✅ Template baru "${code}" berhasil ditambahkan!`, 'success');
 }
 
 function hapusTemplate(code) {
@@ -588,9 +525,8 @@ function hapusTemplate(code) {
   }
 }
 
-function bukaHalamanScan(codeParam) {
-  const code = codeParam || appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B';
-  setActiveDocCode(code);
+// 4. MODUL 2: HALAMAN SCAN PLACEHOLDER OTOMATIS (/admin/templates/scan/[id])
+function bukaHalamanScan(code) {
   bukaModul('/admin/templates/scan');
 
   const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, name: 'Template', documentId: '' };
@@ -673,55 +609,42 @@ async function eksekusiScanOtomatis(codeParam) {
   }
 }
 
-function getBestTableArray(tablesObj) {
-  if (!tablesObj || typeof tablesObj !== 'object') return [];
-  let bestArr = [];
-  Object.values(tablesObj).forEach(val => {
-    if (Array.isArray(val) && val.length > bestArr.length) {
-      bestArr = val;
-    }
-  });
-  return bestArr;
-}
+// 5. MODAL 3: EDIT DOKUMEN (DYNAMIC FORM + REAL GOOGLE DOCS IFRAME EMBED PREVIEW)
+// Token unik untuk setiap pemanggilan bukaDokumenEdit. Hanya pemanggilan
+// TERBARU yang boleh me-render / menulis state, sehingga perpindahan dokumen
+// yang cepat tidak membuat tabel/form saling menimpa antar dokumen.
+let editRequestToken = 0;
 
-async function bukaDokumenEdit(codeParam) {
-  const code = codeParam || appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B';
-  setActiveDocCode(code);
+async function bukaDokumenEdit(code, tahunOverride) {
+  const myToken = ++editRequestToken;
+  appState.activeDocCode = code;
   appState.lastGeneratedDocId = null;
   bukaModul('/dokumen/[id]/edit');
 
-  const tahun = appState.activeTahun;
+  const tahun = (tahunOverride !== undefined && tahunOverride !== null && String(tahunOverride).trim() !== '')
+    ? tahunOverride
+    : appState.activeTahun;
+
+  // Reset state dokumen SEBELUM menunggu jaringan, supaya render yang masih
+  // berjalan / kedaluwarsa tidak membocorkan fields & tabel dokumen lain.
+  appState.documentFields = {};
+  appState.documentTables = {};
+
+  // Sinkronkan fields/tableHeaders dari server terlebih dahulu
+  await muatPengaturanTemplate(code);
+  if (myToken !== editRequestToken) return; // Ada pindahan dokumen yang lebih baru
+
   const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, name: 'Template Dokumen', documentId: '', isReal: false };
 
-  // Render form secara instan dari cache lokal lebih dulu (Zero Delay UI)
-  renderDynamicFormFields(tpl);
-
+  // Load data tersimpan dari Supabase database (dengan fallback ke localStorage)
   let rawFields = {};
   let rawTables = {};
-
-  // Ambil data server secara PARALEL (Promise.all) agar respons 3x lebih cepat
   try {
-    const [tplData, globalData, supabaseData] = await Promise.all([
-      muatPengaturanTemplate(code).catch(() => null),
-      fetch(`${getApiBase()}/api/dokumen-form-data/GLOBAL_MASTER/${tahun}`).then(r => r.json()).catch(() => null),
-      fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${tahun}`).then(r => r.json()).catch(() => null)
-    ]);
-
-    if (globalData && globalData.success && globalData.fields) {
-      if (!appState.globalSharedFields) appState.globalSharedFields = {};
-      appState.globalSharedFields = { ...appState.globalSharedFields, ...globalData.fields };
-      try {
-        localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
-      } catch (e) {}
-    }
-
-    if (supabaseData && supabaseData.success) {
-      if (supabaseData.fields && Object.keys(supabaseData.fields).length > 0) {
-        rawFields = supabaseData.fields;
-      }
-      if (supabaseData.tables && Object.keys(supabaseData.tables).length > 0) {
-        rawTables = supabaseData.tables;
-      }
+    const supabaseRes = await fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${tahun}`);
+    const supabaseData = await supabaseRes.json();
+    if (supabaseData.success && (supabaseData.fields || supabaseData.tables)) {
+      rawFields = supabaseData.fields || {};
+      rawTables = supabaseData.tables || {};
       if (supabaseData.last_doc_id) {
         appState.lastGeneratedDocId = supabaseData.last_doc_id;
       }
@@ -729,44 +652,23 @@ async function bukaDokumenEdit(codeParam) {
   } catch (e) {
     console.warn('Gagal memuat data dari Supabase, menggunakan localStorage:', e);
   }
+  if (myToken !== editRequestToken) return;
 
   const savedState = loadStateFromLocalStorage(code, tahun);
   if (Object.keys(rawFields).length === 0) {
     rawFields = savedState.documentFields || {};
   }
-
-  const targetTpl = RKP_TEMPLATES.find(x => x.code === code) || { hasTable: false };
-  const tableKey = targetTpl.hasTable ? (getSpecificTableKeyForDoc(code) || 'table_rows') : null;
-
-  if (!targetTpl.hasTable || !tableKey) {
-    // Dokumen ini TIDAK menggunakan tabel (seperti DOC-19, DOC-01, DOC-03, dll.)
-    rawTables = {};
-    appState.documentTables = {};
-  } else {
-    // Dokumen ini MEMANG menggunakan tabel (seperti DOC-02B, DOC-20, DOC-27, DOC-34)
-    // FIX ISOLASI: Hanya muat array tabel spesifik milik dokumen ini
-    const docTableRows = Array.isArray(rawTables[tableKey]) 
-      ? rawTables[tableKey] 
-      : (Array.isArray(rawTables.rows) ? rawTables.rows : []);
-
-    rawTables = { [tableKey]: docTableRows };
-    appState.documentTables = { [tableKey]: docTableRows };
+  if (Object.keys(rawTables).length === 0) {
+    rawTables = savedState.documentTables || {};
   }
-
-  // Prioritaskan nilai master global terbaru agar nilai lama dari dokumen individual tidak menimpa nilai baru
-  if (appState.globalSharedFields) {
-    // Semua varian tahun ikut tersinkron dari master (kontrol Tahun Master berlaku global)
-    Object.keys(appState.globalSharedFields).forEach(k => {
-      const gVal = appState.globalSharedFields[k];
-      if (gVal !== undefined && gVal !== null && gVal !== '') {
-        rawFields[k] = gVal;
-      }
-    });
-  }
-
-  // Keep all fields & tables retrieved from Supabase database intact
-  appState.documentFields = { ...rawFields };
-  appState.documentTables = { ...rawTables };
+  
+  // Keep all fields & tables retrieved from Supabase database intact.
+  // Snapshot ini LALU di-pass eksplisit ke renderDynamicFormFields() supaya
+  // render hanya memakai data milik DOKUMEN INI, bukan state global.
+  const docFields = { ...rawFields };
+  const docTables = { ...rawTables };
+  appState.documentFields = docFields;
+  appState.documentTables = docTables;
 
   const codeEl = document.getElementById('editDocCode');
   const titleEl = document.getElementById('editDocTitle');
@@ -780,6 +682,7 @@ async function bukaDokumenEdit(codeParam) {
   try {
     const statusRes = await fetch(`${getApiBase()}/api/sync-status/${code}/${tahun}`);
     const statusData = await statusRes.json();
+    if (myToken !== editRequestToken) return; // Pindah dokumen lagi saat fetch status
     if (statusData.success && statusData.last_doc_id) {
       appState.lastGeneratedDocId = statusData.last_doc_id;
       if (statusData.last_doc_id !== tpl.documentId) {
@@ -789,6 +692,7 @@ async function bukaDokumenEdit(codeParam) {
   } catch (e) {
     console.warn('Gagal memuat status sinkronisasi:', e);
   }
+  if (myToken !== editRequestToken) return;
 
   if (idEl) {
     idEl.textContent = activePreviewId !== tpl.documentId 
@@ -799,8 +703,8 @@ async function bukaDokumenEdit(codeParam) {
   // Render Preview (menampilkan dokumen salinan terisi jika ada, atau master template jika belum)
   renderIframePreview({ code: tpl.code, documentId: activePreviewId, isReal: !!activePreviewId });
 
-  // Render Dynamic Generated Form Fields
-  await renderDynamicFormFields(tpl);
+  // Render Dynamic Generated Form Fields — pakai snapshot data dokumen ini saja
+  await renderDynamicFormFields(tpl, { fields: docFields, tables: docTables });
 }
 
 let iframePreviewToken = 0;
@@ -871,7 +775,13 @@ function formatDateForInput(val) {
   return '';
 }
 
-async function renderDynamicFormFields(tpl) {
+async function renderDynamicFormFields(tpl, dataState) {
+  // dataState berisi snapshot data milik DOKUMEN yang sedang diminta.
+  // Fallback ke state global agar pemanggil lain (scan/settings) tetap aman.
+  dataState = dataState || {};
+  const stateFields = dataState.fields || appState.documentFields || {};
+  const stateTables = dataState.tables || appState.documentTables || {};
+
   console.log('--------------------------------------------------');
   console.log('📌 [Render Form Step 1] Call renderDynamicFormFields for:', tpl.code);
 
@@ -901,7 +811,7 @@ async function renderDynamicFormFields(tpl) {
     }
   }
 
-  const MASTER_KEYS = ['nama_desa', 'tahun', 'tahun0', 'tahun1', 'tahun2', 'tahun3', 'kades', 'nama_kepala_desa', 'nama_ketua_bpd', 'tempat'];
+  const MASTER_KEYS = ['nama_desa', 'tahun', 'tahun1', 'kades', 'nama_kepala_desa', 'nama_ketua_bpd', 'tempat'];
   let html = '';
 
   const IGNORE_SINGLE_KEYS = ['no', 'nama', 'ttl', 'jabatan', 'unsur', 'umur'];
@@ -920,26 +830,29 @@ async function renderDynamicFormFields(tpl) {
     const isTglOtomatis = /^tgl_.+_(hari|bulan|terbilang)$/.test(key);
     const fieldType = isTglOtomatis ? 'text' : (f.type || 'text');
 
-    const isYearField = /^tahun\d*$/.test(key);
-    // Varian tahun mengikuti rumus Tahun RKP aktif: {{tahun0}}=Y-2, {{tahun}}=Y-1,
-    // {{tahun1}}=Y, {{tahun2}}=Y+1, {{tahun3}}=Y+2, {{tahunN}}=Y+(N-1) — berlaku global.
-    // Nilai tersimpan (hasil edit manual) tetap dipakai; rumus hanya mengisi jika kosong.
-    {
-      let v = appState.documentFields[key];
-      if (v === undefined || v === null) v = appState.globalSharedFields ? (appState.globalSharedFields[key] || '') : '';
-      if (v === undefined || v === null) v = '';
-      if (v === '' && appState.activeTahun) {
-        const yNum = parseInt(appState.activeTahun, 10) || 0;
-        if (key === 'tahun0') v = String(yNum - 2);
-        else if (key === 'tahun') v = String(yNum - 1);
-        else {
-          const m = /^tahun(\d+)$/.exec(key);
-          if (m) v = String(yNum + (parseInt(m[1], 10) - 1));
-        }
-      }
-      val = v;
+    let defaultVal = MASTER_SHARED_DEFAULTS[key] || '';
+    if (!defaultVal) {
+      const lowerK = key.toLowerCase();
+      if (lowerK.includes('kades') || lowerK.includes('kepala_desa')) defaultVal = 'SUMAILA DAMANG';
+      else if (lowerK.includes('tahun')) defaultVal = appState.activeTahun || '2025';
+      else if (lowerK.includes('tempat') || lowerK.includes('lokasi')) defaultVal = 'Aula Kantor Desa Batetangnga';
+      else if (lowerK.includes('desa')) defaultVal = 'Desa Batetangnga';
+      else if (lowerK.includes('kecamatan')) defaultVal = 'Binuang';
+      else if (lowerK.includes('kabupaten')) defaultVal = 'Polewali Mandar';
+      else if (lowerK.includes('sk_') || lowerK.includes('nomor') || lowerK.includes('no_')) defaultVal = '188.4/05/SK-DES/X/2024';
+      else if (lowerK.includes('tgl') || lowerK.includes('tanggal')) defaultVal = '15 Oktober 2024';
+      else if (lowerK.includes('materi') || lowerK.includes('hasil') || lowerK.includes('isi') || lowerK.includes('catatan')) defaultVal = 'Penyusunan Rencana Kerja Pemerintah Desa Batetangnga';
+      else defaultVal = label;
     }
-    appState.documentFields[key] = val;
+
+    // Auto shared pre-fill across documents
+    let val = stateFields[key];
+    if (val === undefined || val === null || val === '') {
+      val = appState.globalSharedFields[key] || MASTER_SHARED_DEFAULTS[key] || defaultVal;
+      appState.documentFields[key] = val;
+    }
+
+    const isYearField = (key === 'tahun' || key === 'tahun1' || key === 'tahun_anggaran' || key === 'year');
 
     const labelBlock = `
       <div class="flex justify-between items-center mb-1">
@@ -957,7 +870,9 @@ async function renderDynamicFormFields(tpl) {
 
     let inputHtml = '';
     if (isYearField) {
-      inputHtml = `<input type="text" id="input_field_${key}" oninput="handleAutoSaveInput('${key}')" value="${val}" class="w-full text-xs border border-amber-300 bg-amber-50/40 rounded-xl p-2.5 focus:border-amber-500 focus:outline-none font-bold text-amber-900" placeholder="Tulis tahun" />`;
+      const yearOptions = ['2022', '2023', '2024', '2025', '2026', '2027', '2028', '2029', '2030'];
+      const optionsHtml = yearOptions.map(y => `<option value="${y}" ${String(val) === String(y) ? 'selected' : ''}>${y}</option>`).join('');
+      inputHtml = `<select id="input_field_${key}" onchange="handleAutoSaveInput('${key}')" class="w-full text-xs border border-amber-300 bg-amber-50/40 rounded-xl p-2.5 focus:border-amber-500 focus:outline-none font-bold text-amber-900 cursor-pointer">${optionsHtml}</select>`;
     } else if (fieldType === 'date') {
       inputHtml = `<input type="date" id="input_field_${key}" oninput="handleAutoSaveInput('${key}')" value="${formatDateForInput(val)}" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none font-semibold" />`;
     } else if (fieldType === 'number') {
@@ -987,21 +902,15 @@ async function renderDynamicFormFields(tpl) {
     `;
   });
 
-  const docCode = tpl?.code || appState.activeDocCode;
-  const useTable = tpl?.hasTable === undefined
-    ? (Array.isArray(tpl?.tableHeaders) && tpl.tableHeaders.length > 0)
-    : tpl.hasTable === true;
-  const tableKey = useTable ? (getSpecificTableKeyForDoc(docCode) || 'table_rows') : null;
+  const targetTpl = RKP_TEMPLATES.find(x => x.code === tpl?.code) || tpl || { hasTable: false, tableHeaders: [] };
+  const usesTable = targetTpl.hasTable === undefined
+    ? (Array.isArray(targetTpl.tableHeaders) && targetTpl.tableHeaders.length > 0)
+    : targetTpl.hasTable === true;
 
-  if (useTable && tableKey) {
-    const headers = (tpl.tableHeaders && tpl.tableHeaders.length > 0)
-      ? tpl.tableHeaders
-      : (RKP_TEMPLATES.find(x => x.code === docCode)?.tableHeaders || []);
-
-    if (!headers || headers.length === 0) {
-      console.log('📌 Dokumen ini tidak memiliki kolom tabel.');
-      return;
-    }
+  if (usesTable) {
+    const headers = (targetTpl.tableHeaders && targetTpl.tableHeaders.length > 0)
+      ? targetTpl.tableHeaders
+      : ['No', 'Nama', 'Tempat, Tanggal Lahir', 'Jabatan', 'Unsur'];
 
     console.log(`📌 [Render Form Step 5] Merender Dynamic Repeatable Table (${headers.join(', ')})...`);
 
@@ -1016,39 +925,42 @@ async function renderDynamicFormFields(tpl) {
     headerColsHtml += `<th class="p-1.5 border text-center w-8">Aksi</th>`;
 
     const dataHeaders = headers.filter(h => h.toLowerCase() !== 'no');
-    
-    // Buka HANYA tabel milik dokumen spesifik ini (JANGAN PERNAH panggil getBestTableArray!)
-    let savedTableData = Array.isArray(appState.documentTables[tableKey]) 
-      ? appState.documentTables[tableKey] 
-      : [];
-
-    if (!savedTableData || savedTableData.length === 0) {
+    let savedTableData = null;
+    // Prioritaskan kunci tabel yang spesifik untuk template ini, lalu barulah
+    // array lain yang ada — semua dibaca dari stateTables (data dokumen aktif).
+    if (stateTables && typeof stateTables === 'object') {
+      const preferredKeys = ['tabel_sk_tim_penyusun', 'tabel_tim_penyusun', 'susunan_tim', 'tabel_daftar_hadir', 'tabel_kegiatan'];
+      for (const pk of preferredKeys) {
+        if (Array.isArray(stateTables[pk])) {
+          savedTableData = stateTables[pk];
+          break;
+        }
+      }
+      if (savedTableData === null) {
+        const tableKeys = Object.keys(stateTables);
+        for (const tk of tableKeys) {
+          if (Array.isArray(stateTables[tk])) {
+            savedTableData = stateTables[tk];
+            break;
+          }
+        }
+      }
+    }
+    if (savedTableData === null) {
       savedTableData = [
-        { nama: '', ttl: '', jabatan: '', unsur: '' }
+        { nama: 'Drs. H. Ahmad', ttl: 'Polewali, 12 Mei 1975', jabatan: 'Ketua Tim', unsur: 'Pemerintah Desa' },
+        { nama: 'Hj. Siti Aisyah', ttl: 'Batetangnga, 04-08-1982', jabatan: 'Sekretaris', unsur: 'Tokoh Masyarakat' }
       ];
     }
 
     let rowsHtml = '';
     savedTableData.forEach((item, index) => {
-      const itemKeys = Object.keys(item || {}).filter(k => k !== 'no');
       rowsHtml += `<tr class="table-row-item">`;
       rowsHtml += `<td class="p-1 border text-center font-bold text-slate-600 col-no">${index + 1}</td>`;
       
       dataHeaders.forEach((h, colIdx) => {
-        let val = '';
-        if (item[h] !== undefined && item[h] !== null) {
-          val = item[h];
-        } else if (itemKeys[colIdx] !== undefined && item[itemKeys[colIdx]] !== undefined && item[itemKeys[colIdx]] !== null) {
-          // Header kolom berubah di Pengaturan: tampilkan nilai lama sesuai posisi yang sama,
-          // sampai pengguna menyimpan data baru (generate & simpan) yang menggantikannya.
-          val = item[itemKeys[colIdx]];
-        } else if (item[`col_${colIdx}`] !== undefined && item[`col_${colIdx}`] !== null) {
-          val = item[`col_${colIdx}`];
-        } else if (item[h.toLowerCase()] !== undefined && item[h.toLowerCase()] !== null) {
-          val = item[h.toLowerCase()];
-        }
-        const safeVal = String(val).replace(/"/g, '&quot;');
-        rowsHtml += `<td class="p-1 border"><input type="text" class="col-dyn-${colIdx} w-full p-1 border border-slate-200 rounded text-xs focus:outline-none focus:border-brand-500 font-semibold" oninput="handleAutoSaveTable()" value="${safeVal}" placeholder="${h}..." /></td>`;
+        const val = item[h] || item[h.toLowerCase()] || item[`col_${colIdx}`] || (colIdx === 0 ? item.nama : colIdx === 1 ? item.ttl : colIdx === 2 ? item.jabatan : item.unsur) || '';
+        rowsHtml += `<td class="p-1 border"><input type="text" class="col-dyn-${colIdx} w-full p-1 border border-slate-200 rounded text-xs focus:outline-none focus:border-brand-500 font-semibold" oninput="handleAutoSaveTable()" value="${val}" placeholder="${h}..." /></td>`;
       });
 
       rowsHtml += `<td class="p-1 border text-center"><button onclick="hapusBarisTim(this)" class="text-red-500 hover:text-red-700 font-bold px-1">&times;</button></td>`;
@@ -1106,127 +1018,53 @@ async function renderDynamicFormFields(tpl) {
   console.log('--------------------------------------------------\n');
 }
 
-function triggerDebouncedSupabaseSave() {
-  if (appState.supabaseSaveTimer) clearTimeout(appState.supabaseSaveTimer);
-  const indicator = document.getElementById('autoSaveIndicator');
-  if (indicator) {
-    indicator.textContent = '⏳ Menyimpan ke Supabase...';
-    indicator.className = 'text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full';
-  }
-  appState.supabaseSaveTimer = setTimeout(async () => {
-    try {
-      const code = appState.activeDocCode || 'DOC-02B';
-      const tahun = appState.activeTahun;
-      const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, documentId: '' };
-
-      // Gunakan payload aman agar data tabel lama tidak tertimpa kosong
-      const tablesPayload = await siapkanTablesPayloadAman(code, tahun);
-
-      const res = await fetch(`${getApiBase()}/api/sync-document`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          google_docs_id: tpl.documentId,
-          doc_code: code,
-          tahun: tahun,
-          fields: appState.documentFields,
-          tables: tablesPayload,
-          isTemplate: true
-        })
-      });
-
-      // Juga simpan nilai master global ke record GLOBAL_MASTER di Supabase agar tersinkron ke semua surat
-      if (appState.globalSharedFields && Object.keys(appState.globalSharedFields).length > 0) {
-        fetch(`${getApiBase()}/api/sync-document`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            google_docs_id: 'GLOBAL_MASTER',
-            doc_code: 'GLOBAL_MASTER',
-            tahun: tahun,
-            fields: appState.globalSharedFields,
-            tables: {},
-            isTemplate: true
-          })
-        }).catch(() => {});
-      }
-
-      const resData = await res.json();
-      if (resData && resData.success) {
-        if (indicator) {
-          indicator.textContent = '✓ Tersimpan di Supabase';
-          indicator.className = 'text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full';
-        }
-      }
-    } catch (e) {
-      console.warn('Auto save to Supabase failed:', e);
-    }
-  }, 1000);
-}
-
 function handleAutoSaveInput(key) {
   const el = document.getElementById(`input_field_${key}`);
   if (el) {
     const val = el.value;
     appState.documentFields[key] = val;
 
-    // Simpan nilai terbaru untuk key spesifik ini ke globalSharedFields (Edit sekali, berlaku global untuk key yang sama)
-    // Semua varian tahun ikut tersinkron global (kontrol Tahun Master berlaku untuk semua dokumen)
+    // Sync to globalSharedFields cache
     if (!appState.globalSharedFields) appState.globalSharedFields = {};
     appState.globalSharedFields[key] = val;
+    if (key === 'tahun' || key === 'tahun1') {
+      appState.globalSharedFields['tahun'] = val;
+      appState.globalSharedFields['tahun1'] = val;
+      appState.documentFields['tahun'] = val;
+      appState.documentFields['tahun1'] = val;
+      appState.activeTahun = val;
+      const selectHeader = document.getElementById('selectTahunDokumenDesa');
+      if (selectHeader) selectHeader.value = val;
+    }
     try {
       localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
     } catch (e) {}
   }
 
   saveStateToLocalStorage();
-  triggerDebouncedSupabaseSave();
-}
 
-function getSpecificTableKeyForDoc(code) {
-  if (code === 'DOC-02B') return 'tabel_sk_tim_penyusun';
-  if (code === 'DOC-20') return 'tabel_daftar_hadir';
-  if (code === 'DOC-27') return 'tabel_kegiatan';
-  if (code === 'DOC-34') return 'tabel_tim_verifikasi';
-  return null;
-}
-
-function handleAutoSaveTable() {
-  const code = appState.activeDocCode;
-  const targetTpl = RKP_TEMPLATES.find(x => x.code === code) || { hasTable: false };
-  if (!targetTpl.hasTable) {
-    // Jangan nolkan data tabel di memori: biarkan siapkanTablesPayloadAman
-    // yang memutuskan apakah data lama perlu dipertahankan.
-    return;
+  const indicator = document.getElementById('autoSaveIndicator');
+  if (indicator) {
+    indicator.textContent = '⏳ Saving...';
+    indicator.className = 'text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full';
   }
-  const tableData = gatherTableRowsData();
-  const tableKey = getSpecificTableKeyForDoc(code) || 'table_rows';
-  appState.documentTables = {
-    [tableKey]: tableData
-  };
-  saveStateToLocalStorage();
-  triggerDebouncedSupabaseSave();
+
+  if (appState.autoSaveTimer) clearTimeout(appState.autoSaveTimer);
+  appState.autoSaveTimer = setTimeout(() => {
+    if (indicator) {
+      indicator.textContent = '✓ Saved';
+      indicator.className = 'text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full';
+    }
+  }, 600);
 }
 
-async function gantiTahunDokumenDesa(tahunVal) {
+function gantiTahunDokumenDesa(tahunVal) {
   appState.activeTahun = tahunVal;
   if (!appState.globalSharedFields) appState.globalSharedFields = {};
-
-  // Muat nilai master global milik tahun yang dipilih agar nilainya sesuai tahun tsb
-  try {
-    const res = await fetch(`${getApiBase()}/api/dokumen-form-data/GLOBAL_MASTER/${tahunVal}`);
-    const gd = await res.json();
-    if (gd && gd.success && gd.fields && Object.keys(gd.fields).length > 0) {
-      appState.globalSharedFields = { ...gd.fields };
-    }
-  } catch (e) {}
-
-  // Terapkan nilai master ke field dokumen agar render memakai nilai tahun yang benar
-  Object.keys(appState.globalSharedFields).forEach(k => {
-    const gVal = appState.globalSharedFields[k];
-    if (gVal !== undefined && gVal !== null && gVal !== '') appState.documentFields[k] = gVal;
-  });
-
+  appState.globalSharedFields['tahun'] = tahunVal;
+  appState.globalSharedFields['tahun1'] = tahunVal;
+  appState.documentFields['tahun'] = tahunVal;
+  appState.documentFields['tahun1'] = tahunVal;
   try {
     localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
   } catch (e) {}
@@ -1234,11 +1072,14 @@ async function gantiTahunDokumenDesa(tahunVal) {
   const selectHeader = document.getElementById('selectTahunDokumenDesa');
   if (selectHeader) selectHeader.value = tahunVal;
 
-  const tpl = RKP_TEMPLATES.find(x => x.code === appState.activeDocCode);
-  if (tpl) {
-    await renderDynamicFormFields(tpl);
+  // Muat ulang data form & tabel milik dokumen aktif untuk tahun yang baru.
+  // (Token guard di bukaDokumenEdit mencegah tabel dokumen lain ikut tampil.)
+  if (appState.activeDocCode) {
+    bukaDokumenEdit(appState.activeDocCode, tahunVal);
+  } else {
+    const tpl = RKP_TEMPLATES.find(x => x.code === appState.activeDocCode);
+    if (tpl) renderDynamicFormFields(tpl);
   }
-  triggerDebouncedSupabaseSave();
   showToast(`📅 Tahun Anggaran diubah ke ${tahunVal}`, 'info');
 }
 
@@ -1253,9 +1094,6 @@ async function simpanDanTerapkanGlobalFieldsSemuaDokumen() {
       appState.globalSharedFields[key] = val;
     });
   }
-
-  // Varian tahun tidak dihitung rumus: nilai murni dari input (satu placeholder = satu nilai tersimpan per tahun master)
-  const curTahun = appState.activeTahun || '2027';
 
   try {
     localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
@@ -1274,7 +1112,6 @@ async function simpanDanTerapkanGlobalFieldsSemuaDokumen() {
         body: JSON.stringify({
           google_docs_id: docId,
           doc_code: tpl.code,
-          tahun: curTahun,
           fields: appState.globalSharedFields,
           tables: {}
         })
@@ -1286,6 +1123,11 @@ async function simpanDanTerapkanGlobalFieldsSemuaDokumen() {
   showToast(`✅ Data master (Tahun, Kades, Tempat, dll) berhasil disimpan & diterapkan ke ${count} Surat di Supabase!`, 'success');
 }
 
+function handleAutoSaveTable() {
+  const tableData = gatherTableRowsData();
+  appState.documentTables.tabel_tim_penyusun = tableData;
+  saveStateToLocalStorage();
+}
 
 // ============================================================
 // GRUP TANGGAL OTOMATIS — {{tgl_<token>_hari/bulan/terbilang}}
@@ -1331,63 +1173,26 @@ function tglParseTanggalBahasa(text) {
 
 function tglUpdateGrup(token) {
   const sourceEl = document.querySelector(`[data-tgl-token="${token}"][data-tgl-role="source"]`);
-  const pickerEl = document.getElementById(`tgl_picker_${token}`);
-  
-  let parsed = null;
-  if (pickerEl && pickerEl.value) {
-    const parts = pickerEl.value.split('-');
-    if (parts.length === 3) {
-      const y = Number(parts[0]);
-      const m = Number(parts[1]);
-      const d = Number(parts[2]);
-      const weekdayName = HARI_ID[new Date(y, m - 1, d).getDay()];
-      parsed = { day: d, monthIdx: m - 1, month: BULAN_ID[m - 1], year: y, weekday: weekdayName };
+  if (!sourceEl) return;
+  const parsed = tglParseTanggalBahasa(sourceEl.value);
+  const targets = document.querySelectorAll(`[data-tgl-token="${token}"][data-tgl-role="derived"]`);
+  targets.forEach(el => {
+    if (!parsed) { el.value = ''; return; }
+    const key = el.getAttribute('data-tgl-key');
+    if (key.endsWith('_hari')) {
+      el.value = `${parsed.weekday}, ${parsed.day} ${parsed.month} ${parsed.year}`;
+    } else if (key.endsWith('_terbilang')) {
+      el.value = `Hari ${parsed.weekday} Tanggal ${tglAngkaTerbilang(parsed.day)} Bulan ${parsed.month} Tahun ${tglAngkaTerbilang(parsed.year)}`;
+    } else {
+      el.value = `${parsed.day} ${parsed.month} ${parsed.year}`;
     }
-  } else if (sourceEl && sourceEl.value) {
-    parsed = tglParseTanggalBahasa(sourceEl.value);
-  }
-
-  if (parsed) {
-    const hariVal = `${parsed.weekday}, ${parsed.day} ${parsed.month} ${parsed.year}`;
-    const bulanVal = `${parsed.day} ${parsed.month} ${parsed.year}`;
-    const terbilangVal = `Hari ${parsed.weekday} Tanggal ${tglAngkaTerbilang(parsed.day)} Bulan ${parsed.month} Tahun ${tglAngkaTerbilang(parsed.year)}`;
-
-    if (!appState.globalSharedFields) appState.globalSharedFields = {};
-    appState.globalSharedFields[`tgl_${token}_hari`] = hariVal;
-    appState.globalSharedFields[`tgl_${token}_bulan`] = bulanVal;
-    appState.globalSharedFields[`tgl_${token}_terbilang`] = terbilangVal;
-    appState.globalSharedFields[`tgl_${token}`] = bulanVal;
-
-    appState.documentFields[`tgl_${token}_hari`] = hariVal;
-    appState.documentFields[`tgl_${token}_bulan`] = bulanVal;
-    appState.documentFields[`tgl_${token}_terbilang`] = terbilangVal;
-    appState.documentFields[`tgl_${token}`] = bulanVal;
-
-    try {
-      localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
-    } catch (e) {}
-
-    // Update all matching elements in current DOM
-    const allGroupInputs = document.querySelectorAll(`[data-tgl-token="${token}"]`);
-    allGroupInputs.forEach(el => {
-      const key = el.getAttribute('data-tgl-key') || (el.id ? el.id.replace('input_field_', '') : '');
-      if (key.endsWith('_hari')) {
-        el.value = hariVal;
-      } else if (key.endsWith('_terbilang')) {
-        el.value = terbilangVal;
-      } else if (key) {
-        el.value = bulanVal;
-      }
-    });
-  } else {
-    const allGroupInputs = document.querySelectorAll(`[data-tgl-token="${token}"]`);
-    allGroupInputs.forEach(el => {
-      if (el.tagName === 'INPUT' && el.type !== 'date') el.value = '';
-    });
-  }
-
+    if (el.id) {
+      appState.documentFields[el.id.replace('input_field_', '')] = el.value;
+    }
+    // trigger auto-save suppression: pakai flag agar handleAutoSaveInput tidak menimpa
+    el.setAttribute('aria-linked', 'true');
+  });
   saveStateToLocalStorage();
-  triggerDebouncedSupabaseSave();
 }
 
 function initTanggalAutoGroup(fields) {
@@ -1400,64 +1205,49 @@ function initTanggalAutoGroup(fields) {
 
   Object.keys(tokenRoles).forEach(token => {
     const roles = tokenRoles[token];
+    const roleCount = Object.keys(roles).length;
+    if (roleCount < 2) return; // tanpa pasangan → tidak aktif
+
     const sourceRole = roles.hari ? 'hari' : (roles.bulan ? 'bulan' : 'terbilang');
     const srcId = 'input_field_' + roles[sourceRole];
     const sourceEl = document.getElementById(srcId);
     if (!sourceEl) return;
 
-    // Kunci field sumber & tandai dengan atribut grup
+    // Semua field tgl_..._(hari|bulan|terbilang) dikunci & otomatis terisi oleh date-picker.
     sourceEl.setAttribute('data-tgl-token', token);
     sourceEl.setAttribute('data-tgl-role', 'source');
     sourceEl.setAttribute('data-tgl-key', roles[sourceRole]);
     sourceEl.setAttribute('readonly', 'readonly');
     sourceEl.classList.add('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
+    sourceEl.addEventListener('input', () => tglUpdateGrup(token));
 
-    // Cek nilai tersimpan dari globalSharedFields
-    const sharedHari = appState.globalSharedFields ? appState.globalSharedFields[`tgl_${token}_hari`] : null;
-    const sharedBulan = appState.globalSharedFields ? appState.globalSharedFields[`tgl_${token}_bulan`] : null;
-    if (sharedHari || sharedBulan) {
-      const parsedShared = tglParseTanggalBahasa(sharedHari || sharedBulan);
-      if (parsedShared) {
-        const hariVal = `${parsedShared.weekday}, ${parsedShared.day} ${parsedShared.month} ${parsedShared.year}`;
-        const bulanVal = `${parsedShared.day} ${parsedShared.month} ${parsedShared.year}`;
-        const terbilangVal = `Hari ${parsedShared.weekday} Tanggal ${tglAngkaTerbilang(parsedShared.day)} Bulan ${parsedShared.month} Tahun ${tglAngkaTerbilang(parsedShared.year)}`;
-
-        appState.documentFields[`tgl_${token}_hari`] = hariVal;
-        appState.documentFields[`tgl_${token}_bulan`] = bulanVal;
-        appState.documentFields[`tgl_${token}_terbilang`] = terbilangVal;
-        appState.documentFields[`tgl_${token}`] = bulanVal;
-      }
-    }
-
-    // Buat input date-picker khusus untuk grup ini
-    let picker = document.getElementById(`tgl_picker_${token}`);
-    if (!picker) {
-      picker = document.createElement('input');
-      picker.type = 'date';
-      picker.id = `tgl_picker_${token}`;
-      picker.className = 'w-full text-xs border border-brand-300 bg-brand-50/20 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none mb-2 font-bold text-slate-800 shadow-sm';
-      picker.setAttribute('data-tgl-token', token);
-      sourceEl.parentNode.insertBefore(picker, sourceEl);
-    }
-
-    // Isikan nilai tanggal picker jika ada data tersimpan
-    const currentVal = appState.documentFields[roles[sourceRole]] || (appState.globalSharedFields ? appState.globalSharedFields[roles[sourceRole]] : '');
-    if (currentVal) {
-      const p = tglParseTanggalBahasa(currentVal);
-      if (p) {
-        picker.value = `${p.year}-${String(p.monthIdx + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
-      }
-    }
-
+    // Buat input date-picker khusus untuk grup ini (terhubung ke semua tiga field).
+    const picker = document.createElement('input');
+    picker.type = 'date';
+    picker.id = `tgl_picker_${token}`;
+    picker.className = 'w-full text-xs border border-slate-300 rounded-xl p-2.5 focus:border-brand-500 focus:outline-none mb-2';
+    picker.placeholder = `Pilih tanggal untuk {{${roles.hari || roles.bulan || roles.terbilang}}}`;
+    picker.setAttribute('data-tgl-token', token);
     picker.onchange = () => {
       const v = picker.value; // YYYY-MM-DD
       if (!v) {
         sourceEl.value = '';
+        appState.documentFields[sourceEl.id.replace('input_field_', '')] = '';
         tglUpdateGrup(token);
         return;
       }
+      const parts = v.split('-');
+      const y = Number(parts[0]);
+      const m = Number(parts[1]);
+      const d = Number(parts[2]);
+      const indonesian = `${d} ${BULAN_ID[m - 1]} ${y}`;
+      sourceEl.value = indonesian;
+      appState.documentFields[sourceEl.id.replace('input_field_', '')] = indonesian;
+      // trigger rekap hari/bulan/terbilang yang terkait
       tglUpdateGrup(token);
+      saveStateToLocalStorage();
     };
+    sourceEl.parentNode.insertBefore(picker, sourceEl);
 
     ['hari', 'bulan', 'terbilang'].forEach(role => {
       if (role === sourceRole || !roles[role]) return;
@@ -1470,7 +1260,7 @@ function initTanggalAutoGroup(fields) {
       el.classList.add('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
     });
 
-    tglUpdateGrup(token);
+    if (sourceEl.value) tglUpdateGrup(token);
   });
 }
 
@@ -1544,17 +1334,17 @@ function gatherTableRowsData() {
 
     dataHeaders.forEach((h, colIdx) => {
       const inp = tr.querySelector(`.col-dyn-${colIdx}`) || tr.querySelectorAll('input')[colIdx];
-      const val = inp ? inp.value : '';
-      if (val && val.trim()) hasAnyVal = true;
+      const val = inp ? inp.value.trim() : '';
+      if (val) hasAnyVal = true;
       rowObj[h] = val;
       rowObj[`col_${colIdx}`] = val;
-      
-      const lowerH = h.toLowerCase();
-      if (lowerH === 'nama' || lowerH.includes('nama ')) rowObj.nama = val;
-      if (lowerH.includes('lahir') || lowerH === 'ttl') rowObj.ttl = val;
-      if (lowerH === 'jabatan' || lowerH.includes('jabatan')) rowObj.jabatan = val;
-      if (lowerH === 'unsur' || lowerH.includes('unsur')) rowObj.unsur = val;
     });
+
+    const inputs = tr.querySelectorAll('input');
+    if (inputs[0]) rowObj.nama = inputs[0].value;
+    if (inputs[1]) rowObj.ttl = inputs[1].value;
+    if (inputs[2]) rowObj.jabatan = inputs[2].value;
+    if (inputs[3]) rowObj.unsur = inputs[3].value;
 
     if (hasAnyVal) {
       rows.push(rowObj);
@@ -1562,49 +1352,6 @@ function gatherTableRowsData() {
   });
 
   return rows;
-}
-
-// ============================================================
-// JAGA DATA TABEL: jangan pernah menimpa tabel berisi data
-// dengan data kosong. Data lama tetap dipertahankan sampai ada
-// data baru (≥1 baris terisi) yang menggantikannya.
-// ============================================================
-async function siapkanTablesPayloadAman(code, tahun) {
-  const targetTpl = RKP_TEMPLATES.find(x => x.code === code) || { hasTable: false };
-  const tableKey = getSpecificTableKeyForDoc(code) || 'table_rows';
-
-  // Dokumen tanpa tabel aktif: jangan kirim data tabel (server membersihkan sisa yang basi)
-  if (!targetTpl.hasTable) {
-    return {};
-  }
-
-  // Ambil baris terisi dari form (kalau tabel sedang dirender)
-  let gathered = [];
-  if (document.getElementById('tbodyRepeatableTim')) {
-    gathered = gatherTableRowsData();
-  }
-
-  // Ada data baru (≥1 baris terisi) → gantikan data lama
-  if (gathered.length > 0) {
-    return { [tableKey]: gathered };
-  }
-
-  // Form kosong saat ini → PERTAHANKAN data yang sudah tersimpan (jangan hapus!)
-  const stored = appState.documentTables && appState.documentTables[tableKey];
-  if (Array.isArray(stored) && stored.length > 0) {
-    return { [tableKey]: stored };
-  }
-
-  // Terakhir, minta data lama dari Supabase agar tidak tertimpa kosong
-  try {
-    const res = await fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${tahun}`);
-    const d = await res.json();
-    if (d.success && d.tables && Array.isArray(d.tables[tableKey])) {
-      return { [tableKey]: d.tables[tableKey] };
-    }
-  } catch (e) {}
-
-  return { [tableKey]: [] };
 }
 
 async function simpanFormDokumenAuto() {
@@ -1640,9 +1387,24 @@ async function simpanFormDokumenAuto() {
   const tahun = appState.activeTahun;
   const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, documentId: '' };
 
-  // Gunakan payload aman agar data tabel lama tidak tertimpa kosong
-  const tablesPayload = await siapkanTablesPayloadAman(code, tahun);
-  appState.documentTables = tablesPayload;
+  // Hanya kirim data tabel jika template benar-benar menggunakan tabel berulang.
+  // Jika status "Tidak Menggunakan Tabel" dipilih, tabel tidak ikut disinkronkan.
+  const usesTable = tpl.hasTable === undefined
+    ? (Array.isArray(tpl.tableHeaders) && tpl.tableHeaders.length > 0)
+    : tpl.hasTable === true;
+
+  if (usesTable) {
+    const tableData = gatherTableRowsData();
+    appState.documentTables = {
+      tabel_tim_penyusun: tableData,
+      tabel_sk_tim_penyusun: tableData,
+      susunan_tim: tableData,
+      tabel_daftar_hadir: tableData,
+      tabel_kegiatan: tableData
+    };
+  } else {
+    appState.documentTables = {};
+  }
   saveStateToLocalStorage();
 
   console.log(`📌 [Frontend Step 2] Target Document Code: ${code} (${tahun})`);
@@ -1692,23 +1454,6 @@ async function simpanFormDokumenAuto() {
       console.warn('⚠️ Server lokal tidak merespon:', serverErr.message);
     }
 
-    // Sinkronkan nilai master global ke GLOBAL_MASTER agar berlaku untuk semua surat
-    // (tombol Simpan & Sinkron juga harus memperbarui master, bukan hanya autosave)
-    if (appState.globalSharedFields && Object.keys(appState.globalSharedFields).length > 0) {
-      fetch(`${getApiBase()}/api/sync-document`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          google_docs_id: 'GLOBAL_MASTER',
-          doc_code: 'GLOBAL_MASTER',
-          tahun: tahun,
-          fields: appState.globalSharedFields,
-          tables: {},
-          isTemplate: true
-        })
-      }).catch(() => {});
-    }
-
     // 2. Jika server backend belum memanggil GAS / mengembalikan ID master mentah, panggil GAS langsung dari browser!
     if (!finalDocId || finalDocId === tpl.documentId) {
       console.log('⚡ Running Direct Browser-to-GAS Engine fallback...');
@@ -1738,22 +1483,22 @@ async function simpanFormDokumenAuto() {
         console.warn('⚠️ Menjalankan fallback teks format tabel pada deployment GAS lama...');
         showToast('⚠️ Web App Google Apps Script masih versi lama (appendRow). Update deployment ke "New version" di script.google.com agar terisi dalam kotak-kotak tabel asli!', 'warning');
         
-        const docTableRows = getBestTableArray(appState.documentTables);
+        const tableRows = (appState.documentTables && appState.documentTables.tabel_tim_penyusun) ? appState.documentTables.tabel_tim_penyusun : [];
         const headers = getActiveTemplateTableHeaders();
         const dataHeaders = headers.filter(h => h.toLowerCase() !== 'no');
 
         let textLines = [];
-        docTableRows.forEach((r, idx) => {
-          let colsText = dataHeaders.map(h => `${h}: ${r[h] || '-'}`).join(' | ');
+        tableRows.forEach((r, idx) => {
+          let colsText = dataHeaders.map(h => `${h}: ${r[h] || r.nama || '-'}`).join(' | ');
           textLines.push(`${idx + 1}. ${colsText}`);
         });
         const tableFormattedText = textLines.join('\n');
 
-        const tableKey = getSpecificTableKeyForDoc(code) || 'table_rows';
         gasPayload.data = gasPayload.data || {};
-        if (targetTpl.hasTable && tableKey && tableFormattedText) {
-          gasPayload.data[tableKey] = tableFormattedText;
-        }
+        gasPayload.data.tabel_tim_penyusun = tableFormattedText;
+        gasPayload.data.susunan_tim = tableFormattedText;
+        gasPayload.data.tabel_daftar_hadir = tableFormattedText;
+        gasPayload.data.tabel_kegiatan = tableFormattedText;
         gasPayload.tables = {};
 
         gasRes = await fetch(GAS_DIRECT_URL, {
@@ -1797,78 +1542,6 @@ async function simpanFormDokumenAuto() {
       syncBtn.innerHTML = originalHtml;
     }
     console.log('--------------------------------------------------\n');
-  }
-}
-
-async function simpanFormHanyaSupabase() {
-  const currentFields = {};
-  const container = document.getElementById('containerDynamicFormFields');
-  if (container) {
-    container.querySelectorAll('input[id^="input_field_"], textarea[id^="input_field_"], select[id^="input_field_"]').forEach(el => {
-      const key = el.id.replace('input_field_', '');
-      const lowerKey = key.toLowerCase();
-      if (!lowerKey.startsWith('tabel_') && !lowerKey.startsWith('susunan_')) {
-        currentFields[key] = el.value;
-      }
-    });
-  }
-
-  appState.documentFields = currentFields;
-  if (!appState.globalSharedFields) appState.globalSharedFields = {};
-  Object.keys(currentFields).forEach(k => {
-    if (currentFields[k] !== undefined && currentFields[k] !== null && currentFields[k] !== '') {
-      appState.globalSharedFields[k] = currentFields[k];
-    }
-  });
-  try {
-    localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
-  } catch (e) {}
-  saveStateToLocalStorage();
-
-  const code = appState.activeDocCode || 'DOC-02B';
-  const tahun = appState.activeTahun;
-  const tpl = RKP_TEMPLATES.find(x => x.code === code) || { code, documentId: '' };
-
-  const tablesPayload = await siapkanTablesPayloadAman(code, tahun);
-  appState.documentTables = tablesPayload;
-  saveStateToLocalStorage();
-
-  const btn = document.getElementById('btnSimpanDrafSupabase');
-  const originalHtml = btn ? btn.innerHTML : '';
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Menyimpan...';
-  }
-
-  showToast(`💾 Menyimpan draf ${code} (${tahun}) ke Supabase...`, 'info');
-
-  try {
-    const res = await fetch(`${getApiBase()}/api/dokumen-form-data`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        doc_code: code,
-        tahun: tahun,
-        fields: appState.documentFields,
-        tables: appState.documentTables,
-        google_docs_id: tpl.documentId
-      })
-    });
-    const result = await res.json();
-    if (result.success) {
-      showToast(`✅ Draf form & tabel ${code} (${tahun}) berhasil disimpan ke Supabase DB!`, 'success');
-    } else {
-      console.error('Error simpan form:', result.error);
-      showToast(`⚠️ Gagal simpan ke DB. Server: ${result.error}. Disimpan lokal.`, 'error');
-    }
-  } catch (e) {
-    console.error('Catch error simpan form:', e);
-    showToast(`❌ Gagal terhubung ke server: ${e.message}. Data hanya tersimpan lokal!`, 'error');
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = originalHtml;
-    }
   }
 }
 
@@ -1933,7 +1606,7 @@ function bukaModul(route) {
   } else if (route.startsWith('/admin/templates/settings')) {
     if (btnSettings) btnSettings.classList.add('active');
     if (secSettings) secSettings.classList.remove('hidden');
-    muatPengaturanTemplate(appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B');
+    muatPengaturanTemplate(appState.activeDocCode || 'DOC-02B');
   } else {
     if (btnTemplates) btnTemplates.classList.add('active');
     if (secTemplates) secTemplates.classList.remove('hidden');
@@ -1977,52 +1650,41 @@ function toggleOptionsInput(mode) {
 }
 
 async function muatPengaturanTemplate(codeParam) {
-  const code = codeParam || appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B';
-  setActiveDocCode(code);
+  const code = codeParam || templateSettingsState.activeCode || 'DOC-02B';
+  templateSettingsState.activeCode = code;
 
   const tpl = RKP_TEMPLATES.find(x => x.code === code);
   const select = document.getElementById('selectSettingTemplateCode');
   if (select) select.value = code;
 
   try {
-    // 1. Fetch template field schema & data values in PARALLEL from Supabase
-    const [data, dbData] = await Promise.all([
-      fetch(`${getApiBase()}/api/templates/${code}/all`).then(r => r.json()).catch(() => ({ fields: [], tableHeaders: [] })),
-      fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${appState.activeTahun}`).then(r => r.json()).catch(() => ({ success: false }))
-    ]);
+    // 1. Fetch template field schema live from Supabase
+    const res = await fetch(`${getApiBase()}/api/templates/${code}/all`);
+    const data = await res.json();
 
-    const CANONICAL_TABLE_DOCS = ['DOC-02B', 'DOC-20', 'DOC-27', 'DOC-34'];
-    const isTableDoc = CANONICAL_TABLE_DOCS.includes(code);
-
-    const serverHeaders = (data && data.tableHeaders && Array.isArray(data.tableHeaders)) ? data.tableHeaders : [];
-
-    // Status "Gunakan Tabel Repeatable" SINKRON lintas perangkat:
-    let savedHasTable = null;
-    try {
-      const saved = localStorage.getItem('docTemplateHasTable_' + code);
-      if (saved === 'true' || saved === 'false') savedHasTable = (saved === 'true');
-    } catch (e) {}
-    const hasTable = (serverHeaders.length > 0) ? true : ((savedHasTable !== null) ? savedHasTable : isTableDoc);
-
-    // Cadangan header lokal
-    let localBackupHeaders = [];
-    try {
-      const bk = localStorage.getItem('docTemplateHeaders_' + code);
-      if (bk) localBackupHeaders = JSON.parse(bk);
-    } catch (e) {}
-    const baseHeaders = RKP_TEMPLATES.find(x => x.code === code)?.tableHeaders || [];
-    const finalHeaders = (serverHeaders.length > 0) ? serverHeaders
-      : ((localBackupHeaders.length > 0) ? localBackupHeaders : baseHeaders);
-
-    if (tpl) {
-      tpl.fields = data.fields || [];
-      tpl.hasTable = hasTable;
-      tpl.tableHeaders = finalHeaders;
+    if (data.success) {
+      if (tpl) {
+        tpl.fields = data.fields || [];
+        tpl.tableHeaders = data.tableHeaders || ['No', 'Nama', 'Tempat, Tanggal Lahir', 'Jabatan', 'Unsur'];
+      }
+      templateSettingsState.fields = data.fields || (tpl ? tpl.fields : []) || [];
+      templateSettingsState.tableHeaders = data.tableHeaders || (tpl ? tpl.tableHeaders : []) || ['No', 'Nama', 'Tempat, Tanggal Lahir', 'Jabatan', 'Unsur'];
     }
-    templateSettingsState.fields = data.fields || (tpl ? tpl.fields : []) || [];
-    templateSettingsState.tableHeaders = finalHeaders;
 
-    if (dbData && dbData.success && dbData.fields) {
+    // Pulihkan status "gunakan tabel / tidak" yang disimpan di localStorage
+    // (server tidak menyimpan kolom hasTable, jadi status disimpan di sisi klien).
+    try {
+      const savedHasTable = localStorage.getItem('docTemplateHasTable_' + code);
+      if (savedHasTable !== null && tpl) {
+        tpl.hasTable = savedHasTable === 'true';
+      }
+    } catch (e) {}
+
+    // 2. Fetch live data values from Supabase dokumen_form_data
+    const resData = await fetch(`${getApiBase()}/api/dokumen-form-data/${code}/${appState.activeTahun}`);
+    const dbData = await resData.json();
+
+    if (dbData.success && dbData.fields) {
       appState.documentFields = Object.assign({}, appState.documentFields, dbData.fields);
     }
 
@@ -2083,6 +1745,13 @@ function renderPengaturanTemplateUI() {
   if (badgeCount) badgeCount.textContent = `${fields.length} Fields`;
 
   if (tbody) {
+    const headerContainer = document.getElementById('settingsHeaderActions');
+    if (headerContainer) {
+      headerContainer.innerHTML = `
+        <button onclick="jalankanAutoScanPlaceholdersSettings()" class="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1.5"><i class="fas fa-search"></i> Scan Ulang Placeholder</button>
+        <button onclick="bukaModalTambahField()" class="bg-brand-500 hover:bg-brand-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow">+ Tambah Field Baru</button>
+      `;
+    }
     if (fields.length === 0) {
       tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400">Belum ada field diset. Tekan "Tambah Field Baru" di atas.</td></tr>`;
     } else {
@@ -2132,37 +1801,21 @@ function updateSettingFieldValue(key, val) {
   try {
     localStorage.setItem('GLOBAL_SHARED_FIELDS', JSON.stringify(appState.globalSharedFields));
   } catch (e) {}
-  triggerDebouncedSupabaseSave();
 }
 
-async function updateSettingFieldType(key, typeVal) {
-  const code = templateSettingsState.activeCode || appState.activeDocCode || 'DOC-02B';
+function updateSettingFieldType(key, typeVal) {
+  const code = templateSettingsState.activeCode || 'DOC-02B';
   const tpl = RKP_TEMPLATES.find(x => x.code === code);
   if (tpl && tpl.fields) {
     const item = tpl.fields.find(f => f.key === key);
     if (item) item.type = typeVal;
   }
-  if (templateSettingsState.fields) {
-    const settingsItem = templateSettingsState.fields.find(f => f.key === key);
-    if (settingsItem) settingsItem.type = typeVal;
-  }
-
-  // 1. Simpan tipe field baru ke Supabase database secara otomatis
-  try {
-    await simpanSemuaPerubahanPengaturan();
-    showToast(`✅ Tipe field {{${key}}} diubah ke '${typeVal.toUpperCase()}' & disimpan ke Supabase!`, 'success');
-  } catch (e) {
-    console.warn('Gagal menyimpan tipe field ke Supabase:', e);
-  }
-
-  // 2. Langsung sinkronkan dan update tampilan Form & Preview di layar
-  if (tpl) {
-    await renderDynamicFormFields(tpl);
-  }
+  const settingsItem = templateSettingsState.fields.find(f => f.key === key);
+  if (settingsItem) settingsItem.type = typeVal;
 }
 
 async function scanDanMuatUlangPengaturan(codeOverride, silent = false) {
-  const code = codeOverride || appState.activeDocCode || templateSettingsState.activeCode || 'DOC-02B';
+  const code = codeOverride || templateSettingsState.activeCode;
   const tpl = RKP_TEMPLATES.find(x => x.code === code);
   if (!tpl) {
     if (!silent) showToast(`❌ Template dengan kode ${code} tidak ditemukan.`, 'error');
@@ -2231,21 +1884,6 @@ async function scanDanMuatUlangPengaturan(codeOverride, silent = false) {
   } catch (e) {
     console.error('❌ Error saat scan & muat ulang pengaturan:', e);
     if (!silent) showToast(`❌ Terjadi error saat memindai: ${e.message}`, 'error');
-  }
-}
-
-async function bukaModalScanPlaceholdersForm() {
-  const code = appState.activeDocCode || 'DOC-02B';
-  showToast(`🔍 Memindai tag placeholder {{...}} baru dari Google Docs...`, 'info');
-  try {
-    await scanDanMuatUlangPengaturan(code, false);
-    const tpl = RKP_TEMPLATES.find(x => x.code === code);
-    if (tpl) {
-      await renderDynamicFormFields(tpl);
-    }
-    showToast(`✅ Placeholder Google Docs berhasil dipindai & ditambahkan otomatis ke Form & Live Preview!`, 'success');
-  } catch (e) {
-    showToast(`❌ Gagal memindai placeholder: ${e.message}`, 'error');
   }
 }
 
@@ -2336,37 +1974,31 @@ async function simpanHeaderTabel() {
 
   const code = templateSettingsState.activeCode || appState.activeDocCode || 'DOC-02B';
   const tpl = RKP_TEMPLATES.find(x => x.code === code);
-
-  // Header dikirim ke server HANYA saat tabel AKTIF. Saat OFF, server dikosongkan
-  // agar status sinkron lintas perangkat (server = sumber kebenaran via kolom table_headers).
-  const serverHeaders = hasTable ? newHeaders : [];
   if (tpl) {
     tpl.tableHeaders = newHeaders;
     tpl.hasTable = hasTable;
   }
   templateSettingsState.tableHeaders = newHeaders;
 
-  // Status tabel + cadangan header disimpan lokal untuk mode offline & kemudahan aktif ulang
+  // Persist status tabel di localStorage (server tidak menyimpan kolom hasTable)
   try {
     localStorage.setItem('docTemplateHasTable_' + code, hasTable ? 'true' : 'false');
-    localStorage.setItem('docTemplateHeaders_' + code, JSON.stringify(newHeaders));
   } catch (e) {}
 
   try {
     const res = await fetch(`${getApiBase()}/api/templates/${code}/all`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: tpl?.fields || [], tableHeaders: serverHeaders })
+      body: JSON.stringify({ fields: tpl?.fields || [], tableHeaders: newHeaders, hasTable: hasTable })
     });
     const result = await res.json();
     if (result.success) {
       renderPengaturanTemplateUI();
       tutupModalEditTableHeader();
 
-      // Segarkan tabel repeatable di Form & Preview langsung (tanpa pindah modul)
-      // agar header baru + nilai data lama (posisi sama) segera tampil.
-      if (appState.activeDocCode === code && tpl) {
-        await renderDynamicFormFields(tpl);
+      // Refresh form edit view if currently on the active document
+      if (appState.activeDocCode === code) {
+        bukaDokumenEdit(code);
       }
 
       showToast(`🎉 Pengaturan tabel template ${code} berhasil diperbarui di Supabase!`, 'success');
@@ -2422,10 +2054,6 @@ async function simpanTambahFieldBaru() {
   try {
     await simpanSemuaPerubahanPengaturan();
     renderPengaturanTemplateUI();
-    // Sinkronkan Form yang sedang terbuka agar field baru langsung muncul
-    if (appState.activeDocCode === code && !document.getElementById('modul-dokumen-edit').classList.contains('hidden')) {
-      await renderDynamicFormFields(tpl);
-    }
     tutupModalTambahField();
     showToast(`✨ Field '${key}' berhasil ditambahkan!`, 'success');
   } catch (e) {
@@ -2488,10 +2116,6 @@ async function simpanPerubahanField(event, silent = false) {
   try {
     await simpanSemuaPerubahanPengaturan();
     renderPengaturanTemplateUI();
-    // Sinkronkan Form yang sedang terbuka agar tipe/label field langsung berubah
-    if (appState.activeDocCode === code && !document.getElementById('modul-dokumen-edit').classList.contains('hidden')) {
-      await renderDynamicFormFields(tpl);
-    }
     if (!silent) {
       tutupModalEditField();
       showToast(`✅ Perubahan field '${originalKey}' berhasil disimpan!`, 'success');
@@ -2560,9 +2184,6 @@ async function simpanSemuaPerubahanPengaturan() {
 
     // Also persist data values to Supabase dokumen_form_data
     const docId = tpl.documentId || DEFAULT_MASTER_DOC_ID;
-    // Gunakan payload aman agar penyimpanan dari Pengaturan TIDAK menimpa
-    // tabel dokumen dengan data kosong (data lama tetap dipertahankan).
-    const tablesAman = await siapkanTablesPayloadAman(code, appState.activeTahun);
     await fetch(`${getApiBase()}/api/sync-document`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2571,7 +2192,7 @@ async function simpanSemuaPerubahanPengaturan() {
         doc_code: code,
         tahun: appState.activeTahun,
         fields: appState.documentFields,
-        tables: tablesAman
+        tables: appState.documentTables
       })
     });
   } catch (e) {
@@ -2592,10 +2213,6 @@ async function hapusField(key) {
   try {
     await simpanSemuaPerubahanPengaturan();
     renderPengaturanTemplateUI();
-    // Sinkronkan Form yang sedang terbuka agar field yang dihapus ikut hilang
-    if (appState.activeDocCode === code && !document.getElementById('modul-dokumen-edit').classList.contains('hidden')) {
-      await renderDynamicFormFields(tpl);
-    }
     showToast(`🗑️ Field '${key}' telah dihapus.`, 'info');
   } catch (e) {
     showToast(`❌ Gagal menghapus field: ${e.message}`, 'error');
@@ -2621,113 +2238,6 @@ function jalankanAutoScanPlaceholdersSettings() {
   scanDanMuatUlangPengaturan(null, false);
 }
 
-// ============================================================
-// AUTO-SCAN GOOGLE DOCS (background)
-// Otomatis memindai ulang placeholder {{...}} dari Google Docs
-// untuk dokumen yang sedang aktif. Jika ditemukan field BARU
-// (placeholder berubah/tambah di Google Docs), field lama yang
-// tidak lagi ada di dokumen otomatis dibuang dan Form & Preview
-// langsung disinkronkan — tanpa perlu klik "Auto-Scan".
-// ============================================================
-let autoScanTimer = null;
-let isAutoScanning = false;
-
-function autoScanSekali() {
-  if (isAutoScanning) return;
-  if (document.hidden) return; // jangan scan saat tab/minimized
-  isAutoScanning = true;
-  autoScanEksekusi().finally(() => { isAutoScanning = false; });
-}
-
-async function autoScanEksekusi() {
-  try {
-    // Tentukan dokumen aktif: form sedang dibuka → doc tsb; selainnya → doc aktif di Pengaturan
-    let code = null;
-    const editSection = document.getElementById('modul-dokumen-edit');
-    const formOpen = editSection && !editSection.classList.contains('hidden');
-    if (formOpen && appState.activeDocCode) code = appState.activeDocCode;
-    else if (templateSettingsState.activeCode) code = templateSettingsState.activeCode;
-    if (!code) return;
-
-    const tpl = RKP_TEMPLATES.find(x => x.code === code);
-    if (!tpl || !tpl.documentId || !String(tpl.documentId).trim()) return;
-
-    const res = await fetch(`${getApiBase()}/api/scan-placeholders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ google_docs_id: tpl.documentId, doc_code: code })
-    });
-    const result = await res.json();
-    if (!result.success || !result.fields) return;
-
-    const scannedFields = result.fields;
-    // Hasil scan kosong bisa berarti GAS gagal/dokumen tanpa placeholder →
-    // jangan sampai menghapus seluruh field yang sudah ada.
-    if (!Array.isArray(scannedFields) || scannedFields.length === 0) return;
-
-    const existingFields = (tpl.fields || []).slice();
-    const existingKeys = new Map(existingFields.map(f => [f.key, f]));
-    const seen = new Set();
-    const mergedFields = [];
-    scannedFields.forEach(sf => {
-      const key = sf.key;
-      if (seen.has(key)) return;
-      seen.add(key);
-      if (existingKeys.has(key)) mergedFields.push(existingKeys.get(key));
-      else mergedFields.push({ key: sf.key, label: sf.label || sf.key, type: sf.type || 'text' });
-    });
-
-    // Deteksi perubahan kunci field (bertambah/hilang) — kalau tidak berubah,
-    // jangan tulis ulang / render ulang form tanpa perlu.
-    const oldKeys = new Set(existingFields.map(f => f.key));
-    const newKeys = new Set(mergedFields.map(f => f.key));
-    let changed = oldKeys.size !== newKeys.size;
-    if (!changed) { for (const k of oldKeys) if (!newKeys.has(k)) { changed = true; break; } }
-    if (!changed) return;
-
-    tpl.fields = mergedFields;
-    if (templateSettingsState.activeCode === code) templateSettingsState.fields = mergedFields;
-
-    // Persist daftar field template ke backend (payload tabel tidak ikut ditulis).
-    await fetch(`${getApiBase()}/api/templates/${code}/all`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: tpl.fields || [], tableHeaders: tpl.tableHeaders || [] })
-    });
-
-    // Refresh UI Pengaturan kalau sedang terbuka untuk dokumen yang sama.
-    const settingsModule = document.getElementById('modul-pengaturan-template');
-    if (settingsModule && !settingsModule.classList.contains('hidden') && templateSettingsState.activeCode === code) {
-      renderPengaturanTemplateUI();
-    }
-
-    // Sinkronkan Form & Preview yang sedang dibuka.
-    const editSectionNow = document.getElementById('modul-dokumen-edit');
-    const formOpenNow = editSectionNow && !editSectionNow.classList.contains('hidden');
-    if (formOpenNow && appState.activeDocCode === code) {
-      const activeEl = document.activeElement;
-      const userTyping = activeEl && activeEl.id && activeEl.id.indexOf('input_field_') === 0;
-      if (!userTyping) {
-        await renderDynamicFormFields(tpl);
-        showToast(`🔄 Auto-Scan ${code}: field placeholder diperbarui di Form`, 'success');
-      }
-    }
-  } catch (e) {
-    console.warn('[Auto-Scan] gagal:', e);
-  }
-}
-
-function mulaiAutoScanPlaceholders() {
-  if (autoScanTimer) return;
-  const rawInterval = parseInt(localStorage.getItem('AUTO_SCAN_INTERVAL_MS') || '300000', 10);
-  const interval = Math.max(300000, rawInterval || 300000);
-  autoScanTimer = setInterval(autoScanSekali, interval);
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) autoScanSekali();
-  });
-  setTimeout(autoScanSekali, 4000); // scan awal beberapa detik setelah app terbuka
-}
-
 // Kickstart the application
 document.addEventListener('DOMContentLoaded', initApp);
 
@@ -2740,21 +2250,8 @@ window.bukaModalEditTemplateId = bukaModalEditTemplateId;
 window.tutupModalEditTemplate = tutupModalEditTemplate;
 window.tutupModalEditTemplateId = tutupModalEditTemplateId;
 window.simpanEditTemplateId = simpanEditTemplateId;
-window.bukaModalTambahField = bukaModalTambahField;
 window.tambahFieldBaru = tambahFieldBaru;
 window.tambahKolomHeader = tambahKolomHeader;
-window.simpanKonfigurasiFieldPermanen = simpanKonfigurasiFieldPermanen;
-window.simpanFormHanyaSupabase = simpanFormHanyaSupabase;
-window.simpanDanTerapkanGlobalFieldsSemuaDokumen = simpanDanTerapkanGlobalFieldsSemuaDokumen;
-window.jalankanAutoScanPlaceholdersSettings = jalankanAutoScanPlaceholdersSettings;
-window.bukaModalTambahTemplate = bukaModalTambahTemplate;
-window.tutupModalTambahTemplate = tutupModalTambahTemplate;
-window.simpanTambahTemplateBaru = simpanTambahTemplateBaru;
-window.bukaPengaturanDocCode = bukaPengaturanDocCode;
-window.hapusTemplate = hapusTemplate;
-window.bersihkanFieldKadaluarsa = bersihkanFieldKadaluarsa;
-window.autoScanSekali = autoScanSekali;
-window.mulaiAutoScanPlaceholders = mulaiAutoScanPlaceholders;
 
 // Dropdown utility functions
 function toggleDropdown(id) {

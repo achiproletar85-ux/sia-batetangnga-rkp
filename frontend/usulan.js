@@ -11,14 +11,8 @@ function showToast(msg, type = 'success') {
 
 const API_USULAN = '/api/usulan';
 
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        if (typeof loadUsulanData === 'function') loadUsulanData();
-    }
-});
-
 async function loadUsulanData() {
-    const year = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || document.getElementById('select-year')?.value || '2027';
+    const year = document.getElementById('select-year')?.value || '2027';
     try {
         const res = await fetch(`${API_USULAN}?tahun=${year}`);
         const json = await res.json();

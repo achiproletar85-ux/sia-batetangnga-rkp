@@ -1,0 +1,173 @@
+#!/usr/bin/env node
+/**
+ * audit-supabase-calls.cjs
+ * =========================
+ * Audit mandiri efisiensi egress Supabase (ZERO-WILDCARD EGRESS policy).
+ *
+ * Memindai semua berkas kode sumber proyek dan GAGAL (exit 1) jika menemukan:
+ *   1. `.select('*')`          — wildcard select (menarik semua kolom)
+ *   2. `.select()`             — select tanpa argumen (sama dengan wildcard)
+ *
+ * Dipakai lewat: `npm run audit:egress` (bagian dari `npm run check:all`).
+ *
+ * Catatan:
+ * - Hanya membaca berkas, tidak melakukan koneksi jaringan.
+ * - Direktori node_modules, dist, .git, dan artefak build diabaikan.
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+// ---------------------------------------------------------------------------
+// Konfigurasi direktori yang dipindai & yang diabaikan
+// ---------------------------------------------------------------------------
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+
+const SCAN_DIRS = ['frontend', 'backend', 'src', 'components', 'scripts', 'test', 'tests', 'sync-surat-tanah/public'];
+const SCAN_FILES = ['server.js', 'main.js', 'preload.js'];
+const SCAN_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|html)$/i;
+
+const IGNORE_DIRS = new Set([
+  'node_modules', 'dist', 'dist-electron', 'release', 'build', 'out',
+  '.git', '.freebuff', '.vercel', 'uploads', 'templates', 'scratch'
+]);
+
+// Berkas yang sengaja dikecualikan (bukan kode runtime aplikasi)
+const IGNORE_FILES = new Set([
+  path.join('sync-surat-tanah', '.vercel', 'output', 'functions', 'api', 'index.func', 'server.js'),
+  path.join('sync-surat-tanah', '.vercel', 'output', 'functions', 'index.func', 'server.js'),
+  // Skrip audit ini sendiri — berisi contoh pola terlarang di pesan/komentar
+  path.join('scripts', 'audit-supabase-calls.cjs')
+]);
+
+// ---------------------------------------------------------------------------
+// Pola pelanggaran
+// ---------------------------------------------------------------------------
+// 1) .select('*') atau .select(' * ') — wildcard eksplisit
+const WILDCARD_STAR = /\.select\(\s*['"`]\s*\*\s*['"`]/;
+// 2) .select(), .select(""), .select(''), .select('   ') — tanpa argumen atau string kosong
+const EMPTY_SELECT = /\.select\(\s*(['"`]\s*['"`])?\s*\)/;
+
+function isSupabaseChain(lines, i) {
+  // lihat 5 baris sebelum & sesudah baris berisi .select()
+  const lo = Math.max(0, i - 5);
+  const hi = Math.min(lines.length, i + 3);
+  const window = lines.slice(lo, hi).join('\n');
+  return /\.from\(['"`]?[\w_]+['"`]?\)|\b(insert|update|upsert|delete)\(/.test(window);
+}
+
+// ---------------------------------------------------------------------------
+// Kumpulkan daftar berkas
+// ---------------------------------------------------------------------------
+function collectFiles(dir, out) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (IGNORE_DIRS.has(entry.name)) continue;
+      collectFiles(full, out);
+    } else if (entry.isFile()) {
+      if (!SCAN_EXT.test(entry.name)) continue;
+      const rel = path.relative(PROJECT_ROOT, full);
+      if (IGNORE_FILES.has(rel)) continue;
+      out.push(full);
+    }
+  }
+}
+
+const files = [];
+for (const d of SCAN_DIRS) {
+  const abs = path.join(PROJECT_ROOT, d);
+  if (fs.existsSync(abs)) collectFiles(abs, files);
+}
+for (const f of SCAN_FILES) {
+  const abs = path.join(PROJECT_ROOT, f);
+  if (fs.existsSync(abs) && !files.includes(abs)) files.push(abs);
+}
+
+// ---------------------------------------------------------------------------
+// Pindai setiap berkas
+// ---------------------------------------------------------------------------
+const violations = [];
+let scannedCount = 0;
+
+for (const file of files) {
+  let content;
+  try {
+    content = fs.readFileSync(file, 'utf8');
+  } catch {
+    continue;
+  }
+  scannedCount++;
+  const relPath = path.relative(PROJECT_ROOT, file).replace(/\\/g, '/');
+
+  const lines = content.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Lewati baris komentar yang mencontohkan pola terlarang
+    const codePart = line.replace(/\/\/.*$/, '').trim();
+    if (!codePart) continue;
+
+    if (WILDCARD_STAR.test(codePart)) {
+      violations.push({
+        file: relPath,
+        line: i + 1,
+        rule: 'ZERO-WILDCARD EGRESS',
+        reason: "`.select('*')` dilarang — sebutkan daftar kolom eksplisit",
+        snippet: line.trim().slice(0, 160)
+      });
+    }
+    if (EMPTY_SELECT.test(codePart) && isSupabaseChain(lines, i)) {
+      violations.push({
+        file: relPath,
+        line: i + 1,
+        rule: 'ZERO-WILDCARD EGRESS',
+        reason: '`.select()` tanpa parameter dilarang — sebutkan daftar kolom eksplisit',
+        snippet: line.trim().slice(0, 160)
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Laporan
+// ---------------------------------------------------------------------------
+const frontendFilesCount = files.filter(f => path.relative(PROJECT_ROOT, f).replace(/\\/g, '/').startsWith('frontend/')).length;
+const backendFilesCount = files.filter(f => {
+  const p = path.relative(PROJECT_ROOT, f).replace(/\\/g, '/');
+  return p.startsWith('backend/') || p === 'server.js' || p.startsWith('scripts/');
+}).length;
+
+console.log('='.repeat(72));
+console.log(' AUDIT EGRESS SUPABASE — ZERO-WILDCARD SELECT POLICY');
+console.log('='.repeat(72));
+console.log(` Total berkas dipindai     : ${scannedCount}`);
+console.log(`  ├─ Berkas Frontend        : ${frontendFilesCount}`);
+console.log(`  ├─ Berkas Backend/Server  : ${backendFilesCount}`);
+console.log(`  └─ Berkas Lainnya         : ${scannedCount - frontendFilesCount - backendFilesCount}`);
+console.log(` Total Pelanggaran         : ${violations.length}`);
+console.log('-'.repeat(72));
+
+if (violations.length > 0) {
+  for (const v of violations) {
+    console.log(`\n✗ ${v.file}:${v.line}`);
+    console.log(`  Aturan : ${v.rule}`);
+    console.log(`  Alasan : ${v.reason}`);
+    console.log(`  Kode   : ${v.snippet}`);
+  }
+  console.log('\n' + '='.repeat(72));
+  console.log(`❌ GAGAL: ${violations.length} pelanggaran pola select ditemukan.`);
+  console.log('   Perbaiki dengan daftar kolom eksplisit (lihat agent_rules.md §1).');
+  console.log('='.repeat(72));
+  process.exit(1);
+}
+
+console.log('✅ LOLOS: 0 pelanggaran di seluruh frontend, backend, dan skrip.');
+console.log('='.repeat(72));
+process.exit(0);

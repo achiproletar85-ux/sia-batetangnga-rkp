@@ -14,15 +14,9 @@ let dataKerjasama = [];
 let editingRowId = null;
 let originalRowBackup = null;
 
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        if (typeof loadDataKerjasama === 'function') loadDataKerjasama();
-    }
-});
-
 // 1. Load Data Berdasarkan Tahun yang Dipilih dari Supabase
 async function loadDataKerjasama() {
-    const year = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || document.getElementById('select-year')?.value || '2027';
+    const year = document.getElementById('select-year')?.value || '2027';
     const elHeaderTahun = document.getElementById('header-tahun');
     if (elHeaderTahun) elHeaderTahun.textContent = year;
 

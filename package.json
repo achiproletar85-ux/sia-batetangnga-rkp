@@ -1,16 +1,22 @@
 {
-  "name": "sia-batetangnga-web",
+  "name": "sia-batetangnga",
   "version": "1.0.0",
-  "description": "Sistem Informasi Desa Batetangnga Web App",
-  "main": "server.js",
+  "description": "Sistem Informasi Desa Batetangnga Desktop App",
+  "main": "main.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "electron:start": "electron .",
+    "electron:dev": "electron .",
+    "electron:build": "electron-builder --win nsis",
     "import-csv": "node scripts/import-csv.js",
     "seed-admin": "node scripts/seed-admin-supabase.js",
+    "audit:egress": "node scripts/audit-supabase-calls.cjs",
+    "check:all": "npm run audit:egress && node --check server.js && node --check frontend/rab.js && node --check frontend/rpjmdesModule.js && node --check backend/services/rpjmdesService.js && node --check scripts/import-csv.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
+    "electron",
     "desa",
     "batetangnga",
     "sia"
@@ -29,6 +35,44 @@
     "pg": "^8.22.0"
   },
   "devDependencies": {
+    "electron": "^34.3.0",
+    "electron-builder": "^25.1.8",
     "nodemon": "^3.1.14"
+  },
+  "build": {
+    "appId": "com.siabatetangnga.app",
+    "productName": "SIA Batetangnga",
+    "copyright": "Copyright © 2026 Desa Batetangnga",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "server.js",
+      "frontend/**/*",
+      "backend/**/*",
+      "templates/**/*",
+      ".env",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SIA Batetangnga"
+    }
   }
 }

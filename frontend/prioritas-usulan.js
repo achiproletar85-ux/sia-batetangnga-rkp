@@ -195,17 +195,11 @@ function renderFooterTanggal() {
     }
 }
 
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        if (typeof loadPrioritasData === 'function') loadPrioritasData();
-    }
-});
-
 // 2. Load Data Prioritas Usulan dari Supabase
 async function loadPrioritasData() {
     console.log("🚀 START loading data prioritas usulan...");
     const selectYear = document.getElementById('select-year');
-    const activeYear = parseInt(localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || selectYear?.value || '2027', 10);
+    const activeYear = selectYear ? parseInt(selectYear.value, 10) : 2027;
     console.log(`📅 Selected year: ${activeYear}`);
 
     const elHeaderTahun = document.getElementById('header-tahun');

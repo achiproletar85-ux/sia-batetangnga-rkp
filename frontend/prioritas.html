@@ -6,7 +6,6 @@
     <title>Prioritas Program dan Kegiatan RKP Desa - SIA Batetangnga</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="/global-tahun.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { background: #f1f5f9; font-family: 'Segoe UI', system-ui, sans-serif; }
@@ -32,7 +31,7 @@
 <body>
 
     <!-- NAVBAR UTAMA -->
-    <div id="navbar-container" class="no-print print:hidden"></div>
+    <div id="navbar-container"></div>
 
     <div class="container-full px-4 py-4">
         <!-- HEADER CONTROL -->
@@ -45,10 +44,18 @@
                     <p class="text-xs text-slate-500 font-medium">Penentuan Prioritas Program & Kegiatan Berdasarkan Rancangan RKPDes</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2.5">
-                    <div class="bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl flex items-center gap-2">
-                        <i class="fas fa-calendar-alt text-amber-600 text-xs"></i>
-                        <span class="text-xs font-bold text-slate-700">Tahun RKP:</span>
-                        <span class="display-active-tahun font-black text-amber-700 text-sm">2027</span>
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-500 uppercase mr-1">Tahun:</label>
+                        <select id="select-year" class="input-field inline-block w-24 font-bold text-amber-700" onchange="loadPrioritasData()">
+                            <option value="2023">2023</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                            <option value="2027" selected>2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                        </select>
                     </div>
                     <div>
                         <label class="text-[11px] font-bold text-slate-500 uppercase mr-1">Bidang:</label>

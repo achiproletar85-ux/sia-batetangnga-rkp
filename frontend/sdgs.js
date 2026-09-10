@@ -1,4 +1,4 @@
-// ==========================================
+﻿// ==========================================
 // FILE: frontend/sdgs.js
 // TAB: SDGs DESA (INDIKATOR/FOKUS SDGs — MENARIK DARI rancangan_rkpdes)
 // ==========================================
@@ -38,19 +38,13 @@ function updateFooterSDGs() {
     }
 
     if (elNama) {
-        elNama.textContent = valTim ? `( ${valTim} )` : '( ABDUL AZIS, S. Pd )';
+        elNama.textContent = valTim ? `( ${valTim.toUpperCase()} )` : '( ABDUL AZIS, S. Pd )';
     }
 }
 
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        if (typeof loadSDGsData === 'function') loadSDGsData();
-    }
-});
-
 async function loadSDGsData() {
     try {
-        const activeYear = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || document.getElementById('tahun-select')?.value || 2027;
+        const activeYear = document.getElementById('tahun-select')?.value || 2027;
 
         // Fetch data via endpoint Express lokal (sumber: rancangan_rkpdes)
         const res = await fetch(`/api/sdgs-rancangan?tahun=${activeYear}`);
@@ -139,8 +133,6 @@ function injectSDGsToDOM(htmlHasil) {
     const container = document.getElementById('sdgsContainer');
     if (!container) return;
 
-    const activeYear = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027';
-
     container.innerHTML = `
         <style>
             @media print {
@@ -153,8 +145,7 @@ function injectSDGsToDOM(htmlHasil) {
         <div class="w-full bg-white p-6 shadow-sm border rounded-lg font-serif text-slate-900">
             <!-- HEADER JUDUL KOP -->
             <div class="text-center font-bold text-base mb-6 tracking-wide uppercase">
-                DAFTAR USULAN MASYARAKAT DIPILAH BERDASARKAN TUJUAN SDGs DESA<br>
-                <span class="text-indigo-700 font-extrabold text-sm">TAHUN ANGGARAN ${activeYear}</span>
+                DAFTAR USULAN MASYARAKAT DIPILAH BERDASARKAN TUJUAN SDGs DESA
             </div>
 
             <!-- IDENTITAS DESA -->

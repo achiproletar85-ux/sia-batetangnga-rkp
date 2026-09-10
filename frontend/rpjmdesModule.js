@@ -144,7 +144,7 @@ window.RPJMDesModule = (function () {
 
             const { data, error } = await supabaseClient
                 .from('rpjmdes_standar')
-                .select('*')
+                .select('id, kode_unik, kode_unik_full, kode_bidang, kode_sub, kode_kegiatan, bidang, jenis_bidang, jenis_kegiatan, nama_kegiatan, sifat_kegiatan, lokasi_kegiatan, usulan_berdasarkan, nama_pengusul, data_existing, sdgs, uraian_rab, volume_rab, satuan_rab, harga_satuan_rab, total_rab, volume_kegiatan, pagu_rpjm, anggaran_perubahan, sumber_dana, pola_pelaksanaan, manfaat_l, manfaat_p, manfaat_rtm, total_manfaat, penerima_manfaat_bg, waktu_pelaksanaan, target_2023, target_2024, target_2025, target_2026, target_2027, target_2028, target_2029, target_2030, masalah, penyebab, potensi, alternatif_pemecahan, tindakan_masalah, tindakan_layak, dirasakan, parah, hambat, sering, potensi_skor, jumlah_nilai_total, uraian_peringkat, visi_misi, pokok_bpd, program_masyarakat, prioritas_sdgs_skor, total_kesesuaian, skala_prioritas, urutan_prioritas, ranking, status_sembunyi, updated_at, created_at')
                 .eq('kode_unik', kodeUnik.trim())
                 .maybeSingle();
 
@@ -172,7 +172,7 @@ window.RPJMDesModule = (function () {
             const { data, error } = await supabaseClient
                 .from('rpjmdes_standar')
                 .upsert([payload], { onConflict: 'kode_unik' })
-                .select();
+                .select('id');
 
             if (error) throw error;
 
@@ -195,7 +195,7 @@ window.RPJMDesModule = (function () {
             const { data, error } = await supabaseClient
                 .from('rpjmdes_standar')
                 .insert([payload])
-                .select();
+                .select('id');
 
             if (error) throw error;
 
@@ -225,7 +225,7 @@ window.RPJMDesModule = (function () {
                 .from('rpjmdes_standar')
                 .update(updateFields)
                 .eq('kode_unik', kodeUnik.trim())
-                .select();
+                .select('id');
 
             if (error) throw error;
 

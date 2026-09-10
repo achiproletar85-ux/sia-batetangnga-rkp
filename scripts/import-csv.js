@@ -299,7 +299,7 @@ async function main() {
 
   for (let i = 0; i < payloads.length; i += batchSize) {
     const batch = payloads.slice(i, i + batchSize);
-    const { data, error } = await supabase.from('rpjmdes_standar').insert(batch).select();
+    const { data, error } = await supabase.from('rpjmdes_standar').insert(batch).select('id, kode_unik, kode_unik_full');
     if (error) {
       console.error('Gagal memasukkan batch:', error.message);
       process.exit(1);

@@ -4,14 +4,7 @@
 // ==========================================
 
 let duRkpdesList = [];
-let activeYear = Number(localStorage.getItem('ACTIVE_TAHUN_ANGGARAN')) || 2027;
-
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        activeYear = Number(e.detail.tahun) || 2027;
-        loadDuRkpdesData();
-    }
-});
+let activeYear = 2027;
 
 function switchTab(tab) {
     window.location.href = tab + '.html';
@@ -738,8 +731,8 @@ function cetakDokumenBersih() {
         if (inputKetua) {
             const valKetua = inputKetua.value || '';
             const spanKetua = document.createElement('span');
-            spanKetua.className = "print-text-replacement font-bold underline text-xs";
-            spanKetua.textContent = valKetua ? `( ${valKetua} )` : '( ABDUL AZIS, S. Pd )';
+            spanKetua.className = "print-text-replacement font-bold underline uppercase text-xs";
+            spanKetua.textContent = valKetua ? `( ${valKetua.toUpperCase()} )` : '( ABDUL AZIS, S. Pd )';
             inputKetua.parentNode.appendChild(spanKetua);
             inputKetua.style.display = 'none';
         }

@@ -55,15 +55,9 @@ function updateTTDText() {
     }
 }
 
-window.addEventListener('tahunChanged', (e) => {
-    if (e && e.detail && e.detail.tahun) {
-        if (typeof loadVerifikasiList === 'function') loadVerifikasiList();
-    }
-});
-
 // 1. Load List Data Verifikasi & RAB List
 function loadVerifikasiList() {
-    const tahun = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || document.getElementById('select-tahun')?.value || '2027';
+    const tahun = document.getElementById('select-tahun')?.value || '2027';
     console.log(`📥 Loading verifikasi proposal for tahun ${tahun}...`);
 
     loadKegiatanRAB();

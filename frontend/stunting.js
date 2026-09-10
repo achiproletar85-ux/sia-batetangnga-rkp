@@ -14,17 +14,6 @@ let stuntingList = [];
 let rawRabList = [];
 
 document.addEventListener('DOMContentLoaded', () => {
-    const storedYear = localStorage.getItem('ACTIVE_TAHUN_ANGGARAN') || '2027';
-    const selectYearEl = document.getElementById('select-tahun');
-    if (selectYearEl) selectYearEl.value = storedYear;
-
-    window.addEventListener('tahunChanged', (e) => {
-        if (e && e.detail && e.detail.tahun) {
-            if (selectYearEl) selectYearEl.value = e.detail.tahun;
-            loadStuntingData();
-        }
-    });
-
     loadStuntingData();
     updateTTD();
 });
