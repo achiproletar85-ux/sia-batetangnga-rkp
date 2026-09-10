@@ -10,7 +10,7 @@ const supabase = require('./backend/config/supabase');
 
 const app = express();
 const os = require('os');
-const WRITABLE_BASE = process.env.USER_DATA_PATH || __dirname;
+const WRITABLE_BASE = process.env.VERCEL ? os.tmpdir() : (process.env.USER_DATA_PATH || __dirname);
 
 const FRONTEND_PATH = path.resolve(__dirname, 'frontend');
 const TEMPLATES_PATH = path.resolve(WRITABLE_BASE, 'templates');
@@ -141,9 +141,25 @@ app.post('/api/sync-document', async (req, res) => {
     }
 });
 
-const uploadDir = path.join(WRITABLE_BASE, 'uploads', 'templates');
-fs.mkdirSync(uploadDir, { recursive: true });
-fs.mkdirSync(TEMPLATES_PATH, { recursive: true });
+const uploadDir = process.env.VERCEL 
+  ? path.join(os.tmpdir(), 'uploads', 'templates')
+  : path.join(WRITABLE_BASE, 'uploads', 'templates');
+
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('⚠️ Gagal membuat direktori uploads (diabaikan di lingkungan read-only):', err.message);
+}
+
+try {
+  if (!fs.existsSync(TEMPLATES_PATH)) {
+    fs.mkdirSync(TEMPLATES_PATH, { recursive: true });
+  }
+} catch (err) {
+  console.warn('⚠️ Gagal membuat direktori templates (diabaikan di lingkungan read-only):', err.message);
+}
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
