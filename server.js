@@ -3015,6 +3015,8 @@ app.get(['/api/rab', '/api/rab/list'], async (req, res) => {
     }
 });
 
+app.post('/api/rab/fix-data', (req, res) => res.json({ success: true, message: 'OK', data: [] }));
+
 app.post('/api/rab', async (req, res) => {
     try {
         const payload = req.body;
