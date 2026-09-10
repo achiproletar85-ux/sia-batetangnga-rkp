@@ -297,11 +297,13 @@ function sortHierarchical(dataArray) {
 const RAB_FULL_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, saved_at, created_at, updated_at';
 
 async function getRabFromDb(kode_unik_full, tahun) {
+    const cleanCode = kode_unik_full.replace(/\.+$/, '');
     const { data, error } = await supabase
         .from(RAB_TABLE)
         .select(RAB_FULL_COLUMNS)
-        .eq('kode_unik_full', kode_unik_full)
         .eq('tahun', tahun)
+        .or(`kode_unik_full.eq.${cleanCode},kode_unik_full.eq.${cleanCode}.`)
+        .limit(1)
         .maybeSingle();
 
     if (error) {
@@ -443,11 +445,12 @@ async function saveRabToDb(record) {
         // bergantung pada unique constraint. Jika ada → update by id; jika tidak → insert
         // dengan id eksplisit (kolom id tidak punya default di tabel hasil rebuild).
         const kodeFull = String(dbPayload.kode_unik_full || safeKode).trim();
+        const cleanCode = kodeFull.replace(/\.+$/, '');
         const { data: existingRows, error: selErr } = await supabase
             .from('rab')
             .select('id')
-            .eq('kode_unik_full', kodeFull)
             .eq('tahun', safeTahun)
+            .or(`kode_unik_full.eq.${cleanCode},kode_unik_full.eq.${cleanCode}.`)
             .limit(1);
 
         if (selErr) {
@@ -523,7 +526,7 @@ async function saveRabToDb(record) {
 
 // Daftar RAB untuk tabel ringkasan: kolom skalar tanpa items JSON array besar.
 // Kolom items & rpjm_data hanya ditarik saat modal/detail dibuka via /api/rab?kode_unik_full=...
-const RAB_LIST_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, saved_at';
+const RAB_LIST_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, saved_at, created_at, updated_at';
 
 async function listRabsFromDb() {
     const { data, error } = await supabase
@@ -540,11 +543,12 @@ async function listRabsFromDb() {
 
 async function deleteRabFromDb(kode_unik_full, tahun) {
     const safeTahun = parseInt(tahun, 10) || 2027;
+    const cleanCode = String(kode_unik_full).trim().replace(/\.+$/, '');
     const { data, error } = await supabase
         .from(RAB_TABLE)
         .delete()
-        .eq('kode_unik_full', String(kode_unik_full).trim())
-        .eq('tahun', safeTahun);
+        .eq('tahun', safeTahun)
+        .or(`kode_unik_full.eq.${cleanCode},kode_unik_full.eq.${cleanCode}.`);
 
     if (error) {
         console.error("Supabase Error Details (deleteRabFromDb):", error);
