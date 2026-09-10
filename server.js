@@ -38,6 +38,15 @@ app.get(['/', '/index.html'], (req, res) => {
     return res.sendFile(path.resolve(__dirname, 'index.html'));
 });
 
+// Rute login
+app.get(['/login', '/login.html'], (req, res) => {
+    const loginPath = path.join(FRONTEND_PATH, 'login.html');
+    if (fs.existsSync(loginPath)) {
+        return res.sendFile(loginPath);
+    }
+    return res.status(404).send('Halaman login tidak ditemukan');
+});
+
 app.use((req, res, next) => {
     console.log(`➡️ ${req.method} ${req.url}`);
     next();
@@ -6637,6 +6646,10 @@ app.post('/api/login', async (req, res) => {
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
+});
+
+app.post('/api/logout', (req, res) => {
+    res.json({ success: true, message: 'Logout berhasil' });
 });
 
 

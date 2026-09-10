@@ -12,7 +12,7 @@
     "import-csv": "node scripts/import-csv.js",
     "seed-admin": "node scripts/seed-admin-supabase.js",
     "audit:egress": "node scripts/audit-supabase-calls.cjs",
-    "check:all": "npm run audit:egress && node --check server.js && node --check frontend/rab.js && node --check frontend/rpjmdesModule.js && node --check backend/services/rpjmdesService.js && node --check scripts/import-csv.js",
+    "check:all": "npm run audit:egress && node --check server.js && node --check frontend/auth.js && node --check frontend/rab.js && node --check frontend/rpjmdesModule.js && node --check backend/services/rpjmdesService.js && node --check scripts/import-csv.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

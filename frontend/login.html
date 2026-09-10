@@ -751,6 +751,14 @@
     }
   }
 
+  // Periksa apakah pengguna sudah login sebelumnya
+  try {
+    const existingUser = JSON.parse(sessionStorage.getItem('sia_user')) || JSON.parse(localStorage.getItem('sia_user'));
+    if (existingUser && existingUser.username) {
+      window.location.replace('/');
+    }
+  } catch (e) {}
+
   // ============================================================
   // LOGIN HANDLER
   // ============================================================
@@ -778,17 +786,25 @@
 
       const data = await res.json();
 
-      if (res.ok && data.success) {
+      if (res.ok && data.success && data.user) {
         // Success: save session and redirect
+        const sessionUser = {
+          id: data.user.id,
+          username: data.user.username,
+          name: data.user.name || data.user.username,
+          role: data.user.role || 'admin',
+          loginAt: new Date().toISOString()
+        };
+
         if (document.getElementById('rememberMe').checked) {
-          localStorage.setItem('sia_user', JSON.stringify(data.user));
+          localStorage.setItem('sia_user', JSON.stringify(sessionUser));
         } else {
-          sessionStorage.setItem('sia_user', JSON.stringify(data.user));
+          sessionStorage.setItem('sia_user', JSON.stringify(sessionUser));
         }
         // Redirect to dashboard
-        window.location.href = '/';
+        window.location.replace('/');
       } else {
-        throw new Error(data.message || 'Username atau password tidak valid.');
+        throw new Error(data.message || data.error || 'Username atau password tidak valid.');
       }
 
     } catch (err) {

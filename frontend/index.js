@@ -3,6 +3,14 @@
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    let user = null;
+    try {
+        user = JSON.parse(sessionStorage.getItem('sia_user') || localStorage.getItem('sia_user'));
+    } catch(e) {}
+
+    if (!user || !user.username) {
+        return; // Hentikan pemanggilan metrik jika pengguna belum terautentikasi
+    }
     loadDashboardMetrics();
 });
 

@@ -367,7 +367,7 @@
             <button type="button" onclick="document.getElementById('modalLogoutConfirm').style.display='none';" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2.5 rounded-xl transition">
                 Batal
             </button>
-            <button type="button" onclick="sessionStorage.clear(); localStorage.clear(); window.location.replace('/login.html');" class="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-lg shadow-red-500/30">
+            <button type="button" onclick="if (typeof window.handleLogout === 'function') { window.handleLogout(); } else { sessionStorage.clear(); localStorage.clear(); window.location.replace('/login.html'); }" class="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-lg shadow-red-500/30">
                 <i class="fas fa-right-from-bracket mr-1"></i> Ya, Keluar
             </button>
         </div>
@@ -432,15 +432,20 @@
     });
     try {
         var user = JSON.parse(sessionStorage.getItem('sia_user')) || JSON.parse(localStorage.getItem('sia_user'));
-        // Ensure role property exists for admin checks
-        if (user && !user.role) {
-            user.role = 'admin'; // default to admin if not set (adjust as needed)
-        }
-        if (user) {
+        var isLoginPage = window.location.pathname.toLowerCase().endsWith('/login.html') || window.location.pathname.toLowerCase() === '/login';
+
+        if (!user || !user.username) {
+            if (!isLoginPage) {
+                sessionStorage.clear();
+                localStorage.clear();
+                window.location.replace('/login.html');
+                return;
+            }
+        } else {
             var userEl = document.getElementById('topNavUser');
             var avatarEl = document.getElementById('topNavAvatar');
-            if (userEl) userEl.textContent = user.name || user.username || 'Admin';
-            if (avatarEl) avatarEl.textContent = (user.name || user.username || 'A')[0].toUpperCase();
+            if (userEl) userEl.textContent = user.name || user.username || 'Pengguna';
+            if (avatarEl) avatarEl.textContent = (user.name || user.username || 'P')[0].toUpperCase();
         }
     } catch(e) {}
     this.remove();
