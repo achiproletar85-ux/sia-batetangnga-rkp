@@ -2979,7 +2979,7 @@ app.get('/api/rab-activities', async (req, res) => {
     }
 });
 
-app.get('/api/rab', async (req, res) => {
+app.get(['/api/rab', '/api/rab/list'], async (req, res) => {
     try {
         const { kode_unik_full, tahun } = req.query;
         const tahunInt = parseInt(tahun) || 2027;
