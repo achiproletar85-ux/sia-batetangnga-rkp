@@ -19,7 +19,24 @@ app.use(cors());
 // ✅ INCREASE PAYLOAD LIMIT
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(express.static(path.join(__dirname, 'frontend')));
+app.use(express.static(FRONTEND_PATH));
+const PUBLIC_PATH = path.resolve(__dirname, 'public');
+if (fs.existsSync(PUBLIC_PATH)) {
+    app.use(express.static(PUBLIC_PATH));
+}
+
+// Rute root '/' menyajikan frontend index.html secara aman
+app.get(['/', '/index.html'], (req, res) => {
+    const indexPath = path.join(FRONTEND_PATH, 'index.html');
+    if (fs.existsSync(indexPath)) {
+        return res.sendFile(indexPath);
+    }
+    const publicIndexPath = path.join(PUBLIC_PATH, 'index.html');
+    if (fs.existsSync(publicIndexPath)) {
+        return res.sendFile(publicIndexPath);
+    }
+    return res.sendFile(path.resolve(__dirname, 'index.html'));
+});
 
 app.use((req, res, next) => {
     console.log(`➡️ ${req.method} ${req.url}`);
