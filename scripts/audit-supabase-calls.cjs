@@ -141,11 +141,20 @@ for (const file of files) {
 // ---------------------------------------------------------------------------
 // Laporan
 // ---------------------------------------------------------------------------
+const frontendFilesCount = files.filter(f => path.relative(PROJECT_ROOT, f).replace(/\\/g, '/').startsWith('frontend/')).length;
+const backendFilesCount = files.filter(f => {
+  const p = path.relative(PROJECT_ROOT, f).replace(/\\/g, '/');
+  return p.startsWith('backend/') || p === 'server.js' || p.startsWith('scripts/');
+}).length;
+
 console.log('='.repeat(72));
 console.log(' AUDIT EGRESS SUPABASE — ZERO-WILDCARD SELECT POLICY');
 console.log('='.repeat(72));
-console.log(` Berkas dipindai : ${scannedCount}`);
-console.log(` Pelanggaran     : ${violations.length}`);
+console.log(` Total berkas dipindai     : ${scannedCount}`);
+console.log(`  ├─ Berkas Frontend        : ${frontendFilesCount}`);
+console.log(`  ├─ Berkas Backend/Server  : ${backendFilesCount}`);
+console.log(`  └─ Berkas Lainnya         : ${scannedCount - frontendFilesCount - backendFilesCount}`);
+console.log(` Total Pelanggaran         : ${violations.length}`);
 console.log('-'.repeat(72));
 
 if (violations.length > 0) {
@@ -162,6 +171,6 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log('✅ LOLOS: tidak ada .select(\'*\') atau .select() kosong di seluruh kode sumber.');
+console.log('✅ LOLOS: 0 pelanggaran di seluruh frontend, backend, dan skrip.');
 console.log('='.repeat(72));
 process.exit(0);

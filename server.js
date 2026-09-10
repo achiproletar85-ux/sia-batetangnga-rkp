@@ -639,7 +639,8 @@ async function saveTemplateSettings(docCode, settings) {
                 fields: settings.fields || [],
                 table_headers: settings.tableHeaders || [],
                 updated_at: new Date().toISOString()
-            }, { onConflict: 'code' });
+            }, { onConflict: 'code' })
+            .select('id');
         if (error) {
             const missingColumns = error.code === 'PGRST204' || /Could not find the 'fields' column/.test(error.message) || /Could not find the 'table_headers' column/.test(error.message);
             if (missingColumns) {
@@ -1531,7 +1532,8 @@ app.post('/api/du-rkpdes', async (req, res) => {
         if (payload.length > 0) {
             const { error: insErr } = await supabase
                 .from('du_rkpdes')
-                .insert(payload);
+                .insert(payload)
+                .select('id');
             if (insErr) throw insErr;
         }
 
@@ -1623,7 +1625,7 @@ app.post('/api/du-rkpdes/sync', async (req, res) => {
         let count = 0;
         if (uniqueRancangan.length > 0) {
             const payload = uniqueRancangan.map(row => duMapFromRancangan(row, tahunTgt));
-            const { error: insErr } = await supabase.from('du_rkpdes').insert(payload);
+            const { error: insErr } = await supabase.from('du_rkpdes').insert(payload).select('id');
             if (insErr) throw insErr;
             count = payload.length;
         }
@@ -1760,7 +1762,7 @@ app.post('/api/prioritas-usulan/sync', async (req, res) => {
 
         let inserted = 0;
         if (payload.length > 0) {
-            const { error: insErr } = await supabase.from('prioritas_usulan').insert(payload);
+            const { error: insErr } = await supabase.from('prioritas_usulan').insert(payload).select('id');
             if (insErr) throw insErr;
             inserted = payload.length;
         }
@@ -1819,7 +1821,7 @@ app.put('/api/prioritas-usulan', async (req, res) => {
         patch.updated_at = new Date().toISOString();
         delete patch.tahun;
 
-        const { error } = await supabase.from('prioritas_usulan').update(patch).eq('id', id);
+        const { error } = await supabase.from('prioritas_usulan').update(patch).eq('id', id).select('id');
         if (error) throw error;
 
         res.json({ success: true, message: 'baris prioritas usulan berhasil diupdate.' });
@@ -2777,7 +2779,7 @@ app.post('/api/du-rkpdes/tetapkan-prioritas', async (req, res) => {
                     updated_at: new Date().toISOString()
                 };
             });
-            const { error: insErr } = await supabase.from('du_rkpdes').insert(payload);
+            const { error: insErr } = await supabase.from('du_rkpdes').insert(payload).select('id');
             if (insErr) throw insErr;
             inserted = payload.length;
         }
@@ -3365,7 +3367,8 @@ app.post('/api/evaluasi/sync', async (req, res) => {
         if (payload.length > 0) {
             const { error: insError } = await supabase
                 .from('evaluasi_rkpdes')
-                .insert(payload);
+                .insert(payload)
+                .select('id');
             if (insError) throw insError;
         }
 
@@ -3396,7 +3399,8 @@ app.put('/api/evaluasi', async (req, res) => {
                 realisasi: r.realisasi ? 'Ya' : 'Tidak',
                 keterangan: r.keterangan || ''
             })
-            .eq('id', id);
+            .eq('id', id)
+            .select('id');
         if (error) throw error;
         res.json({ success: true, message: 'Data evaluasi berhasil diupdate.' });
     } catch (error) {
@@ -5205,7 +5209,7 @@ app.put('/api/laporan-perkembangan', async (req, res) => {
                 .from('laporan_perkembangan')
                 .update(payload)
                 .eq('id', item.id)
-                .select('id, updated_at');
+                .select('id');
             if (error) throw error;
             result = Array.isArray(data) && data.length > 0 ? data[0] : null;
         } else {
@@ -5213,7 +5217,7 @@ app.put('/api/laporan-perkembangan', async (req, res) => {
             const { data, error } = await supabase
                 .from('laporan_perkembangan')
                 .insert(fullPayload)
-                .select('id, updated_at');
+                .select('id');
             if (error) throw error;
             result = Array.isArray(data) && data.length > 0 ? data[0] : null;
         }
@@ -5270,13 +5274,15 @@ app.post('/api/laporan-perkembangan/sync', async (req, res) => {
                 const { error } = await supabase
                     .from('laporan_perkembangan')
                     .update(payload)
-                    .eq('id', item.id);
+                    .eq('id', item.id)
+                    .select('id');
                 if (error) throw error;
                 updated++;
             } else {
                 const { error } = await supabase
                     .from('laporan_perkembangan')
-                    .insert(payload);
+                    .insert(payload)
+                    .select('id');
                 if (error) throw error;
                 inserted++;
             }
@@ -5701,7 +5707,7 @@ app.post('/api/tim-penyusun/sync', async (req, res) => {
             jabatan_tim: String(r.jabatan_tim || r.jabatan || 'Anggota')
         }));
 
-        const { error: insErr } = await supabase.from('tim_penyusun').insert(payload);
+        const { error: insErr } = await supabase.from('tim_penyusun').insert(payload).select('id');
         if (insErr) throw insErr;
 
         res.json({ success: true, message: `Berhasil menyimpan ${payload.length} anggota tim penyusun tahun ${tahunInt}.`, count: payload.length });
@@ -5771,7 +5777,7 @@ app.post('/api/kerjasama', async (req, res) => {
         if (rows.length === 0) return res.json({ success: true, message: `Kerjasama tahun ${tahunInt} dikosongkan.`, count: 0 });
 
         const payload = rows.map(r => mapKerjasamaRow(r, tahunInt)).filter(r => r.nama_kegiatan);
-        const { error: insErr } = await supabase.from('kerjasama_pihak_ketiga').insert(payload);
+        const { error: insErr } = await supabase.from('kerjasama_pihak_ketiga').insert(payload).select('id');
         if (insErr) throw insErr;
         res.json({ success: true, message: `Berhasil menyimpan ${payload.length} baris kerjasama tahun ${tahunInt}.`, count: payload.length });
     } catch (error) {
@@ -5868,7 +5874,7 @@ app.post('/api/kerjasama-pihak-ketiga/sync', async (req, res) => {
         if (rows.length === 0) return res.json({ success: true, message: `Kerjasama pihak ketiga tahun ${tahunInt} dikosongkan.`, count: 0 });
 
         const payload = rows.map(r => mapKerjasamaRow(r, tahunInt)).filter(r => r.nama_kegiatan);
-        const { error: insErr } = await supabase.from('kerjasama_pihak_ketiga').insert(payload);
+        const { error: insErr } = await supabase.from('kerjasama_pihak_ketiga').insert(payload).select('id');
         if (insErr) throw insErr;
         res.json({ success: true, message: `Berhasil menyimpan ${payload.length} baris kerjasama pihak ketiga tahun ${tahunInt}.`, count: payload.length });
     } catch (error) {
@@ -5966,7 +5972,7 @@ app.post('/api/program-masuk-desa/sync', async (req, res) => {
             satuan: String(r.satuan || ''),
             total_pagu: r.total_pagu != null ? (parseInt(r.total_pagu, 10) || 0) : 0
         })).filter(r => r.sub_kegiatan);
-        const { error: insErr } = await supabase.from('program_masuk_desa').insert(payload);
+        const { error: insErr } = await supabase.from('program_masuk_desa').insert(payload).select('id');
         if (insErr) throw insErr;
         res.json({ success: true, message: `Berhasil menyimpan ${payload.length} baris program masuk desa tahun ${tahunInt}.`, count: payload.length });
     } catch (error) {
@@ -6061,7 +6067,7 @@ app.post('/api/rktl/sync', async (req, res) => {
         };
 
         if (itemsData.length > 0) {
-            const { error: insErr } = await supabase.from('rktl').insert(payload);
+            const { error: insErr } = await supabase.from('rktl').insert(payload).select('id');
             if (insErr) throw insErr;
         }
 
@@ -6236,7 +6242,8 @@ async function saveTemplatesToDb(templates) {
           documentid: t.documentId || '',
           is_real: t.isReal || t.is_real || false,
           updated_at: new Date().toISOString()
-        }, { onConflict: 'code' });
+        }, { onConflict: 'code' })
+        .select('id');
       if (error) errs.push(error.message);
     }
     invalidateTemplatesCache();
@@ -6272,7 +6279,8 @@ app.post('/api/templates', async (req, res) => {
         stage: stage || 'A',
         is_real: false,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'code' });
+      }, { onConflict: 'code' })
+      .select('id');
     if (error) throw error;
     invalidateTemplatesCache();
     res.status(201).json({ success: true, message: 'Template berhasil ditambahkan.' });
@@ -6300,7 +6308,8 @@ app.put('/api/templates/:code', async (req, res) => {
         stage: stage || 'A',
         is_real: true, // This marks the template as having a valid ID
         updated_at: new Date().toISOString()
-      }, { onConflict: 'code' });
+      }, { onConflict: 'code' })
+      .select('id');
     if (error) throw error;
     invalidateTemplatesCache();
     res.json({ success: true, message: `Document ID untuk ${code} berhasil disimpan.` });
@@ -6550,7 +6559,8 @@ app.delete('/api/dokumen-desa/reset-form-data/:code/:tahun', async (req, res) =>
       .from('dokumen_form_data')
       .update({ fields: {}, tables: {}, last_generated_doc_id: null, updated_at: new Date().toISOString() })
       .eq('doc_code', code)
-      .eq('tahun', tahunInt);
+      .eq('tahun', tahunInt)
+      .select('id');
 
     if (error) throw error;
     res.json({ success: true, message: 'Data form berhasil direset.' });
@@ -6717,7 +6727,8 @@ app.post('/api/ganti-password', async (req, res) => {
                 password: password_hash, 
                 updated_at: new Date().toISOString() 
             })
-            .eq('username', username);
+            .eq('username', username)
+            .select('id');
 
         if (updateErr) throw updateErr;
 
