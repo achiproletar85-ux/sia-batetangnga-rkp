@@ -169,12 +169,9 @@ async function getRabFromDb(kode_unik_full, tahun) {
         .select('*')
         .eq('kode_unik_full', kode_unik_full)
         .eq('tahun', tahun)
-        .single();
+        .maybeSingle();
 
     if (error) {
-        if (error.code === 'PGRST116') {
-            return null;
-        }
         throw error;
     }
     return data;
@@ -435,13 +432,20 @@ function writeUnitsStorage(data) {
 }
 
 async function listUnitsFromDb() {
-    const { data, error } = await supabase
-        .from(UNITS_TABLE)
-        .select('name')
-        .order('name', { ascending: true });
+    try {
+        const { data, error } = await supabase
+            .from(UNITS_TABLE)
+            .select('name')
+            .order('name', { ascending: true });
 
-    if (error) throw error;
-    return (data || []).map(d => d.name).filter(Boolean);
+        if (error) {
+            console.warn(`⚠️ [Ignored] Error on listUnitsFromDb: ${error.message || error}`);
+            return [];
+        }
+        return (data || []).map(d => d.name).filter(Boolean);
+    } catch(err) {
+        return [];
+    }
 }
 
 async function saveUnitToDb(name) {
@@ -3872,33 +3876,19 @@ app.get('/api/rpjmdes-stats', async (req, res) => {
         const { tahun = '2026' } = req.query;
         const column = `target_${tahun}`;
 
-        const { count: totalKegiatan, error: err1 } = await supabase
-            .from('rpjmdes_standar')
-            .select('*', { count: 'exact', head: true })
-            .eq(column, tahun);
+        const stdData = await getCachedRpjmdesStandar();
+        const filtered = stdData.filter(item => {
+            const val = String(item[column] || '').trim().toLowerCase();
+            return val === String(tahun) || val === 'ya';
+        });
 
-        if (err1) throw err1;
-
-        const { data: paguData, error: err2 } = await supabase
-            .from('rpjmdes_standar')
-            .select('pagu_rpjm')
-            .eq(column, tahun);
-
-        if (err2) throw err2;
-
-        const totalPagu = paguData.reduce((sum, item) => sum + (item.pagu_rpjm || 0), 0);
-
-        const { data: bidangData, error: err3 } = await supabase
-            .from('rpjmdes_standar')
-            .select('bidang, pagu_rpjm')
-            .eq(column, tahun);
-
-        if (err3) throw err3;
+        const totalKegiatan = filtered.length;
+        const totalPagu = filtered.reduce((sum, item) => sum + (Number(item.pagu_rpjm || item.prakiraan_biaya) || 0), 0);
 
         const bidangMap = {};
-        bidangData.forEach(item => {
+        filtered.forEach(item => {
             const b = item.bidang || 'Lainnya';
-            bidangMap[b] = (bidangMap[b] || 0) + (item.pagu_rpjm || 0);
+            bidangMap[b] = (bidangMap[b] || 0) + (Number(item.pagu_rpjm || item.prakiraan_biaya) || 0);
         });
 
         res.json({
@@ -3921,10 +3911,7 @@ app.get('/api/rpjmdes-stats', async (req, res) => {
 // Units endpoints: try DB then fallback to file storage
 app.get('/api/units', async (req, res) => {
     try {
-        const list = await listUnitsFromDb().catch(err => {
-            if (isTableMissingError(err)) return null;
-            throw err;
-        });
+        const list = await listUnitsFromDb();
         if (list && list.length) return res.json({ success: true, units: list });
         // fallback to file
         const fileUnits = readUnitsStorage();
@@ -3945,6 +3932,7 @@ app.post('/api/units', async (req, res) => {
             throw err;
         });
         // always write to file as fallback/replica
+        const existing = readUnitsStorage();
         existing.push(name);
         writeUnitsStorage(existing);
         res.json({ success: true, unit: dbRes ? dbRes : { name } });
