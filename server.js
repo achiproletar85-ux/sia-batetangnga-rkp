@@ -3071,19 +3071,6 @@ app.post('/api/rab', async (req, res) => {
     }
 });
 
-app.get('/api/rab/list', async (req, res) => {
-    try {
-        const data = await listRabsFromDb();
-        if (Array.isArray(data)) {
-            sortHierarchical(data);
-        }
-        res.json({ success: true, data });
-    } catch (error) {
-        console.log('❌ Error /api/rab/list:', error.message);
-        res.status(500).json({ success: false, error: error.message, data: [] });
-    }
-});
-
 app.delete('/api/rab', async (req, res) => {
     try {
         const { kode_unik_full, tahun } = req.query;

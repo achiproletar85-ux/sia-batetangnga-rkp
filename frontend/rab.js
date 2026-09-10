@@ -633,7 +633,7 @@ function sortHierarchical(dataArray) {
 
 async function loadSavedRabList() {
     try {
-        const res = await fetch(`${API_URL}/rab/list`);
+        const res = await fetch(`${API_URL}/rab?tahun=${rabYear}`);
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
             const serverItems = json.data.map(item => {
@@ -1192,7 +1192,7 @@ async function populateGroupCetakDropdown() {
 
         if (items.length === 0) {
             try {
-                const res = await fetch(`/api/rab/list`);
+                const res = await fetch(`/api/rab?tahun=${tahunFilter}`);
                 const json = await res.json();
                 if (json.success && Array.isArray(json.data)) items = json.data;
             } catch(e) {}
