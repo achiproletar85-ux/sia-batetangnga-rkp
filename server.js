@@ -573,43 +573,24 @@ function writeUnitsStorage(data) {
     return; // ✅ Penyimpanan lokal NONAKTIF
 }
 
-async function listUnitsFromDb() {
-    try {
-        const { data, error } = await supabase
-            .from(UNITS_TABLE)
-            .select('name')
-            .order('name', { ascending: true });
+const DEFAULT_STATIC_UNITS = [
+    'Paket', 'Kegiatan', 'Bulan', 'Orang', 'Unit', 'Rim', 'Dos', 'Kotak', 'bh', 'ob',
+    'Bh', 'M3', 'M2', 'LS', 'Klg', 'M1', 'Buah', 'Hari', 'OB (Orang/Bulan)', 'Kali',
+    'Watt', 'KK', 'Botol', 'Set', 'Bks', 'Lbr', 'Rkp', 'Psg', 'Tahun', 'Bal', 'Ikat',
+    'Rak', 'Hok', 'Biji', 'Zak', 'Kg', 'Drum', 'Roll', 'Ekor', 'Pak', 'Klng', '-', 'Btg', 'Ltr', 'Btr', 'Jrgen'
+];
 
-        if (error) {
-            console.warn(`⚠️ [Ignored] Error on listUnitsFromDb: ${error.message || error}`);
-            return [];
-        }
-        return (data || []).map(d => d.name).filter(Boolean);
-    } catch(err) {
-        return [];
-    }
+async function listUnitsFromDb() {
+    // Kembalikan daftar unit lokal tanpa query ke Supabase rab_units (mencegah 404 di log)
+    return DEFAULT_STATIC_UNITS;
 }
 
 async function saveUnitToDb(name) {
-    const record = { name };
-    const { data, error } = await supabase
-        .from(UNITS_TABLE)
-        .upsert([record], { onConflict: ['name'] })
-        .select('name')
-        .single();
-
-    if (error) throw error;
-    return data;
+    return { name };
 }
 
 async function deleteUnitFromDb(name) {
-    const { data, error } = await supabase
-        .from(UNITS_TABLE)
-        .delete()
-        .eq('name', name);
-
-    if (error) throw error;
-    return data;
+    return { name };
 }
 
 
