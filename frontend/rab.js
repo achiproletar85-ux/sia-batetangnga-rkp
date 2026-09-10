@@ -1269,8 +1269,9 @@ async function cetakPdfByGroup() {
 
     console.log("LOCAL MEMORY MATCHED ROWS:", matchedRows.length, matchedRows);
 
-    // 2. FALLBACK QUERY DUA/TIGA KOLOM JIKA ARRAY LOCAL KOSONG
-    if (matchedRows.length === 0 && (window.supabaseClient || window.supabase)) {
+    // 2. FALLBACK QUERY DUA/TIGA KOLOM JIKA ARRAY LOCAL KOSONG ATAU BELUM MEMILIKI ITEMS
+    const hasItems = matchedRows.some(r => r.items && (Array.isArray(r.items) ? r.items.length > 0 : true));
+    if ((matchedRows.length === 0 || !hasItems) && (window.supabaseClient || window.supabase)) {
         const client = window.supabaseClient || window.supabase;
         try {
             const prefixClean = targetPrefix.replace(/\.+$/, '');
@@ -1296,7 +1297,7 @@ async function cetakPdfByGroup() {
 
             if (data && data.length > 0) {
                 matchedRows = data;
-            } else {
+            } else if (matchedRows.length === 0) {
                 // Fallback to rkpdes table
                 let rkpRes = await client
                     .from('rkpdes')
@@ -1310,6 +1311,27 @@ async function cetakPdfByGroup() {
         } catch (e) {
             console.warn("Fallback multi-column query error:", e);
         }
+    }
+
+    // 2B. JIKA MASIH BELUM MEMILIKI ITEMS (DITARIK DARI SUMMARY LIST), FETCH DETAIL PER ITEM
+    if (!matchedRows.some(r => r.items && (Array.isArray(r.items) ? r.items.length > 0 : true)) && matchedRows.length > 0) {
+        try {
+            const enriched = await Promise.all(matchedRows.map(async (row) => {
+                if (row.items && Array.isArray(row.items) && row.items.length > 0) return row;
+                try {
+                    const targetK = row.kode_unik_full || row.kode_unik;
+                    if (targetK) {
+                        const res = await fetch(`/api/rab?kode_unik_full=${encodeURIComponent(targetK)}&tahun=${tahunNum}`);
+                        const json = await res.json();
+                        if (json.success && json.data && json.data.items) {
+                            return { ...row, items: json.data.items, rpjm_data: json.data.rpjm_data || row.rpjm_data };
+                        }
+                    }
+                } catch (e) {}
+                return row;
+            }));
+            matchedRows = enriched;
+        } catch (e) {}
     }
 
     // 3. CETAK TABEL PDF METODE UNPACK RINCIAN ITEMS

@@ -489,9 +489,9 @@ async function saveRabToDb(record) {
     }
 }
 
-// Daftar RAB untuk tabel ringkasan & cetak: kolom skalar + items (dibutuhkan
-// renderer PDF yang meng-unpack rincian). JSON rpjm_data TIDAK ditarik di daftar.
-const RAB_LIST_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, saved_at';
+// Daftar RAB untuk tabel ringkasan: kolom skalar tanpa items JSON array besar.
+// Kolom items & rpjm_data hanya ditarik saat modal/detail dibuka via /api/rab?kode_unik_full=...
+const RAB_LIST_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, saved_at';
 
 async function listRabsFromDb() {
     const { data, error } = await supabase
@@ -1036,6 +1036,11 @@ function refCacheGet(key) {
 }
 function refCacheSet(key, data) {
     refCache[key] = { data, ts: Date.now() };
+}
+function refCacheInvalidate(key) {
+    if (key && refCache[key]) {
+        delete refCache[key];
+    }
 }
 
 // ============================================================
@@ -5438,6 +5443,11 @@ app.get('/api/pagu-anggaran', async (req, res) => {
     try {
         const { tahun } = req.query;
         const tahunInt = parseInt(tahun) || 2027;
+        const cacheKey = `paguAnggaran_${tahunInt}`;
+        const cached = refCacheGet(cacheKey);
+        if (cached) {
+            return res.json({ success: true, data: cached, cached: true });
+        }
 
         const { data, error } = await supabase
             .from('pagu_anggaran')
@@ -5466,6 +5476,7 @@ app.get('/api/pagu-anggaran', async (req, res) => {
             });
         }
 
+        refCacheSet(cacheKey, paguMap);
         res.json({ success: true, data: paguMap });
     } catch (error) {
         console.error('Catch error fetching pagu_anggaran:', error.message);
@@ -5498,6 +5509,7 @@ app.post('/api/pagu-anggaran', async (req, res) => {
             return res.status(500).json({ success: false, error: error.message });
         }
 
+        refCacheInvalidate(`paguAnggaran_${tahunInt}`);
         res.json({ success: true, message: 'Pagu anggaran berhasil disimpan', data });
     } catch (error) {
         console.error('Catch error saving pagu_anggaran:', error.message);
@@ -5510,6 +5522,11 @@ app.get('/api/pembiayaan', async (req, res) => {
     try {
         const { tahun } = req.query;
         const th = parseInt(tahun) || 2027;
+        const cacheKey = `pembiayaan_${th}`;
+        const cached = refCacheGet(cacheKey);
+        if (cached) {
+            return res.json({ success: true, data: cached, cached: true });
+        }
 
         const { data, error } = await supabase
             .from('pembiayaan')
@@ -5522,6 +5539,9 @@ app.get('/api/pembiayaan', async (req, res) => {
             return res.status(500).json({ success: false, error: error.message });
         }
 
+        if (data) {
+            refCacheSet(cacheKey, data);
+        }
         res.json({ success: true, data });
     } catch (error) {
         console.error('Catch error fetching pembiayaan:', error.message);
@@ -5549,6 +5569,7 @@ app.post('/api/pembiayaan', async (req, res) => {
             return res.status(500).json({ success: false, error: error.message });
         }
 
+        refCacheInvalidate(`pembiayaan_${th}`);
         res.json({ success: true, message: 'Data pembiayaan berhasil disimpan', data });
     } catch (error) {
         console.error('Catch error saving pembiayaan:', error.message);
