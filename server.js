@@ -85,7 +85,7 @@ app.post('/api/sync-document', async (req, res) => {
         const { data, error } = await supabase
             .from('dokumen_form_data')
             .upsert(upsertPayload, { onConflict: 'doc_code,tahun' })
-            .select('doc_code, google_docs_id, fields, tables, last_generated_doc_id, last_generated_pdf_url, updated_at')
+            .select('id')
             .single();
 
         if (error) {
@@ -714,7 +714,7 @@ app.post('/api/sync-document', async (req, res) => {
         const { data, error } = await supabase
             .from('dokumen_form_data')
             .upsert(upsertPayload, { onConflict: 'doc_code,tahun' })
-            .select('doc_code, google_docs_id, fields, tables, last_generated_doc_id, last_generated_pdf_url, updated_at')
+            .select('id')
             .single();
 
         if (error) {
@@ -6368,7 +6368,7 @@ app.post('/api/scan-placeholders', async (req, res) => {
           google_docs_id,
           scanned_fields: fields,
           updated_at: new Date()
-        }, { onConflict: 'doc_code,tahun' });
+        }, { onConflict: 'doc_code,tahun' }).select('id');
       } catch (e) {}
     }
 
@@ -6442,7 +6442,8 @@ app.post('/api/sync-document', async (req, res) => {
         };
         const { error: dbError } = await supabase
             .from('dokumen_form_data')
-            .upsert(upsertPayload, { onConflict: 'doc_code,tahun' });
+            .upsert(upsertPayload, { onConflict: 'doc_code,tahun' })
+            .select('id');
 
         if (dbError) {
              console.error('⚠️ Gagal menyimpan form ke Supabase sebelum sinkronisasi:', dbError.message);
@@ -6473,7 +6474,7 @@ app.post('/api/sync-document', async (req, res) => {
     } catch (e) {}
 
     try {
-      await supabase.from('dokumen_form_data').update({ syncing: true }).eq('doc_code', doc_code).eq('tahun', tahunInt);
+      await supabase.from('dokumen_form_data').update({ syncing: true }).eq('doc_code', doc_code).eq('tahun', tahunInt).select('id');
     } catch (e) {}
 
     let syncResult = { success: false };
@@ -6511,7 +6512,7 @@ app.post('/api/sync-document', async (req, res) => {
           last_generated_pdf_url: previewUrl,
           synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        }).eq('doc_code', doc_code).eq('tahun', tahunInt);
+        }).eq('doc_code', doc_code).eq('tahun', tahunInt).select('id');
       } catch (e) {}
 
       res.json({
@@ -6524,7 +6525,7 @@ app.post('/api/sync-document', async (req, res) => {
       });
     } else {
       try {
-        await supabase.from('dokumen_form_data').update({ syncing: false }).eq('doc_code', doc_code).eq('tahun', tahunInt);
+        await supabase.from('dokumen_form_data').update({ syncing: false }).eq('doc_code', doc_code).eq('tahun', tahunInt).select('id');
       } catch (e) {}
       res.status(500).json({
         success: false,
