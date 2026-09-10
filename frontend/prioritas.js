@@ -303,7 +303,7 @@ function renderTabelPrioritas(data) {
                 <td class="border border-slate-400 px-2.5 py-2 text-slate-900">
                     <div class="flex items-center justify-between gap-1">
                         <span class="font-bold">${esc(item.nama_kegiatan) || '-'}</span>
-                        ${kodeVal ? `<span class="shrink-0 text-[10px] font-mono font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded border border-amber-300" title="Kode Unik">${esc(kodeVal)}</span>` : ''}
+                        ${kodeVal ? `<span class="badge-kode-unik col-kode-unik shrink-0 text-[10px] font-mono font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded border border-amber-300" data-print-hide="kode-unik" title="Kode Unik">${esc(kodeVal)}</span>` : ''}
                     </div>
                 </td>
                 <td class="border border-slate-400 px-2 py-2 text-center">${esc(item.lokasi) || 'Desa Batetangnga'}</td>
