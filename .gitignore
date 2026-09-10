@@ -1,0 +1,41 @@
+# ============================================================
+# SIA Batetangnga — .gitignore
+# ============================================================
+
+# --- Environment & secrets (JANGAN pernah di-commit) ---
+.env
+.env.*
+!.env.example
+
+# --- Node.js ---
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Log runtime aplikasi ---
+*.log
+boot-*.log
+boot-*.txt
+server-*.log
+server-*.txt
+btest-out*.txt
+out-*.log
+
+# --- Build artifacts (Electron / packaging) ---
+dist/
+dist-electron/
+release/
+build/
+out/
+
+# --- Temp & system ---
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+# --- Freebuff / tooling internal state ---
+.freebuff/
+.vercel/sync-surat-tanah/
+sync-surat-tanah
