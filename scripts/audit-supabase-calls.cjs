@@ -23,7 +23,7 @@ const path = require('path');
 // ---------------------------------------------------------------------------
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
-const SCAN_DIRS = ['src', 'frontend', 'backend', 'components', 'scripts', 'test', 'tests', 'sync-surat-tanah/public'];
+const SCAN_DIRS = ['frontend', 'backend', 'src', 'components', 'scripts', 'test', 'tests', 'sync-surat-tanah/public'];
 const SCAN_FILES = ['server.js', 'main.js', 'preload.js'];
 const SCAN_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|html)$/i;
 
@@ -43,20 +43,17 @@ const IGNORE_FILES = new Set([
 // ---------------------------------------------------------------------------
 // Pola pelanggaran
 // ---------------------------------------------------------------------------
-// 1) .select('*') — wildcard eksplisit (boleh diikuti argumen opsi kedua)
-const WILDCARD_STAR = /\.select\(\s*['"`]\*['"`]/;
-// 2) .select() — tanpa argumen sama sekali.
-//    Hanya dianggap pelanggaran jika baris tsb bagian dari chain Supabase:
-//    ada `.from(` di sekitarnya, atau `.insert(`/`.update(`/`.upsert(`
-//    (returning). `elem.select()` (DOM <input>) bukan pelanggaran.
-const EMPTY_SELECT = /\.select\(\s*\)/;
+// 1) .select('*') atau .select(' * ') — wildcard eksplisit
+const WILDCARD_STAR = /\.select\(\s*['"`]\s*\*\s*['"`]/;
+// 2) .select(), .select(""), .select(''), .select('   ') — tanpa argumen atau string kosong
+const EMPTY_SELECT = /\.select\(\s*(['"`]\s*['"`])?\s*\)/;
 
 function isSupabaseChain(lines, i) {
-  // lihat 4 baris sebelum & sesudah baris berisi .select()
-  const lo = Math.max(0, i - 4);
-  const hi = Math.min(lines.length, i + 2);
+  // lihat 5 baris sebelum & sesudah baris berisi .select()
+  const lo = Math.max(0, i - 5);
+  const hi = Math.min(lines.length, i + 3);
   const window = lines.slice(lo, hi).join('\n');
-  return /\.from\(['"`]?[\w_]+['"`]?\)|\b(insert|update|upsert)\(/.test(window);
+  return /\.from\(['"`]?[\w_]+['"`]?\)|\b(insert|update|upsert|delete)\(/.test(window);
 }
 
 // ---------------------------------------------------------------------------
