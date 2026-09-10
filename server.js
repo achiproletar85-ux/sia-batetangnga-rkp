@@ -19,6 +19,7 @@ app.use(cors());
 // ✅ INCREASE PAYLOAD LIMIT
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.static(path.join(__dirname, 'frontend')));
 
 app.use((req, res, next) => {
     console.log(`➡️ ${req.method} ${req.url}`);
@@ -6803,10 +6804,12 @@ function startServer(preferredPort = 5500) {
     });
 }
 
-if (require.main === module) {
-    startServer(process.env.PORT || 5500).catch((err) => {
-        console.error('❌ Gagal menjalankan server:', err);
-    });
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    if (require.main === module) {
+        startServer(process.env.PORT || 5500).catch((err) => {
+            console.error('❌ Gagal menjalankan server:', err);
+        });
+    }
 }
 
 app.startServer = startServer;
