@@ -157,3 +157,70 @@ build lolos — dan tidak ada satu pun `.select()` baru tanpa daftar kolom.
 - [ ] Tidak ada polling/re-fetch berulang; listener selalu di-cleanup
 - [ ] Referensi statis ter-cache in-memory
 - [ ] `npm run check:all` hijau
+
+---
+
+## 8. PROTOKOL RAB PERUBAHAN (SNAPSHOT VERSI)
+
+Fitur RAB Perubahan memakai **metode snapshot pada tabel yang sama** (`rab`), bukan
+tabel terpisah. Dua kolom penanda:
+
+| Kolom | Nilai | Arti |
+|---|---|---|
+| `tipe_anggaran` | `'MURNI'` (default) \| `'PERUBAHAN'` | versi anggaran |
+| `id_referensi_murni` | `bigint` \| `null` | id baris MURNI asal (null untuk MURNI) |
+
+Migrasi: `supabase_add_tipe_anggaran_rab.sql` (idempoten; data lama otomatis MURNI).
+
+### 8.1 Aturan kueri versi
+
+1. **Setiap** kueri ke tabel `rab` **wajib** menyebut `tipe_anggaran`.
+   Tanpa filter versi, satu `(kode_unik_full, tahun)` dapat mengembalikan DUA baris —
+   `.single()` akan error dan daftar menjadi ganda.
+2. Daftar ringkasan (`/api/rab/list`) **wajib** menyertakan `tahun` + `tipe`.
+   Batas keras `RAB_LIST_LIMIT = 2000`.
+3. Detail (`/api/rab?kode_unik_full=…`) memakai `RAB_FULL_COLUMNS` (dengan `items`
+   dan `rpjm_data`) **hanya** saat modal/detail dibuka.
+4. Perbandingan (`/api/rab/perbandingan`) memakai `RAB_COMPARE_COLUMNS` — **tanpa**
+   `rpjm_data` — dan dipanggil per `prefix` kode, bukan seluruh tahun.
+5. Cek versi (`/api/rab/versi-status`) memakai `head: true, count: 'exact'` sehingga
+   **nol baris** yang tertarik.
+6. Kolom `tipe_anggaran` **tidak boleh** ditulis lewat payload legacy tanpa fallback:
+   semua kueri RAB memakai `rabQueryWithTipeFallback()` agar aplikasi tetap jalan sebelum
+   migrasi dijalankan (baris diperlakukan sebagai MURNI).
+
+### 8.2 Aturan integritas versi
+
+- Baris `MURNI` **read-only** begitu `PERUBAHAN` untuk kegiatan+tahun tersebut ada.
+  Ditegakkan di server (409 `locked: true` pada `POST`/`DELETE`) **dan** di UI.
+- Salinan MURNI → PERUBAHAN hanya boleh dibuat oleh
+  `POST /api/rab/clone-to-perubahan`; endpoint ini **melewati** kegiatan yang sudah punya
+  versi PERUBAHAN (aman diklik berulang).
+- Setiap item hasil salinan diberi jejak `urutan_murni` + `id_referensi_murni`.
+  Jejak ini **wajib dipertahankan** saat item diedit (`addRabItem`), karena menjadi kunci
+  penjajaran SEMULA ↔ MENJADI.
+- Sinkronisasi balik ke `rpjmdes_standar` **hanya** dijalankan untuk versi `MURNI`,
+  agar nilai PERUBAHAN tidak menimpa baseline RPJMDes.
+
+### 8.3 Aturan perhitungan laporan
+
+- Penjajaran item: `urutan_murni` → fallback kunci komposit
+  (group + subgroup + uraian + satuan).
+- Item hanya di `PERUBAHAN` → SEMULA = 0 (belanja baru).
+- Item hanya di `MURNI` → MENJADI = 0 (belanja dihapus).
+- `BERTAMBAH / (BERKURANG) = JUMLAH_MENJADI - JUMLAH_SEMULA`;
+  negatif ditampilkan dalam tanda kurung, mis. `(1.200.000)`.
+- Template cetak baku Kemenkeu: judul *PERUBAHAN RENCANA ANGGARAN BIAYA (RAB)*,
+  header tabel **2 tingkat** (NO | URAIAN | SEMULA[3] | MENJADI[3] | BERTAMBAH/(BERKURANG)),
+  total per kegiatan + total keseluruhan, serta **3 kolom tanda tangan**
+  (Kepala Desa — Sekretaris Desa — PKA), A4 landscape.
+
+### 8.4 Pengujian wajib
+
+```bash
+npm run test:rab-perubahan   # 33 asersi logika penjajaran & selisih
+npm run check:all            # audit egress + syntax + uji di atas
+```
+
+Setiap perubahan pada `alignRabItems()`, `rabItemJumlah()`, atau konstanta kolom RAB
+**harus** disertai penyesuaian `scripts/test-rab-perubahan.cjs`.

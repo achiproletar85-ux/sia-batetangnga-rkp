@@ -15,6 +15,25 @@ let savedRabList = [];
 let rabYear = 2027;
 let editIndex = -1;
 
+// ==========================================
+// RAB PERUBAHAN — snapshot versi (MURNI / PERUBAHAN)
+// ==========================================
+let rabTipe = 'MURNI';
+let rabMurniLocked = false;   // true bila versi MURNI kegiatan terpilih sudah dikunci
+const RAB_TIPE_MURNI = 'MURNI';
+const RAB_TIPE_PERUBAHAN = 'PERUBAHAN';
+
+function isModePerubahan() {
+    return rabTipe === RAB_TIPE_PERUBAHAN;
+}
+
+// Format selisih RAB Perubahan: + bila bertambah/0, minus (tanda kurung) bila berkurang.
+function formatSelisihRAB(nilai) {
+    const n = Number(nilai) || 0;
+    if (n < 0) return `(${formatRupiah(Math.abs(n))})`;
+    return formatRupiah(n);
+}
+
 const defaultUnits = [
     'Bh','M3','M2','Unit','LS','Klg','M1','Buah','Orang','Hari','OB (Orang/Bulan)','Paket','Unit','Kali','Watt','KK','Bulan','Rim','Botol','Kotak','Dos','Set','Bks','Lbr','Rkp','Psg','Tahun','Bal','Ikat','Rak','Hok','Biji','Zak','Kg','Drum','Roll','Ekor','Pak','Klng','-','Btg','Ltr','Btr','Jrgen'
 ];
@@ -557,8 +576,10 @@ async function selectRpjm() {
         formPanel.style.display = 'block';
         if (typeof syncAccSection === 'function') syncAccSection('rab-form-panel');
     }
-    
+
     await loadSavedRAB();
+    // Versi MURNI dikunci begitu PERUBAHAN untuk kegiatan ini sudah ada
+    await refreshLockStatus();
 }
 
 function getStorageKey() {
@@ -571,7 +592,7 @@ async function loadSavedRAB() {
     if (!key) return;
 
     try {
-        const url = `${API_URL}/rab?kode_unik_full=${encodeURIComponent(selectedRpjm.kode_unik_full)}&tahun=${encodeURIComponent(rabYear)}`;
+        const url = `${API_URL}/rab?kode_unik_full=${encodeURIComponent(selectedRpjm.kode_unik_full)}&tahun=${encodeURIComponent(rabYear)}&tipe=${encodeURIComponent(rabTipe)}`;
         const res = await fetch(url);
         const json = await res.json();
         if (json.success) {
@@ -633,7 +654,9 @@ function sortHierarchical(dataArray) {
 
 async function loadSavedRabList() {
     try {
-        const res = await fetch(`${API_URL}/rab?tahun=${rabYear}`);
+        // Egress guard: selalu minta tahun aktif + versi terpilih ke server
+        // (filter tidak lagi dilakukan setelah seluruh tabel terunduh).
+        const res = await fetch(`${API_URL}/rab/list?tahun=${encodeURIComponent(rabYear)}&tipe=${encodeURIComponent(rabTipe)}`);
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
             const serverItems = json.data.map(item => {
@@ -667,6 +690,12 @@ function renderSavedRabList() {
     // Hanya tampilkan RAB sesuai tahun yang aktif saat ini
     const currentYear = Number(rabYear || 2027);
     const filtered = savedRabList.filter(r => Number(r.tahun) === currentYear);
+
+    // Label versi yang sedang ditampilkan (MURNI / PERUBAHAN)
+    const tipeLabel = document.getElementById('rab-list-tipe-label');
+    if (tipeLabel) {
+        tipeLabel.textContent = isModePerubahan() ? `— versi PERUBAHAN (${filtered.length})` : `— versi MURNI (${filtered.length})`;
+    }
 
     if (!container) {
         console.error("Element with id 'rab-saved-body' not found.");
@@ -790,13 +819,14 @@ async function loadSavedRabItem(kode, year) {
 
 async function deleteSavedRabItem(kode, year) {
     try {
-        const res = await fetch(`${API_URL}/rab?kode_unik_full=${encodeURIComponent(kode)}&tahun=${encodeURIComponent(year)}`, {
+        const res = await fetch(`${API_URL}/rab?kode_unik_full=${encodeURIComponent(kode)}&tahun=${encodeURIComponent(year)}&tipe=${encodeURIComponent(rabTipe)}`, {
             method: 'DELETE'
         });
         const json = await res.json();
         if (json.success) {
             showToast('RAB berhasil dihapus', 'success');
         } else {
+            // 409: versi MURNI terkunci karena RAB PERUBAHAN sudah dibuat
             showToast(json.error || 'Gagal menghapus RAB', 'error');
         }
         await loadSavedRabList();
@@ -848,6 +878,12 @@ async function saveRAB() {
         return;
     }
 
+    // Versi MURNI dikunci setelah RAB PERUBAHAN dibuat (nilai historis terjaga)
+    if (rabMurniLocked) {
+        showToast('RAB MURNI dikunci karena versi PERUBAHAN sudah dibuat. Ganti ke versi PERUBAHAN untuk mengubah item.', 'error');
+        return;
+    }
+
     const activity = selectedRpjm || {};
     const namaBidangFull = getNamaBidangFull(activity.bidang, activity.kode_unik_full || kodeUnikFix);
     
@@ -863,6 +899,7 @@ async function saveRAB() {
         nama_kegiatan: activity.nama_kegiatan || '',
         bidang: namaBidangFull,
         jenis_kegiatan: activity.jenis_kegiatan || '',
+        tipe_anggaran: rabTipe,
         items: rabItems,
         jumlah_anggaran: totalRab,
         volume: volumeRab,
@@ -891,7 +928,13 @@ async function saveRAB() {
         });
         const json = await res.json();
         if (json.success) {
-            showToast('✅ Data RAB berhasil disimpan ke Supabase!', 'success');
+            showToast(`✅ Data RAB ${rabTipe} berhasil disimpan ke Supabase!`, 'success');
+            await loadSavedRabList();
+            await refreshLockStatus();
+        } else if (json.locked) {
+            showToast(json.error || 'RAB MURNI sudah dikunci oleh RAB PERUBAHAN.', 'error');
+            rabMurniLocked = true;
+            applyReadOnlyMode();
             await loadSavedRabList();
         } else {
             showToast(json.error || json.message || 'Gagal menyimpan RAB ke database', 'error');
@@ -940,6 +983,19 @@ function addRabItem() {
     }
 
     const item = { group, subgroup, uraian, volume, satuan, harga, jumlah, sumber, keterangan };
+
+    // RAB PERUBAHAN: pertahankan jejak penjajaran dari versi MURNI saat mengedit,
+    // supaya SEMULA <-> MENJADI tetap berpasangan walau uraian diubah.
+    if (editIndex > -1 && rabItems[editIndex]) {
+        const prev = rabItems[editIndex];
+        if (prev.urutan_murni !== undefined) item.urutan_murni = prev.urutan_murni;
+        if (prev.id_referensi_murni !== undefined) item.id_referensi_murni = prev.id_referensi_murni;
+    } else if (isModePerubahan()) {
+        // Item baru murni tambahan pada versi PERUBAHAN: tidak punya padanan MURNI,
+        // sehingga nilai SEMULA otomatis 0 pada laporan perbandingan.
+        item.urutan_murni = null;
+    }
+
     if (editIndex > -1) {
         rabItems.splice(editIndex, 1, item);
         editIndex = -1;
@@ -962,6 +1018,10 @@ function addRabItem() {
 function editRabItem(index) {
     const item = rabItems[index];
     if (!item) return;
+    if (rabMurniLocked) {
+        showToast('RAB MURNI dikunci (read-only). Buka versi PERUBAHAN untuk mengedit item.', 'error');
+        return;
+    }
     document.getElementById('select-group').value = item.group || '';
     onGroupChange();
     document.getElementById('select-subgroup').value = item.subgroup || '';
@@ -995,6 +1055,10 @@ function editRabItem(index) {
 }
 
 function removeRabItem(index) {
+    if (rabMurniLocked) {
+        showToast('RAB MURNI dikunci (read-only). Buka versi PERUBAHAN untuk menghapus item.', 'error');
+        return;
+    }
     rabItems.splice(index, 1);
     renderRabItems();
     saveRAB();
@@ -1192,7 +1256,7 @@ async function populateGroupCetakDropdown() {
 
         if (items.length === 0) {
             try {
-                const res = await fetch(`/api/rab?tahun=${tahunFilter}`);
+                const res = await fetch(`/api/rab/list?tahun=${encodeURIComponent(tahunFilter)}&tipe=${encodeURIComponent(rabTipe)}`);
                 const json = await res.json();
                 if (json.success && Array.isArray(json.data)) items = json.data;
             } catch(e) {}
@@ -1727,6 +1791,377 @@ function getGroupKey(row, item) {
     printWindow.focus();
     setTimeout(() => printWindow.print(), 500);
 }
+
+// ============================================================
+// RAB PERUBAHAN — KONTROL VERSI, KUNCI MURNI, SNAPSHOT & CETAK
+// ============================================================
+
+// Cek status versi (MURNI / PERUBAHAN) kegiatan terpilih. Ringan: server memakai
+// head-count sehingga tidak ada baris data yang ditarik.
+async function refreshLockStatus() {
+    const kode = String(
+        selectedRpjm?.kode_unik_full ||
+        document.getElementById('select-kode-unik')?.value || ''
+    ).trim();
+
+    if (!kode) {
+        rabMurniLocked = false;
+        applyReadOnlyMode();
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/rab/versi-status?tahun=${encodeURIComponent(rabYear)}&kode_unik_full=${encodeURIComponent(kode)}`);
+        const json = await res.json();
+        if (json && json.success) {
+            rabMurniLocked = !isModePerubahan() && !!json.perubahan;
+        }
+    } catch (e) {
+        console.warn('Gagal memeriksa status versi RAB:', e);
+    }
+    applyReadOnlyMode();
+}
+
+// Terapkan mode baca-saja pada form rincian saat versi MURNI sudah dikunci.
+function applyReadOnlyMode() {
+    const fieldIds = [
+        'select-group', 'select-subgroup', 'input-uraian', 'input-volume',
+        'input-satuan', 'input-harga', 'select-sumber-dana', 'input-keterangan',
+        'btn-add-item', 'btn-copy-item'
+    ];
+    fieldIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !!rabMurniLocked;
+    });
+
+    const banner = document.getElementById('rab-lock-banner');
+    if (banner) banner.classList.toggle('hidden', !rabMurniLocked);
+
+    const badge = document.getElementById('rab-tipe-badge');
+    if (badge) {
+        if (rabMurniLocked) {
+            badge.textContent = 'RAB MURNI — DIKUNCI';
+            badge.className = 'px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-rose-500 text-white';
+        } else if (isModePerubahan()) {
+            badge.textContent = 'MODE: RAB PERUBAHAN';
+            badge.className = 'px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-amber-500 text-white';
+        } else {
+            badge.textContent = 'MODE: RAB MURNI';
+            badge.className = 'px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-emerald-500 text-white';
+        }
+    }
+}
+
+// Ganti versi anggaran (MURNI <-> PERUBAHAN) untuk tahun anggaran aktif.
+async function onTipeAnggaranChange(nilai) {
+    rabTipe = String(nilai || RAB_TIPE_MURNI).toUpperCase() === RAB_TIPE_PERUBAHAN
+        ? RAB_TIPE_PERUBAHAN
+        : RAB_TIPE_MURNI;
+    rabItems = [];
+    renderRabItems();
+    applyReadOnlyMode();
+    await loadRabActivities();
+    await loadSavedRabList();
+    await refreshLockStatus();
+}
+
+// Salin (snapshot) seluruh RAB MURNI tahun aktif menjadi RAB PERUBAHAN.
+async function salinKeRABPerubahan() {
+    if (!confirm(`Salin RAB MURNI tahun ${rabYear} ke RAB PERUBAHAN?\n\nSeluruh item belanja akan diduplikasi sebagai titik awal perubahan. Nilai RAB MURNI tetap utuh dan akan dikunci.`)) {
+        return;
+    }
+
+    const btn = document.getElementById('btn-clone-perubahan');
+    if (btn) { btn.disabled = true; }
+    try {
+        const res = await fetch(`${API_URL}/rab/clone-to-perubahan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tahun: Number(rabYear) })
+        });
+        const json = await res.json();
+        if (json.success) {
+            showToast(json.message || `Berhasil menyalin ${json.created} kegiatan.`, 'success');
+            const sel = document.getElementById('select-tipe-anggaran');
+            if (sel) sel.value = RAB_TIPE_PERUBAHAN;
+            await onTipeAnggaranChange(RAB_TIPE_PERUBAHAN);
+        } else {
+            showToast(json.error || 'Gagal menyalin RAB ke versi PERUBAHAN.', 'error');
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Gagal menyalin RAB ke versi PERUBAHAN.', 'error');
+    } finally {
+        if (btn) { btn.disabled = false; }
+    }
+}
+
+// ============================================================
+// CETAK PDF — TEMPLATE BAKU KEMENKEU (SEMULA / MENJADI / SELISIH)
+// Struktur header 2 tingkat + 3 kolom tanda tangan.
+// ============================================================
+async function cetakRabPerubahan() {
+    const selectGroupElem = document.getElementById('selectGroupKegiatanCetak');
+    let prefix = String(selectGroupElem?.value || '01.01.01.').trim();
+    if (prefix && !prefix.endsWith('.')) prefix += '.';
+
+    const tahunInput = document.getElementById('select-year')?.value || rabYear || '2027';
+    const tahunNum = parseInt(tahunInput, 10) || rabYear;
+
+    let groupTitle = 'RAB Perubahan';
+    if (selectGroupElem && selectGroupElem.selectedIndex >= 0) {
+        const optText = selectGroupElem.options[selectGroupElem.selectedIndex].text || '';
+        groupTitle = optText.includes(']') ? optText.split(']').slice(1).join(']').trim() : (optText || groupTitle);
+    }
+
+    showToast(`Memuat perbandingan RAB Perubahan [${prefix}]...`, 'success');
+
+    let comparisons = [];
+    let grandTotal = { semula: 0, menjadi: 0, selisih: 0 };
+    try {
+        const res = await fetch(`${API_URL}/rab/perbandingan?tahun=${encodeURIComponent(tahunNum)}&prefix=${encodeURIComponent(prefix)}`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+            comparisons = json.data;
+            grandTotal = json.total || grandTotal;
+        } else if (json.error) {
+            showToast(json.error, 'error');
+            return;
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Gagal memuat perbandingan RAB Perubahan.', 'error');
+        return;
+    }
+
+    if (!comparisons.length) {
+        showToast(`Data RAB tidak ditemukan untuk kelompok ${prefix}`, 'error');
+        return;
+    }
+
+    if (comparisons.some(c => c.belum_ada_perubahan)) {
+        const lanjut = confirm('Sebagian kegiatan pada kelompok ini belum memiliki versi RAB PERUBAHAN.\nNilai MENJADI akan tampil sama dengan SEMULA (selisih 0).\n\nLanjutkan cetak?');
+        if (!lanjut) return;
+    }
+
+    // --- Metadata & tanggal ---
+    const selPenandatangan = document.getElementById('selectPenandatangan');
+    const inputManual = document.getElementById('inputNamaManual');
+    let namaPka = 'Abdul Azis, S. Pd';
+    if (selPenandatangan) {
+        namaPka = selPenandatangan.value === 'manual'
+            ? (inputManual?.value.trim() || 'Abdul Azis, S. Pd')
+            : (selPenandatangan.value || 'Abdul Azis, S. Pd');
+    }
+    const namaSekdes = 'Syarifuddin';
+    const namaKades = 'SUMAILA DAMANG';
+
+    const bulanID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const formatTanggalID = (dateStr) => {
+        const d = dateStr ? new Date(dateStr) : new Date();
+        if (isNaN(d.getTime())) return '';
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${dd} ${bulanID[d.getMonth()]} ${d.getFullYear()}`;
+    };
+    const tanggalCetak = formatTanggalID(document.getElementById('inputTanggalCetak')?.value);
+
+    // --- Nomor urut baris item (a., b., c., ... per kegiatan) ---
+    const charLabel = (i) => {
+        // 1 -> a., 2 -> b., ... 27 -> aa.
+        let n = i, s = '';
+        do { s = String.fromCharCode(97 + (n % 26 === 0 ? 25 : (n % 26) - 1)) + s; n = Math.floor((n - 1) / 26); } while (n > 0);
+        return s + '.';
+    };
+
+    const fmt = (n) => formatRupiah(Number(n) || 0);
+    const fmtSelisih = (n) => {
+        const v = Number(n) || 0;
+        if (v < 0) return `<span style="color:#b91c1c;">(${fmt(Math.abs(v))})</span>`;
+        return fmt(v);
+    };
+
+    let tbodyRows = '';
+
+    comparisons.forEach(comp => {
+        // Header kegiatan
+        tbodyRows += `
+            <tr style="background-color:#e2e8f0;">
+                <td colspan="9" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px;">
+                    ${comp.kode_unik_full} — ${comp.nama_kegiatan || '-'}
+                </td>
+            </tr>`;
+
+        // Kelompokkan item per group -> subgroup, urut sesuai input
+        const groupMap = new Map();
+        comp.items.forEach(it => {
+            const g = (it.group || 'Belanja').trim();
+            const sg = (it.subgroup || 'Sub Group').trim();
+            const gKey = `${g}\u0000${sg}`;
+            if (!groupMap.has(gKey)) groupMap.set(gKey, { group: g, subgroup: sg, items: [] });
+            groupMap.get(gKey).items.push(it);
+        });
+
+        const groupHeaders = [];
+        groupMap.forEach(v => { if (!groupHeaders.includes(v.group)) groupHeaders.push(v.group); });
+
+        let runningNo = 0;
+        groupHeaders.forEach(groupName => {
+            tbodyRows += `
+                <tr style="background-color:#f1f5f9;">
+                    <td colspan="9" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px; text-transform:uppercase;">${groupName}</td>
+                </tr>`;
+
+            groupMap.forEach(entry => {
+                if (entry.group !== groupName) return;
+
+                const subSemula = entry.items.reduce((s, it) => s + (Number(it.semula.jumlah) || 0), 0);
+                const subMenjadi = entry.items.reduce((s, it) => s + (Number(it.menjadi.jumlah) || 0), 0);
+
+                tbodyRows += `
+                    <tr style="background-color:#f8fafc;">
+                        <td colspan="2" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px;">${entry.subgroup}</td>
+                        <td colspan="3" style="border:1px solid #000; padding:6px 8px; text-align:right; font-weight:bold; font-size:12px;">Rp ${fmt(subSemula)}</td>
+                        <td colspan="3" style="border:1px solid #000; padding:6px 8px; text-align:right; font-weight:bold; font-size:12px;">Rp ${fmt(subMenjadi)}</td>
+                        <td style="border:1px solid #000; padding:6px 8px; text-align:right; font-weight:bold; font-size:12px;">${fmtSelisih(subMenjadi - subSemula)}</td>
+                    </tr>`;
+
+                entry.items.forEach(it => {
+                    runningNo += 1;
+                    const volSemula = it.item_baru ? '0' : `${it.semula.volume ?? 0} ${it.semula.satuan || ''}`.trim();
+                    const volMenjadi = it.item_dihapus ? '0' : `${it.menjadi.volume ?? 0} ${it.menjadi.satuan || ''}`.trim();
+                    tbodyRows += `
+                    <tr>
+                        <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${runningNo}</td>
+                        <td style="border:1px solid #000; padding:4px 6px; padding-left:16px; font-size:11px;">${charLabel(runningNo)} ${it.uraian}${it.keterangan ? ` (${it.keterangan})` : ''}</td>
+                        <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${volSemula || '0'}</td>
+                        <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_baru ? '0' : fmt(it.semula.harga)}</td>
+                        <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_baru ? '0' : fmt(it.semula.jumlah)}</td>
+                        <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${volMenjadi || '0'}</td>
+                        <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_dihapus ? '0' : fmt(it.menjadi.harga)}</td>
+                        <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_dihapus ? '0' : fmt(it.menjadi.jumlah)}</td>
+                        <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${fmtSelisih(it.selisih)}</td>
+                    </tr>`;
+                });
+            });
+        });
+
+        // TOTAL per kegiatan
+        tbodyRows += `
+            <tr style="background-color:#e2e8f0; font-weight:bold;">
+                <td colspan="2" style="border:1px solid #000; padding:6px 8px; text-align:right; font-size:12px;">TOTAL KEGIATAN</td>
+                <td colspan="2" style="border:1px solid #000;"></td>
+                <td style="border:1px solid #000; padding:6px 8px; text-align:right; font-size:12px;">Rp ${fmt(comp.total.semula)}</td>
+                <td colspan="2" style="border:1px solid #000;"></td>
+                <td style="border:1px solid #000; padding:6px 8px; text-align:right; font-size:12px;">Rp ${fmt(comp.total.menjadi)}</td>
+                <td style="border:1px solid #000; padding:6px 8px; text-align:right; font-size:12px;">${fmtSelisih(comp.total.selisih)}</td>
+            </tr>`;
+    });
+
+    const html = `
+        <html>
+        <head>
+            <title>RAB Perubahan ${prefix}</title>
+            <style>
+                @page { size: A4 landscape; margin: 12mm; }
+                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 16px; color: #000; background: #fff; line-height: 1.35; }
+                h1, h2, h3 { margin: 0; text-align: center; font-weight: bold; }
+                table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+                th, td { border: 1px solid #000; padding: 5px 6px; font-size: 11px; vertical-align: top; }
+                th { background: #e2e8f0; font-weight: bold; text-align: center; }
+                @media print { body { padding: 0; } }
+            </style>
+        </head>
+        <body>
+            <div style="text-align:center; margin-bottom:14px;">
+                <h1 style="font-size:16px; text-transform:uppercase;">PERUBAHAN RENCANA ANGGARAN BIAYA (RAB)</h1>
+                <h2 style="font-size:14px; text-transform:uppercase;">PEMERINTAH DESA BATETANGNGA</h2>
+                <h3 style="font-size:12px; text-transform:uppercase;">KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR</h3>
+                <h3 style="font-size:12px; text-transform:uppercase;">PROVINSI SULAWESI BARAT — TAHUN ANGGARAN ${tahunNum}</h3>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; border-top:2px solid #000; border-bottom:2px solid #000; padding:10px 0; font-size:12px; line-height:1.6;">
+                <div style="width:48%;">
+                    <div style="display:flex;"><span style="width:90px;">Desa</span><span style="margin-right:8px;">:</span><strong>BATETANGNGA</strong></div>
+                    <div style="display:flex;"><span style="width:90px;">Kecamatan</span><span style="margin-right:8px;">:</span><strong>BINUANG</strong></div>
+                    <div style="display:flex;"><span style="width:90px;">Kabupaten</span><span style="margin-right:8px;">:</span><strong>POLEWALI MANDAR</strong></div>
+                    <div style="display:flex;"><span style="width:90px;">Provinsi</span><span style="margin-right:8px;">:</span><strong>SULAWESI BARAT</strong></div>
+                </div>
+                <div style="width:48%;">
+                    <div style="display:flex;"><span style="width:90px;">No. RAB</span><span style="margin-right:8px;">:</span><strong>${prefix}</strong></div>
+                    <div style="display:flex;"><span style="width:90px;">Bidang</span><span style="margin-right:8px;">:</span><strong>RAB PERUBAHAN</strong></div>
+                    <div style="display:flex;"><span style="width:90px;">Kegiatan</span><span style="margin-right:8px;">:</span><strong>${groupTitle}</strong></div>
+                    <div style="display:flex;"><span style="width:90px;">Jml Kegiatan</span><span style="margin-right:8px;">:</span><strong>${comparisons.length}</strong></div>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th rowspan="2" style="width:34px;">NO</th>
+                        <th rowspan="2">URAIAN</th>
+                        <th colspan="3">SEMULA</th>
+                        <th colspan="3">MENJADI</th>
+                        <th rowspan="2" style="width:120px;">BERTAMBAH / (BERKURANG)</th>
+                    </tr>
+                    <tr>
+                        <th style="width:80px;">VOL &amp; SAT</th>
+                        <th style="width:95px;">HARGA SATUAN</th>
+                        <th style="width:105px;">JUMLAH</th>
+                        <th style="width:80px;">VOL &amp; SAT</th>
+                        <th style="width:95px;">HARGA SATUAN</th>
+                        <th style="width:105px;">JUMLAH</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tbodyRows}
+                </tbody>
+                <tfoot>
+                    <tr style="font-weight:bold; background-color:#cbd5e1;">
+                        <td colspan="2" style="text-align:right; font-weight:bold;">JUMLAH TOTAL</td>
+                        <td colspan="2"></td>
+                        <td style="text-align:right; font-weight:bold;">Rp ${fmt(grandTotal.semula)}</td>
+                        <td colspan="2"></td>
+                        <td style="text-align:right; font-weight:bold;">Rp ${fmt(grandTotal.menjadi)}</td>
+                        <td style="text-align:right; font-weight:bold;">${fmtSelisih(grandTotal.selisih)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div style="margin-top:44px; display:flex; justify-content:space-between; page-break-inside:avoid; font-size:12px; line-height:1.5;">
+                <div style="text-align:center; width:30%;">
+                    <p style="margin:0 0 68px 0;">Menyetujui,<br><strong>Kepala Desa Batetangnga</strong></p>
+                    <p style="margin:0; text-decoration:underline;"><strong>${namaKades}</strong></p>
+                </div>
+                <div style="text-align:center; width:30%;">
+                    <p style="margin:0 0 68px 0;">Telah Diverifikasi,<br><strong>Sekretaris Desa Batetangnga</strong></p>
+                    <p style="margin:0; text-decoration:underline;"><strong>${namaSekdes}</strong></p>
+                </div>
+                <div style="text-align:center; width:30%;">
+                    <p style="margin:0 0 68px 0;">Batetangnga, ${tanggalCetak}<br><strong>Pejabat Kuasa Anggaran (PKA)</strong></p>
+                    <p style="margin:0; text-decoration:underline;"><strong>${namaPka}</strong></p>
+                </div>
+            </div>
+
+            <div style="margin-top:28px; border-top:1px solid #cbd5e1; padding-top:8px; display:flex; justify-content:space-between; font-size:10px; color:#64748b;">
+                <div>Dicetak dari sistem SIA Batetangnga — Modul RAB Perubahan</div>
+                <div>${new Date().toLocaleDateString('id-ID')}</div>
+            </div>
+        </body>
+        </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 500);
+}
+
+window.onTipeAnggaranChange = onTipeAnggaranChange;
+window.salinKeRABPerubahan = salinKeRABPerubahan;
+window.cetakRabPerubahan = cetakRabPerubahan;
+window.refreshLockStatus = refreshLockStatus;
 
 document.addEventListener('DOMContentLoaded', loadInitialData);
 

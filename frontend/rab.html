@@ -341,50 +341,13 @@
         }
 
         @media print {
-            /* Sembunyikan seluruh elemen navigasi, header sistem, dan tombol aksi */
-            nav,
-            header,
-            .navbar,
-            #navbar,
-            #navbar-container,
-            .no-print,
-            button,
-            .btn,
-            .btn-action,
-            .action-buttons,
-            .floating-buttons,
-            .sidebar,
-            #sidebar {
+            .no-print {
                 display: none !important;
             }
 
-            /* Sembunyikan badge kode unik hanya saat cetak */
-            .badge-kode-unik,
-            .col-kode-unik,
-            [data-print-hide="kode-unik"] {
-                display: none !important;
-            }
-
-            /* Bersihkan margin layar agar dokumen mulai dari batas atas kertas */
             body {
-                margin: 0 !important;
-                padding: 0 !important;
-                background: #fff !important;
+                background: white;
                 color: #111827;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            /* Hilangkan bayangan box kartu */
-            .shadow,
-            .shadow-md,
-            .shadow-lg,
-            .shadow-xl,
-            .rounded-lg,
-            .rounded-xl,
-            .acc-card {
-                box-shadow: none !important;
-                border-color: #cbd5e1 !important;
             }
         }
     </style>
@@ -418,14 +381,21 @@
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-3">
+                <span id="rab-tipe-badge" class="px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-emerald-500 text-white">MODE: RAB MURNI</span>
                 <span class="hidden sm:inline-flex items-center gap-2 text-[11px] font-bold text-indigo-200 bg-white/10 rounded-full px-4 py-2">
                     <i class="fas fa-database text-emerald-300"></i> Tersimpan di Supabase
                 </span>
                 <button onclick="window.location.href='rancangan-rkpdes.html'" class="btn-outline !bg-white/10 !border-white/20 !text-white hover:!bg-white/20">
                     <i class="fas fa-arrow-left"></i> Rancangan RKPDes
                 </button>
+                <button id="btn-clone-perubahan" onclick="salinKeRABPerubahan()" class="btn-outline !bg-amber-400/20 !border-amber-300/40 !text-white hover:!bg-amber-400/30">
+                    <i class="fas fa-clone"></i> Salin dari RAB Murni ke RAB Perubahan
+                </button>
                 <button onclick="cetakPdfByGroup()" class="btn-primary !shadow-emerald-500/30 !bg-gradient-to-r !from-emerald-500 !to-teal-600">
                     <i class="fas fa-print"></i> Cetak PDF RAB Kelompok
+                </button>
+                <button onclick="cetakRabPerubahan()" class="btn-primary !shadow-amber-500/30 !bg-gradient-to-r !from-amber-500 !to-orange-600">
+                    <i class="fas fa-file-invoice"></i> Cetak PDF RAB Perubahan
                 </button>
             </div>
         </div>
@@ -468,9 +438,12 @@
                             <option value="01.01.02.">01.01.02. - Penghasilan & Tunjangan Perangkat Desa</option>
                         </select>
                     </div>
-                    <div class="flex items-end">
+                    <div class="flex items-end gap-2">
                         <button onclick="cetakPdfByGroup()" class="btn-primary w-full">
                             <i class="fas fa-print"></i> 🖨️ Cetak PDF RAB Kelompok
+                        </button>
+                        <button onclick="cetakRabPerubahan()" class="btn-primary w-full !bg-gradient-to-r !from-amber-500 !to-orange-600">
+                            <i class="fas fa-file-invoice"></i> 📑 Cetak RAB Perubahan
                         </button>
                     </div>
                 </div>
@@ -695,7 +668,26 @@
                 <i class="fas fa-chevron-down acc-chevron"></i>
             </button>
             <div class="acc-body p-6" id="acc-filter">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Banner kunci versi MURNI -->
+                <div id="rab-lock-banner" class="hidden mb-4 p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800">
+                    <div class="flex items-start gap-3">
+                        <i class="fas fa-lock text-lg mt-0.5"></i>
+                        <div class="text-xs leading-relaxed">
+                            <strong class="block text-sm mb-1">RAB MURNI Dikunci</strong>
+                            Versi PERUBAHAN untuk kegiatan ini sudah dibuat, sehingga nilai historis MURNI bersifat read-only.
+                            Ganti <em>Versi Anggaran</em> ke <strong>PERUBAHAN</strong> untuk menambah/mengurangi item belanja.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="form-label">Versi Anggaran</label>
+                        <select id="select-tipe-anggaran" class="input-field font-bold" onchange="onTipeAnggaranChange(this.value)">
+                            <option value="MURNI" selected>RAB MURNI (Penetapan Awal)</option>
+                            <option value="PERUBAHAN">RAB PERUBAHAN</option>
+                        </select>
+                    </div>
                     <div>
                         <label class="form-label">Tahun Anggaran</label>
                         <select id="select-year" class="input-field" onchange="onYearChange()">
@@ -741,7 +733,7 @@
             <div class="acc-body" id="acc-daftar">
                 <div class="flex flex-wrap items-center justify-between gap-3 px-6 pt-5 pb-3">
                     <div class="flex items-center gap-3">
-                        <h3 class="text-sm font-extrabold text-slate-800"><i class="fas fa-database text-indigo-600 mr-2"></i>Daftar RAB Tersimpan di Supabase</h3>
+                        <h3 class="text-sm font-extrabold text-slate-800"><i class="fas fa-database text-indigo-600 mr-2"></i>Daftar RAB Tersimpan di Supabase <span id="rab-list-tipe-label" class="ml-1 text-[11px] font-bold text-indigo-500"></span></h3>
                     </div>
                     <div class="flex gap-2">
                         <button onclick="fixRabData()" class="btn-outline text-xs">

@@ -38,15 +38,6 @@ app.get(['/', '/index.html'], (req, res) => {
     return res.sendFile(path.resolve(__dirname, 'index.html'));
 });
 
-// Rute login
-app.get(['/login', '/login.html'], (req, res) => {
-    const loginPath = path.join(FRONTEND_PATH, 'login.html');
-    if (fs.existsSync(loginPath)) {
-        return res.sendFile(loginPath);
-    }
-    return res.status(404).send('Halaman login tidak ditemukan');
-});
-
 app.use((req, res, next) => {
     console.log(`➡️ ${req.method} ${req.url}`);
     next();
@@ -279,6 +270,53 @@ function isTableMissingError(error) {
     return false;
 }
 
+// ============================================
+// RAB PERUBAHAN — penanda versi (snapshot pada tabel `rab`)
+// ============================================
+// 'MURNI'      : RAB penetapan awal (data historis, dikunci bila PERUBAHAN sudah dibuat)
+// 'PERUBAHAN'  : salinan/snapshot RAB Murni yang boleh diubah (tambah/kurang item)
+const RAB_TIPE_MURNI = 'MURNI';
+const RAB_TIPE_PERUBAHAN = 'PERUBAHAN';
+
+function normalizeRabTipe(value) {
+    const v = String(value || '').trim().toUpperCase();
+    return v === RAB_TIPE_PERUBAHAN ? RAB_TIPE_PERUBAHAN : RAB_TIPE_MURNI;
+}
+
+// Deteksi kolom belum ada (migrasi supabase_add_tipe_anggaran_rab.sql belum dijalankan).
+// Aplikasi otomatis jatuh ke fallback kolom legacy agar tetap berjalan tanpa downtime.
+function isColumnMissingError(error) {
+    if (!error) return false;
+    const code = String(error.code || '');
+    if (code === 'PGRST204' || code === '42703') return true;
+    const message = String(error.message || error.details || '').toLowerCase();
+    if (!message) return false;
+    if (message.includes('does not exist') && message.includes('column')) return true;
+    if (message.includes('could not find') && message.includes('column')) return true;
+    return false;
+}
+
+// Jalankan kueri RAB dengan kolom versi; bila kolomnya belum ada, ulangi
+// dengan daftar kolom legacy lalu lengkapi tipe_anggaran = 'MURNI' di memori.
+async function rabQueryWithTipeFallback(buildQuery, primaryCols, legacyCols) {
+    let res = await buildQuery(primaryCols);
+    if (res && res.error && isColumnMissingError(res.error)) {
+        console.warn('⚠️ Kolom tipe_anggaran belum ada di tabel `rab`. Jalankan supabase_add_tipe_anggaran_rab.sql. Memakai fallback legacy.');
+        res = await buildQuery(legacyCols);
+        if (res && !res.error) {
+            const rows = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
+            rows.forEach(r => {
+                if (r) {
+                    r.tipe_anggaran = r.tipe_anggaran || RAB_TIPE_MURNI;
+                    r.id_referensi_murni = r.id_referensi_murni ?? null;
+                    r._tipe_fallback = true;
+                }
+            });
+        }
+    }
+    return res;
+}
+
 function sortHierarchical(dataArray) {
     if (!Array.isArray(dataArray)) return dataArray;
     return dataArray.sort((a, b) => {
@@ -303,22 +341,40 @@ function sortHierarchical(dataArray) {
 // Kolom lengkap satu baris RAB (dipakai endpoint detail /api/rab?kode_unik_full=...)
 // dan pemetaan baris gabungan. Kolom JSON items/rpjm_data hanya untuk detail
 // atau endpoint yang benar-benar merender rincian anggaran.
-const RAB_FULL_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, saved_at, created_at, updated_at';
+const RAB_FULL_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, tipe_anggaran, id_referensi_murni, saved_at, created_at, updated_at';
+const RAB_FULL_COLUMNS_LEGACY = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, saved_at, created_at, updated_at';
 
-async function getRabFromDb(kode_unik_full, tahun) {
-    const cleanCode = kode_unik_full.replace(/\.+$/, '');
-    const { data, error } = await supabase
-        .from(RAB_TABLE)
-        .select(RAB_FULL_COLUMNS)
-        .eq('tahun', tahun)
-        .or(`kode_unik_full.eq.${cleanCode},kode_unik_full.eq.${cleanCode}.`)
-        .limit(1)
-        .maybeSingle();
+// Detail satu baris RAB (termasuk items & rpjm_data).
+// tipeAnggaran wajib disaring karena satu (kode_unik_full, tahun) kini bisa punya
+// DUA baris: MURNI dan PERUBAHAN.
+async function getRabFromDb(kode_unik_full, tahun, tipeAnggaran = RAB_TIPE_MURNI) {
+    const tipe = normalizeRabTipe(tipeAnggaran);
+
+    const build = (cols) => {
+        let q = supabase
+            .from(RAB_TABLE)
+            .select(cols)
+            .eq('kode_unik_full', kode_unik_full)
+            .eq('tahun', tahun);
+        // Filter versi hanya pada query utama (kolom legacy tidak punya tipe_anggaran)
+        if (cols === RAB_FULL_COLUMNS) {
+            q = q.eq('tipe_anggaran', tipe);
+        }
+        return q.order('id', { ascending: true }).limit(1);
+    };
+
+    const { data, error } = await rabQueryWithTipeFallback(build, RAB_FULL_COLUMNS, RAB_FULL_COLUMNS_LEGACY);
 
     if (error) {
+        if (error.code === 'PGRST116') return null;
         throw error;
     }
-    return data;
+
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return null;
+    // Fallback legacy: seluruh baris dianggap MURNI, jadi versi PERUBAHAN tidak ada.
+    if (row._tipe_fallback && normalizeRabTipe(row.tipe_anggaran) !== tipe) return null;
+    return row;
 }
 
 // ============================================
@@ -445,41 +501,51 @@ async function saveRabToDb(record) {
         sumber_dana: String(record.sumber_dana || record.sumber_dana_rab || rd.sumber_dana || firstItem.sumber || 'DDS'),
         items: itemsArray,
         rpjm_data: record.rpjm_data || {},
+        // Penanda versi RAB (RAB Perubahan): 'MURNI' | 'PERUBAHAN'
+        tipe_anggaran: normalizeRabTipe(record.tipe_anggaran),
+        id_referensi_murni: record.id_referensi_murni ? Number(record.id_referensi_murni) : null,
         saved_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
     };
 
     try {
-        // Cari baris yang sudah ada berdasarkan (kode_unik_full, tahun) tanpa
-        // bergantung pada unique constraint. Jika ada → update by id; jika tidak → insert
-        // dengan id eksplisit (kolom id tidak punya default di tabel hasil rebuild).
+        // Cari baris yang sudah ada berdasarkan (kode_unik_full, tahun, tipe_anggaran)
+        // tanpa bergantung pada unique constraint. Jika ada → update by id;
+        // jika tidak → insert dengan id eksplisit (kolom id tidak punya default).
+        // tipe_anggaran WAJIB ikut dicari agar penyimpanan MURNI tidak menimpa PERUBAHAN.
         const kodeFull = String(dbPayload.kode_unik_full || safeKode).trim();
-        const cleanCode = kodeFull.replace(/\.+$/, '');
-        const { data: existingRows, error: selErr } = await supabase
-            .from('rab')
-            .select('id')
-            .eq('tahun', safeTahun)
-            .or(`kode_unik_full.eq.${cleanCode},kode_unik_full.eq.${cleanCode}.`)
-            .limit(1);
 
-        if (selErr) {
-            console.error("Supabase Error Details (select):", selErr);
-            throw selErr;
-        }
+        const payloadFull = { ...dbPayload };
+        const payloadLegacy = { ...dbPayload };
+        delete payloadLegacy.tipe_anggaran;
+        delete payloadLegacy.id_referensi_murni;
 
-        let result;
-        if (existingRows && existingRows.length > 0) {
-            const { data: upd, error: updErr } = await supabase
+        const writeOnce = async (payload, useTipeFilter) => {
+            let selQ = supabase
                 .from('rab')
-                .update(dbPayload)
-                .eq('id', existingRows[0].id)
-                .select('id');
-            if (updErr) {
-                console.error("Supabase Error Details (update):", updErr);
-                throw updErr;
+                .select('id')
+                .eq('kode_unik_full', kodeFull)
+                .eq('tahun', safeTahun);
+            if (useTipeFilter) selQ = selQ.eq('tipe_anggaran', payload.tipe_anggaran);
+            const { data: existingRows, error: selErr } = await selQ.limit(1);
+            if (selErr) {
+                console.error("Supabase Error Details (select):", selErr);
+                throw selErr;
             }
-            result = Array.isArray(upd) && upd.length > 0 ? upd[0] : dbPayload;
-        } else {
+
+            if (existingRows && existingRows.length > 0) {
+                const { data: upd, error: updErr } = await supabase
+                    .from('rab')
+                    .update(payload)
+                    .eq('id', existingRows[0].id)
+                    .select('id');
+                if (updErr) {
+                    console.error("Supabase Error Details (update):", updErr);
+                    throw updErr;
+                }
+                return Array.isArray(upd) && upd.length > 0 ? upd[0] : payload;
+            }
+
             const { data: maxRow } = await supabase
                 .from('rab')
                 .select('id')
@@ -488,19 +554,34 @@ async function saveRabToDb(record) {
             const nextId = (maxRow && maxRow[0] && Number(maxRow[0].id)) ? Number(maxRow[0].id) + 1 : 1;
             const { data: ins, error: insErr } = await supabase
                 .from('rab')
-                .insert([{ id: nextId, ...dbPayload }])
+                .insert([{ id: nextId, ...payload }])
                 .select('id');
             if (insErr) {
                 console.error("Supabase Error Details (insert):", insErr);
                 throw insErr;
             }
-            result = Array.isArray(ins) && ins.length > 0 ? ins[0] : dbPayload;
+            return Array.isArray(ins) && ins.length > 0 ? ins[0] : payload;
+        };
+
+        let result;
+        try {
+            result = await writeOnce(payloadFull, true);
+        } catch (writeErr) {
+            if (!isColumnMissingError(writeErr)) throw writeErr;
+            if (dbPayload.tipe_anggaran === RAB_TIPE_PERUBAHAN) {
+                const migErr = new Error('Kolom `tipe_anggaran` belum tersedia di tabel `rab`. Jalankan migrasi supabase_add_tipe_anggaran_rab.sql terlebih dahulu untuk membuat RAB Perubahan.');
+                migErr.code = 'RAB_MIGRATION_REQUIRED';
+                throw migErr;
+            }
+            console.warn('⚠️ Kolom tipe_anggaran belum ada di tabel `rab`; menyimpan memakai mode legacy (diperlakukan sebagai MURNI). Jalankan supabase_add_tipe_anggaran_rab.sql untuk mengaktifkan RAB Perubahan.');
+            result = await writeOnce(payloadLegacy, false);
         }
 
-        // Also update total_rab in public.rpjmdes_standar for consistency.
+        // Sinkronisasi balik ke RPJMDes hanya untuk versi MURNI.
+        // Nilai RAB PERUBAHAN tidak boleh menimpa baseline RPJMDes.
         // Kolom kode_unik di rpjmdes_standar bernilai literal "null"; kecocokan
         // hanya valid lewat kode_unik_full (dengan titik akhir).
-        try {
+        if (dbPayload.tipe_anggaran === RAB_TIPE_MURNI) try {
             const kodeFullRp = String(kodeFull || safeKode).trim();
             const { data: rpjmRows, error: rpjmSelErr } = await supabase
                 .from('rpjmdes_standar')
@@ -535,29 +616,186 @@ async function saveRabToDb(record) {
 
 // Daftar RAB untuk tabel ringkasan: kolom skalar tanpa items JSON array besar.
 // Kolom items & rpjm_data hanya ditarik saat modal/detail dibuka via /api/rab?kode_unik_full=...
-const RAB_LIST_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, saved_at, created_at, updated_at';
+const RAB_LIST_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, tipe_anggaran, id_referensi_murni, saved_at';
+const RAB_LIST_COLUMNS_LEGACY = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, saved_at';
 
-async function listRabsFromDb() {
-    const { data, error } = await supabase
-        .from(RAB_TABLE)
-        .select(RAB_LIST_COLUMNS)
-        .order('kode_unik_full', { ascending: true });
+// Batas keras baris daftar RAB (egress guard). Satu tahun normal jauh di bawah ini.
+const RAB_LIST_LIMIT = 2000;
+
+// Daftar RAB untuk tabel ringkasan.
+// WAJIB difilter tahun + versi dan dibatasi baris agar tidak menarik seluruh tabel
+// (terutama setelah RAB Perubahan menggandakan jumlah baris per tahun).
+async function listRabsFromDb(tahun, tipeAnggaran = RAB_TIPE_MURNI) {
+    const tipe = normalizeRabTipe(tipeAnggaran);
+    const tahunInt = parseInt(tahun, 10);
+
+    const build = (cols) => {
+        let q = supabase.from(RAB_TABLE).select(cols);
+        if (cols === RAB_LIST_COLUMNS) {
+            q = q.eq('tipe_anggaran', tipe);
+        }
+        if (Number.isFinite(tahunInt)) {
+            q = q.eq('tahun', tahunInt);
+        }
+        return q.order('kode_unik_full', { ascending: true }).limit(RAB_LIST_LIMIT);
+    };
+
+    const { data, error } = await rabQueryWithTipeFallback(build, RAB_LIST_COLUMNS, RAB_LIST_COLUMNS_LEGACY);
 
     if (error) throw error;
-    if (Array.isArray(data)) {
-        sortHierarchical(data);
-    }
-    return data;
+    let rows = Array.isArray(data) ? data : [];
+    // Fallback legacy: saring versi di memori supaya permintaan PERUBAHAN tidak
+    // mengembalikan data MURNI.
+    rows = rows.filter(r => normalizeRabTipe(r.tipe_anggaran) === tipe);
+    sortHierarchical(rows);
+    return rows;
 }
 
-async function deleteRabFromDb(kode_unik_full, tahun) {
+// ============================================================
+// RAB PERUBAHAN — konstanta kolom & helper penjajaran item
+// ============================================================
+const RAB_COMPARE_FIELDS = [
+    'id', 'kode_unik', 'kode_unik_full', 'tahun', 'nama_kegiatan', 'uraian', 'bidang',
+    'jenis_kegiatan', 'volume', 'satuan', 'harga_satuan', 'jumlah_anggaran',
+    'sumber_dana', 'items'
+];
+const RAB_TIPE_FIELDS = ['tipe_anggaran', 'id_referensi_murni'];
+const RAB_CLONE_FIELDS = RAB_COMPARE_FIELDS.concat([
+    'rpjm_data', 'group_nama', 'sub_group_nama', 'lokasi', 'lokasi_kegiatan'
+]);
+
+const RAB_COMPARE_COLUMNS = RAB_COMPARE_FIELDS.concat(RAB_TIPE_FIELDS).join(', ');
+const RAB_COMPARE_COLUMNS_LEGACY = RAB_COMPARE_FIELDS.join(', ');
+const RAB_CLONE_COLUMNS = RAB_CLONE_FIELDS.concat(RAB_TIPE_FIELDS).join(', ');
+const RAB_CLONE_COLUMNS_LEGACY = RAB_CLONE_FIELDS.join(', ');
+
+// Kunci penjajaran item RAB: group + subgroup + uraian + satuan (dinormalisasi).
+function rabItemKey(it) {
+    if (!it || typeof it !== 'object') return '';
+    const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+    return `${norm(it.group)}||${norm(it.subgroup)}||${norm(it.uraian)}||${norm(it.satuan)}`;
+}
+
+// Jumlah rupiah satu item: pakai `jumlah` bila ada, jika tidak hitung volume x harga.
+function rabItemJumlah(it) {
+    if (!it || typeof it !== 'object') return 0;
+    const j = Number(it.jumlah);
+    if (Number.isFinite(j) && j !== 0) return j;
+    const vol = Number(String(it.volume == null ? '' : it.volume).replace(',', '.'));
+    const hrg = Number(it.harga);
+    if (Number.isFinite(vol) && vol > 0 && Number.isFinite(hrg)) return vol * hrg;
+    return Number.isFinite(j) ? j : 0;
+}
+
+function buildRabCompareRow(murniItem, perubahanItem, urutan) {
+    const base = perubahanItem || murniItem || {};
+    const semula = {
+        volume: murniItem ? (murniItem.volume == null ? 0 : murniItem.volume) : 0,
+        satuan: murniItem ? (murniItem.satuan || '') : '',
+        harga: murniItem ? Number(murniItem.harga || 0) : 0,
+        jumlah: murniItem ? rabItemJumlah(murniItem) : 0
+    };
+    const menjadi = {
+        volume: perubahanItem ? (perubahanItem.volume == null ? 0 : perubahanItem.volume) : 0,
+        satuan: perubahanItem ? (perubahanItem.satuan || '') : '',
+        harga: perubahanItem ? Number(perubahanItem.harga || 0) : 0,
+        jumlah: perubahanItem ? rabItemJumlah(perubahanItem) : 0
+    };
+    return {
+        urutan,
+        uraian: base.uraian || '-',
+        group: base.group || '',
+        subgroup: base.subgroup || '',
+        keterangan: base.keterangan || '',
+        sumber: base.sumber || '',
+        semula,
+        menjadi,
+        // BERTAMBAH / (BERKURANG) = JUMLAH_MENJADI - JUMLAH_SEMULA
+        selisih: menjadi.jumlah - semula.jumlah,
+        item_baru: !murniItem,
+        item_dihapus: !perubahanItem
+    };
+}
+
+// Penjajaran item MURNI (SEMULA) dengan item PERUBAHAN (MENJADI).        // Prioritas: `urutan_murni` pada item PERUBAHAN (jejak clone) — tetap berpasangan
+        // walau uraian/volume/harga diubah, karena posisi asal MURNI-nya tersimpan eksplisit.
+        // Fallback: kunci komposit (group+subgroup+uraian+satuan) untuk data lama tanpa jejak.
+// Item yang hanya ada di MURNI -> MENJADI = 0. Yang hanya ada di PERUBAHAN -> SEMULA = 0.
+function alignRabItems(murniItems, perubahanItems) {
+    const murniArr = Array.isArray(murniItems) ? murniItems : [];
+    const perArr = Array.isArray(perubahanItems) ? perubahanItems : [];
+    const usedMurni = new Set();
+    const keyIndex = new Map();
+    murniArr.forEach((it, idx) => {
+        const k = rabItemKey(it);
+        if (!keyIndex.has(k)) keyIndex.set(k, []);
+        keyIndex.get(k).push(idx);
+    });
+
+    const rows = [];
+    perArr.forEach((it, pIdx) => {
+        let mIdx = -1;
+        const urut = Number(it && it.urutan_murni);
+        if (Number.isInteger(urut) && urut >= 0 && urut < murniArr.length && !usedMurni.has(urut)) {
+            // Jejak eksplisit dari proses salin MURNI -> PERUBAHAN.
+            mIdx = urut;
+        } else {
+            const candidates = keyIndex.get(rabItemKey(it)) || [];
+            const free = candidates.find(c => !usedMurni.has(c));
+            if (free !== undefined) mIdx = free;
+        }
+        if (mIdx >= 0) usedMurni.add(mIdx);
+        rows.push(buildRabCompareRow(mIdx >= 0 ? murniArr[mIdx] : null, it, pIdx));
+    });
+
+    // Item MURNI tanpa padanan di PERUBAHAN (menjadi 0)
+    murniArr.forEach((it, idx) => {
+        if (usedMurni.has(idx)) return;
+        rows.push(buildRabCompareRow(it, null, rows.length));
+    });
+
+    return rows;
+}
+
+// Berapa banyak baris PERUBAHAN untuk satu kegiatan+tahun (dipakai kunci MURNI).
+async function countPerubahanFor(tahun, kode_unik_full) {
+    const tahunInt = parseInt(tahun, 10);
+    if (!Number.isFinite(tahunInt)) return 0;
+    try {
+        const { count, error } = await supabase
+            .from(RAB_TABLE)
+            .select('id', { count: 'exact', head: true })
+            .eq('tahun', tahunInt)
+            .eq('kode_unik_full', String(kode_unik_full || '').trim())
+            .eq('tipe_anggaran', RAB_TIPE_PERUBAHAN);
+        if (error) return 0;
+        return Number(count) || 0;
+    } catch (e) {
+        return 0;
+    }
+}
+
+async function deleteRabFromDb(kode_unik_full, tahun, tipeAnggaran = null) {
     const safeTahun = parseInt(tahun, 10) || 2027;
-    const cleanCode = String(kode_unik_full).trim().replace(/\.+$/, '');
-    const { data, error } = await supabase
-        .from(RAB_TABLE)
-        .delete()
-        .eq('tahun', safeTahun)
-        .or(`kode_unik_full.eq.${cleanCode},kode_unik_full.eq.${cleanCode}.`);
+    const kode = String(kode_unik_full).trim();
+
+    const run = async (withTipe) => {
+        let q = supabase
+            .from(RAB_TABLE)
+            .delete()
+            .eq('kode_unik_full', kode)
+            .eq('tahun', safeTahun);
+        if (withTipe) {
+            q = q.eq('tipe_anggaran', normalizeRabTipe(tipeAnggaran));
+        }
+        return q.select('id');
+    };
+
+    let { data, error } = await run(!!tipeAnggaran);
+    if (error && tipeAnggaran && isColumnMissingError(error)) {
+        console.warn('⚠️ Kolom tipe_anggaran belum ada; DELETE memakai mode legacy.');
+        ({ data, error } = await run(false));
+    }
 
     if (error) {
         console.error("Supabase Error Details (deleteRabFromDb):", error);
@@ -582,24 +820,36 @@ function writeUnitsStorage(data) {
     return; // ✅ Penyimpanan lokal NONAKTIF
 }
 
-const DEFAULT_STATIC_UNITS = [
-    'Paket', 'Kegiatan', 'Bulan', 'Orang', 'Unit', 'Rim', 'Dos', 'Kotak', 'bh', 'ob',
-    'Bh', 'M3', 'M2', 'LS', 'Klg', 'M1', 'Buah', 'Hari', 'OB (Orang/Bulan)', 'Kali',
-    'Watt', 'KK', 'Botol', 'Set', 'Bks', 'Lbr', 'Rkp', 'Psg', 'Tahun', 'Bal', 'Ikat',
-    'Rak', 'Hok', 'Biji', 'Zak', 'Kg', 'Drum', 'Roll', 'Ekor', 'Pak', 'Klng', '-', 'Btg', 'Ltr', 'Btr', 'Jrgen'
-];
-
 async function listUnitsFromDb() {
-    // Kembalikan daftar unit lokal tanpa query ke Supabase rab_units (mencegah 404 di log)
-    return DEFAULT_STATIC_UNITS;
+    const { data, error } = await supabase
+        .from(UNITS_TABLE)
+        .select('name')
+        .order('name', { ascending: true });
+
+    if (error) throw error;
+    return (data || []).map(d => d.name).filter(Boolean);
 }
 
 async function saveUnitToDb(name) {
-    return { name };
+    const record = { name };
+    const { data, error } = await supabase
+        .from(UNITS_TABLE)
+        .upsert([record], { onConflict: ['name'] })
+        .select('name')
+        .single();
+
+    if (error) throw error;
+    return data;
 }
 
 async function deleteUnitFromDb(name) {
-    return { name };
+    const { data, error } = await supabase
+        .from(UNITS_TABLE)
+        .delete()
+        .eq('name', name);
+
+    if (error) throw error;
+    return data;
 }
 
 
@@ -1246,6 +1496,14 @@ const RPJMDES_LIST_COLUMNS = [
 // Hanya kolom yang benar-benar dirender/dipakai UI. Data besar (items/rpjm_data)
 // hanya ditarik pada endpoint yang memang membutuhkannya.
 const RAB_SYNC_COLUMNS = [
+    'id', 'kode_unik', 'kode_unik_full', 'tahun', 'nama_kegiatan', 'uraian',
+    'bidang', 'status', 'group_nama', 'sub_group_nama', 'lokasi', 'lokasi_kegiatan',
+    'jenis_kegiatan', 'volume', 'satuan', 'harga_satuan',
+    'jumlah_anggaran', 'sumber_dana', 'items', 'rpjm_data',
+    'tipe_anggaran', 'id_referensi_murni', 'saved_at'
+].join(', ');
+
+const RAB_SYNC_COLUMNS_LEGACY = [
     'id', 'kode_unik', 'kode_unik_full', 'tahun', 'nama_kegiatan', 'uraian',
     'bidang', 'status', 'group_nama', 'sub_group_nama', 'lokasi', 'lokasi_kegiatan',
     'jenis_kegiatan', 'volume', 'satuan', 'harga_satuan',
@@ -2969,32 +3227,32 @@ app.get('/api/rab-activities', async (req, res) => {
     }
 });
 
-app.get(['/api/rab', '/api/rab/list'], async (req, res) => {
+// GET /api/rab?tahun=YYYY[&tipe=MURNI|PERUBAHAN]              -> daftar ringkasan
+// GET /api/rab?kode_unik_full=..&tahun=YYYY[&tipe=PERUBAHAN]  -> detail (items + rpjm_data)
+app.get('/api/rab', async (req, res) => {
     try {
         const { kode_unik_full, tahun } = req.query;
-        const tahunInt = parseInt(tahun) || 2027;
+        const tahunInt = parseInt(tahun, 10) || 2027;
+        const tipeAnggaran = normalizeRabTipe(req.query.tipe || req.query.tipe_anggaran);
 
         if (!kode_unik_full) {
-            console.log(`📡 GET /api/rab?tahun=${tahunInt}`);
+            console.log(`📡 GET /api/rab?tahun=${tahunInt}&tipe=${tipeAnggaran}`);
             let data = [];
-            const { data: supaData, error } = await supabase
-                .from('rab')
-                .select(RAB_LIST_COLUMNS)
-                .eq('tahun', tahunInt);
-
-            if (!error && supaData) {
-                data = supaData;
+            try {
+                data = await listRabsFromDb(tahunInt, tipeAnggaran) || [];
+            } catch (listErr) {
+                console.warn('⚠️ Gagal daftar RAB:', listErr.message);
+                data = [];
             }
-
-            return res.json({ success: true, data: data || [] });
+            return res.json({ success: true, tipe_anggaran: tipeAnggaran, data });
         }
 
         try {
-            const saved = await getRabFromDb(kode_unik_full, tahun);
+            const saved = await getRabFromDb(kode_unik_full, tahunInt, tipeAnggaran);
             if (saved) {
-                return res.json({ success: true, data: saved });
+                return res.json({ success: true, tipe_anggaran: tipeAnggaran, data: saved });
             }
-            return res.json({ success: true, data: null });
+            return res.json({ success: true, tipe_anggaran: tipeAnggaran, data: null });
         } catch (error) {
             console.log('❌ Error /api/rab GET by-kode:', error.message);
             res.status(500).json({ success: false, error: error.message, data: [] });
@@ -3004,8 +3262,6 @@ app.get(['/api/rab', '/api/rab/list'], async (req, res) => {
         res.status(500).json({ success: false, error: error.message, data: [] });
     }
 });
-
-app.post('/api/rab/fix-data', (req, res) => res.json({ success: true, message: 'OK', data: [] }));
 
 app.post('/api/rab', async (req, res) => {
     try {
@@ -3019,6 +3275,20 @@ app.post('/api/rab', async (req, res) => {
 
         const noBidang = extractRancanganBidangNum({ bidang: payload.bidang, kode_unik_full: targetKode, kode_unik: targetKode });
         const bidangFull = namaBidangPrioritas(noBidang);
+        const tipeAnggaran = normalizeRabTipe(payload.tipe_anggaran || payload.tipe);
+
+        // Kunci versi MURNI: begitu RAB PERUBAHAN untuk kegiatan+tahun ini dibuat,
+        // nilai historis MURNI tidak boleh diubah lagi (read-only pada mode perubahan).
+        if (tipeAnggaran === RAB_TIPE_MURNI) {
+            const perubahanCount = await countPerubahanFor(Number(tahun), targetKode);
+            if (perubahanCount > 0) {
+                return res.status(409).json({
+                    success: false,
+                    locked: true,
+                    error: 'RAB MURNI kegiatan ini sudah dikunci karena RAB PERUBAHAN telah dibuat. Silakan edit melalui versi PERUBAHAN.'
+                });
+            }
+        }
 
         const record = {
             kode_unik: targetKode,
@@ -3026,7 +3296,9 @@ app.post('/api/rab', async (req, res) => {
             tahun: Number(tahun),
             nama_kegiatan: rpjm_data?.nama_kegiatan || payload.nama_kegiatan || '-',
             bidang: bidangFull,
-            status: payload.status || 'draft',
+            status: payload.status || (tipeAnggaran === RAB_TIPE_PERUBAHAN ? 'perubahan' : 'draft'),
+            tipe_anggaran: tipeAnggaran,
+            id_referensi_murni: payload.id_referensi_murni || null,
             group_nama: payload.group_nama || '',
             sub_group_nama: payload.sub_group_nama || '',
             lokasi: payload.lokasi || rpjm_data?.lokasi_kegiatan || rpjm_data?.lokasi || 'Desa Batetangnga',
@@ -3061,6 +3333,20 @@ app.post('/api/rab', async (req, res) => {
     }
 });
 
+// GET /api/rab/list?tahun=YYYY[&tipe=MURNI|PERUBAHAN]
+// Egress guard: selalu minta tahun aktif; versi ikut disaring di server.
+app.get('/api/rab/list', async (req, res) => {
+    try {
+        const tahunInt = parseInt(req.query.tahun, 10);
+        const tipeAnggaran = normalizeRabTipe(req.query.tipe || req.query.tipe_anggaran);
+        const data = await listRabsFromDb(Number.isFinite(tahunInt) ? tahunInt : null, tipeAnggaran);
+        res.json({ success: true, tipe_anggaran: tipeAnggaran, tahun: Number.isFinite(tahunInt) ? tahunInt : null, data: data || [] });
+    } catch (error) {
+        console.log('❌ Error /api/rab/list:', error.message);
+        res.status(500).json({ success: false, error: error.message, data: [] });
+    }
+});
+
 app.delete('/api/rab', async (req, res) => {
     try {
         const { kode_unik_full, tahun } = req.query;
@@ -3069,10 +3355,24 @@ app.delete('/api/rab', async (req, res) => {
         }
 
         const safeTahun = parseInt(tahun, 10) || 2027;
+        const tipeAnggaran = normalizeRabTipe(req.query.tipe || req.query.tipe_anggaran);
 
-        await deleteRabFromDb(kode_unik_full, safeTahun);
+        // Kunci versi MURNI: tidak boleh dihapus selama PERUBAHAN masih ada.
+        if (tipeAnggaran === RAB_TIPE_MURNI) {
+            const perubahanCount = await countPerubahanFor(safeTahun, kode_unik_full);
+            if (perubahanCount > 0) {
+                return res.status(409).json({
+                    success: false,
+                    locked: true,
+                    error: 'RAB MURNI kegiatan ini dikunci karena RAB PERUBAHAN masih ada. Hapus versi PERUBAHAN terlebih dahulu.'
+                });
+            }
+        }
+
+        await deleteRabFromDb(kode_unik_full, safeTahun, tipeAnggaran);
         // Bersihkan baris RKPDes turunan dari RAB yang dihapus tahun tersebut
-        try {
+        // (hanya untuk versi MURNI — RKPDes selalu mengacu pada penetapan MURNI).
+        if (tipeAnggaran === RAB_TIPE_MURNI) try {
             const base = String(kode_unik_full).trim().replace(/\.+$/, '');
             const { data: derivedRows } = await supabase
                 .from('rkpdes')
@@ -3093,6 +3393,275 @@ app.delete('/api/rab', async (req, res) => {
         return res.json({ success: true, message: "RAB Berhasil Dihapus" });
     } catch (error) {
         console.error("Supabase Error Details (DELETE /api/rab):", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// RAB PERUBAHAN — SNAPSHOT & PERBANDINGAN
+// ============================================================
+
+// Ambil baris RAB satu tahun (opsional per kode / prefix kode) untuk kanal versi.
+async function fetchRabRowsForTipe(tahunInt, tipe, { kode_unik_full, prefix, cols, colsLegacy, includeAllTipe } = {}) {
+    const useCols = cols || RAB_COMPARE_COLUMNS;
+    const useColsLegacy = colsLegacy || RAB_COMPARE_COLUMNS_LEGACY;
+    const build = (c) => {
+        let q = supabase.from('rab').select(c).eq('tahun', tahunInt);
+        if (c === useCols && !includeAllTipe) q = q.eq('tipe_anggaran', tipe);
+        if (kode_unik_full) q = q.eq('kode_unik_full', String(kode_unik_full).trim());
+        if (prefix) {
+            const p = String(prefix).trim().replace(/[%,()]/g, '');
+            if (p) q = q.like('kode_unik_full', `${p}%`);
+        }
+        return q.order('kode_unik_full', { ascending: true }).limit(RAB_LIST_LIMIT);
+    };
+    const { data, error } = await rabQueryWithTipeFallback(build, useCols, useColsLegacy);
+    if (error) throw error;
+    let rows = Array.isArray(data) ? data : [];
+    if (!includeAllTipe) {
+        rows = rows.filter(r => normalizeRabTipe(r.tipe_anggaran) === normalizeRabTipe(tipe));
+    }
+    return rows;
+}
+
+// GET /api/rab/perbandingan?tahun=YYYY[&kode_unik_full=..|&prefix=01.01.01.]
+// Mengembalikan penjajaran SEMULA (MURNI) vs MENJADI (PERUBAHAN) + selisih per item.
+app.get('/api/rab/perbandingan', async (req, res) => {
+    try {
+        const tahunInt = parseInt(req.query.tahun, 10) || 2027;
+        const kode_unik_full = req.query.kode_unik_full || null;
+        const prefix = req.query.prefix || null;
+
+        const [murniRows, perubahanRows] = await Promise.all([
+            fetchRabRowsForTipe(tahunInt, RAB_TIPE_MURNI, { kode_unik_full, prefix }),
+            fetchRabRowsForTipe(tahunInt, RAB_TIPE_PERUBAHAN, { kode_unik_full, prefix })
+        ]);
+
+        const perMap = new Map();
+        perubahanRows.forEach(r => {
+            const k = String(r.kode_unik_full || r.kode_unik || '').trim();
+            if (k) perMap.set(k, r);
+        });
+
+        const kodeSet = new Set();
+        murniRows.forEach(r => kodeSet.add(String(r.kode_unik_full || r.kode_unik || '').trim()));
+        perubahanRows.forEach(r => kodeSet.add(String(r.kode_unik_full || r.kode_unik || '').trim()));
+
+        const comparisons = [];
+        kodeSet.forEach(kode => {
+            if (!kode) return;
+            const m = murniRows.find(r => String(r.kode_unik_full || r.kode_unik || '').trim() === kode) || null;
+            const p = perMap.get(kode) || null;
+            const belumAdaPerubahan = !!m && !p;
+
+            // Belum dibuat versi PERUBAHAN: tampilkan MURNI apa adanya (selisih 0),
+            // ditandai `belum_ada_perubahan` agar UI dapat memberi peringatan.
+            const items = belumAdaPerubahan
+                ? (Array.isArray(m.items) ? m.items : []).map((it, idx) => buildRabCompareRow(it, it, idx))
+                : alignRabItems(m ? m.items : [], p ? p.items : []);
+
+            const total = items.reduce((acc, row) => {
+                acc.semula += Number(row.semula.jumlah) || 0;
+                acc.menjadi += Number(row.menjadi.jumlah) || 0;
+                acc.selisih += Number(row.selisih) || 0;
+                return acc;
+            }, { semula: 0, menjadi: 0, selisih: 0 });
+
+            comparisons.push({
+                kode_unik_full: kode,
+                nama_kegiatan: (p && p.nama_kegiatan) || (m && m.nama_kegiatan) || '-',
+                bidang: (p && p.bidang) || (m && m.bidang) || '',
+                jenis_kegiatan: (p && p.jenis_kegiatan) || (m && m.jenis_kegiatan) || '',
+                sumber_dana: (p && p.sumber_dana) || (m && m.sumber_dana) || 'DDS',
+                id_murni: m ? m.id : null,
+                id_perubahan: p ? p.id : null,
+                belum_ada_perubahan: belumAdaPerubahan,
+                hanya_perubahan: !m && !!p,
+                items,
+                total
+            });
+        });
+
+        comparisons.sort((a, b) => compareKodeUnikFull(a.kode_unik_full, b.kode_unik_full));
+
+        const grandTotal = comparisons.reduce((acc, c) => {
+            acc.semula += c.total.semula;
+            acc.menjadi += c.total.menjadi;
+            acc.selisih += c.total.selisih;
+            return acc;
+        }, { semula: 0, menjadi: 0, selisih: 0 });
+
+        res.json({
+            success: true,
+            tahun: tahunInt,
+            jumlah_kegiatan: comparisons.length,
+            jumlah_perubahan: perubahanRows.length,
+            total: grandTotal,
+            data: comparisons
+        });
+    } catch (error) {
+        console.error('❌ Error GET /api/rab/perbandingan:', error.message);
+        res.status(500).json({ success: false, error: error.message, data: [] });
+    }
+});
+
+// GET /api/rab/versi-status?tahun=YYYY&kode_unik_full=..
+// Cek keberadaan versi MURNI / PERUBAHAN untuk satu kegiatan. Memakai head-count
+// (count saja) sehingga NOL baris data tertarik dari Supabase.
+app.get('/api/rab/versi-status', async (req, res) => {
+    try {
+        const tahunInt = parseInt(req.query.tahun, 10);
+        const kode = String(req.query.kode_unik_full || '').trim();
+        if (!Number.isFinite(tahunInt) || !kode) {
+            return res.status(400).json({ success: false, error: 'Parameter tahun dan kode_unik_full wajib diisi.' });
+        }
+
+        const countByTipe = async (tipe) => {
+            try {
+                const { count, error } = await supabase
+                    .from(RAB_TABLE)
+                    .select('id', { count: 'exact', head: true })
+                    .eq('tahun', tahunInt)
+                    .eq('kode_unik_full', kode)
+                    .eq('tipe_anggaran', tipe);
+                // HEAD request tidak mengembalikan body, sehingga pesan error kosong.
+                // Setiap error di sini (termasuk kolom belum ada) dianggap "tidak diketahui" (-1).
+                if (error) return -1;
+                return Number(count) || 0;
+            } catch (e) {
+                return 0;
+            }
+        };
+
+        const [murni, perubahan] = await Promise.all([
+            countByTipe(RAB_TIPE_MURNI),
+            countByTipe(RAB_TIPE_PERUBAHAN)
+        ]);
+
+        res.json({
+            success: true,
+            tahun: tahunInt,
+            kode_unik_full: kode,
+            murni: murni > 0,
+            perubahan: perubahan > 0,
+            // true bila kolom belum ada (migrasi belum dijalankan)
+            migration_required: murni === -1 || perubahan === -1
+        });
+    } catch (error) {
+        console.error('❌ Error GET /api/rab/versi-status:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// POST /api/rab/clone-to-perubahan  { tahun, kode_unik_full? }
+// Menduplikasi baris MURNI menjadi baris PERUBAHAN (snapshot). Baris MURNI yang sudah
+// punya pasangan PERUBAHAN dilewati sehingga tombol aman diklik berulang.
+app.post('/api/rab/clone-to-perubahan', async (req, res) => {
+    try {
+        const body = req.body || {};
+        const tahunInt = parseInt(body.tahun, 10);
+        if (!Number.isFinite(tahunInt)) {
+            return res.status(400).json({ success: false, error: 'Parameter tahun wajib diisi.' });
+        }
+        const kodeFilter = body.kode_unik_full ? String(body.kode_unik_full).trim() : null;
+
+        const murniRows = await fetchRabRowsForTipe(tahunInt, RAB_TIPE_MURNI, {
+            kode_unik_full: kodeFilter,
+            cols: RAB_CLONE_COLUMNS,
+            colsLegacy: RAB_CLONE_COLUMNS_LEGACY
+        });
+
+        if (!murniRows.length) {
+            return res.json({ success: true, created: 0, skipped: 0, message: `Tidak ada RAB MURNI tahun ${tahunInt} untuk disalin.` });
+        }
+
+        // Baris PERUBAHAN yang sudah ada -> dilewati (anti duplikat)
+        const existingPerubahan = await fetchRabRowsForTipe(tahunInt, RAB_TIPE_PERUBAHAN, {
+            kode_unik_full: kodeFilter,
+            cols: 'id, kode_unik_full, ' + RAB_TIPE_FIELDS.join(', '),
+            colsLegacy: 'id, kode_unik_full'
+        });
+        const sudahAda = new Set(existingPerubahan.map(r => String(r.kode_unik_full || r.kode_unik || '').trim()));
+
+        const toClone = murniRows.filter(r => !sudahAda.has(String(r.kode_unik_full || r.kode_unik || '').trim()));
+        if (!toClone.length) {
+            return res.json({
+                success: true, created: 0, skipped: murniRows.length,
+                message: 'Semua kegiatan sudah memiliki versi PERUBAHAN. Tidak ada yang disalin ulang.'
+            });
+        }
+
+        const { data: maxRow, error: maxErr } = await supabase
+            .from(RAB_TABLE)
+            .select('id')
+            .order('id', { ascending: false })
+            .limit(1);
+        if (maxErr) throw maxErr;
+        let nextId = (maxRow && maxRow[0] && Number(maxRow[0].id)) ? Number(maxRow[0].id) : 0;
+
+        const nowIso = new Date().toISOString();
+        const payloads = toClone.map(m => {
+            const items = (Array.isArray(m.items) ? m.items : []).map((it, idx) => ({
+                ...it,
+                urutan_murni: idx,
+                id_referensi_murni: m.id
+            }));
+            nextId += 1;
+            return {
+                id: nextId,
+                kode_unik: String(m.kode_unik || m.kode_unik_full || '').trim(),
+                kode_unik_full: String(m.kode_unik_full || m.kode_unik || '').trim(),
+                tahun: tahunInt,
+                nama_kegiatan: m.nama_kegiatan || '-',
+                uraian: m.uraian || m.nama_kegiatan || '-',
+                bidang: m.bidang || '',
+                status: 'perubahan',
+                group_nama: m.group_nama || '',
+                sub_group_nama: m.sub_group_nama || '',
+                lokasi: m.lokasi || 'Desa Batetangnga',
+                lokasi_kegiatan: m.lokasi_kegiatan || '',
+                jenis_kegiatan: m.jenis_kegiatan || '',
+                volume: Number(m.volume || 1),
+                satuan: m.satuan || 'Paket',
+                harga_satuan: Number(m.harga_satuan || 0),
+                jumlah_anggaran: Number(m.jumlah_anggaran || 0),
+                sumber_dana: m.sumber_dana || 'DDS',
+                items,
+                rpjm_data: m.rpjm_data || {},
+                tipe_anggaran: RAB_TIPE_PERUBAHAN,
+                id_referensi_murni: m.id,
+                saved_at: nowIso,
+                updated_at: nowIso
+            };
+        });
+
+        const { data: created, error: insErr } = await supabase
+            .from(RAB_TABLE)
+            .insert(payloads)
+            .select('id');
+
+        if (insErr) {
+            if (isColumnMissingError(insErr)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Kolom `tipe_anggaran` belum tersedia di tabel `rab`. Jalankan migrasi supabase_add_tipe_anggaran_rab.sql terlebih dahulu.',
+                    migration_required: true
+                });
+            }
+            throw insErr;
+        }
+
+        console.log(`✅ RAB Perubahan: ${payloads.length} kegiatan disalin (tahun ${tahunInt}).`);
+        res.json({
+            success: true,
+            tahun: tahunInt,
+            created: Array.isArray(created) ? created.length : payloads.length,
+            skipped: murniRows.length - toClone.length,
+            kode: payloads.map(p => p.kode_unik_full),
+            message: `Berhasil menyalin ${payloads.length} kegiatan dari RAB MURNI ke RAB PERUBAHAN.`
+        });
+    } catch (error) {
+        console.error('❌ Error POST /api/rab/clone-to-perubahan:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -4335,19 +4904,33 @@ app.get('/api/rpjmdes-stats', async (req, res) => {
         const { tahun = '2026' } = req.query;
         const column = `target_${tahun}`;
 
-        const stdData = await getCachedRpjmdesStandar();
-        const filtered = stdData.filter(item => {
-            const val = String(item[column] || '').trim().toLowerCase();
-            return val === String(tahun) || val === 'ya';
-        });
+        const { count: totalKegiatan, error: err1 } = await supabase
+            .from('rpjmdes_standar')
+            .select('id', { count: 'exact', head: true })
+            .eq(column, tahun);
 
-        const totalKegiatan = filtered.length;
-        const totalPagu = filtered.reduce((sum, item) => sum + (Number(item.pagu_rpjm || item.prakiraan_biaya) || 0), 0);
+        if (err1) throw err1;
+
+        const { data: paguData, error: err2 } = await supabase
+            .from('rpjmdes_standar')
+            .select('pagu_rpjm')
+            .eq(column, tahun);
+
+        if (err2) throw err2;
+
+        const totalPagu = paguData.reduce((sum, item) => sum + (item.pagu_rpjm || 0), 0);
+
+        const { data: bidangData, error: err3 } = await supabase
+            .from('rpjmdes_standar')
+            .select('bidang, pagu_rpjm')
+            .eq(column, tahun);
+
+        if (err3) throw err3;
 
         const bidangMap = {};
-        filtered.forEach(item => {
+        bidangData.forEach(item => {
             const b = item.bidang || 'Lainnya';
-            bidangMap[b] = (bidangMap[b] || 0) + (Number(item.pagu_rpjm || item.prakiraan_biaya) || 0);
+            bidangMap[b] = (bidangMap[b] || 0) + (item.pagu_rpjm || 0);
         });
 
         res.json({
@@ -4370,7 +4953,10 @@ app.get('/api/rpjmdes-stats', async (req, res) => {
 // Units endpoints: try DB then fallback to file storage
 app.get('/api/units', async (req, res) => {
     try {
-        const list = await listUnitsFromDb();
+        const list = await listUnitsFromDb().catch(err => {
+            if (isTableMissingError(err)) return null;
+            throw err;
+        });
         if (list && list.length) return res.json({ success: true, units: list });
         // fallback to file
         const fileUnits = readUnitsStorage();
@@ -4391,7 +4977,6 @@ app.post('/api/units', async (req, res) => {
             throw err;
         });
         // always write to file as fallback/replica
-        const existing = readUnitsStorage();
         existing.push(name);
         writeUnitsStorage(existing);
         res.json({ success: true, unit: dbRes ? dbRes : { name } });
@@ -6648,10 +7233,6 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-app.post('/api/logout', (req, res) => {
-    res.json({ success: true, message: 'Logout berhasil' });
-});
-
 
 // ============================================================
 // USER MANAGEMENT
@@ -6824,3 +7405,16 @@ app.startServer = startServer;
 module.exports = app;
 module.exports.app = app;
 module.exports.startServer = startServer;
+
+// Helper RAB Perubahan diekspor agar bisa diuji otomatis (scripts/test-rab-perubahan.cjs)
+module.exports.rabPerubahan = {
+    normalizeRabTipe,
+    rabItemKey,
+    rabItemJumlah,
+    buildRabCompareRow,
+    alignRabItems,
+    RAB_TIPE_MURNI,
+    RAB_TIPE_PERUBAHAN,
+    RAB_COMPARE_COLUMNS,
+    RAB_LIST_COLUMNS
+};
