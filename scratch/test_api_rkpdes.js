@@ -4,7 +4,7 @@ const supabase = require('../backend/config/supabase');
     console.log("=== VERIFYING RKPDes DATA FOR TAHUN 2027 ===");
     const { data: rkpData, error } = await supabase
         .from('rkpdes')
-        .select('*')
+        .select('id, kode_unik_full, jenis_kegiatan, prakiraan_biaya, sumber_pembiayaan, tahun')
         .eq('tahun', 2027);
 
     if (error) {
@@ -23,7 +23,7 @@ const supabase = require('../backend/config/supabase');
     console.log(`========================================`);
     console.log(`GRAND TOTAL RKPDES: Rp ${grandTotal.toLocaleString('id-ID')}`);
 
-    const { data: rabData } = await supabase.from('rab').select('*').eq('tahun', 2027);
+    const { data: rabData } = await supabase.from('rab').select('id, kode_unik_full, items, jumlah_anggaran, total_biaya, tahun').eq('tahun', 2027);
     let grandTotalRab = 0;
     rabData.forEach(r => {
         const items = Array.isArray(r.items) ? r.items : [];

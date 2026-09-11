@@ -1,7 +1,7 @@
 const supabase = require('../backend/config/supabase');
 
 (async () => {
-    const { data: rkpData } = await supabase.from('rkpdes').select('*').eq('tahun', 2027);
+    const { data: rkpData } = await supabase.from('rkpdes').select('id, kode_unik_full, bidang, jenis_bidang, jenis_kegiatan, nama_kegiatan, prakiraan_biaya').eq('tahun', 2027);
     console.log("=== RKPDes Sample Rows (2027) ===");
     (rkpData || []).slice(0, 5).forEach((r, idx) => {
         console.log(`Row ${idx+1}:`, {
@@ -15,7 +15,7 @@ const supabase = require('../backend/config/supabase');
         });
     });
 
-    const { data: stdData } = await supabase.from('rpjmdes_standar').select('*').limit(5);
+    const { data: stdData } = await supabase.from('rpjmdes_standar').select('kode_unik_full, bidang, jenis_bidang, jenis_kegiatan, nama_kegiatan').limit(5);
     console.log("\n=== RPJMDes Standar Sample Rows ===");
     (stdData || []).forEach((s, idx) => {
         console.log(`Std ${idx+1}:`, {

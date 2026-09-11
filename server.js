@@ -341,8 +341,8 @@ function sortHierarchical(dataArray) {
 // Kolom lengkap satu baris RAB (dipakai endpoint detail /api/rab?kode_unik_full=...)
 // dan pemetaan baris gabungan. Kolom JSON items/rpjm_data hanya untuk detail
 // atau endpoint yang benar-benar merender rincian anggaran.
-const RAB_FULL_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, tipe_anggaran, id_referensi_murni, saved_at, created_at, updated_at';
-const RAB_FULL_COLUMNS_LEGACY = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, saved_at, created_at, updated_at';
+const RAB_FULL_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, tipe_anggaran, id_referensi_murni, saved_at';
+const RAB_FULL_COLUMNS_LEGACY = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, saved_at';
 
 // Detail satu baris RAB (termasuk items & rpjm_data).
 // tipeAnggaran wajib disaring karena satu (kode_unik_full, tahun) kini bisa punya
@@ -619,8 +619,8 @@ async function saveRabToDb(record) {
 const RAB_LIST_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, tipe_anggaran, id_referensi_murni, saved_at';
 const RAB_LIST_COLUMNS_LEGACY = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, saved_at';
 
-// Batas keras baris daftar RAB (egress guard). Satu tahun normal jauh di bawah ini.
-const RAB_LIST_LIMIT = 2000;
+// Batas wajar baris daftar RAB per tahun/versi (egress guard: kebutuhan riil ~20-30 kegiatan).
+const RAB_LIST_LIMIT = 250;
 
 // Daftar RAB untuk tabel ringkasan.
 // WAJIB difilter tahun + versi dan dibatasi baris agar tidak menarik seluruh tabel
@@ -805,51 +805,26 @@ async function deleteRabFromDb(kode_unik_full, tahun, tipeAnggaran = null) {
 }
 
 // ---------------------- UNITS (satuan) ----------------------
-const UNITS_TABLE = 'rab_units';
-const UNITS_STORAGE_PATH = path.join(__dirname, 'backend', 'units-storage.json');
+// Tabel 'rab_units' tidak ada di database Supabase (memicu HTTP 404).
+// Gunakan daftar satuan statis baku tanpa melakukan query database.
+const DEFAULT_RAB_UNITS = [
+    'Bulan', 'Orang/Bulan', 'Tahun', 'Paket', 'Unit', 'Kegiatan', 'Hari',
+    'Bh', 'M3', 'M2', 'M1', 'Buah', 'Orang', 'Kali', 'Watt', 'KK',
+    'Rim', 'Botol', 'Kotak', 'Dos', 'Set', 'Bks', 'Lbr', 'Rkp', 'Psg',
+    'Bal', 'Ikat', 'Rak', 'Hok', 'Biji', 'Zak', 'Kg', 'Drum', 'Roll',
+    'Ekor', 'Pak', 'Klng', 'Btg', 'Ltr', 'Btr', 'Jrgen', 'OB (Orang/Bulan)'
+];
 
-function ensureUnitsStorage() {
-    return; // ✅ Penyimpanan lokal NONAKTIF
+function listUnitsFromDb() {
+    return DEFAULT_RAB_UNITS;
 }
 
-function readUnitsStorage() {
-    return [];
+function saveUnitToDb(name) {
+    return { name };
 }
 
-function writeUnitsStorage(data) {
-    return; // ✅ Penyimpanan lokal NONAKTIF
-}
-
-async function listUnitsFromDb() {
-    const { data, error } = await supabase
-        .from(UNITS_TABLE)
-        .select('name')
-        .order('name', { ascending: true });
-
-    if (error) throw error;
-    return (data || []).map(d => d.name).filter(Boolean);
-}
-
-async function saveUnitToDb(name) {
-    const record = { name };
-    const { data, error } = await supabase
-        .from(UNITS_TABLE)
-        .upsert([record], { onConflict: ['name'] })
-        .select('name')
-        .single();
-
-    if (error) throw error;
-    return data;
-}
-
-async function deleteUnitFromDb(name) {
-    const { data, error } = await supabase
-        .from(UNITS_TABLE)
-        .delete()
-        .eq('name', name);
-
-    if (error) throw error;
-    return data;
+function deleteUnitFromDb(name) {
+    return { name };
 }
 
 
@@ -1346,7 +1321,7 @@ app.get('/api/master-klasifikasi', async (req, res) => {
             const { data, error } = await supabase
                 .from('master_klasifikasi')
                 .select('id, bidang, sub_bidang, jenis_kegiatan, kode_klasifikasi')
-                .limit(2000);
+                .limit(300);
 
             if (!error && Array.isArray(data) && data.length > 0) {
                 resultData = data;
@@ -1475,21 +1450,16 @@ const RANCANGAN_LIST_COLUMNS = [
 const RPJMDES_LIST_COLUMNS = [
     'id',
     'kode_bidang', 'kode_sub', 'kode_kegiatan',
-    'kode_unik_full', 'kode_unik', 'kode_unik_h', 'no_urut',
+    'kode_unik_full', 'kode_unik', 'no_urut',
     'bidang', 'jenis_bidang', 'jenis_kegiatan', 'nama_kegiatan',
     'sifat_kegiatan', 'lokasi_kegiatan', 'usulan_berdasarkan', 'nama_pengusul',
     'data_existing', 'sdgs',
-    'uraian_rab', 'volume_rab', 'satuan_rab', 'harga_satuan_rab', 'total_rab',
     'volume_kegiatan', 'pagu_rpjm', 'anggaran_perubahan', 'sumber_dana', 'pola_pelaksanaan',
-    'manfaat_l', 'manfaat_p', 'manfaat_rtm', 'total_manfaat', 'penerima_manfaat_bg',
+    'waktu_pelaksanaan',
+    'manfaat_l', 'manfaat_p', 'manfaat_rtm', 'total_manfaat',
     'target_2023', 'target_2024', 'target_2025', 'target_2026',
     'target_2027', 'target_2028', 'target_2029', 'target_2030',
-    'waktu_pelaksanaan',
-    'masalah', 'penyebab', 'potensi', 'alternatif_pemecahan', 'tindakan_masalah', 'tindakan_layak',
-    'dirasakan', 'parah', 'hambat', 'sering', 'potensi_skor', 'jumlah_nilai_total', 'uraian_peringkat',
-    'visi_misi', 'pokok_bpd', 'program_masyarakat', 'prioritas_sdgs_skor', 'total_kesesuaian',
-    'skala_prioritas', 'urutan_prioritas', 'ranking', 'status_sembunyi',
-    'updated_at', 'created_at'
+    'updated_at'
 ].join(', ');
 
 // ==== EGRESS POLICY (zero-wildcard): daftar kolom eksplisit per tabel ====
@@ -1499,7 +1469,7 @@ const RAB_SYNC_COLUMNS = [
     'id', 'kode_unik', 'kode_unik_full', 'tahun', 'nama_kegiatan', 'uraian',
     'bidang', 'status', 'group_nama', 'sub_group_nama', 'lokasi', 'lokasi_kegiatan',
     'jenis_kegiatan', 'volume', 'satuan', 'harga_satuan',
-    'jumlah_anggaran', 'sumber_dana', 'items', 'rpjm_data',
+    'jumlah_anggaran', 'sumber_dana',
     'tipe_anggaran', 'id_referensi_murni', 'saved_at'
 ].join(', ');
 
@@ -1507,7 +1477,7 @@ const RAB_SYNC_COLUMNS_LEGACY = [
     'id', 'kode_unik', 'kode_unik_full', 'tahun', 'nama_kegiatan', 'uraian',
     'bidang', 'status', 'group_nama', 'sub_group_nama', 'lokasi', 'lokasi_kegiatan',
     'jenis_kegiatan', 'volume', 'satuan', 'harga_satuan',
-    'jumlah_anggaran', 'sumber_dana', 'items', 'rpjm_data', 'saved_at'
+    'jumlah_anggaran', 'sumber_dana', 'saved_at'
 ].join(', ');
 
 const PRIORITAS_COLUMNS = [
@@ -2079,7 +2049,7 @@ app.get('/api/prioritas-usulan/tarik-rpjm', async (req, res) => {
         }
         console.log(`📡 GET /api/prioritas-usulan/tarik-rpjm?tahun=${tahunInt}`);
 
-        const { data, error } = await supabase.from('rpjmdes_standar').select(RPJMDES_LIST_COLUMNS).limit(5000);
+        const { data, error } = await supabase.from('rpjmdes_standar').select(RPJMDES_LIST_COLUMNS).limit(500);
         if (error) throw error;
 
         const filtered = (data || []).filter(item => isRpjmTargetDitarik(item, tahunInt));
@@ -4950,43 +4920,14 @@ app.get('/api/rpjmdes-stats', async (req, res) => {
     }
 });
 
-// Units endpoints: try DB then fallback to file storage
-app.get('/api/units', async (req, res) => {
-    try {
-        const list = await listUnitsFromDb().catch(err => {
-            if (isTableMissingError(err)) return null;
-            throw err;
-        });
-        if (list && list.length) return res.json({ success: true, units: list });
-        // fallback to file
-        const fileUnits = readUnitsStorage();
-        return res.json({ success: true, units: fileUnits });
-    } catch (error) {
-        console.error('GET /api/units error', error.message);
-        const fileUnits = readUnitsStorage();
-        res.status(500).json({ success: false, units: fileUnits, error: error.message });
-    }
+// Units endpoints: statis tanpa akses database Supabase
+app.get('/api/units', (req, res) => {
+    res.json({ success: true, units: DEFAULT_RAB_UNITS });
 });
 
-app.post('/api/units', async (req, res) => {
+app.post('/api/units', (req, res) => {
     const { name } = req.body || {};
-    if (!name) return res.status(400).json({ success: false, error: 'missing name' });
-    try {
-        const dbRes = await saveUnitToDb(name).catch(err => {
-            if (isTableMissingError(err)) return null;
-            throw err;
-        });
-        // always write to file as fallback/replica
-        existing.push(name);
-        writeUnitsStorage(existing);
-        res.json({ success: true, unit: dbRes ? dbRes : { name } });
-    } catch (error) {
-        console.error('POST /api/units error', error.message);
-        const existing = readUnitsStorage();
-        existing.push(name);
-        writeUnitsStorage(existing);
-        res.status(500).json({ success: false, unit: { name }, error: error.message });
-    }
+    res.json({ success: true, unit: { name: name || '' } });
 });
 
 // ============================================================

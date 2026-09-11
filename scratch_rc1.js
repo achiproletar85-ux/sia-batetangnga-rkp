@@ -9,6 +9,6 @@ const json=(m,b)=>fetch(BASE+m,{method:'POST',headers:{'Content-Type':'applicati
   // lihat kolom tabel rancangan_rkpdes langsung via REST
   const fs=require('fs'); const env=fs.readFileSync(String.raw`C:\Users\Lenovo LOQ\Desktop\sia-batetangga\.env`,'utf8');
   const URL=env.match(/SUPABASE_URL=(\S+)/)[1]; const KEY=env.match(/SUPABASE_KEY=(\S+)/)[1];
-  r=await fetch(`${URL}/rest/v1/rancangan_rkpdes?select=*&tahun=eq.2099`,{headers:{apikey:KEY,Authorization:'Bearer '+KEY}});
+  r=await fetch(`${URL}/rest/v1/rancangan_rkpdes?select=id,tahun,nama_kegiatan&tahun=eq.2099`,{headers:{apikey:KEY,Authorization:'Bearer '+KEY}});
   console.log('baris tersisa tahun 2099:',JSON.stringify(await r.json()));
 })();

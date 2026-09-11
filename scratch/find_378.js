@@ -4,7 +4,7 @@ const supabase = require('../backend/config/supabase');
     console.log("=== SEARCHING FOR 378.612.000 OR SIMILAR IN RKPDES & RAB ===");
     
     // Check RKPDES table for 378612000 or items summing to 378612000
-    const { data: rkpData } = await supabase.from('rkpdes').select('*').eq('tahun', 2027);
+    const { data: rkpData } = await supabase.from('rkpdes').select('id, kode_unik_full, kode_unik, jenis_kegiatan, nama_kegiatan, prakiraan_biaya').eq('tahun', 2027);
     
     console.log("All RKPDes rows with prakiraan_biaya:");
     let sumByGroup = {};
@@ -16,7 +16,7 @@ const supabase = require('../backend/config/supabase');
 
     console.log("\nSummed by main prefix:", sumByGroup);
 
-    const { data: rabData } = await supabase.from('rab').select('*').eq('tahun', 2027);
+    const { data: rabData } = await supabase.from('rab').select('id, kode_unik_full, kode_unik, nama_kegiatan, jumlah_anggaran, items').eq('tahun', 2027);
     console.log("\nAll RAB rows with total:");
     (rabData || []).forEach(r => {
         const items = Array.isArray(r.items) ? r.items : [];

@@ -3,7 +3,7 @@ const supabase = require('../backend/config/supabase');
 (async () => {
     try {
         console.log("=== CHECKING RAB TABLE (2027) ===");
-        const { data: rabData, error: rabErr } = await supabase.from('rab').select('*').eq('tahun', 2027);
+        const { data: rabData, error: rabErr } = await supabase.from('rab').select('id, kode_unik_full, kode_unik, nama_kegiatan, jenis_kegiatan, jumlah_anggaran, items').eq('tahun', 2027);
         if (rabErr) console.error("RAB Error:", rabErr);
         else {
             console.log(`Found ${rabData ? rabData.length : 0} rows in 'rab' table for 2027.`);
@@ -21,7 +21,7 @@ const supabase = require('../backend/config/supabase');
         }
 
         console.log("\n=== CHECKING RKPDES TABLE (2027) ===");
-        const { data: rkpData, error: rkpErr } = await supabase.from('rkpdes').select('*').eq('tahun', 2027);
+        const { data: rkpData, error: rkpErr } = await supabase.from('rkpdes').select('id, kode_unik_full, kode_unik, jenis_kegiatan, nama_kegiatan, prakiraan_biaya').eq('tahun', 2027);
         if (rkpErr) console.error("RKPDes Error:", rkpErr);
         else {
             console.log(`Found ${rkpData ? rkpData.length : 0} rows in 'rkpdes' table for 2027.`);
@@ -47,7 +47,7 @@ const supabase = require('../backend/config/supabase');
         console.log("RKPDes years found:", rkpYears);
 
         for (const yr of rabYears) {
-            const { data: yRab } = await supabase.from('rab').select('*').eq('tahun', yr);
+            const { data: yRab } = await supabase.from('rab').select('id, jumlah_anggaran, items, tahun').eq('tahun', yr);
             let sumY = 0;
             (yRab || []).forEach(r => {
                 const items = Array.isArray(r.items) ? r.items : [];
@@ -58,7 +58,7 @@ const supabase = require('../backend/config/supabase');
         }
 
         for (const yr of rkpYears) {
-            const { data: yRkp } = await supabase.from('rkpdes').select('*').eq('tahun', yr);
+            const { data: yRkp } = await supabase.from('rkpdes').select('id, prakiraan_biaya, tahun').eq('tahun', yr);
             let sumY = 0;
             (yRkp || []).forEach(r => sumY += Number(r.prakiraan_biaya || 0));
             console.log(`Year ${yr} RKPDes Total: Rp ${sumY.toLocaleString('id-ID')} (${(yRkp || []).length} rows)`);

@@ -35,7 +35,11 @@ function formatSelisihRAB(nilai) {
 }
 
 const defaultUnits = [
-    'Bh','M3','M2','Unit','LS','Klg','M1','Buah','Orang','Hari','OB (Orang/Bulan)','Paket','Unit','Kali','Watt','KK','Bulan','Rim','Botol','Kotak','Dos','Set','Bks','Lbr','Rkp','Psg','Tahun','Bal','Ikat','Rak','Hok','Biji','Zak','Kg','Drum','Roll','Ekor','Pak','Klng','-','Btg','Ltr','Btr','Jrgen'
+    'Bulan', 'Orang/Bulan', 'Tahun', 'Paket', 'Unit', 'Kegiatan', 'Hari',
+    'Bh', 'M3', 'M2', 'M1', 'Buah', 'Orang', 'Kali', 'Watt', 'KK',
+    'Rim', 'Botol', 'Kotak', 'Dos', 'Set', 'Bks', 'Lbr', 'Rkp', 'Psg',
+    'Bal', 'Ikat', 'Rak', 'Hok', 'Biji', 'Zak', 'Kg', 'Drum', 'Roll',
+    'Ekor', 'Pak', 'Klng', 'Btg', 'Ltr', 'Btr', 'Jrgen'
 ];
 let customUnits = [];
 
@@ -213,7 +217,7 @@ async function loadInitialData() {
     await loadRabActivities();
     await loadSavedRabList();
     await loadPaguAnggaran(rabYear);
-    await fetchUnitsFromServer();
+    loadUnitsFromLocalStorage();
     populateUnitOptions();
     // attach handlers for unit manual entry
     const satuanInput = document.getElementById('input-satuan');
@@ -296,48 +300,30 @@ function populateUnitOptions() {
     units.forEach(u => datalist.innerHTML += `<option value="${u}">`);
 }
 
-async function fetchUnitsFromServer() {
+function loadUnitsFromLocalStorage() {
     try {
-        const res = await fetch(`${API_URL}/units`);
-        const json = await res.json();
-        if (json && json.success && Array.isArray(json.units)) {
-            // merge server units into customUnits (exclude defaults)
-            const serverUnits = json.units.filter(u => !!u && !defaultUnits.includes(u));
-            customUnits = [...new Set([...(customUnits || []), ...serverUnits])];
-            populateUnitOptions();
-            return;
+        const stored = localStorage.getItem('rab_custom_units');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+                const extra = parsed.filter(u => !!u && !defaultUnits.includes(u));
+                customUnits = [...new Set([...(customUnits || []), ...extra])];
+            }
         }
-    } catch (err) {
-        console.warn('Could not fetch units from server');
-    }
+    } catch (_) {}
 }
 
 function addCustomUnit(unit) {
-    (async () => {
-        unit = String(unit).trim();
-        if (!unit) return;
-        if (defaultUnits.includes(unit) || customUnits.includes(unit)) {
-            return; // Already exists
-        }
-        
-        // optimistically show in UI
-        customUnits.push(unit);
-        populateUnitOptions();
-
-        // persist to server
-        try {
-            const res = await fetch(`${API_URL}/units`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: unit })
-            });
-            const json = await res.json();
-            if (json && json.success) {
-                return;
-            }
-            console.warn('Gagal menyimpan unit ke server:', json && json.error);
-        } catch (err) {
-            console.warn('Failed to save unit to server', err && err.message);
-        }
-    })();
+    unit = String(unit || '').trim();
+    if (!unit) return;
+    if (defaultUnits.includes(unit) || customUnits.includes(unit)) {
+        return; // Sudah ada
+    }
+    customUnits.push(unit);
+    populateUnitOptions();
+    try {
+        localStorage.setItem('rab_custom_units', JSON.stringify(customUnits));
+    } catch (_) {}
 }
 
 function getSatuanValue() {

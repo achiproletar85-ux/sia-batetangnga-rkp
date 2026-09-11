@@ -10,7 +10,7 @@ const supabase = require('../backend/config/supabase');
         console.log("Cleared old rkpdes 2027 table rows.");
 
         // 2. Query RAB 2027
-        const { data: rabData, error: rabErr } = await supabase.from('rab').select('*').eq('tahun', 2027);
+        const { data: rabData, error: rabErr } = await supabase.from('rab').select('id, kode_unik_full, kode_unik, items, jumlah_anggaran, nama_kegiatan, uraian, bidang, jenis_kegiatan, lokasi, volume, satuan, harga_satuan, sumber_dana, tahun').eq('tahun', 2027);
         if (rabErr) throw rabErr;
         console.log(`Found ${rabData.length} RAB rows for 2027.`);
 

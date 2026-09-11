@@ -1,7 +1,7 @@
 const supabase = require('../backend/config/supabase');
 
 (async () => {
-    const { data: rabData } = await supabase.from('rab').select('*').eq('tahun', 2027);
+    const { data: rabData } = await supabase.from('rab').select('id, kode_unik_full, kode_unik, nama_kegiatan, jumlah_anggaran, items, tahun').eq('tahun', 2027);
     console.log("=== ALL RAB ROWS FOR 2027 ===");
     let totalAllRab = 0;
     (rabData || []).forEach((r, idx) => {

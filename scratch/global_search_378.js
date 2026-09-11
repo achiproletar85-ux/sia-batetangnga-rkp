@@ -11,7 +11,7 @@ const supabase = require('../backend/config/supabase');
 
     for (const t of tables) {
         try {
-            const { data, error } = await supabase.from(t).select('*');
+            const { data, error } = await supabase.from(t).select('id');
             if (error) {
                 console.log(`Table '${t}' error/missing: ${error.message}`);
                 continue;
