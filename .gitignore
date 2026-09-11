@@ -37,5 +37,6 @@ Thumbs.db
 
 # --- Freebuff / tooling internal state ---
 .freebuff/
-.vercel/sync-surat-tanah/
+.vercel/sync-surat-tanah/
 sync-surat-tanah
+scripts/backup_migration/data/
