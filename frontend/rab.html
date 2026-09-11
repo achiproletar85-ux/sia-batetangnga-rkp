@@ -413,23 +413,23 @@
             <div class="acc-body p-5" id="acc-cetak">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
-                        <label class="form-label">Tanggal Cetak</label>
-                        <input type="date" id="inputTanggalCetak" class="input-field" />
+                        <label class="form-label">Tanggal Dokumen</label>
+                        <input type="text" id="inputTanggalCetak" class="input-field" placeholder="Contoh: 1 September 2025" />
+                        <span class="text-[10px] text-slate-400 mt-1 block">Format: [Tanggal] (misal: 1 September 2025)</span>
                     </div>
                     <div>
-                        <label class="form-label">Penandatangan</label>
+                        <label class="form-label">Pelaksana Kegiatan Anggaran</label>
                         <select id="selectPenandatangan" class="input-field" onchange="toggleManualSigner()">
-                            <option value="Abdul Azis, S. Pd" selected>Abdul Azis, S. Pd (Kades)</option>
-                            <option value="Syarifuddin">Syarifuddin (Sekdes)</option>
-                            <option value="Warman">Warman (Kaur Keuangan)</option>
-                            <option value="Misbahuddin">Misbahuddin (Kaur Perencanaan)</option>
-                            <option value="Nasni">Nasni (Kasi Pelayanan)</option>
-                            <option value="Ida Mulyanti">Ida Mulyanti (Kasi Kesejahteraan)</option>
-                            <option value="Hardiana">Hardiana (Kaur Umum)</option>
+                            <option value="Hardiana" selected>Hardiana</option>
+                            <option value="Ida Mulyanti">Ida Mulyanti</option>
+                            <option value="Warman">Warman</option>
+                            <option value="Misbahuddin">Misbahuddin</option>
+                            <option value="Nasni">Nasni</option>
+                            <option value="Syarifuddin">Syarifuddin</option>
                             <option value="manual">-- Input Nama Manual --</option>
                         </select>
                         <input type="text" id="inputNamaManual" class="input-field mt-2 hidden"
-                            placeholder="Ketik nama penandatangan..." />
+                            placeholder="Ketik nama pelaksana kegiatan..." />
                     </div>
                     <div>
                         <label class="form-label">Kelompok Kegiatan Cetak</label>

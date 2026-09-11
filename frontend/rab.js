@@ -232,9 +232,11 @@ async function loadInitialData() {
     if (selPenandatangan && inputManual) {
         selPenandatangan.addEventListener('change', (e) => {
             if (e.target.value === 'manual') {
+                inputManual.classList.remove('hidden');
                 inputManual.style.display = 'block';
                 inputManual.focus();
             } else {
+                inputManual.classList.add('hidden');
                 inputManual.style.display = 'none';
             }
         });
@@ -1747,6 +1749,52 @@ function formatSumberDanaPdf(sumber) {
 
 window.formatSumberDanaPdf = formatSumberDanaPdf;
 
+// Ambil nama Pelaksana Kegiatan Anggaran dari dropdown/input cetak
+function getSelectedPelaksanaKegiatan() {
+    const sel = document.getElementById('selectPenandatangan') || document.getElementById('selectPelaksanaKegiatan');
+    const inputManual = document.getElementById('inputNamaManual') || document.getElementById('inputNamaPelaksanaManual');
+    let nama = 'Hardiana';
+    if (sel) {
+        if (sel.value === 'manual') {
+            nama = inputManual ? inputManual.value.trim() : 'Hardiana';
+        } else {
+            nama = sel.value;
+        }
+    }
+    return (nama && nama.trim()) ? nama.trim() : 'Hardiana';
+}
+
+// Format manual tanggal cetak (mendukung input teks / backdate tanpa mengambil tanggal otomatis sistem)
+function getFormattedTanggalDokumen() {
+    const raw = document.getElementById('inputTanggalCetak')?.value || '';
+    if (!raw || !raw.trim()) {
+        return 'Batetangnga, ..............................';
+    }
+    let str = raw.trim();
+    // Bersihkan prefix Batetangnga jika pengguna mengetiknya secara manual
+    str = str.replace(/^batetangnga\s*,\s*/i, '').trim();
+
+    // Jika format ISO YYYY-MM-DD (dari datepicker/input)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        const parts = str.split('-');
+        const y = parts[0];
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        const bulanID = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        if (m >= 0 && m < 12) {
+            return `Batetangnga, ${d} ${bulanID[m]} ${y}`;
+        }
+    }
+
+    return `Batetangnga, ${str}`;
+}
+
+window.getSelectedPelaksanaKegiatan = getSelectedPelaksanaKegiatan;
+window.getFormattedTanggalDokumen = getFormattedTanggalDokumen;
+
 function executePrintRAB(itemsToPrint, prefixKode, selectedJenisKegiatan, tahunFilter) {
     if (!itemsToPrint || itemsToPrint.length === 0) {
         showToast('Tambahkan minimal satu item RAB sebelum cetak', 'error');
@@ -1776,43 +1824,8 @@ function executePrintRAB(itemsToPrint, prefixKode, selectedJenisKegiatan, tahunF
         return it.sumber || it.sumber_biaya || it.sumber_dana || it.sumber_dana_rab || '';
     };
 
-    const selPenandatangan = document.getElementById('selectPenandatangan');
-    const inputManual = document.getElementById('inputNamaManual');
-    let namaPenandatangan = '';
-    if (selPenandatangan) {
-        if (selPenandatangan.value === 'manual') {
-            namaPenandatangan = inputManual ? inputManual.value.trim() : '';
-        } else {
-            namaPenandatangan = selPenandatangan.value;
-        }
-    }
-    if (!namaPenandatangan) {
-        namaPenandatangan = 'Abdul Azis, S. Pd';
-    }
-
-    const inputTanggal = document.getElementById('inputTanggalCetak')?.value;
-    let formattedDate = '';
-    
-    function formatIndonesianDate(dateStr) {
-        if (!dateStr) return '';
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) return '';
-        const months = [
-            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-        ];
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = months[date.getMonth()];
-        const year = date.getFullYear();
-        return `${day} ${month} ${year}`;
-    }
-
-    if (inputTanggal) {
-        formattedDate = formatIndonesianDate(inputTanggal);
-    }
-    if (!formattedDate) {
-        formattedDate = formatIndonesianDate(new Date());
-    }
+    const namaPelaksana = getSelectedPelaksanaKegiatan();
+    const teksLokasiTanggal = getFormattedTanggalDokumen();
 
     const kegiatanTitle = selectedJenisKegiatan || (prefixKode.includes('01.01.01') ? 'Penyediaan Penghasilan Tetap dan Tunjangan Kepala Desa' : (prefixKode.includes('01.01.02') ? 'Penyediaan Penghasilan Tetap dan Tunjangan Perangkat Desa' : 'Rencana Anggaran Biaya Desa'));
 
@@ -2017,20 +2030,27 @@ function getGroupKey(row, item) {
                 </tfoot>
             </table>
             
-            <div class="signature-section" style="margin-top: 50px; display: flex; justify-content: space-between; page-break-inside: avoid; font-size: 12px; line-height: 1.5;">
-                <div style="text-align: center; width: 250px;">
-                    <p style="margin: 0 0 75px 0;">Mengetahui,<br><strong>Kepala Desa Batetangnga</strong></p>
-                    <p style="margin: 0; text-decoration: underline;"><strong>SUMAILA DAMANG</strong></p>
+            <div class="signature-section" style="margin-top: 44px; display: flex; justify-content: space-between; page-break-inside: avoid; font-size: 12px; line-height: 1.5; text-align: center;">
+                <div style="width: 30%;">
+                    <p style="margin: 0;">Menyetujui,</p>
+                    <p style="margin: 0 0 68px 0; font-weight: bold;">Kepala Desa Batetangnga</p>
+                    <p style="margin: 0; text-decoration: underline; font-weight: bold;">SUMAILA DAMANG</p>
                 </div>
-                <div style="text-align: center; width: 250px;">
-                    <p style="margin: 0 0 75px 0;">Batetangnga, ${formattedDate}<br>Disusun oleh,<br><strong>Ketua Tim Penyusun RKPDesa</strong></p>
-                    <p style="margin: 0; text-decoration: underline;"><strong>${namaPenandatangan}</strong></p>
+                <div style="width: 30%;">
+                    <p style="margin: 0;">Telah Diverifikasi</p>
+                    <p style="margin: 0 0 68px 0; font-weight: bold;">Sekretaris Desa</p>
+                    <p style="margin: 0; text-decoration: underline; font-weight: bold;">ABDUL AZIS, S.Pd</p>
+                </div>
+                <div style="width: 30%;">
+                    <p style="margin: 0;">${teksLokasiTanggal}</p>
+                    <p style="margin: 0 0 68px 0; font-weight: bold;">Pelaksana Kegiatan Anggaran</p>
+                    <p style="margin: 0; text-decoration: underline; font-weight: bold;">${namaPelaksana}</p>
                 </div>
             </div>
             
             <div class="footer no-print" style="margin-top: 40px; border-top: 1px solid #cbd5e1; padding-top: 10px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b;">
                 <div>Dicetak dari sistem SIA Batetangnga</div>
-                <div>${new Date().toLocaleDateString('id-ID')}</div>
+                <div></div>
             </div>
         </body>
         </html>
@@ -2211,25 +2231,10 @@ async function cetakRabPerubahan() {
     }
 
     // --- Metadata & tanggal ---
-    const selPenandatangan = document.getElementById('selectPenandatangan');
-    const inputManual = document.getElementById('inputNamaManual');
-    let namaPka = 'Abdul Azis, S. Pd';
-    if (selPenandatangan) {
-        namaPka = selPenandatangan.value === 'manual'
-            ? (inputManual?.value.trim() || 'Abdul Azis, S. Pd')
-            : (selPenandatangan.value || 'Abdul Azis, S. Pd');
-    }
-    const namaSekdes = 'Syarifuddin';
+    const namaPelaksana = getSelectedPelaksanaKegiatan();
+    const teksLokasiTanggal = getFormattedTanggalDokumen();
+    const namaSekdes = 'ABDUL AZIS, S.Pd';
     const namaKades = 'SUMAILA DAMANG';
-
-    const bulanID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-    const formatTanggalID = (dateStr) => {
-        const d = dateStr ? new Date(dateStr) : new Date();
-        if (isNaN(d.getTime())) return '';
-        const dd = String(d.getDate()).padStart(2, '0');
-        return `${dd} ${bulanID[d.getMonth()]} ${d.getFullYear()}`;
-    };
-    const tanggalCetak = formatTanggalID(document.getElementById('inputTanggalCetak')?.value);
 
     // --- Nomor urut baris item (a., b., c., ... per kegiatan) ---
     const charLabel = (i) => {
@@ -2393,24 +2398,27 @@ async function cetakRabPerubahan() {
                 </tfoot>
             </table>
 
-            <div style="margin-top:44px; display:flex; justify-content:space-between; page-break-inside:avoid; font-size:12px; line-height:1.5;">
-                <div style="text-align:center; width:30%;">
-                    <p style="margin:0 0 68px 0;">Menyetujui,<br><strong>Kepala Desa Batetangnga</strong></p>
-                    <p style="margin:0; text-decoration:underline;"><strong>${namaKades}</strong></p>
+            <div class="signature-section" style="margin-top:44px; display:flex; justify-content:space-between; page-break-inside:avoid; font-size:12px; line-height:1.5; text-align:center;">
+                <div style="width:30%;">
+                    <p style="margin:0;">Menyetujui,</p>
+                    <p style="margin:0 0 68px 0; font-weight:bold;">Kepala Desa Batetangnga</p>
+                    <p style="margin:0; text-decoration:underline; font-weight:bold;">${namaKades}</p>
                 </div>
-                <div style="text-align:center; width:30%;">
-                    <p style="margin:0 0 68px 0;">Telah Diverifikasi,<br><strong>Sekretaris Desa Batetangnga</strong></p>
-                    <p style="margin:0; text-decoration:underline;"><strong>${namaSekdes}</strong></p>
+                <div style="width:30%;">
+                    <p style="margin:0;">Telah Diverifikasi</p>
+                    <p style="margin:0 0 68px 0; font-weight:bold;">Sekretaris Desa</p>
+                    <p style="margin:0; text-decoration:underline; font-weight:bold;">${namaSekdes}</p>
                 </div>
-                <div style="text-align:center; width:30%;">
-                    <p style="margin:0 0 68px 0;">Batetangnga, ${tanggalCetak}<br><strong>Pejabat Kuasa Anggaran (PKA)</strong></p>
-                    <p style="margin:0; text-decoration:underline;"><strong>${namaPka}</strong></p>
+                <div style="width:30%;">
+                    <p style="margin:0;">${teksLokasiTanggal}</p>
+                    <p style="margin:0 0 68px 0; font-weight:bold;">Pelaksana Kegiatan Anggaran</p>
+                    <p style="margin:0; text-decoration:underline; font-weight:bold;">${namaPelaksana}</p>
                 </div>
             </div>
 
-            <div style="margin-top:28px; border-top:1px solid #cbd5e1; padding-top:8px; display:flex; justify-content:space-between; font-size:10px; color:#64748b;">
+            <div class="footer no-print" style="margin-top:28px; border-top:1px solid #cbd5e1; padding-top:8px; display:flex; justify-content:space-between; font-size:10px; color:#64748b;">
                 <div>Dicetak dari sistem SIA Batetangnga — Modul RAB Perubahan</div>
-                <div>${new Date().toLocaleDateString('id-ID')}</div>
+                <div></div>
             </div>
         </body>
         </html>
