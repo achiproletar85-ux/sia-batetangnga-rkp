@@ -657,8 +657,13 @@ async function loadSavedRabList() {
         // Egress guard: selalu minta tahun aktif + versi terpilih ke server
         // (filter tidak lagi dilakukan setelah seluruh tabel terunduh).
         const res = await fetch(`${API_URL}/rab/list?tahun=${encodeURIComponent(rabYear)}&tipe=${encodeURIComponent(rabTipe)}`);
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
+        if (!res.ok) {
+            console.warn(`Gagal memuat daftar RAB server: HTTP ${res.status}`);
+            return;
+        }
+        let json = null;
+        try { json = await res.json(); } catch (_) {}
+        if (json && json.success && Array.isArray(json.data)) {
             const serverItems = json.data.map(item => {
                 const rpjmMatch = (window.rpjmDataGlobal || window.rpjmdesList || []).find(r => (r.kode_unik_full === item.kode_unik_full || r.kode_unik === item.kode_unik_full || r.kode_unik === item.kode_unik));
                 const namaKegiatan = item.nama_kegiatan || item.jenis_kegiatan || item.rpjm_data?.nama_kegiatan || item.rpjm_data?.jenis_kegiatan || rpjmMatch?.nama_kegiatan || rpjmMatch?.jenis_kegiatan || '-';
@@ -822,12 +827,13 @@ async function deleteSavedRabItem(kode, year) {
         const res = await fetch(`${API_URL}/rab?kode_unik_full=${encodeURIComponent(kode)}&tahun=${encodeURIComponent(year)}&tipe=${encodeURIComponent(rabTipe)}`, {
             method: 'DELETE'
         });
-        const json = await res.json();
-        if (json.success) {
+        let json = null;
+        try { json = await res.json(); } catch (_) {}
+        if (res.ok && json && json.success) {
             showToast('RAB berhasil dihapus', 'success');
         } else {
             // 409: versi MURNI terkunci karena RAB PERUBAHAN sudah dibuat
-            showToast(json.error || 'Gagal menghapus RAB', 'error');
+            showToast((json && json.error) || `Gagal menghapus RAB (HTTP ${res.status})`, 'error');
         }
         await loadSavedRabList();
         if (selectedRpjm?.kode_unik_full === kode && rabYear === Number(year)) {
@@ -926,18 +932,19 @@ async function saveRAB() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        const json = await res.json();
-        if (json.success) {
+        let json = null;
+        try { json = await res.json(); } catch (_) {}
+        if (res.ok && json && json.success) {
             showToast(`✅ Data RAB ${rabTipe} berhasil disimpan ke Supabase!`, 'success');
             await loadSavedRabList();
             await refreshLockStatus();
-        } else if (json.locked) {
+        } else if (json && json.locked) {
             showToast(json.error || 'RAB MURNI sudah dikunci oleh RAB PERUBAHAN.', 'error');
             rabMurniLocked = true;
             applyReadOnlyMode();
             await loadSavedRabList();
         } else {
-            showToast(json.error || json.message || 'Gagal menyimpan RAB ke database', 'error');
+            showToast((json && (json.error || json.message)) || `Gagal menyimpan RAB ke database (HTTP ${res.status})`, 'error');
             await loadSavedRabList();
         }
     } catch (error) {
@@ -1812,7 +1819,12 @@ async function refreshLockStatus() {
 
     try {
         const res = await fetch(`${API_URL}/rab/versi-status?tahun=${encodeURIComponent(rabYear)}&kode_unik_full=${encodeURIComponent(kode)}`);
-        const json = await res.json();
+        if (!res.ok) {
+            console.warn(`Gagal memeriksa status versi RAB (HTTP ${res.status})`);
+            return;
+        }
+        let json = null;
+        try { json = await res.json(); } catch (_) {}
         if (json && json.success) {
             rabMurniLocked = !isModePerubahan() && !!json.perubahan;
         }
@@ -1879,14 +1891,16 @@ async function salinKeRABPerubahan() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tahun: Number(rabYear) })
         });
-        const json = await res.json();
-        if (json.success) {
+        let json = null;
+        try { json = await res.json(); } catch (_) {}
+        if (res.ok && json && json.success) {
             showToast(json.message || `Berhasil menyalin ${json.created} kegiatan.`, 'success');
             const sel = document.getElementById('select-tipe-anggaran');
             if (sel) sel.value = RAB_TIPE_PERUBAHAN;
             await onTipeAnggaranChange(RAB_TIPE_PERUBAHAN);
         } else {
-            showToast(json.error || 'Gagal menyalin RAB ke versi PERUBAHAN.', 'error');
+            const msg = (json && (json.error || json.message)) || `Gagal menyalin RAB (HTTP ${res.status})`;
+            showToast(msg, 'error');
         }
     } catch (e) {
         console.error(e);
@@ -1920,12 +1934,14 @@ async function cetakRabPerubahan() {
     let grandTotal = { semula: 0, menjadi: 0, selisih: 0 };
     try {
         const res = await fetch(`${API_URL}/rab/perbandingan?tahun=${encodeURIComponent(tahunNum)}&prefix=${encodeURIComponent(prefix)}`);
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
+        let json = null;
+        try { json = await res.json(); } catch (_) {}
+        if (res.ok && json && json.success && Array.isArray(json.data)) {
             comparisons = json.data;
             grandTotal = json.total || grandTotal;
-        } else if (json.error) {
-            showToast(json.error, 'error');
+        } else {
+            const msg = (json && json.error) || `Gagal memuat perbandingan RAB (HTTP ${res.status})`;
+            showToast(msg, 'error');
             return;
         }
     } catch (e) {
