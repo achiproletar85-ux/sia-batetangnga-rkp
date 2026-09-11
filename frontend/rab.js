@@ -587,25 +587,182 @@ function getStorageKey() {
     return `rab_${selectedRpjm.kode_unik_full}_${rabYear}`;
 }
 
+let rabMurniRefItems = [];
+let rabMurniRefTotal = 0;
+
+function getItemMurniRef(item, idx) {
+    if (!isModePerubahan() || !rabMurniRefItems.length) {
+        return { isBaru: isModePerubahan(), vol: 0, sat: (item && item.satuan) || '-', harga: 0, jumlah: 0, uraian: '' };
+    }
+
+    let murniMatch = null;
+    // 1. Cek via urutan_murni (jejak langsung saat clone)
+    const urut = Number(item && item.urutan_murni);
+    if (Number.isInteger(urut) && urut >= 0 && urut < rabMurniRefItems.length) {
+        murniMatch = rabMurniRefItems[urut];
+    }
+
+    // 2. Fallback: padanan berdasarkan composite key (group + subgroup + uraian)
+    if (!murniMatch) {
+        murniMatch = rabMurniRefItems.find(m => 
+            String(m.uraian || '').trim().toLowerCase() === String(item?.uraian || '').trim().toLowerCase() &&
+            String(m.group || '').trim().toLowerCase() === String(item?.group || '').trim().toLowerCase()
+        );
+    }
+
+    // 3. Fallback: padanan berdasarkan uraian saja
+    if (!murniMatch) {
+        murniMatch = rabMurniRefItems.find(m => 
+            String(m.uraian || '').trim().toLowerCase() === String(item?.uraian || '').trim().toLowerCase()
+        );
+    }
+
+    if (murniMatch) {
+        const vol = Number(murniMatch.volume || 0);
+        const harga = Number(murniMatch.harga || 0);
+        const jumlah = Number(murniMatch.jumlah !== undefined ? murniMatch.jumlah : (vol * harga));
+        return {
+            isBaru: false,
+            vol,
+            sat: murniMatch.satuan || (item && item.satuan) || '-',
+            harga,
+            jumlah,
+            uraian: murniMatch.uraian || ''
+        };
+    }
+
+    return {
+        isBaru: true,
+        vol: 0,
+        sat: (item && item.satuan) || '-',
+        harga: 0,
+        jumlah: 0,
+        uraian: ''
+    };
+}
+
+function updateFormRefSemula(ref) {
+    const banner = document.getElementById('form-ref-semula-banner');
+    const helpHarga = document.getElementById('help-harga-semula');
+    const helpVolume = document.getElementById('help-volume-semula');
+    const helpSatuan = document.getElementById('help-satuan-semula');
+    const lblHarga = document.getElementById('label-harga');
+    const lblVolume = document.getElementById('label-volume');
+
+    if (!isModePerubahan()) {
+        if (banner) banner.classList.add('hidden');
+        if (helpHarga) helpHarga.classList.add('hidden');
+        if (helpVolume) helpVolume.classList.add('hidden');
+        if (helpSatuan) helpSatuan.classList.add('hidden');
+        if (lblHarga) lblHarga.textContent = 'Harga Satuan (Rp) *';
+        if (lblVolume) lblVolume.textContent = 'Volume *';
+        return;
+    }
+
+    if (lblHarga) lblHarga.textContent = 'Harga Satuan Menjadi (Rp) *';
+    if (lblVolume) lblVolume.textContent = 'Volume Menjadi *';
+
+    if (!ref || ref.isBaru) {
+        if (banner) {
+            banner.className = 'flex items-center justify-between gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 mb-3';
+            banner.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 rounded font-extrabold bg-amber-200 text-amber-800 text-[10px] uppercase tracking-wide">Item Baru</span>
+                    <span>Item ini belum ada di RAB Murni (Nilai Semula: <strong>Rp 0</strong>)</span>
+                </div>
+                <span class="text-[11px] font-semibold text-amber-700 whitespace-nowrap">+ Penambahan Baru</span>
+            `;
+            banner.classList.remove('hidden');
+        }
+        if (helpHarga) {
+            helpHarga.textContent = '✨ Item Baru (Semula: Rp 0)';
+            helpHarga.className = 'text-[11px] font-semibold text-amber-600 mt-1';
+            helpHarga.classList.remove('hidden');
+        }
+        if (helpVolume) {
+            helpVolume.textContent = '✨ Semula: 0';
+            helpVolume.className = 'text-[11px] font-semibold text-amber-600 mt-1';
+            helpVolume.classList.remove('hidden');
+        }
+        if (helpSatuan) helpSatuan.classList.add('hidden');
+    } else {
+        if (banner) {
+            banner.className = 'flex items-center justify-between gap-2 p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 mb-3';
+            banner.innerHTML = `
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="px-2 py-0.5 rounded font-extrabold bg-indigo-200 text-indigo-800 text-[10px] uppercase tracking-wide">RAB Murni (Acuan)</span>
+                    <span>Semula: <strong>${ref.vol} ${ref.sat}</strong> @ <strong>Rp ${formatRupiah(ref.harga)}</strong> = <strong class="text-emerald-700">Rp ${formatRupiah(ref.jumlah)}</strong></span>
+                </div>
+                <span class="text-[11px] font-semibold text-indigo-600 whitespace-nowrap"><i class="fas fa-lock text-[10px] mr-1"></i>Read-Only</span>
+            `;
+            banner.classList.remove('hidden');
+        }
+        if (helpHarga) {
+            helpHarga.textContent = `📌 Semula: Rp ${formatRupiah(ref.harga)}`;
+            helpHarga.className = 'text-[11px] font-semibold text-indigo-600 mt-1';
+            helpHarga.classList.remove('hidden');
+        }
+        if (helpVolume) {
+            helpVolume.textContent = `📌 Semula: ${ref.vol}`;
+            helpVolume.className = 'text-[11px] font-semibold text-indigo-600 mt-1';
+            helpVolume.classList.remove('hidden');
+        }
+        if (helpSatuan) {
+            helpSatuan.textContent = `📌 Semula: ${ref.sat}`;
+            helpSatuan.className = 'text-[11px] font-semibold text-indigo-600 mt-1';
+            helpSatuan.classList.remove('hidden');
+        }
+    }
+}
+
 async function loadSavedRAB() {
     const key = getStorageKey();
     if (!key) return;
 
+    rabMurniRefItems = [];
+    rabMurniRefTotal = 0;
+
     try {
         const url = `${API_URL}/rab?kode_unik_full=${encodeURIComponent(selectedRpjm.kode_unik_full)}&tahun=${encodeURIComponent(rabYear)}&tipe=${encodeURIComponent(rabTipe)}`;
         const res = await fetch(url);
-        const json = await res.json();
-        if (json.success) {
-            rabItems = (json.data && json.data.items) ? json.data.items : [];
-            renderRabItems();
-            return;
+        let json = null;
+        if (res.ok) {
+            try { json = await res.json(); } catch (_) {}
         }
+        if (json && json.success) {
+            rabItems = (json.data && json.data.items) ? json.data.items : [];
+        } else {
+            rabItems = [];
+        }
+
+        // Jika dalam mode PERUBAHAN, tarik versi MURNI untuk referensi nilai 'SEMULA'
+        if (isModePerubahan() && selectedRpjm?.kode_unik_full) {
+            try {
+                const urlMurni = `${API_URL}/rab?kode_unik_full=${encodeURIComponent(selectedRpjm.kode_unik_full)}&tahun=${encodeURIComponent(rabYear)}&tipe=MURNI`;
+                const resMurni = await fetch(urlMurni);
+                if (resMurni.ok) {
+                    const jsonMurni = await resMurni.json().catch(() => null);
+                    if (jsonMurni && jsonMurni.success && jsonMurni.data) {
+                        rabMurniRefItems = Array.isArray(jsonMurni.data.items) ? jsonMurni.data.items : [];
+                        rabMurniRefTotal = Number(jsonMurni.data.jumlah_anggaran || jsonMurni.data.total_biaya || 0) ||
+                            rabMurniRefItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+                    }
+                }
+            } catch (eMurni) {
+                console.warn('Gagal memuat referensi Murni:', eMurni);
+            }
+        }
+
+        renderRabItems();
+        updateFormRefSemula(null);
+        return;
     } catch (error) {
         console.warn('Gagal memuat RAB server', error);
     }
 
     rabItems = [];
     renderRabItems();
+    updateFormRefSemula(null);
 }
 
 function getCodeHierarchy(item) {
@@ -956,6 +1113,8 @@ async function saveRAB() {
 
 function clearRabItems() {
     rabItems = [];
+    editIndex = -1;
+    updateFormRefSemula(null);
     renderRabItems();
 }
 
@@ -1020,6 +1179,7 @@ function addRabItem() {
     document.getElementById('input-satuan').value = ''; // Modified line
     document.getElementById('input-harga').value = '';
     document.getElementById('input-keterangan').value = '';
+    updateFormRefSemula(null);
 }
 
 function editRabItem(index) {
@@ -1047,6 +1207,7 @@ function editRabItem(index) {
         }
     }
     editIndex = index;
+    updateFormRefSemula(getItemMurniRef(item, index));
     const btn = document.getElementById('btn-add-item');
     if (btn) btn.textContent = 'Simpan Perubahan';
     // Gulir ke panel form input rincian RAB (bukan ke atas halaman)
@@ -1112,6 +1273,7 @@ function salinDataItem() {
     // Hentikan mode edit supaya tombol kembali normal
     if (editIndex >= 0) {
         editIndex = -1;
+        updateFormRefSemula(null);
         const btn = document.getElementById('btn-add-item');
         if (btn) btn.textContent = 'Tambah Item RAB';
     }
@@ -1124,8 +1286,42 @@ function renderRabItems() {
     const tbody = document.getElementById('rab-items-body');
 
     const totalBiaya = rabItems.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
-    document.getElementById('rab-total-items').textContent = rabItems.length;
+    const totalSemula = isModePerubahan()
+        ? rabItems.reduce((sum, item, idx) => sum + (Number(getItemMurniRef(item, idx).jumlah) || 0), 0)
+        : 0;
+    const totalSelisih = totalBiaya - totalSemula;
+
+    document.getElementById('rab-total-items').textContent = `${rabItems.length} Item`;
     document.getElementById('rab-total-biaya').textContent = `Rp ${formatRupiah(totalBiaya)}`;
+
+    const lblTotalBiaya = document.getElementById('rab-total-biaya-label');
+    const boxSemula = document.getElementById('box-total-semula');
+    const boxSelisih = document.getElementById('box-total-selisih');
+    const elTotalSemula = document.getElementById('rab-total-semula');
+    const elTotalSelisih = document.getElementById('rab-total-selisih');
+
+    if (isModePerubahan()) {
+        if (lblTotalBiaya) lblTotalBiaya.textContent = 'Total Menjadi (Perubahan):';
+        if (boxSemula) boxSemula.classList.remove('hidden');
+        if (boxSelisih) boxSelisih.classList.remove('hidden');
+        if (elTotalSemula) elTotalSemula.textContent = `Rp ${formatRupiah(totalSemula)}`;
+        if (elTotalSelisih) {
+            if (totalSelisih > 0) {
+                elTotalSelisih.className = 'text-lg font-extrabold text-emerald-600';
+                elTotalSelisih.textContent = `+Rp ${formatRupiah(totalSelisih)}`;
+            } else if (totalSelisih < 0) {
+                elTotalSelisih.className = 'text-lg font-extrabold text-rose-600';
+                elTotalSelisih.textContent = `-Rp ${formatRupiah(Math.abs(totalSelisih))}`;
+            } else {
+                elTotalSelisih.className = 'text-lg font-extrabold text-slate-500';
+                elTotalSelisih.textContent = `Rp 0 (Tetap)`;
+            }
+        }
+    } else {
+        if (lblTotalBiaya) lblTotalBiaya.textContent = 'Total Pagu RAB:';
+        if (boxSemula) boxSemula.classList.add('hidden');
+        if (boxSelisih) boxSelisih.classList.add('hidden');
+    }
 
     if (!tbody) return;
 
@@ -1188,22 +1384,70 @@ function renderRabItems() {
         entries.forEach(entry => {
             if (entry.group !== groupName) return;
             const subTotal = entry.items.reduce((s, e) => s + (Number(e.item.jumlah) || 0), 0);
+            const subTotalSemula = isModePerubahan()
+                ? entry.items.reduce((s, e) => s + (Number(getItemMurniRef(e.item, e.idx).jumlah) || 0), 0)
+                : 0;
+
             html += `
                 <tr class="rab-subgroup-row">
-                    <td colspan="6" class="pl-8 px-4 py-1.5 font-bold text-xs">${entry.subgroup}</td>
-                    <td class="text-right pr-3 font-bold text-xs">Rp ${formatRupiah(subTotal)}</td>
+                    <td colspan="5" class="pl-8 px-4 py-1.5 font-bold text-xs">${entry.subgroup}</td>
+                    <td class="text-right pr-3 font-bold text-xs">
+                        <div>Rp ${formatRupiah(subTotal)}</div>
+                        ${isModePerubahan() ? `<div class="text-[10px] text-slate-500 font-normal">Semula: Rp ${formatRupiah(subTotalSemula)}</div>` : ''}
+                    </td>
+                    <td></td>
                 </tr>`;
 
             entry.items.forEach(({ item, idx }) => {
                 runningNo += 1;
+                const ref = getItemMurniRef(item, idx);
+
+                let uraianBadge = '';
+                let volCell = `<div class="font-bold text-slate-800">${item.volume || '-'}</div>`;
+                let satCell = `<div>${item.satuan || '-'}</div>`;
+                let hargaCell = `<div class="font-bold text-slate-800">Rp ${formatRupiah(item.harga)}</div>`;
+                let jumlahCell = `<div class="font-extrabold text-slate-900">Rp ${formatRupiah(item.jumlah)}</div>`;
+
+                if (isModePerubahan()) {
+                    if (ref.isBaru) {
+                        uraianBadge = `<div class="mt-1"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200"><i class="fas fa-plus-circle text-[9px]"></i> Item Baru (Semula: Rp 0)</span></div>`;
+                        volCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: 0</div>`;
+                        hargaCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: Rp 0</div>`;
+                        jumlahCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: Rp 0</div>`;
+                        jumlahCell += `<div class="text-[10px] font-bold text-emerald-600 whitespace-nowrap">(+Rp ${formatRupiah(item.jumlah)})</div>`;
+                    } else {
+                        if (ref.uraian && ref.uraian.trim().toLowerCase() !== String(item.uraian || '').trim().toLowerCase()) {
+                            uraianBadge = `<div class="text-[10px] text-slate-400 italic mt-0.5">Semula: ${ref.uraian}</div>`;
+                        }
+                        volCell += `<div class="text-[10px] text-slate-500 font-medium whitespace-nowrap" title="Volume Semula (RAB Murni)">Semula: ${ref.vol}</div>`;
+                        if (ref.sat && ref.sat !== item.satuan) {
+                            satCell += `<div class="text-[10px] text-slate-500 font-medium whitespace-nowrap">Semula: ${ref.sat}</div>`;
+                        }
+                        hargaCell += `<div class="text-[10px] text-slate-500 font-medium whitespace-nowrap" title="Harga Satuan Semula (RAB Murni)">Semula: Rp ${formatRupiah(ref.harga)}</div>`;
+                        jumlahCell += `<div class="text-[10px] text-slate-500 font-medium whitespace-nowrap" title="Jumlah Biaya Semula (RAB Murni)">Semula: Rp ${formatRupiah(ref.jumlah)}</div>`;
+                        const diff = Number(item.jumlah || 0) - ref.jumlah;
+                        if (diff > 0) {
+                            jumlahCell += `<div class="text-[10px] font-bold text-emerald-600 whitespace-nowrap">(+Rp ${formatRupiah(diff)})</div>`;
+                        } else if (diff < 0) {
+                            jumlahCell += `<div class="text-[10px] font-bold text-rose-600 whitespace-nowrap">(-Rp ${formatRupiah(Math.abs(diff))})</div>`;
+                        } else {
+                            jumlahCell += `<div class="text-[10px] font-medium text-slate-400 whitespace-nowrap">(Tetap)</div>`;
+                        }
+                    }
+                }
+
                 html += `
                     <tr class="rab-item-row">
                         <td class="text-center">${runningNo}</td>
-                        <td>${item.uraian}${item.keterangan ? `<div class="text-slate-400 text-xs mt-1">${item.keterangan}</div>` : ''}</td>
-                        <td class="text-center">${item.volume || '-'}</td>
-                        <td class="text-center">${item.satuan || '-'}</td>
-                        <td class="text-right">Rp ${formatRupiah(item.harga)}</td>
-                        <td class="text-right">Rp ${formatRupiah(item.jumlah)}</td>
+                        <td>
+                            <div class="font-semibold text-slate-800">${item.uraian}</div>
+                            ${uraianBadge}
+                            ${item.keterangan ? `<div class="text-slate-400 text-xs mt-1">${item.keterangan}</div>` : ''}
+                        </td>
+                        <td class="text-center">${volCell}</td>
+                        <td class="text-center">${satCell}</td>
+                        <td class="text-right">${hargaCell}</td>
+                        <td class="text-right">${jumlahCell}</td>
                         <td class="text-center">
                             <button class="btn-outline" style="padding:6px 10px; margin-right:6px;" onclick="editRabItem(${idx})">Edit</button>
                             <button class="btn-outline" style="padding:6px 10px;" onclick="removeRabItem(${idx})">Hapus</button>
@@ -1870,10 +2114,16 @@ async function onTipeAnggaranChange(nilai) {
         ? RAB_TIPE_PERUBAHAN
         : RAB_TIPE_MURNI;
     rabItems = [];
+    rabMurniRefItems = [];
+    rabMurniRefTotal = 0;
+    updateFormRefSemula(null);
     renderRabItems();
     applyReadOnlyMode();
     await loadRabActivities();
     await loadSavedRabList();
+    if (selectedRpjm) {
+        await loadSavedRAB();
+    }
     await refreshLockStatus();
 }
 
