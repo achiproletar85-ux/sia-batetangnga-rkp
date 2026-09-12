@@ -9,64 +9,39 @@ perbaikan berikutnya.
 
 ## 1. 🔴 `POST /api/rkpdes/clear-and-sync` menyisipkan kolom yang tidak ada di tabel `rkpdes`
 
-**Status:** 🟠 Terbuka — bug pra-ada, belum diperbaiki
+**Status:** 🟢 **Selesai** (diperbaiki September 2026)
 
 > **KOREKSI CATATAN LAMA:** entri sebelumnya menyatakan `buildRkpPayLoadFromRAB()`
 > "tidak pernah didefinisikan". Hasil verifikasi ulang: fungsi itu **ADA** di
-> `server.js` (sekitar baris 4700). Yang benar-benar hilang adalah
-> `mergeRkpFromRab` — lihat item 2.
+> `server.js`. Yang benar-benar hilang adalah `mergeRkpFromRab` — lihat item 2.
 
 **Lokasi:** `server.js` — `buildRkpPayLoadFromRAB()` + endpoint `POST /api/rkpdes/clear-and-sync`
 
-**Bukti (probe skema live, September 2026):** tabel `rkpdes` **tidak memiliki** kolom
-`jenis_bidang`, `nama_kegiatan`, `kode_unik`, `sub_kegiatan`, `kode_bidang`,
-`kode_sub`, `kode_kegiatan`, `sub_bidang`, `items`, `rpjm_data`, dan `uraian`.
+**Dua perbaikan yang diterapkan:**
+1. **Kolom payload:** probe skema live September 2026 memverifikasi seluruh kolom
+   payload (termasuk `kode_bidang`, `kode_sub`, `kode_kegiatan`, `nama_kegiatan`,
+   `lokasi_kegiatan`, `volume_kegiatan`, `rencana_pelaksana`, `sdgs`, `manfaat_l/p/rtm`)
+   **sudah ada** di tabel `rkpdes` (migrasi telah dijalankan) → INSERT tidak lagi ditolak.
+2. **Urutan operasi (bug "hapus dulu, insert gagal"):** endpoint kini (a) membangun
+   payload dari RAB **dulu**, (b) membatalkan dengan HTTP 400 tanpa menghapus apa pun
+   bila RAB kosong, (c) mengambil **snapshot** data lama, (d) baru menghapus, dan
+   (e) memulihkan snapshot otomatis bila INSERT gagal.
 
-Namun `buildRkpPayLoadFromRAB()` menghasilkan baris berisi **`jenis_bidang`** dan
-**`nama_kegiatan`** → `INSERT` ditolak PostgREST (PGRST204 / 42703).
-
-**Dampak:**
-- Endpoint gagal 500 **setelah** tahap `DELETE FROM rkpdes WHERE tahun = …` dijalankan.
-  Urutannya berbahaya: **hapus dulu, insert gagal** → berpotensi menghapus data RKPDes
-  yang ada tanpa menggantinya.
-- Tabel `rkpdes` saat ini berisi **0 baris**, konsisten dengan sinkronisasi yang tidak
-  pernah berhasil.
-
-**Rekomendasi perbaikan berikutnya:**
-1. Selaraskan keluaran `buildRkpPayLoadFromRAB()` dengan kolom `rkpdes` yang benar-benar ada
-   (buang `jenis_bidang` & `nama_kegiatan`, atau `ALTER TABLE rkpdes` untuk menambahkannya).
-2. Ubah urutan operasi: **bangun payload dulu → validasi → baru delete + insert**.
-3. Bungkus dalam satu transaksi (RPC) agar tidak ada kondisi "kosong di tengah jalan".
-4. Tambahkan smoke test endpoint pada tahun dummy.
+**Verifikasi:** `npm run test:rkpdes-perubahan` (68 asersi lulus) + uji endpoint live.
 
 ---
 
 ## 2. 🔴 `mergeRkpFromRab` dipanggil tetapi tidak pernah didefinisikan
 
-**Status:** 🟠 Terbuka — bug pra-ada, belum diperbaiki
+**Status:** 🟢 **Selesai** (diimplementasikan September 2026)
 
-**Lokasi:** `server.js` — di dalam `POST /api/rab`, sekitar baris 3051:
+**Lokasi:** `server.js` — fungsi `mergeRkpFromRab(tahun)` kini terdefinisi (di atas
+endpoint clear-and-sync), dipanggil dari `POST /api/rab` sekitar baris 4273.
 
-```js
-if (typeof mergeRkpFromRab === 'function') {
-    await mergeRkpFromRab(tahunSync);
-}
-```
-
-**Bukti:** grep seluruh `server.js`, `frontend/`, `backend/`, `scripts/` →
-satu-satunya kemunculan adalah call-site di atas.
-
-**Dampak:**
-- Karena dijaga `typeof … === 'function'`, tidak ada error yang muncul — sinkronisasi
-  otomatis **"RAB → RKPDes" setelah simpan RAB adalah no-op senyap**.
-- Komentar di sekitar kode menyatakan RAB baru "langsung turun ke tabel rkpdes tanpa
-  menekan Sync/Import RAB". Klaim itu **tidak benar** saat ini.
-- Ini menjelaskan mengapa `rkpdes` berisi 0 baris.
-
-**Rekomendasi perbaikan berikutnya:**
-1. Implementasikan `mergeRkpFromRab(tahun)` (boleh mendelegasikan ke
-   `buildRkpPayLoadFromRAB()` + upsert), **setelah** item 1 dibereskan.
-2. Selama belum ada, hapus/ubah komentar yang menyesatkan dan catat statusnya di UI.
+**Implementasi:** merge (bukan replace) RAB → `rkpdes`: baris yang kodennya sudah
+hilang dari RAB dihapus, baris baru diinsert, baris yang sudah ada **dipertahankan**
+(termasuk edit manual pengguna: stunting, verifikasi, dsb.). Kegagalan auto-sync
+masih ditelan dengan warning tanpa menggagalkan penyimpanan RAB.
 
 ---
 

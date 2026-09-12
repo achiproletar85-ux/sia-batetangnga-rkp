@@ -1,12 +1,12 @@
-function switchTab(tab) {
-    window.location.href = tab + '.html';
-}
-
 let rkpdesList = [];
 let activeYear = 2027;
 let currentRkpdesTab = 'murni';
 let rkpdesPerubahanList = [];
 let rkpdesPerubahanTotals = { semula: 0, menjadi: 0, selisih: 0 };
+// Guard anti dobel-panggilan cetak: satu klik tombol cetak tercatat memicu
+// window.print() hingga 3x (inline onclick + listener langsung + delegation)
+// yang membekukan UI. Nilai = timestamp berikutnya saat tombol boleh cetak lagi.
+let _printLockUntil = 0;
 
 const masterBidangList = [
     { key: 1, name: 'Bidang Penyelenggaraan Pemerintahan Desa' },
@@ -341,14 +341,8 @@ function resolveJenisKegiatanKelompokFallback(item) {
     return val || 'Kelompok Kegiatan Utama';
 }
 
-function updateLivePreview() {
-    if (currentRkpdesTab === 'perubahan') {
-        renderRkpdesPerubahanPreview();
-        return;
-    }
-    const container = document.getElementById('livePreviewContainer');
-    if (!container) return;
-
+// Membangun HTML lembar RKPDes MURNI (matriks 13 kolom) — murni string, tanpa menyentuh DOM.
+function buildRkpdesMurniHtml() {
     // Grouping by Bidang (1 s.d 5)
     const grouped = { 1: [], 2: [], 3: [], 4: [], 5: [] };
     (rkpdesList || []).forEach(item => {
@@ -541,7 +535,7 @@ function updateLivePreview() {
     const formattedDate = getFormattedDate();
     const timInfo = getTimPenyusunInfo();
 
-    container.innerHTML = `
+    return `
         <!-- HEADER METADATA DESA -->
         <div class="mb-6 text-slate-900">
             <div class="text-center mb-4">
@@ -618,6 +612,23 @@ function updateLivePreview() {
         </div>
     `;
 }
+window.buildRkpdesMurniHtml = buildRkpdesMurniHtml;
+
+function renderRkpdesMurniPreview() {
+    const container = document.getElementById('livePreviewContainer');
+    if (!container) return;
+    container.innerHTML = buildRkpdesMurniHtml();
+}
+window.renderRkpdesMurniPreview = renderRkpdesMurniPreview;
+
+function updateLivePreview() {
+    if (currentRkpdesTab === 'perubahan') {
+        renderRkpdesPerubahanPreview();
+    } else {
+        renderRkpdesMurniPreview();
+    }
+}
+window.updateLivePreview = updateLivePreview;
 
 function openEditRkpModal(key) {
     const item = rkpdesList.find(x => String(x.kode_unik_full || x.kode_unik || x.id) === String(key));
@@ -833,6 +844,7 @@ async function onYearChange() {
 window.onYearChange = onYearChange;
 
 async function switchRkpdesTab(tab) {
+    if (currentRkpdesTab === tab) return; // sudah aktif: cegah re-render penuh yang memblokir main thread
     currentRkpdesTab = tab;
     const btnMurni = document.getElementById('tab-btn-murni');
     const btnPerubahan = document.getElementById('tab-btn-perubahan');
@@ -1022,12 +1034,11 @@ async function loadRkpdesPerubahanData() {
 }
 window.loadRkpdesPerubahanData = loadRkpdesPerubahanData;
 
-function renderRkpdesPerubahanPreview() {
-    const container = document.getElementById('livePreviewContainer');
-    if (!container) return;
-
+// Membangun HTML lembar RKPDes PERUBAHAN (matriks 21 kolom SEMULA/MENJADI/SELISIH)
+// — murni string, tanpa menyentuh DOM. Dipakai render preview DAN cetak terisolasi.
+function buildRkpdesPerubahanHtml() {
     if (!rkpdesPerubahanList || rkpdesPerubahanList.length === 0) {
-        container.innerHTML = `
+        return `
             <div class="text-center py-16 bg-white rounded-2xl border border-slate-200 shadow-sm">
                 <div class="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
                     <i class="fas fa-folder-open"></i>
@@ -1041,7 +1052,6 @@ function renderRkpdesPerubahanPreview() {
                 </a>
             </div>
         `;
-        return;
     }
 
     // Grouping by Bidang (1 s.d 5)
@@ -1210,7 +1220,7 @@ function renderRkpdesPerubahanPreview() {
                                         data-item-key="${itemKeyEscaped}"
                                         data-id="${itemId}"
                                         data-kode="${itemKodeAttr}"
-                                        onclick="openEditManfaatMenjadi('${itemKeyEscaped}')"
+                                        
                                         title="Edit Penerima Manfaat (Menjadi)">
                                         <i class="fas fa-users-cog mr-1 pointer-events-none"></i><span class="pointer-events-none">Edit Manfaat</span>
                                     </button>
@@ -1236,7 +1246,7 @@ function renderRkpdesPerubahanPreview() {
                                     data-item-key="${itemKeyEscaped}"
                                     data-id="${itemId}"
                                     data-kode="${itemKodeAttr}"
-                                    onclick="openEditManfaatMenjadi('${itemKeyEscaped}')"
+                                    
                                     title="Klik untuk edit penerima manfaat MENJADI">
                                     <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${penerimaL || '-'}</span>
                                     <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span>
@@ -1245,7 +1255,7 @@ function renderRkpdesPerubahanPreview() {
                                     data-item-key="${itemKeyEscaped}"
                                     data-id="${itemId}"
                                     data-kode="${itemKodeAttr}"
-                                    onclick="openEditManfaatMenjadi('${itemKeyEscaped}')"
+                                    
                                     title="Klik untuk edit penerima manfaat MENJADI">
                                     <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${penerimaP || '-'}</span>
                                     <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span>
@@ -1254,7 +1264,7 @@ function renderRkpdesPerubahanPreview() {
                                     data-item-key="${itemKeyEscaped}"
                                     data-id="${itemId}"
                                     data-kode="${itemKodeAttr}"
-                                    onclick="openEditManfaatMenjadi('${itemKeyEscaped}')"
+                                    
                                     title="Klik untuk edit penerima manfaat MENJADI">
                                     <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${penerimaRtm || '-'}</span>
                                     <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span>
@@ -1289,7 +1299,7 @@ function renderRkpdesPerubahanPreview() {
     const formattedDate = getFormattedDate();
     const timInfo = getTimPenyusunInfo();
 
-    container.innerHTML = `
+    return `
         <!-- STATS CARD OVERVIEW (Screen only) -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 no-print">
             <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
@@ -1453,7 +1463,35 @@ function renderRkpdesPerubahanPreview() {
         </div>
     `;
 }
+window.buildRkpdesPerubahanHtml = buildRkpdesPerubahanHtml;
+
+function renderRkpdesPerubahanPreview() {
+    const container = document.getElementById('livePreviewContainer');
+    if (!container) return;
+    container.innerHTML = buildRkpdesPerubahanHtml();
+}
 window.renderRkpdesPerubahanPreview = renderRkpdesPerubahanPreview;
+
+// ==========================================================
+// MESIN CETAK TERISOLASI (#printArea)
+// Setiap fungsi cetak membangun HTML-nya SENDIRI (murni atau
+// perubahan) lalu menempelkannya ke #printArea. Saat mencetak,
+// CSS hanya menampilkan #printArea sehingga lembar murni dan
+// lembar perubahan TIDAK MUNGKIN tertukar.
+// ==========================================================
+function printIsolatedArea(html, modeClass) {
+    const area = document.getElementById('rkpdesPrintArea');
+    if (!area) return false;
+    area.innerHTML = html;
+    document.body.classList.add('printing-rkpdes');
+    if (modeClass === 'print-perubahan') {
+        document.body.classList.add('print-perubahan');
+    } else {
+        document.body.classList.remove('print-perubahan');
+    }
+    return true;
+}
+window.printIsolatedArea = printIsolatedArea;
 
 async function printRkpdesMurni(e) {
     if (e) {
@@ -1478,15 +1516,26 @@ async function printRkpdesMurni(e) {
     }
 
     if (!Array.isArray(rkpdesList) || rkpdesList.length === 0) {
-        await loadRkpdesData();
-    } else {
-        updateLivePreview();
+        try {
+            await loadRkpdesData();
+        } catch (err) {
+            console.error('❌ Gagal memuat data murni untuk cetak:', err);
+        }
     }
 
-    document.body.classList.remove('print-perubahan');
-    setTimeout(() => {
-        window.print();
-    }, 200);
+    // PERCABANGAN MUTLAK: cetak hanya lembar RKPDes Murni via #printArea
+    const htmlMurni = buildRkpdesMurniHtml();
+    if (!printIsolatedArea(htmlMurni, '')) {
+        renderRkpdesMurniPreview();
+        document.body.classList.remove('print-perubahan');
+    }
+
+    if (Date.now() >= _printLockUntil) {
+        _printLockUntil = Date.now() + 1500;
+        setTimeout(() => {
+            window.print();
+        }, 200);
+    }
 }
 window.printRkpdesMurni = printRkpdesMurni;
 
@@ -1517,16 +1566,34 @@ async function printRkpdesPerubahan(e) {
         badge.textContent = 'Mode: RKPDes / RAB Perubahan';
     }
 
+    // Muat data PERUBAHAN bila belum ada — jangan pernah jatuh ke data murni
     if (!Array.isArray(rkpdesPerubahanList) || rkpdesPerubahanList.length === 0) {
-        await loadRkpdesPerubahanData();
-    } else {
-        renderRkpdesPerubahanPreview();
+        try {
+            await loadRkpdesPerubahanData();
+        } catch (err) {
+            console.error('❌ Gagal memuat data perubahan untuk cetak:', err);
+        }
     }
 
-    document.body.classList.add('print-perubahan');
-    setTimeout(() => {
-        window.print();
-    }, 200);
+    // PERCABANGAN MUTLAK: cetak HANYA matriks SEMULA/MENJADI/SELISIH via #printArea.
+    // Fungsi ini tidak menyentuh render/lembar RKPDes murni sama sekali.
+    if (!Array.isArray(rkpdesPerubahanList) || rkpdesPerubahanList.length === 0) {
+        showToast(`❌ Tidak ada data RKPDes Perubahan tahun ${activeYear} untuk dicetak.`, 'error');
+        return;
+    }
+
+    const htmlPerubahan = buildRkpdesPerubahanHtml();
+    if (!printIsolatedArea(htmlPerubahan, 'print-perubahan')) {
+        renderRkpdesPerubahanPreview();
+        document.body.classList.add('print-perubahan');
+    }
+
+    if (Date.now() >= _printLockUntil) {
+        _printLockUntil = Date.now() + 1500;
+        setTimeout(() => {
+            window.print();
+        }, 200);
+    }
 }
 window.printRkpdesPerubahan = printRkpdesPerubahan;
 
@@ -1536,11 +1603,11 @@ async function cetakRkpdesPerubahan(e) {
 window.cetakRkpdesPerubahan = cetakRkpdesPerubahan;
 
 window.addEventListener('afterprint', () => {
-    if (currentRkpdesTab === 'perubahan') {
-        renderRkpdesPerubahanPreview();
-    } else {
-        document.body.classList.remove('print-perubahan');
-    }
+    // Bersihkan kontainer cetak terisolasi & kembalikan mode layar normal
+    document.body.classList.remove('printing-rkpdes');
+    document.body.classList.remove('print-perubahan');
+    const area = document.getElementById('rkpdesPrintArea');
+    if (area) area.innerHTML = '';
 });
 
 // ==========================================

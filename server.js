@@ -270,6 +270,39 @@ function isTableMissingError(error) {
     return false;
 }
 
+// Deteksi galat sementara (transient) Supabase: Gateway Timeout, fetch gagal,
+// jaringan putus, dsb. — layak dicoba ulang sekali sebelum diteruskan ke klien
+// agar endpoint tidak 500 hanya karena satu hentakan jaringan.
+function isTransientSupabaseError(error) {
+    const message = String(error?.message || '').toLowerCase();
+    if (!message) return false;
+    return message.includes('gateway timeout') ||
+           message.includes('fetch failed') ||
+           message.includes('fetch_error') ||
+           message.includes('network') ||
+           message.includes('socket hang up') ||
+           message.includes('timeout') ||
+           message.includes('bad gateway') ||
+           message.includes('service unavailable');
+}
+
+// Jalankan fn (fungsi async yang mengembalikan { data, error }) dengan maksimal
+// `retries` percobaan ulang utk galat transient. Backoff tetap 800ms.
+async function withTransientRetry(fn, retries = 1) {
+    let lastResult = null;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        lastResult = await fn();
+        if (!lastResult || !lastResult.error || !isTransientSupabaseError(lastResult.error)) {
+            return lastResult;
+        }
+        if (attempt < retries) {
+            console.warn(`⚠️ Galat transient Supabase (${lastResult.error.message}) — mencoba ulang (${attempt + 1}/${retries})...`);
+            await new Promise(r => setTimeout(r, 800));
+        }
+    }
+    return lastResult;
+}
+
 // ============================================
 // RAB PERUBAHAN — penanda versi (snapshot pada tabel `rab`)
 // ============================================
@@ -4265,8 +4298,8 @@ app.post('/api/rab', async (req, res) => {
         };
 
         const saved = await saveRabToDb(record);
-        // Sinkronisasi otomatis: data RAB baru langsung turun ke tabel `rkpdesk`
-        // sehingga tab RKPDes/Stouting tampil tanpa perlu menekan "Sync / Import RAB".
+        // Sinkronisasi otomatis: data RAB baru turun ke tabel `rkpdes`
+        // (merge) tanpa perlu menekan "Sync / Import RAB".
         try {
             const tahunSync = Number(tahun || record.tahun || saved.tahun) || 2027;
             if (typeof mergeRkpFromRab === 'function') {
@@ -5946,10 +5979,10 @@ app.get('/api/rkpdes', async (req, res) => {
         const tahunInt = parseInt(tahun) || 2027;
         console.log(`[STRICT] 📡 GET /api/rkpdes from 'rkpdes' table ONLY for year: ${tahunInt}`);
 
-        let { data, error } = await supabase
+        let { data, error } = await withTransientRetry(() => supabase
             .from('rkpdes') // Sumber data utama RKPDes
             .select(RKPDES_COLUMNS)
-            .eq('tahun', tahunInt);
+            .eq('tahun', tahunInt));
         
         if (error) {
             console.error('❌ Error in GET /api/rkpdes:', error.message);
@@ -6152,10 +6185,10 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
         // 1. Tarik data RKPDes Murni
         let murniRows = [];
         try {
-            const { data: rkpData, error: rkpErr } = await supabase
+            const { data: rkpData, error: rkpErr } = await withTransientRetry(() => supabase
                 .from('rkpdes')
                 .select(RKPDES_COLUMNS)
-                .eq('tahun', tahunInt);
+                .eq('tahun', tahunInt));
             if (rkpErr) {
                 console.warn('⚠️ Query rkpdes error (fallback to rab):', rkpErr.message);
             } else if (Array.isArray(rkpData)) {
@@ -6644,6 +6677,39 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
     return { rows };
 }
 
+// Sinkronisasi RAB -> RKPDes untuk satu tahun: merge (upsert-style) tanpa
+// menghapus baris yang tidak ada di RAB. Dipanggil otomatis setelah POST /api/rab.
+async function mergeRkpFromRab(tahunSync) {
+    const tahun = parseInt(tahunSync, 10);
+    if (!tahun) throw new Error('Tahun tidak valid untuk mergeRkpFromRab');
+
+    const { rows } = await buildRkpPayLoadFromRAB(tahun, null);
+    if (!rows || rows.length === 0) return { merged: 0 };
+
+    // Hilangkan baris lama tahun ini yang kodenya sudah tidak ada di RAB,
+    // lalu gabungkan sisanya (hindari duplikat kode_unik_full).
+    const rabCodes = new Set(rows.map(r => String(r.kode_unik_full || '').trim()).filter(Boolean));
+    const { data: existingRows } = await supabase
+        .from('rkpdes')
+        .select('id, kode_unik_full')
+        .eq('tahun', tahun);
+    const staleIds = (Array.isArray(existingRows) ? existingRows : [])
+        .filter(r => !rabCodes.has(String(r.kode_unik_full || '').trim()))
+        .map(r => r.id);
+    if (staleIds.length > 0) {
+        await supabase.from('rkpdes').delete().in('id', staleIds);
+    }
+
+    const existingCodes = new Set((Array.isArray(existingRows) ? existingRows : [])
+        .map(r => String(r.kode_unik_full || '').trim()).filter(Boolean));
+    const freshRows = rows.filter(r => !existingCodes.has(String(r.kode_unik_full || '').trim()));
+    if (freshRows.length > 0) {
+        const { error } = await supabase.from('rkpdes').insert(freshRows);
+        if (error) throw error;
+    }
+    return { merged: freshRows.length, removed: staleIds.length };
+}
+
 app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
     try {
         const { tahun } = req.body;
@@ -6670,15 +6736,9 @@ app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
             });
         }
 
-        // 1. Delete data lama untuk tahun tersebut
-        const { error: deleteError } = await supabase
-            .from('rkpdes')
-            .delete()
-            .eq('tahun', tahunInt);
-
-        if (deleteError) throw deleteError;
-
-        // 2. Ambil data dari tabel RAB
+        // 1. Bangun payload dari RAB DULU — sebelum menghapus apa pun — agar
+        //    kegagalan query/transformasi TIDAK pernah meninggalkan tabel
+        //    RKPDes kosong (bug "hapus dulu, insert gagal").
         const { data: rabData, error: rabError } = await supabase
             .from('rab')
             .select(RAB_SYNC_COLUMNS)
@@ -6686,12 +6746,33 @@ app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
 
         if (rabError) throw rabError;
 
-        if (!rabData || rabData.length === 0) {
-            return res.json({ success: true, message: 'Tidak ada data RAB untuk tahun ini. Tabel RKPDes telah dikosongkan.' });
+        let rkpdesPayload = [];
+        if (Array.isArray(rabData) && rabData.length > 0) {
+            const built = await buildRkpPayLoadFromRAB(tahunInt, rabData);
+            rkpdesPayload = Array.isArray(built.rows) ? built.rows : [];
         }
 
-        // 3. Transformasi dan masukkan data dari RAB ke RKPDes
-        const { rows: rkpdesPayload } = await buildRkpPayLoadFromRAB(tahunInt, rabData);
+        if (rkpdesPayload.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Tidak ada data RAB untuk tahun ini. Sinkronisasi dibatalkan — data RKPDes yang ada tidak dihapus.',
+                data: []
+            });
+        }
+
+        // 2. Snapshot data lama (untuk pemulihan bila insert gagal)
+        const { data: snapshotRows } = await supabase
+            .from('rkpdes')
+            .select(RKPDES_COLUMNS)
+            .eq('tahun', tahunInt);
+
+        // 3. Baru hapus data lama untuk tahun tersebut
+        const { error: deleteError } = await supabase
+            .from('rkpdes')
+            .delete()
+            .eq('tahun', tahunInt);
+
+        if (deleteError) throw deleteError;
 
         // Terapkan kembali flag manual yang disimpan sebelumnya
         rkpdesPayload.forEach(row => {
@@ -6703,13 +6784,18 @@ app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
             }
         });
 
-        if (rkpdesPayload.length > 0) {
-            const { error: insertError } = await supabase
-                .from('rkpdes')
-                .insert(rkpdesPayload)
-                .select('id');
+        const { error: insertError } = await supabase
+            .from('rkpdes')
+            .insert(rkpdesPayload)
+            .select('id');
 
-            if (insertError) throw insertError;
+        if (insertError) {
+            // Pemulihan: kembalikan snapshot data lama agar tabel tidak terlanjur kosong
+            if (Array.isArray(snapshotRows) && snapshotRows.length > 0) {
+                await supabase.from('rkpdes').insert(snapshotRows);
+                console.error('❌ Insert sinkronisasi gagal — data lama dikembalikan dari snapshot.');
+            }
+            throw insertError;
         }
 
         res.json({ success: true, message: `Sinkronisasi berhasil: ${rkpdesPayload.length} data dari RAB telah dimasukkan ke RKPDes.` });
