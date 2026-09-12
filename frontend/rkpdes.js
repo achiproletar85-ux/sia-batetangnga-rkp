@@ -46,6 +46,25 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.removeItem('rkpdes_cache');
     } catch(e) {}
     loadRkpdesData();
+
+    // Event listener eksplisit tombol cetak dengan pencegahan default action
+    const btnCetakPerubahan = document.getElementById('btn-cetak-perubahan');
+    if (btnCetakPerubahan) {
+        btnCetakPerubahan.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            printRkpdesPerubahan(e);
+        });
+    }
+
+    const btnCetakMurni = document.getElementById('btn-cetak-murni');
+    if (btnCetakMurni) {
+        btnCetakMurni.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            printRkpdesMurni(e);
+        });
+    }
 });
 
 function getBidangKey(item) {
@@ -1418,30 +1437,92 @@ function renderRkpdesPerubahanPreview() {
 }
 window.renderRkpdesPerubahanPreview = renderRkpdesPerubahanPreview;
 
-async function cetakRkpdesMurni() {
-    if (currentRkpdesTab !== 'murni') {
-        await switchRkpdesTab('murni');
+async function printRkpdesMurni(e) {
+    if (e) {
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
     }
+
+    currentRkpdesTab = 'murni';
+
+    const btnMurni = document.getElementById('tab-btn-murni');
+    const btnPerubahan = document.getElementById('tab-btn-perubahan');
+    const badge = document.getElementById('tab-badge-info');
+    if (btnMurni) {
+        btnMurni.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm cursor-pointer';
+    }
+    if (btnPerubahan) {
+        btnPerubahan.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer';
+    }
+    if (badge) {
+        badge.className = 'bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1 rounded-lg font-bold';
+        badge.textContent = 'Mode: RKPDes Murni';
+    }
+
+    if (!Array.isArray(rkpdesList) || rkpdesList.length === 0) {
+        await loadRkpdesData();
+    } else {
+        updateLivePreview();
+    }
+
     document.body.classList.remove('print-perubahan');
     setTimeout(() => {
         window.print();
-    }, 150);
+    }, 200);
+}
+window.printRkpdesMurni = printRkpdesMurni;
+
+async function cetakRkpdesMurni(e) {
+    return printRkpdesMurni(e);
 }
 window.cetakRkpdesMurni = cetakRkpdesMurni;
 
-async function cetakRkpdesPerubahan() {
-    if (currentRkpdesTab !== 'perubahan') {
-        await switchRkpdesTab('perubahan');
+async function printRkpdesPerubahan(e) {
+    if (e) {
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
     }
+
+    currentRkpdesTab = 'perubahan';
+
+    const btnMurni = document.getElementById('tab-btn-murni');
+    const btnPerubahan = document.getElementById('tab-btn-perubahan');
+    const badge = document.getElementById('tab-badge-info');
+    if (btnMurni) {
+        btnMurni.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer';
+    }
+    if (btnPerubahan) {
+        btnPerubahan.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-amber-600 text-white shadow-sm cursor-pointer';
+    }
+    if (badge) {
+        badge.className = 'bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1 rounded-lg font-bold';
+        badge.textContent = 'Mode: RKPDes / RAB Perubahan';
+    }
+
+    if (!Array.isArray(rkpdesPerubahanList) || rkpdesPerubahanList.length === 0) {
+        await loadRkpdesPerubahanData();
+    } else {
+        renderRkpdesPerubahanPreview();
+    }
+
     document.body.classList.add('print-perubahan');
     setTimeout(() => {
         window.print();
-    }, 150);
+    }, 200);
+}
+window.printRkpdesPerubahan = printRkpdesPerubahan;
+
+async function cetakRkpdesPerubahan(e) {
+    return printRkpdesPerubahan(e);
 }
 window.cetakRkpdesPerubahan = cetakRkpdesPerubahan;
 
 window.addEventListener('afterprint', () => {
-    document.body.classList.remove('print-perubahan');
+    if (currentRkpdesTab === 'perubahan') {
+        renderRkpdesPerubahanPreview();
+    } else {
+        document.body.classList.remove('print-perubahan');
+    }
 });
 
 // ==========================================
@@ -1632,6 +1713,22 @@ window.saveEditManfaatMenjadi = saveEditManfaatMenjadi;
 // Memastikan klik pada tombol/sel edit penerima manfaat tetap aktif di semua tahun
 // (2026, 2027, dst.) bahkan setelah DOM tabel dirender ulang secara dinamis.
 document.addEventListener('click', function(e) {
+    const cetakPerubahanBtn = e.target.closest('#btn-cetak-perubahan');
+    if (cetakPerubahanBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        printRkpdesPerubahan(e);
+        return;
+    }
+
+    const cetakMurniBtn = e.target.closest('#btn-cetak-murni');
+    if (cetakMurniBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        printRkpdesMurni(e);
+        return;
+    }
+
     const editBtn = e.target.closest('.btn-edit-manfaat');
     if (editBtn) {
         e.preventDefault();

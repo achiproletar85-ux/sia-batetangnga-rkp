@@ -47,6 +47,11 @@ assert(jsCode.includes('function loadRkpdesPerubahanData'), 'Fungsi loadRkpdesPe
 assert(jsCode.includes('function renderRkpdesPerubahanPreview'), 'Fungsi renderRkpdesPerubahanPreview terdefinisi');
 assert(jsCode.includes('function cetakRkpdesPerubahan'), 'Fungsi cetakRkpdesPerubahan terdefinisi');
 assert(jsCode.includes('function cetakRkpdesMurni'), 'Fungsi cetakRkpdesMurni terdefinisi');
+assert(jsCode.includes('function printRkpdesPerubahan'), 'Fungsi printRkpdesPerubahan terdefinisi mandiri');
+assert(jsCode.includes('function printRkpdesMurni'), 'Fungsi printRkpdesMurni terdefinisi mandiri');
+assert(htmlCode.includes('type="button" id="btn-cetak-perubahan"'), 'Tombol cetak perubahan memiliki type="button" eksplisit');
+assert(jsCode.includes("e.target.closest('#btn-cetak-perubahan')"), 'Event delegation listener mendengarkan #btn-cetak-perubahan');
+assert(jsCode.includes("btnCetakPerubahan.addEventListener('click'"), 'Event listener eksplisit terpasang pada btn-cetak-perubahan');
 
 // Asersi A: Kop Surat & Header
 assert(jsCode.includes('RENCANA KERJA PEMERINTAH DESA PERUBAHAN TAHUN ANGGARAN'), 'Judul resmi RKPDesa Perubahan tercantum');

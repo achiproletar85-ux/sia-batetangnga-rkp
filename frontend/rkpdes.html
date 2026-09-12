@@ -120,10 +120,10 @@
                     <button class="btn-success text-xs" onclick="importRkpdesData()">
                         <i class="fas fa-download mr-1"></i> Sync / Import RAB
                     </button>
-                    <button id="btn-cetak-murni" class="btn-primary text-xs" onclick="cetakRkpdesMurni()" title="Cetak lembar RKPDes Murni">
+                    <button type="button" id="btn-cetak-murni" class="btn-primary text-xs" onclick="cetakRkpdesMurni(event)" title="Cetak lembar RKPDes Murni">
                         <i class="fas fa-print mr-1"></i> Cetak PDF RKPDes
                     </button>
-                    <button id="btn-cetak-perubahan" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer" onclick="cetakRkpdesPerubahan()" title="Cetak lembar RKPDes Perubahan dengan perbandingan Semula, Menjadi, dan Selisih">
+                    <button type="button" id="btn-cetak-perubahan" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer" onclick="cetakRkpdesPerubahan(event)" title="Cetak lembar RKPDes Perubahan dengan perbandingan Semula, Menjadi, dan Selisih">
                         <i class="fas fa-file-invoice mr-1"></i> Cetak RKPDes Perubahan
                     </button>
                 </div>
