@@ -702,13 +702,15 @@ const RAB_LIST_LIMIT = 250;
 // Daftar RAB untuk tabel ringkasan.
 // WAJIB difilter tahun + versi dan dibatasi baris agar tidak menarik seluruh tabel
 // (terutama setelah RAB Perubahan menggandakan jumlah baris per tahun).
-async function listRabsFromDb(tahun, tipeAnggaran = RAB_TIPE_MURNI) {
+async function listRabsFromDb(tahun, tipeAnggaran = RAB_TIPE_MURNI, withItems = false) {
     const tipe = normalizeRabTipe(tipeAnggaran);
     const tahunInt = parseInt(tahun, 10);
+    const targetCols = withItems ? RAB_FULL_COLUMNS : RAB_LIST_COLUMNS;
+    const targetColsLegacy = withItems ? RAB_FULL_COLUMNS_LEGACY : RAB_LIST_COLUMNS_LEGACY;
 
     const build = (cols) => {
         let q = supabase.from(RAB_TABLE).select(cols);
-        if (cols === RAB_LIST_COLUMNS) {
+        if (cols === targetCols) {
             q = q.eq('tipe_anggaran', tipe);
         }
         if (Number.isFinite(tahunInt)) {
@@ -717,7 +719,7 @@ async function listRabsFromDb(tahun, tipeAnggaran = RAB_TIPE_MURNI) {
         return q.order('kode_unik_full', { ascending: true }).limit(RAB_LIST_LIMIT);
     };
 
-    const { data, error } = await rabQueryWithTipeFallback(build, RAB_LIST_COLUMNS, RAB_LIST_COLUMNS_LEGACY);
+    const { data, error } = await rabQueryWithTipeFallback(build, targetCols, targetColsLegacy);
 
     if (error) throw error;
     let rows = Array.isArray(data) ? data : [];
@@ -730,11 +732,18 @@ async function listRabsFromDb(tahun, tipeAnggaran = RAB_TIPE_MURNI) {
         const bidPrefix = fullKode.slice(0, 2);
         const resolvedBidang = r.bidang && r.bidang !== '-' ? r.bidang : (RAB_BIDANG_MAP[bidPrefix] || 'Bidang Penyelenggaraan Pemerintah Desa');
         const resolvedSubBidang = r.sub_bidang || RAB_SUB_BIDANG_MAP[prefix] || r.sub_group_nama || r.jenis_kegiatan || 'Sub Bidang Pemerintahan';
+        
+        let parsedItems = r.items;
+        if (withItems && typeof parsedItems === 'string') {
+            try { parsedItems = JSON.parse(parsedItems); } catch(_) {}
+        }
+
         return {
             ...r,
             bidang: resolvedBidang,
             sub_bidang: resolvedSubBidang,
-            jenis_bidang: r.jenis_bidang && r.jenis_bidang !== '-' ? r.jenis_bidang : resolvedSubBidang
+            jenis_bidang: r.jenis_bidang && r.jenis_bidang !== '-' ? r.jenis_bidang : resolvedSubBidang,
+            items: withItems ? (Array.isArray(parsedItems) ? parsedItems : []) : r.items
         };
     });
     sortHierarchical(rows);
@@ -3453,6 +3462,21 @@ app.get('/api/rab-activities', async (req, res) => {
     }
 });
 
+// GET /api/pembiayaan-netto/rab?tahun=YYYY -> daftar kegiatan RAB khusus Pembiayaan Netto dengan rincian items per jabatan
+app.get(['/api/pembiayaan-netto/rab', '/api/pembiayaan/rab'], async (req, res) => {
+    try {
+        const { tahun } = req.query;
+        const tahunInt = parseInt(tahun, 10) || 2027;
+        const tipeAnggaran = normalizeRabTipe(req.query.tipe || req.query.tipe_anggaran);
+        console.log(`📡 GET /api/pembiayaan-netto/rab?tahun=${tahunInt}&tipe=${tipeAnggaran}`);
+        const data = await listRabsFromDb(tahunInt, tipeAnggaran, true) || [];
+        res.json({ success: true, tipe_anggaran: tipeAnggaran, data });
+    } catch (error) {
+        console.error('❌ Error GET /api/pembiayaan-netto/rab:', error.message);
+        res.status(500).json({ success: false, error: error.message, data: [] });
+    }
+});
+
 // GET /api/rab?tahun=YYYY[&tipe=MURNI|PERUBAHAN]              -> daftar ringkasan
 // GET /api/rab?kode_unik_full=..&tahun=YYYY[&tipe=PERUBAHAN]  -> detail (items + rpjm_data)
 app.get('/api/rab', async (req, res) => {
@@ -3460,12 +3484,13 @@ app.get('/api/rab', async (req, res) => {
         const { kode_unik_full, tahun } = req.query;
         const tahunInt = parseInt(tahun, 10) || 2027;
         const tipeAnggaran = normalizeRabTipe(req.query.tipe || req.query.tipe_anggaran);
+        const withItems = req.query.with_items === 'true' || req.query.include_items === 'true' || req.query.for_module === 'pembiayaan_netto';
 
         if (!kode_unik_full) {
-            console.log(`📡 GET /api/rab?tahun=${tahunInt}&tipe=${tipeAnggaran}`);
+            console.log(`📡 GET /api/rab?tahun=${tahunInt}&tipe=${tipeAnggaran}&withItems=${withItems}`);
             let data = [];
             try {
-                data = await listRabsFromDb(tahunInt, tipeAnggaran) || [];
+                data = await listRabsFromDb(tahunInt, tipeAnggaran, withItems) || [];
             } catch (listErr) {
                 console.warn('⚠️ Gagal daftar RAB:', listErr.message);
                 data = [];

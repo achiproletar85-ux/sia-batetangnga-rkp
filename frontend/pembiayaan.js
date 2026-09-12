@@ -362,6 +362,13 @@ function resolveJenisKegiatanKelompokFallback(item) {
     return val || 'Kelompok Kegiatan Utama';
 }
 
+function getSubItemBullet(index) {
+    if (index < 26) return String.fromCharCode(97 + index) + '.';
+    const f = String.fromCharCode(97 + Math.floor(index / 26) - 1);
+    const s = String.fromCharCode(97 + (index % 26));
+    return `${f}${s}.`;
+}
+
 // 2. FUNGSI RENDER TABEL UTAMA (SATU LAYOUT UNIFIED RESMI WITH 11 COLUMNS)
 function renderTabelPembiayaan(rawData) {
     if (!Array.isArray(rawData) || rawData.length === 0) return '';
@@ -375,6 +382,15 @@ function renderTabelPembiayaan(rawData) {
 
     let html = '';
     let globalItemNo = 1;
+
+    let totalPAD = 0;
+    let totalDDS = 0;
+    let totalADD = 0;
+    let totalPBH = 0;
+    let totalAPBDProv = 0;
+    let totalAPBDKab = 0;
+    let totalLainnya = 0;
+    let totalSemua = 0;
 
     for (let b = 1; b <= 5; b++) {
         const namaBidang = masterBidangList.find(mb => mb.key === b)?.name || `Bidang ${b}`;
@@ -442,9 +458,11 @@ function renderTabelPembiayaan(rawData) {
                         html += `
                             <tr class="bg-white border border-slate-300 font-bold hover:bg-slate-50 transition">
                                 <td class="border border-slate-300 text-center font-bold text-slate-600 text-xs py-1.5">${globalItemNo++}</td>
-                                <td colspan="9" class="border border-slate-300 p-2 font-bold text-slate-900 text-xs pl-6">
+                                <td class="border border-slate-300 text-xs font-mono text-slate-500 px-2 py-1.5">${escHtml(act.kode_unik_full || act.kode_unik || '')}</td>
+                                <td class="border border-slate-300 p-2 font-bold text-slate-900 text-xs">
                                     ${escHtml(namaKegiatan)}
                                 </td>
+                                <td colspan="7" class="border border-slate-300 bg-slate-50/50"></td>
                                 <td class="border border-slate-300 text-center px-2 py-1 no-print print:hidden whitespace-nowrap">
                                     <button onclick="editDiRAB('${itemKey}', '${act.tahun}')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded text-xs font-semibold shadow-sm transition">
                                         <i class="fas fa-pencil-alt mr-1"></i> Edit RAB
@@ -453,7 +471,7 @@ function renderTabelPembiayaan(rawData) {
                             </tr>
                         `;
 
-                        // Child Uraian items breakdown
+                        // Child Uraian items breakdown (ekstraksi rincian item / per jabatan)
                         let childItems = act.items;
                         if (typeof childItems === 'string') {
                             try { childItems = JSON.parse(childItems); } catch(e) {}
@@ -465,6 +483,9 @@ function renderTabelPembiayaan(rawData) {
                                 group: act.group_nama || 'Belanja Barang dan Jasa',
                                 subgroup: act.sub_group_nama || 'Sub Group Belanja',
                                 uraian: act.uraian || act.nama_kegiatan,
+                                volume: act.volume,
+                                satuan: act.satuan,
+                                harga_satuan: act.harga_satuan,
                                 jumlah: Number(act.jumlah_anggaran || act.harga_satuan * act.volume || 0),
                                 sumber: act.sumber_dana || 'ADD'
                             }];
@@ -473,7 +494,7 @@ function renderTabelPembiayaan(rawData) {
                         const gMap = new Map();
                         listUraian.forEach(c => {
                             const gName = (c.group || act.group_nama || '').trim();
-                            const sgName = (c.subgroup || act.sub_group_nama || '').trim();
+                            const sgName = (c.subgroup || c.sub_kelompok || act.sub_group_nama || '').trim();
                             if (!gMap.has(gName)) gMap.set(gName, new Map());
                             const sgMap = gMap.get(gName);
                             if (!sgMap.has(sgName)) sgMap.set(sgName, []);
@@ -481,11 +502,12 @@ function renderTabelPembiayaan(rawData) {
                         });
 
                         gMap.forEach((sgMap, gName) => {
-                            if (gName) {
+                            if (gName && gName.toLowerCase() !== namaKegiatan.toLowerCase()) {
                                 html += `
                                     <tr class="bg-amber-50/70 font-bold border border-slate-300">
                                         <td class="border border-slate-300"></td>
-                                        <td colspan="9" class="border border-slate-300 px-2 py-1 text-xs text-amber-900 font-extrabold italic pl-8">
+                                        <td class="border border-slate-300"></td>
+                                        <td colspan="8" class="border border-slate-300 px-3 py-1 text-xs text-amber-900 font-extrabold italic pl-6">
                                             📦 ${escHtml(gName)}
                                         </td>
                                         <td class="border border-slate-300 no-print print:hidden"></td>
@@ -494,24 +516,31 @@ function renderTabelPembiayaan(rawData) {
                             }
 
                             sgMap.forEach((uList, sgName) => {
-                                if (sgName && sgName !== gName) {
+                                if (sgName && sgName.toLowerCase() !== (gName || '').toLowerCase() && sgName.toLowerCase() !== namaKegiatan.toLowerCase()) {
                                     html += `
                                         <tr class="bg-slate-50/90 font-semibold border border-slate-300">
                                             <td class="border border-slate-300"></td>
-                                            <td colspan="9" class="border border-slate-300 px-2 py-1 text-[11.5px] text-slate-800 font-semibold italic pl-10">
+                                            <td class="border border-slate-300"></td>
+                                            <td colspan="8" class="border border-slate-300 px-3 py-1 text-[11.5px] text-slate-800 font-semibold italic pl-8">
                                                 📂 ${escHtml(sgName)}
                                             </td>
                                             <td class="border border-slate-300 no-print print:hidden"></td>
                                         </tr>
                                     `;
                                 }
-                                 let charIndex = 97;
-                                uList.forEach(c => {
-                                    const charLabel = String.fromCharCode(charIndex) + '.';
-                                    const nomVal = Number(c.jumlah || c.harga || 0);
+
+                                uList.forEach((c, itemIdx) => {
+                                    const charLabel = getSubItemBullet(itemIdx);
+                                    const vol = (c.volume != null && c.volume !== '' && Number(c.volume) > 0) ? Number(c.volume) : null;
+                                    const sat = c.satuan ? String(c.satuan).trim() : '';
+                                    const volSat = (vol && sat) ? ` <span class="text-slate-500 font-normal">(${vol} ${escHtml(sat)})</span>` : (sat ? ` <span class="text-slate-500 font-normal">(${escHtml(sat)})</span>` : '');
+                                    const hrg = Number(c.harga_satuan || c.harga || 0);
+                                    const tarifStr = (hrg > 0 && vol && vol > 1) ? ` <span class="text-slate-400 text-[11px]">@ Rp ${Math.round(hrg).toLocaleString('id-ID')}</span>` : '';
+
+                                    const nomVal = Number(c.jumlah || c.total || (vol && hrg ? vol * hrg : 0) || hrg || 0);
                                     const valStr = nomVal > 0 ? formatRupiah(nomVal) : '-';
 
-                                    const colType = getKolomSumberPembiayaan(c.sumber || act.sumber_dana);
+                                    const colType = getKolomSumberPembiayaan(c.sumber || c.sumber_dana || act.sumber_dana);
                                     const isPAD = colType === 'PAD';
                                     const isDDS = colType === 'DDS';
                                     const isADD = colType === 'ADD';
@@ -520,12 +549,21 @@ function renderTabelPembiayaan(rawData) {
                                     const isAPBDKab = colType === 'APBD_KAB';
                                     const isLainnya = colType === 'lainnya';
 
+                                    if (isPAD) totalPAD += nomVal;
+                                    else if (isDDS) totalDDS += nomVal;
+                                    else if (isADD) totalADD += nomVal;
+                                    else if (isBagiHasil) totalPBH += nomVal;
+                                    else if (isAPBDProv) totalAPBDProv += nomVal;
+                                    else if (isAPBDKab) totalAPBDKab += nomVal;
+                                    else totalLainnya += nomVal;
+                                    totalSemua += nomVal;
+
                                     html += `
                                         <tr class="border border-slate-300 hover:bg-slate-50 transition">
-                                            <td class="border border-slate-300 text-center py-1"></td>
+                                            <td class="border border-slate-300 text-center py-1 text-slate-400 text-[10px]"></td>
                                             <td class="border border-slate-300"></td>
-                                            <td class="border border-slate-300 text-left pl-8 text-xs text-slate-800">
-                                                <span class="font-semibold text-slate-700">${charLabel}</span> ${escHtml(c.uraian || '-')}
+                                            <td class="border border-slate-300 text-left pl-10 text-xs text-slate-800">
+                                                <span class="font-semibold text-slate-700">${charLabel}</span> ${escHtml(c.uraian || '-')}${volSat}${tarifStr}
                                             </td>
                                             <td class="border border-slate-300 text-right px-2 py-1 text-xs font-mono">${isPAD ? valStr : '-'}</td>
                                             <td class="border border-slate-300 text-right px-2 py-1 text-xs font-mono">${isDDS ? valStr : '-'}</td>
@@ -537,7 +575,6 @@ function renderTabelPembiayaan(rawData) {
                                             <td class="border border-slate-300 text-center no-print print:hidden"></td>
                                         </tr>
                                     `;
-                                    charIndex++;
                                 });
                             });
                         });
@@ -561,6 +598,28 @@ function renderTabelPembiayaan(rawData) {
             `;
         }
     }
+
+    // Render Baris Grand Total Pengeluaran Pembiayaan
+    html += `
+        <tr class="bg-slate-200 font-extrabold text-slate-900 border-2 border-slate-400">
+            <td colspan="3" class="text-center py-2 px-3 uppercase tracking-wider font-extrabold border border-slate-400">JUMLAH TOTAL PENGELUARAN PEMBIAYAAN</td>
+            <td class="text-right px-2 py-2 font-mono font-bold border border-slate-400">${totalPAD > 0 ? formatRupiah(totalPAD) : '-'}</td>
+            <td class="text-right px-2 py-2 font-mono font-bold border border-slate-400">${totalDDS > 0 ? formatRupiah(totalDDS) : '-'}</td>
+            <td class="text-right px-2 py-2 font-mono font-bold border border-slate-400">${totalADD > 0 ? formatRupiah(totalADD) : '-'}</td>
+            <td class="text-right px-2 py-2 font-mono font-bold border border-slate-400">${totalPBH > 0 ? formatRupiah(totalPBH) : '-'}</td>
+            <td class="text-right px-2 py-2 font-mono font-bold border border-slate-400">${totalAPBDProv > 0 ? formatRupiah(totalAPBDProv) : '-'}</td>
+            <td class="text-right px-2 py-2 font-mono font-bold border border-slate-400">${totalAPBDKab > 0 ? formatRupiah(totalAPBDKab) : '-'}</td>
+            <td class="text-right px-2 py-2 font-mono font-bold border border-slate-400">${totalLainnya > 0 ? formatRupiah(totalLainnya) : '-'}</td>
+            <td class="border border-slate-400 no-print print:hidden"></td>
+        </tr>
+        <tr class="bg-indigo-900 text-white font-extrabold border-2 border-indigo-950">
+            <td colspan="3" class="text-center py-2.5 px-3 uppercase tracking-wider font-extrabold border border-indigo-950">TOTAL KESELURUHAN ANGGARAN PEMBIAYAAN PEMBANGUNAN DESA</td>
+            <td colspan="7" class="text-center px-4 py-2.5 font-mono text-sm font-black border border-indigo-950 text-amber-300">
+                ${formatRupiah(totalSemua)}
+            </td>
+            <td class="border border-indigo-950 no-print print:hidden"></td>
+        </tr>
+    `;
 
     return html;
 }
@@ -850,6 +909,12 @@ function normalisasiRabRows(row) {
     if (!row) return row;
     const bidang = normalizeBidang(row.bidang || (row.rpjm_data && row.rpjm_data.bidang));
     const uraian = String(row.uraian || row.nama_kegiatan || (row.rpjm_data && row.rpjm_data.nama_kegiatan) || '').trim();
+    
+    let parsedItems = row.items;
+    if (typeof parsedItems === 'string') {
+        try { parsedItems = JSON.parse(parsedItems); } catch(_) { parsedItems = []; }
+    }
+
     return {
         id: row.id,
         kode_unik: row.kode_unik || '',
@@ -866,7 +931,7 @@ function normalisasiRabRows(row) {
         satuan: row.satuan,
         harga_satuan: Number(row.harga_satuan || 0),
         jumlah_anggaran: Number(row.jumlah_anggaran || 0),
-        items: Array.isArray(row.items) ? row.items : [],
+        items: Array.isArray(parsedItems) ? parsedItems : [],
         sumber_dana: row.sumber_dana || '',
         lokasi: row.lokasi_kegiatan || row.lokasi || '',
         rpjm_data: { ...(row.rpjm_data || {}), bidang: bidang }
@@ -888,14 +953,19 @@ async function loadPembiayaanData() {
     try {
         let rawData = [];
 
-        // SUMBER DATA: LANGSUNG dari tabel `rab` — setiap baris = kegiatan RAB
-        // yang tersimpan di Supabase (BUKAN dari master rancangan_rkpdes).
-        // cache: 'no-store' memastikan selalu ambil versi terbaru RAB (tanpa cache browser).
+        // SUMBER DATA KHUSUS PEMBIAYAAN NETTO: Memuat baris RAB dengan rincian items per jabatan
         try {
-            const res = await fetch(`/api/rab?tahun=${activeYear}`, { cache: 'no-store' });
+            const res = await fetch(`/api/pembiayaan-netto/rab?tahun=${activeYear}`, { cache: 'no-store' });
             const json = await res.json();
-            if (json.success && Array.isArray(json.data)) {
+            if (json.success && Array.isArray(json.data) && json.data.length > 0) {
                 rawData = json.data;
+            } else {
+                // Fallback ke endpoint /api/rab dengan param with_items
+                const resFallback = await fetch(`/api/rab?tahun=${activeYear}&with_items=true&for_module=pembiayaan_netto`, { cache: 'no-store' });
+                const jsonFallback = await resFallback.json();
+                if (jsonFallback.success && Array.isArray(jsonFallback.data)) {
+                    rawData = jsonFallback.data;
+                }
             }
         } catch (errApi) {
             console.warn("Fallback ke API tidak tersedia:", errApi.message);
