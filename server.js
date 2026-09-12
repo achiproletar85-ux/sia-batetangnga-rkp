@@ -1632,7 +1632,9 @@ const RPJM_LOOKUP_COLUMNS = [
     'bidang', 'jenis_bidang', 'jenis_kegiatan', 'nama_kegiatan',
     'data_existing', 'sdgs', 'volume_kegiatan', 'pagu_rpjm', 'sumber_dana',
     'manfaat_l', 'manfaat_p', 'manfaat_rtm', 'total_manfaat',
-    'lokasi_kegiatan', 'waktu_pelaksanaan', 'nama_pengusul', 'updated_at'
+    'lokasi_kegiatan', 'waktu_pelaksanaan', 'nama_pengusul',
+    'visi_misi', 'pokok_bpd', 'program_masyarakat', 'prioritas_sdgs_skor',
+    'updated_at'
 ].join(', ');
 
 // Cache in-memory + TTL utk lookup rpjmdes_standar (data referensi, jarang berubah).
@@ -1769,20 +1771,51 @@ const TEMPLATES_COLUMNS = 'id, code, name, stage, documentid, is_real, fields, t
 
 const RKTL_COLUMNS = 'id, tahun, rktl_items, ketua_tim, tim_penyusun, fasilitator, tanggal_ttd, updated_at';
 
+// In-memory cache untuk GET /api/rpjmdes-standar (TTL 5 menit)
+const rpjmdesStandarCache = new Map();
+const RPJMDES_STANDAR_CACHE_TTL_MS = 5 * 60 * 1000;
+
 app.get('/api/rpjmdes-standar', async (req, res) => {
     try {
-        const { tahun } = req.query;
+        const { tahun, refresh } = req.query;
         const tahunInt = parseInt(tahun) || 2027;
         console.log(`📡 GET /api/rpjmdes-standar?tahun=${tahunInt}`);
 
-        const { data, error } = await supabase
+        if (refresh !== 'true' && refresh !== '1') {
+            const cached = rpjmdesStandarCache.get(tahunInt);
+            if (cached && (Date.now() - cached.timestamp < RPJMDES_STANDAR_CACHE_TTL_MS)) {
+                return res.json({
+                    success: true,
+                    from_cache: true,
+                    data: cached.data,
+                    message: `Berhasil memuat ${cached.data.length} kegiatan RPJMDes untuk tahun ${tahunInt} (cache memori).`
+                });
+            }
+        }
+
+        const targetCol = `target_${tahunInt}`;
+        // Kueri terarah langsung ke Supabase dengan filter target tahun untuk cegah Error 504 Timeout
+        let { data, error } = await supabase
             .from('rpjmdes_standar')
             .select(RPJMDES_LIST_COLUMNS)
-            .limit(1000);
+            .or(`${targetCol}.eq.${tahunInt},${targetCol}.ilike.ya,${targetCol}.eq.Ya`)
+            .order('kode_unik_full', { ascending: true });
+
+        if (error || !data || data.length === 0) {
+            const { data: fbData, error: fbErr } = await supabase
+                .from('rpjmdes_standar')
+                .select(RPJMDES_LIST_COLUMNS)
+                .limit(1000);
+            if (!fbErr && fbData) {
+                data = fbData.filter(item => isRpjmTargetDitarik(item, tahunInt));
+            } else if (error) {
+                throw error;
+            }
+        }
 
         // Hanya kegiatan dengan nilai "Ya" atau teks tahun tsb di kolom
         // target_<TAHUN> yang dianggap ditarik (nilai Tidak/'-'/kosong = tidak).
-        const filteredData = data.filter(item => isRpjmTargetDitarik(item, tahunInt));
+        const filteredData = (data || []).filter(item => isRpjmTargetDitarik(item, tahunInt));
 
         const resultData = filteredData.map(item => {
             const kodeUnik = (item.kode_unik && String(item.kode_unik) !== 'null')
@@ -1799,6 +1832,11 @@ app.get('/api/rpjmdes-standar', async (req, res) => {
                 sumber_pembiayaan: item.sumber_dana || '',
                 uraian: item.nama_kegiatan || item.jenis_kegiatan || ''
             };
+        });
+
+        rpjmdesStandarCache.set(tahunInt, {
+            data: resultData,
+            timestamp: Date.now()
         });
 
         res.json({
@@ -2288,12 +2326,24 @@ app.get('/api/prioritas-usulan/tarik-rpjm', async (req, res) => {
         }
         console.log(`📡 GET /api/prioritas-usulan/tarik-rpjm?tahun=${tahunInt}`);
 
-        const { data, error } = await supabase
+        const targetCol = `target_${tahunInt}`;
+        let { data, error } = await supabase
             .from('rpjmdes_standar')
             .select(RPJMDES_LIST_COLUMNS)
-            .order('kode_unik_full', { ascending: true })
-            .limit(2000);
-        if (error) throw error;
+            .or(`${targetCol}.eq.${tahunInt},${targetCol}.ilike.ya,${targetCol}.eq.Ya`)
+            .order('kode_unik_full', { ascending: true });
+
+        if (error || !data || data.length === 0) {
+            const { data: fbData, error: fbErr } = await supabase
+                .from('rpjmdes_standar')
+                .select(RPJMDES_LIST_COLUMNS)
+                .limit(1000);
+            if (!fbErr && fbData) {
+                data = fbData.filter(item => isRpjmTargetDitarik(item, tahunInt));
+            } else if (error) {
+                throw error;
+            }
+        }
 
         const filtered = (data || []).filter(item => isRpjmTargetDitarik(item, tahunInt));
         const payload = filtered.map(row => buildPrioritasInsertItem(row, tahunInt));
@@ -2383,10 +2433,19 @@ app.get(['/api/usulan', '/api/usulan-masyarakat'], async (req, res) => {
         if (resultRows.length === 0 && tahun) {
             const tahunInt = parseInt(tahun, 10);
             const targetCol = `target_${tahunInt}`;
-            const { data: stdData } = await supabase
+            let { data: stdData, error: stdErr } = await supabase
                 .from('rpjmdes_standar')
                 .select('id, kode_bidang, kode_sub, kode_kegiatan, kode_unik_full, kode_unik, nama_kegiatan, jenis_kegiatan, bidang, lokasi_kegiatan, volume_kegiatan, pagu_rpjm, sumber_dana, nama_pengusul, ' + targetCol)
+                .or(`${targetCol}.eq.${tahunInt},${targetCol}.ilike.ya,${targetCol}.eq.Ya`)
                 .limit(1000);
+
+            if (stdErr || !stdData || stdData.length === 0) {
+                const { data: fbStd } = await supabase
+                    .from('rpjmdes_standar')
+                    .select('id, kode_bidang, kode_sub, kode_kegiatan, kode_unik_full, kode_unik, nama_kegiatan, jenis_kegiatan, bidang, lokasi_kegiatan, volume_kegiatan, pagu_rpjm, sumber_dana, nama_pengusul, ' + targetCol)
+                    .limit(1000);
+                if (fbStd) stdData = fbStd;
+            }
 
             if (Array.isArray(stdData) && stdData.length > 0) {
                 resultRows = stdData.filter(item => {
@@ -2628,14 +2687,24 @@ app.get('/api/rancangan-rkpdes/tarik-rpjm', async (req, res) => {
         if (!tahunInt) {
             return res.status(400).json({ success: false, error: 'Parameter tahun dibutuhkan.', data: [] });
         }
-        console.log(`📡 GET /api/rancangan-rkpdes/tarik-rpjm?tahun=${tahunInt}`);
-
-        const { data, error } = await supabase
+        const targetCol = `target_${tahunInt}`;
+        let { data, error } = await supabase
             .from('rpjmdes_standar')
             .select(RPJMDES_LIST_COLUMNS)
-            .order('kode_unik_full', { ascending: true })
-            .limit(5000);
-        if (error) throw error;
+            .or(`${targetCol}.eq.${tahunInt},${targetCol}.ilike.ya,${targetCol}.eq.Ya`)
+            .order('kode_unik_full', { ascending: true });
+
+        if (error || !data || data.length === 0) {
+            const { data: fbData, error: fbErr } = await supabase
+                .from('rpjmdes_standar')
+                .select(RPJMDES_LIST_COLUMNS)
+                .limit(1000);
+            if (!fbErr && fbData) {
+                data = fbData.filter(item => isRpjmTargetDitarik(item, tahunInt));
+            } else if (error) {
+                throw error;
+            }
+        }
 
         const filtered = (data || []).filter(item => isRpjmTargetDitarik(item, tahunInt));
 
@@ -2878,12 +2947,23 @@ app.get('/api/prioritas-rkpdes/tarik-rancangan', async (req, res) => {
             .eq('tahun', tahunInt);
         if (error) throw error;
 
-        // Ambil data referensi nilai skoring dan kegiatan ber-target tahunInt dari rpjmdes_standar
-        const { data: rpjmRows } = await supabase
+        // Ambil data referensi nilai skoring dan kegiatan ber-target tahunInt dari rpjmdes_standar secara terarah
+        const targetCol = `target_${tahunInt}`;
+        let { data: rpjmRows, error: rpjmErr } = await supabase
             .from('rpjmdes_standar')
             .select(RPJMDES_LIST_COLUMNS)
-            .order('kode_unik_full', { ascending: true })
-            .limit(2000);
+            .or(`${targetCol}.eq.${tahunInt},${targetCol}.ilike.ya,${targetCol}.eq.Ya`)
+            .order('kode_unik_full', { ascending: true });
+
+        if (rpjmErr || !rpjmRows || rpjmRows.length === 0) {
+            const { data: fbRows } = await supabase
+                .from('rpjmdes_standar')
+                .select(RPJMDES_LIST_COLUMNS)
+                .limit(1000);
+            if (fbRows) {
+                rpjmRows = fbRows.filter(rp => isRpjmTargetDitarik(rp, tahunInt));
+            }
+        }
 
         const rpjmScoreMap = new Map();
         (rpjmRows || []).forEach(rp => {
@@ -3218,11 +3298,22 @@ app.get('/api/prioritas-rkpdes', async (req, res) => {
                 .eq('tahun', tahunInt);
             if (fetchErr) throw fetchErr;
 
-            const { data: rpjmRows } = await supabase
+            const targetCol = `target_${tahunInt}`;
+            let { data: rpjmRows, error: rpjmErr } = await supabase
                 .from('rpjmdes_standar')
                 .select(RPJMDES_LIST_COLUMNS)
-                .order('kode_unik_full', { ascending: true })
-                .limit(2000);
+                .or(`${targetCol}.eq.${tahunInt},${targetCol}.ilike.ya,${targetCol}.eq.Ya`)
+                .order('kode_unik_full', { ascending: true });
+
+            if (rpjmErr || !rpjmRows || rpjmRows.length === 0) {
+                const { data: fbRows } = await supabase
+                    .from('rpjmdes_standar')
+                    .select(RPJMDES_LIST_COLUMNS)
+                    .limit(1000);
+                if (fbRows) {
+                    rpjmRows = fbRows.filter(rp => isRpjmTargetDitarik(rp, tahunInt));
+                }
+            }
 
             const rpjmScoreMap = new Map();
             const targetStdKodeSet = new Set();
@@ -3522,6 +3613,220 @@ app.delete('/api/prioritas-rkpdes', async (req, res) => {
     } catch (error) {
         console.error('❌ Error DELETE /api/prioritas-rkpdes:', error.message);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
+// UNIVERSAL FAST SEARCH API — /api/search/kegiatan & /api/search
+// Pencarian lintas tabel: prioritas_usulan, rpjmdes_standar,
+// prioritas_rkpdes, rancangan_rkpdes, dan usulan.
+// - Mendukung pencarian kode unik seperti 02.03.13.07 (dengan/tanpa titik)
+//   dan pencarian teks nama kegiatan.
+// - Menggunakan nama kolom yang benar:
+//   * nama_kegiatan pada prioritas_usulan, rpjmdes_standar, prioritas_rkpdes, rancangan_rkpdes.
+//   * nama_kegiatan pada usulan (bukan jenis_kegiatan).
+// ============================================================
+const universalSearchCache = new Map();
+const UNIVERSAL_SEARCH_CACHE_TTL_MS = 2 * 60 * 1000; // 2 menit
+
+app.get(['/api/search/kegiatan', '/api/search'], async (req, res) => {
+    try {
+        const q = String(req.query.q || req.query.kode || req.query.query || '').trim();
+        const tahun = req.query.tahun ? parseInt(req.query.tahun, 10) : null;
+        const targetTable = req.query.table ? String(req.query.table).trim().toLowerCase() : null;
+        const limitPerTable = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+
+        if (!q) {
+            return res.json({ success: true, data: [], total: 0, message: 'Keyword pencarian (q) kosong.' });
+        }
+
+        const cacheKey = `${q.toLowerCase()}_${tahun || 'all'}_${targetTable || 'all'}_${limitPerTable}`;
+        const cached = universalSearchCache.get(cacheKey);
+        if (cached && (Date.now() - cached.timestamp < UNIVERSAL_SEARCH_CACHE_TTL_MS)) {
+            return res.json({ success: true, from_cache: true, total: cached.data.length, data: cached.data });
+        }
+
+        // Normalisasi keyword: hilangkan trailing dot untuk fleksibilitas pencarian kode unik
+        const qClean = q.replace(/\.+$/, '');
+        const pattern = `%${qClean}%`;
+
+        const searchPromises = [];
+
+        // 1. prioritas_usulan (kolom: nama_kegiatan, bukan kegiatan)
+        if (!targetTable || targetTable === 'prioritas_usulan') {
+            searchPromises.push((async () => {
+                let query = supabase
+                    .from('prioritas_usulan')
+                    .select('id, tahun, kode_unik, kode_unik_full, nama_kegiatan, jenis_bidang, jenis_kegiatan, bidang, lokasi_kegiatan, volume_kegiatan, pagu_rpjm, ranking, urutan_prioritas')
+                    .or(`kode_unik_full.ilike.${pattern},kode_unik.ilike.${pattern},nama_kegiatan.ilike.${pattern}`)
+                    .limit(limitPerTable);
+                if (tahun) query = query.eq('tahun', tahun);
+                const { data, error } = await query;
+                if (error) {
+                    console.warn('⚠️ Search prioritas_usulan error:', error.message);
+                    return [];
+                }
+                return (data || []).map(r => ({
+                    source_table: 'prioritas_usulan',
+                    id: r.id,
+                    tahun: r.tahun,
+                    kode_unik: r.kode_unik,
+                    kode_unik_full: r.kode_unik_full,
+                    nama_kegiatan: r.nama_kegiatan,
+                    jenis_bidang: r.jenis_bidang,
+                    jenis_kegiatan: r.jenis_kegiatan,
+                    bidang: r.bidang,
+                    lokasi: r.lokasi_kegiatan,
+                    volume: r.volume_kegiatan,
+                    biaya: r.pagu_rpjm,
+                    ranking: r.ranking,
+                    urutan: r.urutan_prioritas
+                }));
+            })());
+        }
+
+        // 2. rpjmdes_standar (kolom: nama_kegiatan, bukan kegiatan)
+        if (!targetTable || targetTable === 'rpjmdes_standar') {
+            searchPromises.push((async () => {
+                let query = supabase
+                    .from('rpjmdes_standar')
+                    .select('id, kode_unik, kode_unik_full, nama_kegiatan, jenis_bidang, jenis_kegiatan, bidang, lokasi_kegiatan, volume_kegiatan, pagu_rpjm, ranking')
+                    .or(`kode_unik_full.ilike.${pattern},kode_unik.ilike.${pattern},nama_kegiatan.ilike.${pattern}`)
+                    .limit(limitPerTable);
+                const { data, error } = await query;
+                if (error) {
+                    console.warn('⚠️ Search rpjmdes_standar error:', error.message);
+                    return [];
+                }
+                return (data || []).map(r => ({
+                    source_table: 'rpjmdes_standar',
+                    id: r.id,
+                    tahun: tahun || null,
+                    kode_unik: r.kode_unik,
+                    kode_unik_full: r.kode_unik_full,
+                    nama_kegiatan: r.nama_kegiatan,
+                    jenis_bidang: r.jenis_bidang,
+                    jenis_kegiatan: r.jenis_kegiatan,
+                    bidang: r.bidang,
+                    lokasi: r.lokasi_kegiatan,
+                    volume: r.volume_kegiatan,
+                    biaya: r.pagu_rpjm,
+                    ranking: r.ranking
+                }));
+            })());
+        }
+
+        // 3. prioritas_rkpdes (kolom: nama_kegiatan, bukan kegiatan)
+        if (!targetTable || targetTable === 'prioritas_rkpdes') {
+            searchPromises.push((async () => {
+                let query = supabase
+                    .from('prioritas_rkpdes')
+                    .select('id, tahun, kode_unik, kode_unik_full, nama_kegiatan, sub_kegiatan, jenis_bidang, jenis_kegiatan, bidang, lokasi, volume, pagu_rpjm, prakiraan_biaya, total_skor, ranking')
+                    .or(`kode_unik_full.ilike.${pattern},kode_unik.ilike.${pattern},nama_kegiatan.ilike.${pattern}`)
+                    .limit(limitPerTable);
+                if (tahun) query = query.eq('tahun', tahun);
+                const { data, error } = await query;
+                if (error) {
+                    console.warn('⚠️ Search prioritas_rkpdes error:', error.message);
+                    return [];
+                }
+                return (data || []).map(r => ({
+                    source_table: 'prioritas_rkpdes',
+                    id: r.id,
+                    tahun: r.tahun,
+                    kode_unik: r.kode_unik,
+                    kode_unik_full: r.kode_unik_full,
+                    nama_kegiatan: r.nama_kegiatan || r.sub_kegiatan,
+                    jenis_bidang: r.jenis_bidang,
+                    jenis_kegiatan: r.jenis_kegiatan,
+                    bidang: r.bidang,
+                    lokasi: r.lokasi,
+                    volume: r.volume,
+                    biaya: r.prakiraan_biaya || r.pagu_rpjm,
+                    skor: r.total_skor,
+                    ranking: r.ranking
+                }));
+            })());
+        }
+
+        // 4. rancangan_rkpdes (kolom: nama_kegiatan, bukan kegiatan)
+        if (!targetTable || targetTable === 'rancangan_rkpdes') {
+            searchPromises.push((async () => {
+                let query = supabase
+                    .from('rancangan_rkpdes')
+                    .select('id, tahun, kode_unik, kode_unik_full, nama_kegiatan, sub_kegiatan, jenis_bidang, jenis_kegiatan, bidang, lokasi, volume_satuan, pagu_rpjm, prakiraan_biaya')
+                    .or(`kode_unik_full.ilike.${pattern},kode_unik.ilike.${pattern},nama_kegiatan.ilike.${pattern}`)
+                    .limit(limitPerTable);
+                if (tahun) query = query.eq('tahun', tahun);
+                const { data, error } = await query;
+                if (error) {
+                    console.warn('⚠️ Search rancangan_rkpdes error:', error.message);
+                    return [];
+                }
+                return (data || []).map(r => ({
+                    source_table: 'rancangan_rkpdes',
+                    id: r.id,
+                    tahun: r.tahun,
+                    kode_unik: r.kode_unik,
+                    kode_unik_full: r.kode_unik_full,
+                    nama_kegiatan: r.nama_kegiatan || r.sub_kegiatan,
+                    jenis_bidang: r.jenis_bidang,
+                    jenis_kegiatan: r.jenis_kegiatan,
+                    bidang: r.bidang,
+                    lokasi: r.lokasi,
+                    volume: r.volume_satuan,
+                    biaya: r.prakiraan_biaya || r.pagu_rpjm
+                }));
+            })());
+        }
+
+        // 5. usulan (kolom: nama_kegiatan, bukan jenis_kegiatan)
+        if (!targetTable || targetTable === 'usulan') {
+            searchPromises.push((async () => {
+                let query = supabase
+                    .from('usulan')
+                    .select('id, tahun, kode_unik, kode_unik_full, nama_kegiatan, bidang, lokasi, volume, biaya, nama_pengusul, pengusul')
+                    .or(`kode_unik_full.ilike.${pattern},kode_unik.ilike.${pattern},nama_kegiatan.ilike.${pattern}`)
+                    .limit(limitPerTable);
+                if (tahun) query = query.eq('tahun', tahun);
+                const { data, error } = await query;
+                if (error) {
+                    console.warn('⚠️ Search usulan error:', error.message);
+                    return [];
+                }
+                return (data || []).map(r => ({
+                    source_table: 'usulan',
+                    id: r.id,
+                    tahun: r.tahun,
+                    kode_unik: r.kode_unik,
+                    kode_unik_full: r.kode_unik_full,
+                    nama_kegiatan: r.nama_kegiatan,
+                    bidang: r.bidang,
+                    lokasi: r.lokasi,
+                    volume: r.volume,
+                    biaya: r.biaya,
+                    pengusul: r.nama_pengusul || r.pengusul
+                }));
+            })());
+        }
+
+        const nestedResults = await Promise.all(searchPromises);
+        const combined = nestedResults.flat();
+
+        universalSearchCache.set(cacheKey, {
+            data: combined,
+            timestamp: Date.now()
+        });
+
+        res.json({
+            success: true,
+            query: q,
+            total: combined.length,
+            data: combined
+        });
+    } catch (error) {
+        console.error('❌ Error in /api/search/kegiatan:', error.message);
+        res.status(500).json({ success: false, error: error.message, data: [] });
     }
 });
 
