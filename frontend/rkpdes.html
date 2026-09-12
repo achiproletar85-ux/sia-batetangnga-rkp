@@ -53,6 +53,9 @@
             }
 
             body { margin: 0 !important; padding: 0 !important; background: white !important; font-size: 10px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            body.print-perubahan { font-size: 8.5px !important; }
+            body.print-perubahan table { font-size: 8px !important; }
+            body.print-perubahan th, body.print-perubahan td { padding: 3px 2px !important; }
             .glass { background: transparent !important; backdrop-filter: none !important; border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; }
             .max-w-7xl, .container-full { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
             .shadow, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl, .rounded-lg, .rounded-xl, .rounded-2xl { box-shadow: none !important; }
@@ -77,14 +80,14 @@
             <div class="flex flex-wrap justify-between items-center gap-4">
                 <div>
                     <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
-                        <i class="fas fa-calendar-check text-indigo-600"></i> RKPDesa Tahun Berjalan
+                        <i class="fas fa-calendar-check text-indigo-600"></i> RKPDesa &amp; RKPDesa Perubahan
                     </h2>
-                    <p class="text-xs text-slate-500">Rencana Kerja Pemerintah Desa sesuai Format Matriks Dokumen Resmi</p>
+                    <p class="text-xs text-slate-500">Rencana Kerja Pemerintah Desa sesuai Format Matriks Dokumen Resmi (Murni &amp; Perubahan)</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
                     <div>
                         <label class="text-xs font-bold text-slate-500 uppercase mr-1">Tahun:</label>
-                        <select id="select-year" class="input-field inline-block w-28" onchange="loadRkpdesData()">
+                        <select id="select-year" class="input-field inline-block w-28" onchange="onYearChange()">
                             <option value="2022">2022</option>
                             <option value="2023">2023</option>
                             <option value="2024">2024</option>
@@ -102,8 +105,9 @@
                     </div>
                     <div>
                         <label class="text-xs font-bold text-slate-500 uppercase mr-1">Tim Penyusun:</label>
-                        <select id="select-tim-penyusun" class="input-field inline-block w-52" onchange="toggleManualTimPenyusun()">
-                            <option value="Abdul Azis, S. Pd|Ketua Tim Penyusun RKPDesa" selected>Abdul Azis, S. Pd (Ketua Tim)</option>
+                        <select id="select-tim-penyusun" class="input-field inline-block w-56 font-medium" onchange="toggleManualTimPenyusun()">
+                            <option value="ABDUL AZIS SPM|Ketua Tim Penyusun RKPDesa" selected>ABDUL AZIS SPM (Ketua Tim)</option>
+                            <option value="Abdul Azis, S. Pd|Ketua Tim Penyusun RKPDesa">Abdul Azis, S. Pd (Ketua Tim)</option>
                             <option value="Syarifuddin|Sekretaris Desa">Syarifuddin (Sekdes)</option>
                             <option value="Warman|Kaur Keuangan">Warman (Kaur Keuangan)</option>
                             <option value="Misbahuddin|Kaur Perencanaan">Misbahuddin (Kaur Perencanaan)</option>
@@ -116,8 +120,11 @@
                     <button class="btn-success text-xs" onclick="importRkpdesData()">
                         <i class="fas fa-download mr-1"></i> Sync / Import RAB
                     </button>
-                    <button class="btn-primary text-xs" onclick="window.print()">
-                        <i class="fas fa-print mr-1"></i> Cetak PDF
+                    <button id="btn-cetak-murni" class="btn-primary text-xs" onclick="cetakRkpdesMurni()" title="Cetak lembar RKPDes Murni">
+                        <i class="fas fa-print mr-1"></i> Cetak PDF RKPDes
+                    </button>
+                    <button id="btn-cetak-perubahan" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer" onclick="cetakRkpdesPerubahan()" title="Cetak lembar RKPDes Perubahan dengan perbandingan Semula, Menjadi, dan Selisih">
+                        <i class="fas fa-file-invoice mr-1"></i> Cetak RKPDes Perubahan
                     </button>
                 </div>
             </div>
@@ -130,6 +137,23 @@
                     <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Jabatan Manual:</label>
                     <input type="text" id="input-jabatan-manual-tim" class="input-field" placeholder="Masukkan Jabatan..." oninput="updateLivePreview()" />
                 </div>
+            </div>
+        </div>
+
+        <!-- TAB CONTROL: RKPDes Murni vs RKPDes Perubahan -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4 no-print">
+            <div class="inline-flex p-1 bg-slate-200/90 rounded-2xl border border-slate-300 shadow-inner">
+                <button type="button" id="tab-btn-murni" onclick="switchRkpdesTab('murni')" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm cursor-pointer">
+                    <i class="fas fa-scroll"></i> RKPDes Murni
+                </button>
+                <button type="button" id="tab-btn-perubahan" onclick="switchRkpdesTab('perubahan')" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer">
+                    <i class="fas fa-file-invoice-dollar text-amber-600"></i> RKPDes / RAB Perubahan
+                </button>
+            </div>
+            <div class="text-xs font-semibold text-slate-500 flex items-center gap-2">
+                <span id="tab-badge-info" class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1 rounded-lg font-bold">
+                    Mode: RKPDes Murni
+                </span>
             </div>
         </div>
 

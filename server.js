@@ -6133,6 +6133,200 @@ app.get('/api/rkpdes', async (req, res) => {
     }
 });
 
+// GET /api/rkpdes/perubahan - Perbandingan RKPDes SEMULA vs MENJADI vs SELISIH
+app.get('/api/rkpdes/perubahan', async (req, res) => {
+    try {
+        const { tahun } = req.query;
+        const tahunInt = parseInt(tahun, 10) || 2027;
+
+        // 1. Tarik data RKPDes Murni
+        let { data: rkpData, error: rkpErr } = await supabase
+            .from('rkpdes')
+            .select(RKPDES_COLUMNS)
+            .eq('tahun', tahunInt);
+        if (rkpErr && !isTableMissingError(rkpErr)) throw rkpErr;
+        let murniRows = rkpData || [];
+
+        // 2. Fallback jika rkpdes kosong: ambil dari RAB Murni
+        if (murniRows.length === 0) {
+            let { data: rabMurni } = await supabase
+                .from('rab')
+                .select(RAB_SYNC_COLUMNS)
+                .eq('tahun', tahunInt)
+                .eq('tipe_anggaran', 'MURNI');
+            murniRows = (rabMurni || []).map(rb => ({
+                id: rb.id,
+                tahun: tahunInt,
+                kode_unik_full: String(rb.kode_unik_full || rb.kode_unik || '').trim(),
+                bidang: rb.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
+                jenis_bidang: rb.jenis_bidang || '-',
+                jenis_kegiatan: rb.nama_kegiatan || rb.uraian || rb.jenis_kegiatan || '-',
+                nama_kegiatan: rb.nama_kegiatan || rb.uraian || '-',
+                lokasi: rb.lokasi || rb.lokasi_kegiatan || 'Desa Batetangnga',
+                volume: String(rb.volume || 1),
+                satuan: rb.satuan || 'Paket',
+                prakiraan_biaya: Number(rb.jumlah_anggaran || 0),
+                sumber_pembiayaan: rb.sumber_dana || 'DDS',
+                mendukung_sdgs: 'SDGs 17',
+                data_eksisting: '-',
+                penerima_manfaat: '-',
+                total_manfaat: null,
+                waktu_pelaksanaan: '12 Bulan',
+                pola_pelaksanaan: 'Swakelola'
+            }));
+        }
+
+        // 3. Tarik data RAB Perubahan
+        let { data: rabPerubahan, error: rabErr } = await supabase
+            .from('rab')
+            .select(RAB_SYNC_COLUMNS)
+            .eq('tahun', tahunInt)
+            .eq('tipe_anggaran', 'PERUBAHAN');
+        if (rabErr && !isTableMissingError(rabErr)) throw rabErr;
+        const perRows = rabPerubahan || [];
+
+        const perMap = new Map();
+        perRows.forEach(p => {
+            const k = String(p.kode_unik_full || p.kode_unik || '').trim();
+            if (k) perMap.set(k, p);
+        });
+
+        // 4. Pengayaan dengan metadata RPJMDes Standar
+        const rpjmLookup = await loadRpjmLookup();
+
+        const combinedMap = new Map();
+        murniRows.forEach(m => {
+            const code = String(m.kode_unik_full || m.kode_unik || m.id || '').trim();
+            if (!code) return;
+            const p = perMap.get(code);
+
+            const resolved = resolveRpjmStandar(code, m.bidang, null, m.nama_kegiatan || m.jenis_kegiatan, rpjmLookup);
+
+            const biayaSemula = Number(m.prakiraan_biaya || 0);
+            const biayaMenjadi = p ? Number(p.jumlah_anggaran || 0) : biayaSemula;
+            const selisih = biayaMenjadi - biayaSemula;
+
+            const volSemula = String(m.volume || 1);
+            const satSemula = String(m.satuan || 'Kegiatan');
+            const volMenjadi = p ? String(p.volume || volSemula) : volSemula;
+            const satMenjadi = p ? String(p.satuan || satSemula) : satSemula;
+
+            const sdgsVal = m.mendukung_sdgs || resolved.sdgs || '-';
+            const dataEksistingVal = m.data_eksisting || resolved.data_eksisting || '-';
+            const lokasiVal = m.lokasi || (p ? p.lokasi : 'Desa Batetangnga');
+            const manfaatVal = m.total_manfaat ? `${m.total_manfaat} Orang` : (m.penerima_manfaat || (resolved.total_manfaat ? `${resolved.total_manfaat} Orang` : '-'));
+            const sumberSemula = m.sumber_pembiayaan || 'DDS';
+            const sumberMenjadi = p ? (p.sumber_dana || sumberSemula) : sumberSemula;
+
+            combinedMap.set(code, {
+                id: m.id,
+                kode_unik_full: code,
+                bidang: m.bidang || resolved.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
+                jenis_bidang: m.jenis_bidang || resolved.jenis_bidang || '-',
+                jenis_kegiatan: m.jenis_kegiatan || m.nama_kegiatan || resolved.nama_kegiatan || '-',
+                nama_kegiatan: m.nama_kegiatan || m.jenis_kegiatan || resolved.nama_kegiatan || '-',
+                semula: {
+                    sdgs: sdgsVal,
+                    data_eksisting: dataEksistingVal,
+                    lokasi: m.lokasi || 'Desa Batetangnga',
+                    volume: volSemula,
+                    satuan: satSemula,
+                    volume_satuan: (volSemula.toLowerCase().includes(satSemula.toLowerCase()) || !satSemula) ? volSemula : `${volSemula} ${satSemula}`,
+                    penerima_manfaat: manfaatVal,
+                    waktu_pelaksanaan: m.waktu_pelaksanaan || '12 Bulan',
+                    sumber_biaya: sumberSemula,
+                    biaya: biayaSemula,
+                    pola_pelaksanaan: m.pola_pelaksanaan || 'Swakelola'
+                },
+                menjadi: {
+                    sdgs: sdgsVal,
+                    data_eksisting: dataEksistingVal,
+                    lokasi: lokasiVal,
+                    volume: volMenjadi,
+                    satuan: satMenjadi,
+                    volume_satuan: (volMenjadi.toLowerCase().includes(satMenjadi.toLowerCase()) || !satMenjadi) ? volMenjadi : `${volMenjadi} ${satMenjadi}`,
+                    penerima_manfaat: manfaatVal,
+                    waktu_pelaksanaan: m.waktu_pelaksanaan || '12 Bulan',
+                    sumber_biaya: sumberMenjadi,
+                    biaya: biayaMenjadi,
+                    pola_pelaksanaan: m.pola_pelaksanaan || 'Swakelola'
+                },
+                selisih: selisih,
+                status_perubahan: selisih > 0 ? 'bertambah' : (selisih < 0 ? 'berkurang' : 'tetap')
+            });
+        });
+
+        // 5. Tambahkan kegiatan yang HANYA ada di Perubahan (kegiatan baru)
+        perRows.forEach(p => {
+            const code = String(p.kode_unik_full || p.kode_unik || '').trim();
+            if (code && !combinedMap.has(code)) {
+                const resolved = resolveRpjmStandar(code, p.bidang, null, p.nama_kegiatan || p.uraian, rpjmLookup);
+                const biayaMenjadi = Number(p.jumlah_anggaran || 0);
+                const volMenjadi = String(p.volume || 1);
+                const satMenjadi = String(p.satuan || 'Kegiatan');
+
+                combinedMap.set(code, {
+                    id: p.id,
+                    kode_unik_full: code,
+                    bidang: p.bidang || resolved.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
+                    jenis_bidang: resolved.jenis_bidang || '-',
+                    jenis_kegiatan: p.nama_kegiatan || p.uraian || resolved.nama_kegiatan || '-',
+                    nama_kegiatan: p.nama_kegiatan || p.uraian || resolved.nama_kegiatan || '-',
+                    semula: {
+                        sdgs: '-',
+                        data_eksisting: '-',
+                        lokasi: '-',
+                        volume: '0',
+                        satuan: '-',
+                        volume_satuan: '-',
+                        penerima_manfaat: '-',
+                        waktu_pelaksanaan: '-',
+                        sumber_biaya: '-',
+                        biaya: 0,
+                        pola_pelaksanaan: '-'
+                    },
+                    menjadi: {
+                        sdgs: resolved.sdgs || '-',
+                        data_eksisting: resolved.data_eksisting || '-',
+                        lokasi: p.lokasi || 'Desa Batetangnga',
+                        volume: volMenjadi,
+                        satuan: satMenjadi,
+                        volume_satuan: `${volMenjadi} ${satMenjadi}`,
+                        penerima_manfaat: resolved.total_manfaat ? `${resolved.total_manfaat} Orang` : '-',
+                        waktu_pelaksanaan: '12 Bulan',
+                        sumber_biaya: p.sumber_dana || 'DDS',
+                        biaya: biayaMenjadi,
+                        pola_pelaksanaan: 'Swakelola'
+                    },
+                    selisih: biayaMenjadi,
+                    status_perubahan: 'kegiatan_baru'
+                });
+            }
+        });
+
+        const results = Array.from(combinedMap.values());
+        results.sort((a, b) => compareKodeUnikFull(a.kode_unik_full, b.kode_unik_full));
+
+        const grandTotal = results.reduce((acc, it) => {
+            acc.semula += it.semula.biaya;
+            acc.menjadi += it.menjadi.biaya;
+            acc.selisih += it.selisih;
+            return acc;
+        }, { semula: 0, menjadi: 0, selisih: 0 });
+
+        res.json({
+            success: true,
+            tahun: tahunInt,
+            count: results.length,
+            total: grandTotal,
+            data: results
+        });
+    } catch (error) {
+        console.error('❌ Error GET /api/rkpdes/perubahan:', error.message);
+        res.status(500).json({ success: false, error: error.message, data: [] });
+    }
+});
+
 // PUT /api/rkpdes - update satu baris rkpdes
 app.put('/api/rkpdes', async (req, res) => {
     try {

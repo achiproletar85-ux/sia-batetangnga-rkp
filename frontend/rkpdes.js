@@ -4,6 +4,9 @@ function switchTab(tab) {
 
 let rkpdesList = [];
 let activeYear = 2027;
+let currentRkpdesTab = 'murni';
+let rkpdesPerubahanList = [];
+let rkpdesPerubahanTotals = { semula: 0, menjadi: 0, selisih: 0 };
 
 const masterBidangList = [
     { key: 1, name: 'Bidang Penyelenggaraan Pemerintahan Desa' },
@@ -16,6 +19,14 @@ const masterBidangList = [
 function formatRupiah(num) {
     if (num === 0 || !num) return 'Rp 0';
     return 'Rp ' + Number(num).toLocaleString('id-ID');
+}
+
+function formatSelisihRupiah(num) {
+    if (num === 0 || !num) return 'Rp 0';
+    const n = Number(num);
+    const absStr = 'Rp ' + Math.abs(n).toLocaleString('id-ID');
+    if (n > 0) return `+${absStr}`;
+    return `-${absStr}`;
 }
 
 function showToast(msg, type = 'success') {
@@ -104,7 +115,7 @@ function getTimPenyusunInfo() {
     const val = select ? select.value : '';
 
     if (val === 'manual') {
-        const nama = document.getElementById('input-nama-manual-tim')?.value?.trim() || 'Abdul Azis, S. Pd';
+        const nama = document.getElementById('input-nama-manual-tim')?.value?.trim() || 'ABDUL AZIS SPM';
         const jabatan = document.getElementById('input-jabatan-manual-tim')?.value?.trim() || 'Ketua Tim Penyusun RKPDesa';
         return { nama, jabatan };
     }
@@ -114,7 +125,7 @@ function getTimPenyusunInfo() {
         return { nama: parts[0], jabatan: parts[1] };
     }
 
-    return { nama: 'Abdul Azis, S. Pd', jabatan: 'Ketua Tim Penyusun RKPDesa' };
+    return { nama: 'ABDUL AZIS SPM', jabatan: 'Ketua Tim Penyusun RKPDesa' };
 }
 
 function toggleManualTimPenyusun() {
@@ -127,7 +138,11 @@ function toggleManualTimPenyusun() {
             container.classList.add('hidden');
         }
     }
-    updateLivePreview();
+    if (currentRkpdesTab === 'perubahan') {
+        renderRkpdesPerubahanPreview();
+    } else {
+        updateLivePreview();
+    }
 }
 
 function parsePenerimaManfaat(item) {
@@ -308,6 +323,10 @@ function resolveJenisKegiatanKelompokFallback(item) {
 }
 
 function updateLivePreview() {
+    if (currentRkpdesTab === 'perubahan') {
+        renderRkpdesPerubahanPreview();
+        return;
+    }
     const container = document.getElementById('livePreviewContainer');
     if (!container) return;
 
@@ -783,3 +802,392 @@ function editInRabFromModal() {
     }
 }
 window.editInRabFromModal = editInRabFromModal;
+
+async function onYearChange() {
+    activeYear = Number(document.getElementById('select-year')?.value) || 2027;
+    if (currentRkpdesTab === 'perubahan') {
+        await loadRkpdesPerubahanData();
+    } else {
+        await loadRkpdesData();
+    }
+}
+window.onYearChange = onYearChange;
+
+async function switchRkpdesTab(tab) {
+    currentRkpdesTab = tab;
+    const btnMurni = document.getElementById('tab-btn-murni');
+    const btnPerubahan = document.getElementById('tab-btn-perubahan');
+    const badge = document.getElementById('tab-badge-info');
+
+    if (tab === 'perubahan') {
+        if (btnMurni) {
+            btnMurni.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer';
+        }
+        if (btnPerubahan) {
+            btnPerubahan.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-amber-600 text-white shadow-sm cursor-pointer';
+        }
+        if (badge) {
+            badge.className = 'bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1 rounded-lg font-bold';
+            badge.textContent = 'Mode: RKPDes / RAB Perubahan';
+        }
+        await loadRkpdesPerubahanData();
+    } else {
+        if (btnMurni) {
+            btnMurni.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm cursor-pointer';
+        }
+        if (btnPerubahan) {
+            btnPerubahan.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer';
+        }
+        if (badge) {
+            badge.className = 'bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1 rounded-lg font-bold';
+            badge.textContent = 'Mode: RKPDes Murni';
+        }
+        await loadRkpdesData();
+    }
+}
+window.switchRkpdesTab = switchRkpdesTab;
+
+async function loadRkpdesPerubahanData() {
+    activeYear = Number(document.getElementById('select-year')?.value) || 2027;
+    const container = document.getElementById('livePreviewContainer');
+    if (!container) return;
+    container.innerHTML = `
+        <div class="text-center py-12 text-slate-400">
+            <i class="fas fa-circle-notch animate-spin text-3xl mb-4 text-amber-500"></i>
+            <p class="font-medium text-slate-600">Mengambil data RKPDes / RAB Perubahan Tahun ${activeYear}...</p>
+        </div>
+    `;
+
+    try {
+        const res = await fetch(`/api/rkpdes/perubahan?tahun=${activeYear}`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+            rkpdesPerubahanList = json.data;
+            rkpdesPerubahanTotals = json.total || { semula: 0, menjadi: 0, selisih: 0 };
+            renderRkpdesPerubahanPreview();
+        } else {
+            rkpdesPerubahanList = [];
+            rkpdesPerubahanTotals = { semula: 0, menjadi: 0, selisih: 0 };
+            renderRkpdesPerubahanPreview();
+        }
+    } catch (err) {
+        container.innerHTML = `<div class="text-center py-8 text-red-500 font-bold">❌ Gagal memuat data Perubahan: ${err.message}</div>`;
+    }
+}
+window.loadRkpdesPerubahanData = loadRkpdesPerubahanData;
+
+function renderRkpdesPerubahanPreview() {
+    const container = document.getElementById('livePreviewContainer');
+    if (!container) return;
+
+    if (!rkpdesPerubahanList || rkpdesPerubahanList.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-16 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                <div class="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                    <i class="fas fa-folder-open"></i>
+                </div>
+                <h3 class="text-base font-bold text-slate-800 mb-1">Belum Ada Data RKPDes / RAB Perubahan</h3>
+                <p class="text-xs text-slate-500 max-w-md mx-auto mb-6">
+                    Tidak ditemukan data perubahan anggaran untuk Tahun ${activeYear}. Pastikan data telah diinput pada modul RAB dengan tipe anggaran PERUBAHAN.
+                </p>
+                <a href="rab.html" class="btn-primary text-xs inline-flex items-center gap-2">
+                    <i class="fas fa-external-link-alt"></i> Buka Modul RAB
+                </a>
+            </div>
+        `;
+        return;
+    }
+
+    // Grouping by Bidang (1 s.d 5)
+    const grouped = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+    rkpdesPerubahanList.forEach(item => {
+        const key = getBidangKey(item);
+        if (grouped[key]) {
+            grouped[key].push(item);
+        } else {
+            grouped[1].push(item);
+        }
+    });
+
+    let tableBodyHtml = '';
+    let grandTotalSemula = 0;
+    let grandTotalMenjadi = 0;
+    let grandTotalSelisih = 0;
+    let globalNo = 1;
+
+    masterBidangList.forEach(bidang => {
+        const rawItems = sortAscendingByKode(grouped[bidang.key] || []);
+        let subSemula = 0;
+        let subMenjadi = 0;
+        let subSelisih = 0;
+
+        if (rawItems.length > 0) {
+            const currentNo = globalNo++;
+
+            // Grouping Sub-bidang -> Kelompok Kegiatan -> Kegiatan
+            const subMap = new Map();
+            rawItems.forEach(item => {
+                const subName = item.jenis_bidang || resolveJenisBidangFallback(item) || 'Penyelenggaran Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa';
+                const kelName = resolveJenisKegiatanKelompokFallback(item) || 'Kelompok Kegiatan Utama';
+
+                if (!subMap.has(subName)) subMap.set(subName, new Map());
+                const kelMap = subMap.get(subName);
+                if (!kelMap.has(kelName)) kelMap.set(kelName, []);
+                kelMap.get(kelName).push(item);
+            });
+
+            // Bidang Header
+            tableBodyHtml += `
+                <tr class="bg-slate-200 font-extrabold text-slate-900 border border-slate-300">
+                    <td class="text-center align-top border border-slate-300 font-bold py-2 px-1 bg-slate-200 text-slate-900">${currentNo}</td>
+                    <td colspan="16" class="align-top border border-slate-300 font-extrabold bg-slate-200 text-slate-900 px-3 py-2 leading-snug uppercase text-xs">
+                        ${bidang.key}. ${bidang.name}
+                    </td>
+                </tr>
+            `;
+
+            subMap.forEach((kelMap, subName) => {
+                if (subName) {
+                    tableBodyHtml += `
+                        <tr class="bg-indigo-50/90 font-bold text-indigo-950 border border-slate-300">
+                            <td class="border border-slate-300 bg-indigo-50/90"></td>
+                            <td colspan="16" class="align-top border border-slate-300 px-4 py-1 text-xs text-indigo-950 font-extrabold uppercase tracking-wide bg-indigo-50/90">
+                                <i class="fas fa-folder-open text-indigo-600 mr-1.5"></i> ${subName}
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                kelMap.forEach((items, kelName) => {
+                    if (kelName && kelName !== subName) {
+                        tableBodyHtml += `
+                            <tr class="bg-slate-100/90 font-semibold text-slate-800 border border-slate-300">
+                                <td class="border border-slate-300 bg-slate-100/90"></td>
+                                <td colspan="16" class="align-top border border-slate-300 px-6 py-1 text-[11px] text-slate-800 font-bold italic bg-slate-100/90">
+                                    <i class="fas fa-caret-right text-slate-500 mr-1.5"></i> ${kelName}
+                                </td>
+                            </tr>
+                        `;
+                    }
+
+                    items.forEach((item, index) => {
+                        const semula = item.semula || {};
+                        const menjadi = item.menjadi || {};
+                        const bSemula = Number(semula.biaya || 0);
+                        const bMenjadi = Number(menjadi.biaya || 0);
+                        const diff = Number(item.selisih != null ? item.selisih : (bMenjadi - bSemula));
+
+                        subSemula += bSemula;
+                        subMenjadi += bMenjadi;
+                        subSelisih += diff;
+
+                        grandTotalSemula += bSemula;
+                        grandTotalMenjadi += bMenjadi;
+                        grandTotalSelisih += diff;
+
+                        const namaKegiatan = item.nama_kegiatan || item.jenis_kegiatan || '-';
+                        let statusBadge = '';
+                        if (item.status_perubahan === 'bertambah') {
+                            statusBadge = '<span class="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold no-print">Bertambah</span>';
+                        } else if (item.status_perubahan === 'berkurang') {
+                            statusBadge = '<span class="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-bold no-print">Berkurang</span>';
+                        } else if (item.status_perubahan === 'kegiatan_baru') {
+                            statusBadge = '<span class="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold no-print">Baru</span>';
+                        } else {
+                            statusBadge = '<span class="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium no-print">Tetap</span>';
+                        }
+
+                        let selisihColor = 'text-slate-700';
+                        if (diff > 0) selisihColor = 'text-emerald-700 font-bold';
+                        else if (diff < 0) selisihColor = 'text-rose-700 font-bold';
+
+                        tableBodyHtml += `
+                            <tr class="hover:bg-slate-50/80 transition-colors">
+                                <td class="text-center align-top border border-slate-300 text-slate-400 py-1.5 px-1">${index + 1}</td>
+                                <td class="align-top border border-slate-300 px-3 py-1.5 text-slate-900 font-semibold pl-8">
+                                    ${namaKegiatan}
+                                    ${statusBadge}
+                                </td>
+                                <!-- SEMULA -->
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap">${semula.sdgs || '-'}</td>
+                                <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${semula.data_eksisting || '-'}</td>
+                                <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${semula.lokasi || 'Desa Batetangnga'}</td>
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 whitespace-nowrap text-slate-800">${semula.volume_satuan || semula.volume || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-800">${semula.penerima_manfaat || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700">${semula.sumber_biaya || 'DDS'}</td>
+                                <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-semibold text-slate-900 whitespace-nowrap">${formatRupiah(bSemula)}</td>
+                                <!-- MENJADI -->
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap">${menjadi.sdgs || '-'}</td>
+                                <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.data_eksisting || '-'}</td>
+                                <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.lokasi || 'Desa Batetangnga'}</td>
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 whitespace-nowrap text-slate-800 font-medium">${menjadi.volume_satuan || menjadi.volume || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-800">${menjadi.penerima_manfaat || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${menjadi.sumber_biaya || 'DDS'}</td>
+                                <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-bold text-slate-900 whitespace-nowrap">${formatRupiah(bMenjadi)}</td>
+                                <!-- SELISIH -->
+                                <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap ${selisihColor}">${formatSelisihRupiah(diff)}</td>
+                            </tr>
+                        `;
+                    });
+                });
+            });
+
+            // Subtotal per Bidang
+            tableBodyHtml += `
+                <tr class="font-bold bg-slate-100 text-slate-800 border border-slate-300">
+                    <td colspan="2" class="text-left uppercase border border-slate-300 px-3 py-2 font-bold">JUMLAH ${bidang.name}</td>
+                    <td colspan="6" class="border border-slate-300 bg-slate-50"></td>
+                    <td class="text-right border border-slate-300 px-2 py-2 font-extrabold text-slate-900 whitespace-nowrap">${formatRupiah(subSemula)}</td>
+                    <td colspan="6" class="border border-slate-300 bg-slate-50"></td>
+                    <td class="text-right border border-slate-300 px-2 py-2 font-extrabold text-indigo-900 whitespace-nowrap">${formatRupiah(subMenjadi)}</td>
+                    <td class="text-right border border-slate-300 px-2 py-2 font-extrabold ${subSelisih > 0 ? 'text-emerald-700' : (subSelisih < 0 ? 'text-rose-700' : 'text-slate-700')} whitespace-nowrap">${formatSelisihRupiah(subSelisih)}</td>
+                </tr>
+            `;
+        }
+    });
+
+    const formattedDate = getFormattedDate();
+    const timInfo = getTimPenyusunInfo();
+
+    container.innerHTML = `
+        <!-- STATS CARD OVERVIEW (Screen only) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 no-print">
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+                <div>
+                    <div class="text-[11px] font-bold text-amber-700 uppercase tracking-wide">Total Anggaran Semula</div>
+                    <div class="text-lg font-black text-amber-950 mt-0.5">${formatRupiah(grandTotalSemula)}</div>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-amber-200/80 flex items-center justify-center text-amber-800 text-lg shadow-inner">
+                    <i class="fas fa-history"></i>
+                </div>
+            </div>
+            <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+                <div>
+                    <div class="text-[11px] font-bold text-indigo-700 uppercase tracking-wide">Total Anggaran Menjadi</div>
+                    <div class="text-lg font-black text-indigo-950 mt-0.5">${formatRupiah(grandTotalMenjadi)}</div>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-indigo-200/80 flex items-center justify-center text-indigo-800 text-lg shadow-inner">
+                    <i class="fas fa-calculator"></i>
+                </div>
+            </div>
+            <div class="${grandTotalSelisih > 0 ? 'bg-emerald-50 border-emerald-200' : (grandTotalSelisih < 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200')} border rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+                <div>
+                    <div class="text-[11px] font-bold uppercase tracking-wide ${grandTotalSelisih > 0 ? 'text-emerald-700' : (grandTotalSelisih < 0 ? 'text-rose-700' : 'text-slate-600')}">Total Selisih (+/-)</div>
+                    <div class="text-lg font-black mt-0.5 ${grandTotalSelisih > 0 ? 'text-emerald-950' : (grandTotalSelisih < 0 ? 'text-rose-950' : 'text-slate-900')}">${formatSelisihRupiah(grandTotalSelisih)}</div>
+                </div>
+                <div class="w-10 h-10 rounded-xl ${grandTotalSelisih > 0 ? 'bg-emerald-200/80 text-emerald-800' : (grandTotalSelisih < 0 ? 'bg-rose-200/80 text-rose-800' : 'bg-slate-200 text-slate-700')} flex items-center justify-center text-lg shadow-inner">
+                    <i class="fas ${grandTotalSelisih > 0 ? 'fa-arrow-trend-up' : (grandTotalSelisih < 0 ? 'fa-arrow-trend-down' : 'fa-equals')}"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- HEADER DOKUMEN RESMI -->
+        <div class="mb-6 text-slate-900">
+            <div class="text-center mb-4">
+                <h3 class="font-extrabold text-xl uppercase tracking-wide text-slate-900">RENCANA KERJA PEMERINTAH DESA PERUBAHAN (RKPDesa PERUBAHAN)</h3>
+                <h4 class="font-bold text-lg uppercase text-slate-700">TAHUN ANGGARAN ${activeYear}</h4>
+            </div>
+
+            <div class="border-t-2 border-b-2 border-slate-900 py-3 my-4 text-xs font-bold uppercase leading-relaxed flex justify-between items-center px-2">
+                <div class="space-y-1">
+                    <div class="flex"><span class="w-24 inline-block">DESA</span><span class="mr-2">:</span><span>BATETANGNGA</span></div>
+                    <div class="flex"><span class="w-24 inline-block">KECAMATAN</span><span class="mr-2">:</span><span>BINUANG</span></div>
+                </div>
+                <div class="space-y-1">
+                    <div class="flex"><span class="w-24 inline-block">KABUPATEN</span><span class="mr-2">:</span><span>POLEWALI MANDAR</span></div>
+                    <div class="flex"><span class="w-24 inline-block">PROVINSI</span><span class="mr-2">:</span><span>SULAWESI BARAT</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TABEL RKPDesa PERUBAHAN (17 KOLOM RESMI) -->
+        <div class="overflow-x-auto shadow-sm rounded-xl border border-slate-300 bg-white">
+            <table class="w-full border-collapse border border-slate-300 text-xs">
+                <thead class="bg-slate-100 font-bold text-slate-800">
+                    <tr class="text-center">
+                        <th class="border border-slate-300 align-middle py-2 px-1 bg-slate-100" rowspan="2" style="width: 35px; min-width: 35px;">No.<br><span class="text-[9px] font-normal text-slate-500">(a)</span></th>
+                        <th class="border border-slate-300 align-middle py-2 px-3 bg-slate-100" rowspan="2" style="min-width: 200px;">Bidang / Sub Bidang / Kegiatan<br><span class="text-[9px] font-normal text-slate-500">(b)</span></th>
+                        <th class="border border-slate-300 py-1.5 px-2 bg-amber-50 text-amber-900 border-b-2 border-amber-300 font-extrabold uppercase tracking-wide" colspan="7">SEMULA</th>
+                        <th class="border border-slate-300 py-1.5 px-2 bg-indigo-50 text-indigo-900 border-b-2 border-indigo-300 font-extrabold uppercase tracking-wide" colspan="7">MENJADI</th>
+                        <th class="border border-slate-300 align-middle py-2 px-2 bg-slate-200 text-slate-900 font-extrabold" rowspan="2" style="width: 110px; min-width: 105px;">SELISIH (+/-)<br><span class="text-[9px] font-normal text-slate-500">(q)</span></th>
+                    </tr>
+                    <tr class="text-center text-[10px]">
+                        <!-- SEMULA (c s/d i) -->
+                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 65px; min-width: 55px;">SDGs<br><span class="text-[9px] font-normal text-slate-400">(c)</span></th>
+                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 80px; min-width: 70px;">Eksisting<br><span class="text-[9px] font-normal text-slate-400">(d)</span></th>
+                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 85px; min-width: 75px;">Lokasi<br><span class="text-[9px] font-normal text-slate-400">(e)</span></th>
+                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 75px; min-width: 65px;">Volume<br><span class="text-[9px] font-normal text-slate-400">(f)</span></th>
+                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 80px; min-width: 70px;">Manfaat<br><span class="text-[9px] font-normal text-slate-400">(g)</span></th>
+                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 65px; min-width: 55px;">Sumber<br><span class="text-[9px] font-normal text-slate-400">(h)</span></th>
+                        <th class="border border-slate-300 py-1 px-1.5 bg-amber-100/60 font-bold text-slate-900" style="width: 105px; min-width: 95px;">Biaya (Rp)<br><span class="text-[9px] font-normal text-slate-400">(i)</span></th>
+                        <!-- MENJADI (j s/d p) -->
+                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 65px; min-width: 55px;">SDGs<br><span class="text-[9px] font-normal text-slate-400">(j)</span></th>
+                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 80px; min-width: 70px;">Eksisting<br><span class="text-[9px] font-normal text-slate-400">(k)</span></th>
+                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 85px; min-width: 75px;">Lokasi<br><span class="text-[9px] font-normal text-slate-400">(l)</span></th>
+                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 75px; min-width: 65px;">Volume<br><span class="text-[9px] font-normal text-slate-400">(m)</span></th>
+                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 80px; min-width: 70px;">Manfaat<br><span class="text-[9px] font-normal text-slate-400">(n)</span></th>
+                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 65px; min-width: 55px;">Sumber<br><span class="text-[9px] font-normal text-slate-400">(o)</span></th>
+                        <th class="border border-slate-300 py-1 px-1.5 bg-indigo-100/60 font-bold text-slate-900" style="width: 105px; min-width: 95px;">Biaya (Rp)<br><span class="text-[9px] font-normal text-slate-400">(p)</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tableBodyHtml}
+                </tbody>
+                <tfoot>
+                    <tr class="font-extrabold bg-slate-800 text-white text-xs">
+                        <td colspan="2" class="text-center uppercase border border-slate-900 py-2.5 font-bold tracking-wider">TOTAL KESELURUHAN</td>
+                        <td colspan="6" class="border border-slate-900 bg-slate-800"></td>
+                        <td class="text-right border border-slate-900 py-2.5 px-2 whitespace-nowrap text-white font-extrabold">${formatRupiah(grandTotalSemula)}</td>
+                        <td colspan="6" class="border border-slate-900 bg-slate-800"></td>
+                        <td class="text-right border border-slate-900 py-2.5 px-2 whitespace-nowrap text-amber-300 font-extrabold">${formatRupiah(grandTotalMenjadi)}</td>
+                        <td class="text-right border border-slate-900 py-2.5 px-2 whitespace-nowrap ${grandTotalSelisih > 0 ? 'text-emerald-300' : (grandTotalSelisih < 0 ? 'text-rose-300' : 'text-white')} font-extrabold">${formatSelisihRupiah(grandTotalSelisih)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- FOOTER TANDA TANGAN -->
+        <div class="mt-12 flex justify-between text-sm text-slate-900" style="page-break-inside: avoid;">
+            <div class="text-center w-64">
+                <p>Mengetahui,</p>
+                <p class="font-bold uppercase">Kepala Desa Batetangnga</p>
+                <div style="height: 70px;"></div>
+                <p class="font-bold underline uppercase">SUMAILA DAMANG</p>
+            </div>
+            <div class="text-center w-64">
+                <p>Batetangnga, ${formattedDate}</p>
+                <p>Disusun Oleh,</p>
+                <p class="font-bold uppercase">${timInfo.jabatan}</p>
+                <div style="height: 70px;"></div>
+                <p class="font-bold underline uppercase">${timInfo.nama}</p>
+            </div>
+        </div>
+    `;
+}
+window.renderRkpdesPerubahanPreview = renderRkpdesPerubahanPreview;
+
+async function cetakRkpdesMurni() {
+    if (currentRkpdesTab !== 'murni') {
+        await switchRkpdesTab('murni');
+    }
+    document.body.classList.remove('print-perubahan');
+    setTimeout(() => {
+        window.print();
+    }, 150);
+}
+window.cetakRkpdesMurni = cetakRkpdesMurni;
+
+async function cetakRkpdesPerubahan() {
+    if (currentRkpdesTab !== 'perubahan') {
+        await switchRkpdesTab('perubahan');
+    }
+    document.body.classList.add('print-perubahan');
+    setTimeout(() => {
+        window.print();
+    }, 150);
+}
+window.cetakRkpdesPerubahan = cetakRkpdesPerubahan;
+
+window.addEventListener('afterprint', () => {
+    document.body.classList.remove('print-perubahan');
+});
