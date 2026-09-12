@@ -1194,11 +1194,27 @@ window.clearSearchPrioritas = clearSearchPrioritas;
 window.cetakPrioritas = cetakPrioritas;
 
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. Initial load murni cepat (Single-Fetch GET /api/prioritas-rkpdes tanpa sync/tarik-rancangan)
     loadPrioritasData();
     renderFooterTanggal();
     
+    // 2. Listener tanggal cetak
     const inputTgl = document.getElementById('tgl-cetak');
     if (inputTgl) {
         inputTgl.addEventListener('change', renderFooterTanggal);
+    }
+
+    // 3. Hubungkan aksi sync dan tarik-rancangan HANYA ke event listener tombol interaktif (manual on-demand)
+    const btnSync = document.getElementById('btn-sync-prioritas');
+    if (btnSync) {
+        btnSync.onclick = () => tarikDariRancanganRKPDes(true);
+    }
+    const btnManual = document.getElementById('btn-tarik-manual');
+    if (btnManual) {
+        btnManual.onclick = () => openModalTarikManualRancangan();
+    }
+    const btnSimpan = document.getElementById('btn-simpan-skor');
+    if (btnSimpan) {
+        btnSimpan.onclick = () => simpanSemuaSkor();
     }
 });

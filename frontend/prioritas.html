@@ -88,15 +88,15 @@
                         </select>
                     </div>
 
-                    <button type="button" onclick="tarikDariRancanganRKPDes(true)" class="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer">
+                    <button type="button" id="btn-sync-prioritas" onclick="tarikDariRancanganRKPDes(true)" class="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer" title="Tarik dan sinkronkan usulan dari Rancangan RKPDes secara manual (on-demand)">
                         <i class="fas fa-sync"></i> Tarik Rancangan RKPDes
                     </button>
 
-                    <button type="button" onclick="openModalTarikManualRancangan()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md shadow-indigo-500/20 transition flex items-center gap-1.5 cursor-pointer">
+                    <button type="button" id="btn-tarik-manual" onclick="openModalTarikManualRancangan()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md shadow-indigo-500/20 transition flex items-center gap-1.5 cursor-pointer" title="Buka modal pemilihan manual kegiatan dari Rancangan RKPDes">
                         <i class="fas fa-search"></i> Tarik Manual
                     </button>
 
-                    <button type="button" onclick="simpanSemuaSkor()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer">
+                    <button type="button" id="btn-simpan-skor" onclick="simpanSemuaSkor()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer" title="Simpan seluruh perubahan skor ke database">
                         <i class="fas fa-save"></i> Simpan Data Skor
                     </button>
 
