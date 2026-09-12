@@ -1,6 +1,6 @@
 // ============================================================
 // MODUL USULAN MASYARAKAT (MUSRENBANG DESA)
-// Format Hemat Kertas & Pengelompokan Berdasarkan Bidang
+// Pengelompokan Berdasarkan Bidang
 // ============================================================
 
 let usulanList = [];
@@ -324,7 +324,7 @@ async function hapusUsulan(id) {
 
 // ============================================================
 // MODUL CETAK DOKUMEN USULAN
-// 1. cetakUsulanMusrenbang: Format Hemat Kertas Usulan Murni Masyarakat
+// 1. cetakUsulanMusrenbang: Usulan Murni Masyarakat
 //    (Mengecualikan Bidang Penyelenggaraan Pemerintah Desa)
 // 2. cetakUsulanAparatDesa: Format Khusus Kegiatan Aparat Desa
 //    (Hanya memuat Bidang Penyelenggaraan Pemerintah Desa)
@@ -582,7 +582,7 @@ function cetakUsulanMusrenbang() {
         docTitle: 'Kamus Usulan Masyarakat Desa Batetangnga',
         judulKop: 'KAMUS USULAN MASYARAKAT DESA BATETANGNGA',
         subJudulKop: 'DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR',
-        keteranganKop: `TAHUN ANGGARAN ${escapeHtml(activeYear)} &bull; USULAN MURNI MASYARAKAT (FORMAT HEMAT KERTAS)`,
+        keteranganKop: `TAHUN ANGGARAN ${escapeHtml(activeYear)} &bull; USULAN MURNI MASYARAKAT`,
         infoLokasi: infoLokasiCetak,
         items: itemsToPrint,
         labelKolomKegiatan: 'Gagasan Usulan Program / Kegiatan',
