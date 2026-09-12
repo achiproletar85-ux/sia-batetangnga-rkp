@@ -5281,41 +5281,91 @@ app.get('/api/bidang-list', async (req, res) => {
     }
 });
 
+const RPJMDES_TARGET_COLUMNS = [
+    'target_2023', 'target_2024', 'target_2025', 'target_2026',
+    'target_2027', 'target_2028', 'target_2029', 'target_2030'
+];
+
 app.get('/api/rpjmdes-stats', async (req, res) => {
     try {
-        const { tahun = '2026' } = req.query;
-        const column = `target_${tahun}`;
+        const { tahun } = req.query;
+        const tahunStr = String(tahun || '2026').trim();
+        const targetCol = `target_${tahunStr}`;
 
-        const { count: totalKegiatan, error: err1 } = await supabase
-            .from('rpjmdes_standar')
-            .select('id', { count: 'exact', head: true })
-            .eq(column, tahun);
+        console.log(`📡 GET /api/rpjmdes-stats?tahun=${tahunStr}`);
 
-        if (err1) throw err1;
+        let matchedRows = [];
 
-        const { data: paguData, error: err2 } = await supabase
-            .from('rpjmdes_standar')
-            .select('pagu_rpjm')
-            .eq(column, tahun);
+        // 1. Coba baca dari in-memory cache rpjmdesAllCache jika masih segar (sangat cepat & anti-504)
+        if (rpjmdesAllCache && (Date.now() - rpjmdesAllCacheTs) < RPJMDES_CACHE_TTL_MS) {
+            matchedRows = rpjmdesAllCache.filter(item => {
+                if (!item) return false;
+                if (item.tahun && String(item.tahun).trim() === tahunStr) return true;
+                if (item[targetCol]) {
+                    const val = String(item[targetCol]).trim().toLowerCase();
+                    if (val === tahunStr.toLowerCase() || val === 'ya' || val === '1') return true;
+                }
+                return false;
+            });
+        } else {
+            // 2. Jika cache belum ada, periksa apakah targetCol valid sebelum query database Supabase
+            if (!RPJMDES_TARGET_COLUMNS.includes(targetCol)) {
+                console.log(`ℹ️ Kolom ${targetCol} tidak terdaftar pada tabel rpjmdes_standar. Mengembalikan statistik nol.`);
+                return res.json({
+                    success: true,
+                    data: {
+                        totalKegiatan: 0,
+                        totalPagu: 0,
+                        bidangData: { labels: [], values: [] }
+                    },
+                    message: `Tidak ada target untuk tahun ${tahunStr}`
+                });
+            }
 
-        if (err2) throw err2;
+            // Kueri tunggal aman untuk id, bidang, pagu_rpjm, dan targetCol
+            const { data, error } = await supabase
+                .from('rpjmdes_standar')
+                .select(`id, bidang, pagu_rpjm, ${targetCol}`)
+                .or(`${targetCol}.eq.${tahunStr},${targetCol}.ilike.ya,${targetCol}.eq.Ya`)
+                .limit(1000);
 
-        const totalPagu = paguData.reduce((sum, item) => sum + (item.pagu_rpjm || 0), 0);
+            if (error) {
+                console.warn('⚠️ Kueri Supabase dengan filter .or gagal, coba fallback query:', error.message);
+                const { data: fbData, error: fbErr } = await supabase
+                    .from('rpjmdes_standar')
+                    .select(`id, bidang, pagu_rpjm, ${targetCol}`)
+                    .limit(1000);
 
-        const { data: bidangData, error: err3 } = await supabase
-            .from('rpjmdes_standar')
-            .select('bidang, pagu_rpjm')
-            .eq(column, tahun);
+                if (fbErr) throw fbErr;
+                matchedRows = (fbData || []).filter(item => {
+                    const val = String(item?.[targetCol] || '').trim().toLowerCase();
+                    return val === tahunStr.toLowerCase() || val === 'ya' || val === '1';
+                });
+            } else {
+                matchedRows = Array.isArray(data) ? data : [];
+            }
+        }
 
-        if (err3) throw err3;
-
+        // Hitung agregasi dengan proteksi numerik & null-coalescing yang ketat
+        let totalPagu = 0;
         const bidangMap = {};
-        bidangData.forEach(item => {
-            const b = item.bidang || 'Lainnya';
-            bidangMap[b] = (bidangMap[b] || 0) + (item.pagu_rpjm || 0);
+
+        matchedRows.forEach(item => {
+            if (!item) return;
+            const rawPagu = item.pagu_rpjm;
+            const numPagu = typeof rawPagu === 'number'
+                ? rawPagu
+                : parseFloat(String(rawPagu || '0').replace(/[^0-9.-]/g, '')) || 0;
+
+            totalPagu += numPagu;
+
+            const bidangNama = String(item.bidang || 'Lainnya').trim() || 'Lainnya';
+            bidangMap[bidangNama] = (bidangMap[bidangNama] || 0) + numPagu;
         });
 
-        res.json({
+        const totalKegiatan = matchedRows.length;
+
+        return res.json({
             success: true,
             data: {
                 totalKegiatan,
@@ -5327,8 +5377,16 @@ app.get('/api/rpjmdes-stats', async (req, res) => {
             }
         });
     } catch (error) {
-        console.log('❌ Error /api/rpjmdes-stats:', error.message);
-        res.status(500).json({ success: false, error: error.message });
+        console.error('❌ Error /api/rpjmdes-stats:', error.message || error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Terjadi kesalahan pada kalkulasi statistik RPJMDes',
+            data: {
+                totalKegiatan: 0,
+                totalPagu: 0,
+                bidangData: { labels: [], values: [] }
+            }
+        });
     }
 });
 
