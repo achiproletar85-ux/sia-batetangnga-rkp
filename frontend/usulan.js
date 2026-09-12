@@ -1,6 +1,6 @@
 // ============================================================
 // MODUL USULAN MASYARAKAT (MUSRENBANG DESA)
-// Format Hemat Kertas & Pengelompokan Khusus Aparat Desa
+// Format Hemat Kertas & Pengelompokan Berdasarkan Bidang
 // ============================================================
 
 let usulanList = [];
@@ -326,9 +326,19 @@ async function hapusUsulan(id) {
 // CETAK LEMBAR USULAN MASYARAKAT (MUSRENBANG)
 // 1. Format Hemat Kertas: TANPA KOLOM BIAYA DAN SASARAN
 // 2. Filter Lokasi Multi-select Dipertahankan
-// 3. Pengecualian: Bidang Penyelenggaraan Pemerintahan Desa
-//    Digabungkan menjadi SATU BAGIAN KHUSUS APARAT DESA
+// 3. Seluruh Kegiatan Mengalir Berurutan Sesuai Bidang
+// 4. Penomoran Linier Rapi 1..N Tanpa Loncatan
 // ============================================================
+function getBidangOrder(bidangName) {
+    const b = String(bidangName || '').toLowerCase();
+    if (b.includes('penyelenggaraan') || b.includes('pemerintah')) return 1;
+    if (b.includes('pembangunan')) return 2;
+    if (b.includes('pembinaan')) return 3;
+    if (b.includes('pemberdayaan')) return 4;
+    if (b.includes('bencana') || b.includes('darurat') || b.includes('mendesak')) return 5;
+    return 6;
+}
+
 function cetakUsulanMusrenbang() {
     const activeYear = document.getElementById('select-year')?.value || '2027';
     const inputTgl = document.getElementById('tgl-cetak')?.value;
@@ -342,58 +352,36 @@ function cetakUsulanMusrenbang() {
         return;
     }
 
-    // PISAHKAN: Usulan Aparat Desa (Bidang Pemerintahan) vs Usulan Murni Masyarakat
-    const itemsAparat = itemsToPrint.filter(item => isPemerintahanDesa(item));
-    const itemsMasyarakat = itemsToPrint.filter(item => !isPemerintahanDesa(item));
-
-    // Kelompokkan usulan murni masyarakat berdasarkan Bidang
-    const groupsMasyarakat = {};
-    itemsMasyarakat.forEach(item => {
+    // Kelompokkan seluruh usulan berdasarkan Bidang
+    const groups = {};
+    itemsToPrint.forEach(item => {
         const rawBidang = String(item.bidang || 'Bidang Pelaksanaan Pembangunan Desa').trim();
-        if (!groupsMasyarakat[rawBidang]) {
-            groupsMasyarakat[rawBidang] = [];
+        if (!groups[rawBidang]) {
+            groups[rawBidang] = [];
         }
-        groupsMasyarakat[rawBidang].push(item);
+        groups[rawBidang].push(item);
+    });
+
+    // Urutkan nama bidang secara logis (Pemerintahan -> Pembangunan -> Pembinaan -> Pemberdayaan -> Bencana)
+    const sortedBidangNames = Object.keys(groups).sort((a, b) => {
+        const orderA = getBidangOrder(a);
+        const orderB = getBidangOrder(b);
+        if (orderA !== orderB) return orderA - orderB;
+        return a.localeCompare(b, 'id');
     });
 
     let noUrut = 1;
     let tableRowsHtml = '';
 
-    // =========================================================================
-    // 1. KATEGORI KHUSUS: USULAN/KEGIATAN PENYELENGGARAAN PEMERINTAHAN DESA
-    // Sifatnya khusus untuk kegiatan/keperluan Aparat Desa, digabungkan menjadi
-    // SATU baris/kategori khusus saja secara ringkas (format hemat kertas)
-    // =========================================================================
-    if (itemsAparat.length > 0) {
-        tableRowsHtml += `
-            <tr style="background-color: #e2e8f0; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                <td colspan="6" style="border: 1px solid #000; padding: 5px 8px; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px;">
-                    Usulan/Kegiatan Penyelenggaraan Pemerintahan Desa - Khusus Aparat Desa
-                </td>
-            </tr>
-            <tr>
-                <td style="border: 1px solid #000; text-align: center; font-weight: bold; vertical-align: middle;">${noUrut++}</td>
-                <td style="border: 1px solid #000; text-align: center; font-family: monospace; font-weight: bold; font-size: 8.5px; vertical-align: middle;">01.01.01.01.</td>
-                <td style="border: 1px solid #000; padding: 5px 6px;">
-                    <div style="font-weight: bold; color: #111;">
-                        Operasional Pemerintah Desa, Penghasilan Tetap (Siltap), Tunjangan, Operasional BPD/RT &amp; Sarana Aparat Desa
-                    </div>
-                    <div style="font-size: 8px; color: #444; font-style: italic; margin-top: 2px;">
-                        *) Catatan Khusus: Bidang ini diperuntukkan khusus operasional &amp; kapasitas Aparat Desa (${itemsAparat.length} rincian kegiatan terdaftar lengkap di dokumen definitif APBDes/RKPDes).
-                    </div>
-                </td>
-                <td style="border: 1px solid #000; text-align: center; vertical-align: middle;">Kantor Desa Batetangnga</td>
-                <td style="border: 1px solid #000; text-align: center; vertical-align: middle;">1 Tahun</td>
-                <td style="border: 1px solid #000; text-align: center; vertical-align: middle; font-weight: 600;">Pemerintah Desa</td>
-            </tr>
-        `;
-    }
+    sortedBidangNames.forEach(bidangName => {
+        const items = groups[bidangName];
+        // Urutkan kegiatan berdasarkan kode unik bila tersedia
+        items.sort((a, b) => {
+            const ka = String(a.kode_unik_full || a.kode_unik || '');
+            const kb = String(b.kode_unik_full || b.kode_unik || '');
+            return ka.localeCompare(kb, undefined, { numeric: true });
+        });
 
-    // =========================================================================
-    // 2. KATEGORI USULAN MURNI MASYARAKAT (Pembangunan, Pembinaan, Pemberdayaan, Bencana)
-    // Diurai per usulan masyarakat per lokasi dusun terpilih
-    // =========================================================================
-    for (const [bidangName, items] of Object.entries(groupsMasyarakat)) {
         tableRowsHtml += `
             <tr style="background-color: #f1f5f9; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
                 <td colspan="6" style="border: 1px solid #000; padding: 5px 8px; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px;">
@@ -414,7 +402,7 @@ function cetakUsulanMusrenbang() {
                 </tr>
             `;
         });
-    }
+    });
 
     // Ringkasan info lokasi yang sedang difilter
     const infoLokasiCetak = selectedLokasiSet.size === allDistinctLokasi.length
