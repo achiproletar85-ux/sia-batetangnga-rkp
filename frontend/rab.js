@@ -717,8 +717,8 @@ async function loadSavedRAB() {
         if (res.ok) {
             try { json = await res.json(); } catch (_) {}
         }
-        if (json && json.success) {
-            rabItems = (json.data && json.data.items) ? json.data.items : [];
+        if (json && json.success && json.data) {
+            rabItems = Array.isArray(json.data.items) ? json.data.items : [];
         } else {
             rabItems = [];
         }
@@ -739,10 +739,58 @@ async function loadSavedRAB() {
             } catch (eMurni) {
                 console.warn('Gagal memuat referensi Murni:', eMurni);
             }
+
+            // AUTO-FILL FALLBACK: Jika di mode PERUBAHAN rincian items masih kosong,
+            // otomatis isi rabItems dari referensi MURNI sebagai draf awal perubahan
+            if ((!rabItems || rabItems.length === 0) && rabMurniRefItems.length > 0) {
+                rabItems = rabMurniRefItems.map((m, idx) => {
+                    const vol = Number(m.volume) || 1;
+                    const hrg = Number(m.harga !== undefined ? m.harga : (m.harga_satuan || 0));
+                    const jml = Number(m.jumlah !== undefined ? m.jumlah : (vol * hrg));
+                    return {
+                        group: (m.group || m.group_belanja || m.group_nama || '').trim(),
+                        subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
+                        uraian: m.uraian || '',
+                        volume: vol,
+                        satuan: m.satuan || 'Paket',
+                        harga: hrg,
+                        jumlah: jml,
+                        sumber: m.sumber || m.sumber_dana || 'ADD',
+                        keterangan: m.keterangan || '',
+                        urutan_murni: m.urutan_murni !== undefined ? m.urutan_murni : idx,
+                        uraian_murni: m.uraian || '',
+                        volume_murni: vol,
+                        satuan_murni: m.satuan || '',
+                        harga_murni: hrg,
+                        jumlah_murni: jml,
+                        id_referensi_murni: m.id_referensi_murni || null,
+                        item_baru: false,
+                        item_dihapus: false
+                    };
+                });
+                console.log(`[RAB Perubahan] Auto-fill ${rabItems.length} item dari versi MURNI untuk ${selectedRpjm.kode_unik_full}`);
+            } else if (rabItems.length > 0 && rabMurniRefItems.length > 0) {
+                // Pastikan urutan_murni terisi jika item berasal dari murni
+                rabItems.forEach((it, idx) => {
+                    if (it.urutan_murni === undefined) {
+                        const mIdx = rabMurniRefItems.findIndex(m =>
+                            String(m.uraian || '').trim().toLowerCase() === String(it.uraian || '').trim().toLowerCase() &&
+                            String(m.group || '').trim().toLowerCase() === String(it.group || '').trim().toLowerCase()
+                        );
+                        if (mIdx >= 0) {
+                            it.urutan_murni = mIdx;
+                        }
+                    }
+                });
+            }
         }
 
         renderRabItems();
-        updateFormRefSemula(null);
+        if (rabItems && rabItems.length > 0) {
+            editRabItem(0);
+        } else {
+            updateFormRefSemula(null);
+        }
         return;
     } catch (error) {
         console.warn('Gagal memuat RAB server', error);
@@ -950,8 +998,7 @@ async function loadSavedRabItem(kode, year) {
         selectedRpjm = savedRow ? { ...savedRow, kode_unik_full: kode } : null;
     }
 
-    selectRpjm();
-    await loadSavedRAB();
+    await selectRpjm();
 
     // Auto-populate form untuk editing langsung tanpa perlu menekan tombol lain
     if (rabItems && rabItems.length > 0) {
@@ -1177,13 +1224,34 @@ function editRabItem(index) {
         showToast('RAB MURNI dikunci (read-only). Buka versi PERUBAHAN untuk mengedit item.', 'error');
         return;
     }
-    document.getElementById('select-group').value = item.group || '';
+    const selectGroup = document.getElementById('select-group');
+    if (selectGroup) {
+        if (item.group && ![...selectGroup.options].some(o => o.value === item.group)) {
+            const opt = document.createElement('option');
+            opt.value = item.group;
+            opt.textContent = item.group;
+            selectGroup.appendChild(opt);
+        }
+        selectGroup.value = item.group || '';
+    }
     onGroupChange();
-    document.getElementById('select-subgroup').value = item.subgroup || '';
+
+    const selectSub = document.getElementById('select-subgroup');
+    if (selectSub) {
+        if (item.subgroup && ![...selectSub.options].some(o => o.value === item.subgroup)) {
+            const opt = document.createElement('option');
+            opt.value = item.subgroup;
+            opt.textContent = item.subgroup;
+            selectSub.appendChild(opt);
+        }
+        selectSub.value = item.subgroup || '';
+    }
+
     document.getElementById('input-uraian').value = item.uraian || '';
-    document.getElementById('input-volume').value = item.volume || '';
-    document.getElementById('input-satuan').value = item.satuan || ''; // Modified line
-    document.getElementById('input-harga').value = item.harga || '';
+    document.getElementById('input-volume').value = item.volume !== undefined ? item.volume : '';
+    document.getElementById('input-satuan').value = item.satuan || '';
+    const hrgVal = Number(item.harga !== undefined ? item.harga : (item.harga_satuan || 0));
+    document.getElementById('input-harga').value = hrgVal ? formatRupiah(hrgVal) : '';
     document.getElementById('input-keterangan').value = item.keterangan || '';
     // Wajib pulihkan sumber dana item agar saat edit & simpan sumber tidak hilang/tertukar
     const sumber = document.getElementById('select-sumber-dana');

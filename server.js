@@ -341,8 +341,8 @@ function sortHierarchical(dataArray) {
 // Kolom lengkap satu baris RAB (dipakai endpoint detail /api/rab?kode_unik_full=...)
 // dan pemetaan baris gabungan. Kolom JSON items/rpjm_data hanya untuk detail
 // atau endpoint yang benar-benar merender rincian anggaran.
-const RAB_FULL_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, tipe_anggaran, id_referensi_murni, saved_at';
-const RAB_FULL_COLUMNS_LEGACY = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, saved_at';
+const RAB_FULL_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, tipe_anggaran, id_referensi_murni, saved_at';
+const RAB_FULL_COLUMNS_LEGACY = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, saved_at';
 
 // Detail satu baris RAB (termasuk items & rpjm_data).
 // tipeAnggaran wajib disaring karena satu (kode_unik_full, tahun) kini bisa punya
@@ -3218,9 +3218,48 @@ app.get('/api/rab', async (req, res) => {
         }
 
         try {
-            const saved = await getRabFromDb(kode_unik_full, tahunInt, tipeAnggaran);
+            let saved = await getRabFromDb(kode_unik_full, tahunInt, tipeAnggaran);
+            let isFallbackMurni = false;
+
+            // Jika tipe PERUBAHAN diminta tapi belum ada data tersimpan di DB atau items-nya kosong,
+            // fallback ambil baris MURNI agar items dan rincian tetap terkirim ke frontend
+            if (tipeAnggaran === RAB_TIPE_PERUBAHAN) {
+                const hasValidItems = saved && Array.isArray(saved.items) && saved.items.length > 0;
+                if (!saved || !hasValidItems) {
+                    const murni = await getRabFromDb(kode_unik_full, tahunInt, RAB_TIPE_MURNI);
+                    if (murni && Array.isArray(murni.items) && murni.items.length > 0) {
+                        const murniItems = murni.items.map((it, idx) => ({
+                            ...it,
+                            urutan_murni: it.urutan_murni !== undefined ? it.urutan_murni : idx,
+                            id_referensi_murni: it.id_referensi_murni || murni.id
+                        }));
+
+                        if (saved) {
+                            // Baris PERUBAHAN ada tetapi items kosong -> isi items dari Murni
+                            saved.items = murniItems;
+                            saved.id_referensi_murni = saved.id_referensi_murni || murni.id;
+                        } else {
+                            // Belum ada baris PERUBAHAN di DB -> buat objek draf dari Murni
+                            saved = {
+                                ...murni,
+                                id: null, // Tandai draf baru
+                                tipe_anggaran: RAB_TIPE_PERUBAHAN,
+                                id_referensi_murni: murni.id,
+                                items: murniItems
+                            };
+                        }
+                        isFallbackMurni = true;
+                    }
+                }
+            }
+
             if (saved) {
-                return res.json({ success: true, tipe_anggaran: tipeAnggaran, data: saved });
+                return res.json({
+                    success: true,
+                    tipe_anggaran: tipeAnggaran,
+                    is_fallback_murni: isFallbackMurni,
+                    data: saved
+                });
             }
             return res.json({ success: true, tipe_anggaran: tipeAnggaran, data: null });
         } catch (error) {
