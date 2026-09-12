@@ -649,8 +649,12 @@ function cetakPDF() {
         if (isNewJenisBidang) { prevJenisBidang = jenisBidang; nomorUrut = 1; }
         if (isNewJenisKeg) { prevJenisKegiatan = jenisKeg; }
 
+        const printBidangLabel = String(bidang || '').toLowerCase().includes('pemerintah')
+            ? 'Usulan/Kegiatan Penyelenggaraan Pemerintahan Desa - Khusus Aparat Desa'
+            : bidang;
+
         html += `
-            ${isNewBidang ? `<tr style="background:#c7d2fe;"><td colspan="11" style="padding:7px 14px;font-weight:800;font-size:11px;letter-spacing:0.6px;text-transform:uppercase;color:#1e1b4b;">&#9632; BIDANG: ${escapeHtml(bidang)}</td></tr>` : ''}
+            ${isNewBidang ? `<tr style="background:#c7d2fe;"><td colspan="11" style="padding:7px 14px;font-weight:800;font-size:11px;letter-spacing:0.6px;text-transform:uppercase;color:#1e1b4b;">&#9632; BIDANG: ${escapeHtml(printBidangLabel)}</td></tr>` : ''}
             ${isNewJenisBidang && jenisBidang ? `<tr><td colspan="11" style="background:#e0e7ff;padding:5px 12px 5px 24px;font-weight:700;font-style:italic;font-size:10px;color:#3730a3;border-left:4px solid #6366f1;">&#9658; ${escapeHtml(jenisBidang)}</td></tr>` : ''}
             ${isNewJenisKeg && jenisKeg ? `<tr><td colspan="11" style="background:#f1f5f9;padding:4px 10px 4px 38px;font-size:9.5px;font-weight:600;color:#475569;border-left:3px solid #94a3b8;">&#9670; ${escapeHtml(jenisKeg)}</td></tr>` : ''}
             <tr>

@@ -801,10 +801,13 @@ function generatePrintTableContent() {
         let subTotalBiaya = 0;
 
         // 1. Render Header Bidang Utama (1-5)
+        const headerLabel = b === 1
+            ? "1. Usulan/Kegiatan Penyelenggaraan Pemerintahan Desa - Khusus Aparat Desa"
+            : `${b}. ${namaBidang}`;
         html += `
             <tr style="background-color: #e2e8f0; font-weight: bold;">
                 <td style="border: 1px solid #333; text-align: center; font-weight: bold;">${b}</td>
-                <td colspan="12" style="border: 1px solid #333; text-transform: uppercase;">${b}. ${namaBidang}</td>
+                <td colspan="12" style="border: 1px solid #333; text-transform: uppercase;">${headerLabel}</td>
             </tr>
         `;
 

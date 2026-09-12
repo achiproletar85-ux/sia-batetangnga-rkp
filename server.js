@@ -2307,6 +2307,83 @@ app.delete('/api/prioritas-usulan', async (req, res) => {
 });
 
 // ============================================================
+// MODUL USULAN MASYARAKAT (MUSRENBANG)
+// ============================================================
+const USULAN_SELECT_COLUMNS = 'id, tahun, bidang, kode_unik_full, prioritas, nama_kegiatan, kegiatan, lokasi, volume, biaya, sasaran, pengusul, sumber_dana, created_at, updated_at';
+
+// GET /api/usulan?tahun=YYYY
+app.get('/api/usulan', async (req, res) => {
+    try {
+        const { tahun } = req.query;
+        const tahunInt = parseInt(tahun, 10) || 2027;
+        console.log(`📡 GET /api/usulan?tahun=${tahunInt}`);
+
+        const { data, error } = await supabase
+            .from('usulan')
+            .select(USULAN_SELECT_COLUMNS)
+            .eq('tahun', tahunInt)
+            .order('id', { ascending: true });
+
+        if (error) throw error;
+        res.json({ success: true, data: data || [] });
+    } catch (error) {
+        console.error('❌ Error GET /api/usulan:', error.message);
+        res.status(500).json({ success: false, error: error.message, data: [] });
+    }
+});
+
+// POST /api/usulan
+app.post('/api/usulan', async (req, res) => {
+    try {
+        const { kegiatan, nama_kegiatan, lokasi, volume, biaya, sasaran, pengusul, tahun, bidang } = req.body || {};
+        const nama = kegiatan || nama_kegiatan;
+        if (!nama) {
+            return res.status(400).json({ success: false, message: 'Nama usulan kegiatan wajib diisi.' });
+        }
+        const tahunInt = parseInt(tahun, 10) || 2027;
+        const payload = {
+            kegiatan: nama,
+            nama_kegiatan: nama,
+            lokasi: lokasi || 'Desa Batetangnga',
+            volume: volume || '1 Paket',
+            biaya: parseFloat(biaya) || 0,
+            sasaran: sasaran || '',
+            pengusul: pengusul || '',
+            bidang: bidang || 'Bidang Pelaksanaan Pembangunan Desa',
+            tahun: tahunInt,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+        const { data, error } = await supabase
+            .from('usulan')
+            .insert([payload])
+            .select('id, tahun, kegiatan, nama_kegiatan, lokasi, volume, biaya, sasaran, pengusul, bidang');
+        if (error) throw error;
+        res.json({ success: true, data: data ? data[0] : null });
+    } catch (error) {
+        console.error('❌ Error POST /api/usulan:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// DELETE /api/usulan/:id
+app.delete(['/api/usulan/:id', '/api/usulan'], async (req, res) => {
+    try {
+        const id = req.params.id || req.query.id;
+        const idInt = parseInt(id, 10);
+        if (!idInt) {
+            return res.status(400).json({ success: false, message: 'ID usulan diperlukan.' });
+        }
+        const { error } = await supabase.from('usulan').delete().eq('id', idInt);
+        if (error) throw error;
+        res.json({ success: true, message: 'Usulan berhasil dihapus' });
+    } catch (error) {
+        console.error('❌ Error DELETE /api/usulan:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================================
 // RANCANGAN RKPDes & PRIORITAS RKPDes (SKORING/LIVE EDIT)
 // Frontend: rancangan-rkpdes.html + prioritas.html
 // ============================================================
