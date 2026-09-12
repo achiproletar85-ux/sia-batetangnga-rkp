@@ -344,6 +344,24 @@ function sortHierarchical(dataArray) {
 const RAB_FULL_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, tipe_anggaran, id_referensi_murni, saved_at';
 const RAB_FULL_COLUMNS_LEGACY = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, saved_at';
 
+function enrichRabDetail(r) {
+    if (!r) return r;
+    const fullKode = String(r.kode_unik_full || r.kode_unik || '').trim();
+    const prefix = fullKode.slice(0, 5);
+    const bidPrefix = fullKode.slice(0, 2);
+    if (!r.bidang || r.bidang === '-') {
+        r.bidang = RAB_BIDANG_MAP[bidPrefix] || 'Bidang Penyelenggaraan Pemerintah Desa';
+    }
+    const resolvedSub = r.sub_bidang || RAB_SUB_BIDANG_MAP[prefix] || r.sub_group_nama || r.jenis_kegiatan || 'Sub Bidang Pemerintahan';
+    if (!r.jenis_bidang || r.jenis_bidang === '-') {
+        r.jenis_bidang = resolvedSub;
+    }
+    if (!r.sub_bidang || r.sub_bidang === '-') {
+        r.sub_bidang = resolvedSub;
+    }
+    return r;
+}
+
 // Detail satu baris RAB (termasuk items & rpjm_data).
 // tipeAnggaran wajib disaring karena satu (kode_unik_full, tahun) kini bisa punya
 // DUA baris: MURNI dan PERUBAHAN.
@@ -369,7 +387,7 @@ async function getRabFromDb(kode_unik_full, tahun, tipeAnggaran = RAB_TIPE_MURNI
     if (!error && data) {
         const row = Array.isArray(data) ? data[0] : data;
         if (row && (!row._tipe_fallback || normalizeRabTipe(row.tipe_anggaran) === tipe)) {
-            return row;
+            return enrichRabDetail(row);
         }
     }
 
@@ -385,7 +403,7 @@ async function getRabFromDb(kode_unik_full, tahun, tipeAnggaran = RAB_TIPE_MURNI
         if (!altErr && altData) {
             const altRow = Array.isArray(altData) ? altData[0] : altData;
             if (altRow && (!altRow._tipe_fallback || normalizeRabTipe(altRow.tipe_anggaran) === tipe)) {
-                return altRow;
+                return enrichRabDetail(altRow);
             }
         }
     }
@@ -665,6 +683,19 @@ const RAB_SUB_BIDANG_MAP = {
     '05.03': 'Keadaan Mendesak'
 };
 
+const RAB_BIDANG_MAP = {
+    '01': 'Bidang Penyelenggaraan Pemerintah Desa',
+    '1': 'Bidang Penyelenggaraan Pemerintah Desa',
+    '02': 'Bidang Pelaksanaan Pembangunan Desa',
+    '2': 'Bidang Pelaksanaan Pembangunan Desa',
+    '03': 'Bidang Pembinaan Kemasyarakatan',
+    '3': 'Bidang Pembinaan Kemasyarakatan',
+    '04': 'Bidang Pemberdayaan Masyarakat',
+    '4': 'Bidang Pemberdayaan Masyarakat',
+    '05': 'Bidang Penanggulangan Bencana, Keadaan Darurat dan Mendesak Desa',
+    '5': 'Bidang Penanggulangan Bencana, Keadaan Darurat dan Mendesak Desa'
+};
+
 // Batas wajar baris daftar RAB per tahun/versi (egress guard: kebutuhan riil ~20-30 kegiatan).
 const RAB_LIST_LIMIT = 250;
 
@@ -694,10 +725,16 @@ async function listRabsFromDb(tahun, tipeAnggaran = RAB_TIPE_MURNI) {
     // mengembalikan data MURNI.
     rows = rows.filter(r => normalizeRabTipe(r.tipe_anggaran) === tipe);
     rows = rows.map(r => {
-        const prefix = (r.kode_unik_full || r.kode_unik || '').slice(0, 5);
+        const fullKode = String(r.kode_unik_full || r.kode_unik || '').trim();
+        const prefix = fullKode.slice(0, 5);
+        const bidPrefix = fullKode.slice(0, 2);
+        const resolvedBidang = r.bidang && r.bidang !== '-' ? r.bidang : (RAB_BIDANG_MAP[bidPrefix] || 'Bidang Penyelenggaraan Pemerintah Desa');
+        const resolvedSubBidang = r.sub_bidang || RAB_SUB_BIDANG_MAP[prefix] || r.sub_group_nama || r.jenis_kegiatan || 'Sub Bidang Pemerintahan';
         return {
             ...r,
-            sub_bidang: r.sub_bidang || RAB_SUB_BIDANG_MAP[prefix] || r.sub_group_nama || r.jenis_kegiatan || ''
+            bidang: resolvedBidang,
+            sub_bidang: resolvedSubBidang,
+            jenis_bidang: r.jenis_bidang && r.jenis_bidang !== '-' ? r.jenis_bidang : resolvedSubBidang
         };
     });
     sortHierarchical(rows);
@@ -1584,6 +1621,105 @@ const RPJM_LOOKUP_COLUMNS = [
     'manfaat_l', 'manfaat_p', 'manfaat_rtm', 'total_manfaat',
     'lokasi_kegiatan', 'waktu_pelaksanaan', 'updated_at'
 ].join(', ');
+
+// Cache in-memory + TTL utk lookup rpjmdes_standar (data referensi, jarang berubah).
+let rpjmLookupCache = null;
+let rpjmLookupCacheTs = 0;
+const RPJM_LOOKUP_TTL_MS = 30 * 60 * 1000; // 30 menit
+
+async function loadRpjmLookup() {
+    if (rpjmLookupCache && (Date.now() - rpjmLookupCacheTs) < RPJM_LOOKUP_TTL_MS) {
+        return rpjmLookupCache;
+    }
+    const { data, error } = await supabase
+        .from('rpjmdes_standar')
+        .select(RPJM_LOOKUP_COLUMNS);
+    if (error) {
+        console.warn('⚠️ Gagal memuat rpjmdes_standar:', error.message);
+        if (rpjmLookupCache) return rpjmLookupCache;
+        const emptyMap = new Map();
+        emptyMap.byFull = new Map();
+        emptyMap.byKeg = new Map();
+        emptyMap.bySub = new Map();
+        emptyMap.byName = new Map();
+        return emptyMap;
+    }
+
+    const map = new Map();
+    const byFull = new Map();
+    const byKeg = new Map();
+    const bySub = new Map();
+    const byName = new Map();
+
+    (data || []).forEach(rec => {
+        const fullClean = String(rec.kode_unik_full || rec.kode_unik || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
+        const exactFull = String(rec.kode_unik_full || rec.kode_unik || '').trim();
+        const baseKey = String(rec.kode_unik_full || rec.kode_unik || '').trim().replace(/\.+$/, '');
+
+        if (baseKey) map.set(baseKey, rec);
+        if (exactFull) byFull.set(exactFull, rec);
+        if (fullClean) byFull.set(fullClean, rec);
+
+        const kegClean = String(rec.kode_kegiatan || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
+        if (kegClean && !byKeg.has(kegClean)) byKeg.set(kegClean, rec);
+
+        const subClean = String(rec.kode_sub || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
+        if (subClean && !bySub.has(subClean)) bySub.set(subClean, rec);
+
+        if (rec.nama_kegiatan) byName.set(String(rec.nama_kegiatan).trim().toLowerCase(), rec);
+        if (rec.jenis_kegiatan && !byName.has(String(rec.jenis_kegiatan).trim().toLowerCase())) {
+            byName.set(String(rec.jenis_kegiatan).trim().toLowerCase(), rec);
+        }
+    });
+
+    map.byFull = byFull;
+    map.byKeg = byKeg;
+    map.bySub = bySub;
+    map.byName = byName;
+
+    rpjmLookupCache = map;
+    rpjmLookupCacheTs = Date.now();
+    return map;
+}
+
+function resolveRpjmStandar(kode, currentBidang, currentJenisBidang, currentNamaKegiatan, rpjmLookupData) {
+    const clean = String(kode || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
+    const parts = clean.split('.');
+    const bidKey = (parts[0] || '').padStart(2, '0');
+    const subKey = parts.length > 1 ? `${bidKey}.${parts[1].padStart(2, '0')}` : '';
+    const kegKey = parts.length > 2 ? `${subKey}.${parts[2].padStart(2, '0')}` : '';
+
+    let matched = null;
+    if (rpjmLookupData) {
+        matched = (rpjmLookupData.byFull && (rpjmLookupData.byFull.get(clean) || rpjmLookupData.byFull.get(String(kode || '').trim()))) ||
+                  (kegKey && rpjmLookupData.byKeg ? rpjmLookupData.byKeg.get(kegKey) : null) ||
+                  (subKey && rpjmLookupData.bySub ? rpjmLookupData.bySub.get(subKey) : null) ||
+                  (currentNamaKegiatan && rpjmLookupData.byName ? rpjmLookupData.byName.get(String(currentNamaKegiatan).trim().toLowerCase()) : null);
+    }
+
+    const bidang = (matched && matched.bidang) ||
+                   RAB_BIDANG_MAP[bidKey] ||
+                   (currentBidang && String(currentBidang).trim() !== '' && String(currentBidang).trim() !== '-' ? String(currentBidang).trim() : 'Bidang Penyelenggaraan Pemerintah Desa');
+
+    const jenis_bidang = (matched && matched.jenis_bidang) ||
+                         RAB_SUB_BIDANG_MAP[subKey] ||
+                         (currentJenisBidang && String(currentJenisBidang).trim() !== '' && String(currentJenisBidang).trim() !== '-' ? String(currentJenisBidang).trim() : 'Sub Bidang Pemerintahan');
+
+    const jenis_kegiatan = (matched && matched.jenis_kegiatan) ||
+                           (matched && matched.nama_kegiatan) ||
+                           (currentNamaKegiatan && String(currentNamaKegiatan).trim() !== '' && String(currentNamaKegiatan).trim() !== '-' ? String(currentNamaKegiatan).trim() : 'Kegiatan Desa');
+
+    const nama_kegiatan = (currentNamaKegiatan && String(currentNamaKegiatan).trim() !== '' && String(currentNamaKegiatan).trim() !== '-') ? String(currentNamaKegiatan).trim() :
+                          ((matched && matched.nama_kegiatan) || jenis_kegiatan);
+
+    return {
+        bidang,
+        jenis_bidang,
+        jenis_kegiatan,
+        nama_kegiatan,
+        matchedStd: matched || null
+    };
+}
 
 // Dropdown verifikasi-proposal/rab-list (kolom yang dirender modal tarik)
 const VERIF_RAB_DROPDOWN_COLUMNS = [
@@ -3232,6 +3368,7 @@ app.get('/api/rab-activities', async (req, res) => {
             }
         }
 
+        const rpjmLookup = await loadRpjmLookup();
         const uniqueActivities = [];
         const seen = new Set();
 
@@ -3251,16 +3388,24 @@ app.get('/api/rab-activities', async (req, res) => {
                     }
                 }
 
+                const resolved = resolveRpjmStandar(
+                    rawKode,
+                    item.bidang || rpjmObj.bidang,
+                    rpjmObj.jenis_bidang || item.sub_bidang || item.sub_group_nama,
+                    item.nama_kegiatan || item.uraian || rpjmObj.nama_kegiatan,
+                    rpjmLookup
+                );
+
                 uniqueActivities.push({
                     kode_unik_full: rawKode,
                     kode_unik: item.kode_unik || rawKode,
-                    nama_kegiatan: item.nama_kegiatan || item.uraian || rpjmObj.nama_kegiatan || 'Kegiatan Tanpa Nama',
-                    bidang: item.bidang || rpjmObj.bidang || '',
-                    jenis_bidang: rpjmObj.jenis_bidang || item.sub_group_nama || '',
-                    jenis_kegiatan: item.jenis_kegiatan || rpjmObj.jenis_kegiatan || item.nama_kegiatan || '',
-                    sumber_dana: item.sumber_dana || rpjmObj.sumber_dana || 'DDS',
-                    lokasi: item.lokasi || item.lokasi_kegiatan || rpjmObj.lokasi_kegiatan || 'Desa Batetangnga',
-                    volume: item.volume || '1 Paket',
+                    nama_kegiatan: resolved.nama_kegiatan,
+                    bidang: resolved.bidang,
+                    jenis_bidang: resolved.jenis_bidang,
+                    jenis_kegiatan: resolved.jenis_kegiatan,
+                    sumber_dana: item.sumber_dana || rpjmObj.sumber_dana || (resolved.matchedStd && resolved.matchedStd.sumber_dana) || 'DDS',
+                    lokasi: item.lokasi || item.lokasi_kegiatan || rpjmObj.lokasi_kegiatan || (resolved.matchedStd && resolved.matchedStd.lokasi_kegiatan) || 'Desa Batetangnga',
+                    volume: item.volume || (resolved.matchedStd && resolved.matchedStd.volume_kegiatan) || '1 Paket',
                     satuan: item.satuan || 'Paket',
                     prakiraan_biaya: Number(item.jumlah_anggaran || item.harga_satuan || 0),
                     tahun: tahunInt,
@@ -3275,16 +3420,23 @@ app.get('/api/rab-activities', async (req, res) => {
             const normalizedKode = rawKode.replace(/\.+$/, '');
             if (rawKode && !seen.has(normalizedKode)) {
                 seen.add(normalizedKode);
+                const resolved = resolveRpjmStandar(
+                    rawKode,
+                    item.bidang,
+                    item.jenis_bidang || item.sub_bidang,
+                    item.sub_kegiatan || item.nama_kegiatan,
+                    rpjmLookup
+                );
                 uniqueActivities.push({
                     kode_unik_full: rawKode,
                     kode_unik: item.kode_unik || rawKode,
-                    nama_kegiatan: item.sub_kegiatan || item.nama_kegiatan || 'Kegiatan Tanpa Nama',
-                    bidang: item.bidang || '',
-                    jenis_bidang: item.jenis_bidang || item.sub_bidang || '',
-                    jenis_kegiatan: item.jenis_kegiatan || '',
-                    sumber_dana: item.sumber_pembiayaan || item.sumber_dana || 'DDS',
-                    lokasi: item.lokasi || 'Desa Batetangnga',
-                    volume: item.volume_satuan || item.volume || '12 Bulan',
+                    nama_kegiatan: resolved.nama_kegiatan,
+                    bidang: resolved.bidang,
+                    jenis_bidang: resolved.jenis_bidang,
+                    jenis_kegiatan: resolved.jenis_kegiatan,
+                    sumber_dana: item.sumber_pembiayaan || item.sumber_dana || (resolved.matchedStd && resolved.matchedStd.sumber_dana) || 'DDS',
+                    lokasi: item.lokasi || (resolved.matchedStd && resolved.matchedStd.lokasi_kegiatan) || 'Desa Batetangnga',
+                    volume: item.volume_satuan || item.volume || (resolved.matchedStd && resolved.matchedStd.volume_kegiatan) || '12 Bulan',
                     satuan: item.satuan || 'Paket',
                     prakiraan_biaya: Number(item.prakiraan_biaya || 0),
                     tahun: tahunInt
@@ -3789,22 +3941,34 @@ app.get('/api/verifikasi-proposal/rab-list', async (req, res) => {
     try {
         const { tahun } = req.query;
         const tahunInt = parseInt(tahun, 10) || 2027;
+        const rpjmLookup = await loadRpjmLookup();
         const { data, error } = await supabase
             .from('rab')
             .select(VERIF_RAB_DROPDOWN_COLUMNS)
             .eq('tahun', tahunInt)
             .order('nama_kegiatan', { ascending: true });
         if (error) throw error;
-        const items = (data || []).map(r => ({
-            kode_unik_full: r.kode_unik_full,
-            nama_kegiatan: r.nama_kegiatan || r.uraian || r.jenis_kegiatan || '-',
-            uraian: r.uraian,
-            bidang: r.bidang || 'Bidang Pelaksanaan Pembangunan Desa',
-            lokasi: r.lokasi || r.lokasi_kegiatan || 'Desa Batetangnga',
-            volume: r.volume || r.volume_rab || '',
-            volume_satuan: r.volume !== undefined && r.satuan ? `${r.volume} ${r.satuan}` : (r.volume_rab || '1 Paket'),
-            satuan: r.satuan
-        }));
+        const items = (data || []).map(r => {
+            const rawKode = String(r.kode_unik_full || '').trim();
+            const resolved = resolveRpjmStandar(
+                rawKode,
+                r.bidang,
+                null,
+                r.nama_kegiatan || r.uraian || r.jenis_kegiatan,
+                rpjmLookup
+            );
+            return {
+                kode_unik_full: rawKode,
+                nama_kegiatan: resolved.nama_kegiatan,
+                uraian: r.uraian || resolved.nama_kegiatan,
+                bidang: resolved.bidang,
+                jenis_bidang: resolved.jenis_bidang,
+                lokasi: r.lokasi || r.lokasi_kegiatan || (resolved.matchedStd && resolved.matchedStd.lokasi_kegiatan) || 'Desa Batetangnga',
+                volume: r.volume || (resolved.matchedStd && resolved.matchedStd.volume_kegiatan) || '',
+                volume_satuan: r.volume !== undefined && r.satuan ? `${r.volume} ${r.satuan}` : (resolved.matchedStd && resolved.matchedStd.volume_kegiatan ? `${resolved.matchedStd.volume_kegiatan}` : '1 Paket'),
+                satuan: r.satuan || 'Paket'
+            };
+        });
         res.json({ success: true, data: items });
     } catch (error) {
         console.error('❌ Error GET /api/verifikasi-proposal/rab-list:', error.message);
@@ -5634,33 +5798,6 @@ function findRpjmByKode(rpjmMap, kode) {
         }
     }
     return best;
-}
-
-// Muat seluruh rpjmdes_standar sekali lalu jadikan map {kode_unik_full: record}.
-// Cache in-memory + TTL utk lookup rpjmdes_standar (data referensi, jarang berubah).
-let rpjmLookupCache = null;
-let rpjmLookupCacheTs = 0;
-const RPJM_LOOKUP_TTL_MS = 30 * 60 * 1000; // 30 menit
-
-async function loadRpjmLookup() {
-    if (rpjmLookupCache && (Date.now() - rpjmLookupCacheTs) < RPJM_LOOKUP_TTL_MS) {
-        return rpjmLookupCache;
-    }
-    const { data, error } = await supabase
-        .from('rpjmdes_standar')
-        .select(RPJM_LOOKUP_COLUMNS);
-    if (error) {
-        console.warn('⚠️ Gagal memuat rpjmdes_standar:', error.message);
-        return rpjmLookupCache || new Map();
-    }
-    const map = new Map();
-    (data || []).forEach(rec => {
-        const k = String(rec.kode_unik_full || rec.kode_unik || '').trim().replace(/\.+$/, '');
-        if (k) map.set(k, rec);
-    });
-    rpjmLookupCache = map;
-    rpjmLookupCacheTs = Date.now();
-    return map;
 }
 
 // ------------------------------------------------------------------

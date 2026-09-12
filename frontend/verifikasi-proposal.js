@@ -96,8 +96,9 @@ function loadKegiatanRAB() {
                     opt.value = JSON.stringify(item);
                     const kode = String(item.kode_unik_full || item.kode_unik || '').trim();
                     const kodePrefix = kode ? `[${kode}] ` : '';
-                    const nama = item.nama_kegiatan || item.uraian || item.kegiatan || '-';
-                    opt.textContent = `${kodePrefix}${nama} (${item.bidang || 'Pembangunan'})`;
+                    const nama = item.nama_kegiatan || item.uraian || item.kegiatan || 'Kegiatan Tanpa Nama';
+                    const labelBidang = item.jenis_bidang ? `${item.bidang} - ${item.jenis_bidang}` : (item.bidang || 'Bidang Penyelenggaraan Pemerintah Desa');
+                    opt.textContent = `${kodePrefix}${nama} (${labelBidang})`;
                     select.appendChild(opt);
                 });
             }
@@ -114,10 +115,10 @@ function pilihKegiatanRAB() {
 
     try {
         const item = JSON.parse(val);
-        if (document.getElementById('input-bidang')) document.getElementById('input-bidang').value = item.bidang || 'Bidang Pembangunan Desa';
+        if (document.getElementById('input-bidang')) document.getElementById('input-bidang').value = item.bidang || 'Bidang Penyelenggaraan Pemerintah Desa';
         if (document.getElementById('input-kegiatan')) document.getElementById('input-kegiatan').value = item.nama_kegiatan || item.uraian || item.kegiatan || '';
         if (document.getElementById('input-lokasi')) document.getElementById('input-lokasi').value = item.lokasi || 'Desa Batetangnga';
-        if (document.getElementById('input-volume')) document.getElementById('input-volume').value = item.volume || item.volume_satuan || '1 Paket';
+        if (document.getElementById('input-volume')) document.getElementById('input-volume').value = item.volume_satuan || item.volume || '1 Paket';
     } catch (err) {
         console.error('❌ Error parsing RAB option:', err);
     }

@@ -942,9 +942,9 @@ function renderSavedRabList() {
 
         // Render data rows for the group
         items.forEach((item) => {
-            const namaKegiatan = item.nama_kegiatan || item.jenis_kegiatan || item.rpjm_data?.nama_kegiatan || item.rpjm_data?.jenis_kegiatan || '-';
-            const jenisBidang = item.jenis_bid || item.jenis_bidang || item.rpjm_data?.jenis_bidang || '-';
-            const jenisKegiatan = item.jenis_kegiatan || item.rpjm_data?.jenis_kegiatan || '-';
+            const namaKegiatan = item.nama_kegiatan || item.jenis_kegiatan || item.rpjm_data?.nama_kegiatan || item.rpjm_data?.jenis_kegiatan || 'Kegiatan Tanpa Nama';
+            const jenisBidang = getNamaSubBidangFull(item, item.kode_unik_full || item.kode_unik);
+            const jenisKegiatan = item.jenis_kegiatan || item.rpjm_data?.jenis_kegiatan || (namaKegiatan !== 'Kegiatan Tanpa Nama' ? namaKegiatan : 'Kegiatan Desa');
             const sumberDana = item.sumber_dana || (item.items && item.items.length > 0 ? item.items[0].sumber : 'DDS');
             const savedAt = item.saved_at ? new Date(item.saved_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A';
             const hargaSatuan = item.harga_satuan || (Array.isArray(item.items) && item.items.length > 0 ? item.items[0].harga : 0);
