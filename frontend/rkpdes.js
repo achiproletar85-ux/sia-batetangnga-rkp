@@ -406,12 +406,18 @@ function updateLivePreview() {
                         grandTotalBiaya += biaya;
 
                         const rpjmObj = item._rpjmObj || {};
-                        const totalManfaatVal = Number(item.total_manfaat || rpjmObj.total_manfaat || 0);
-                        const volume = totalManfaatVal > 0 ? totalManfaatVal : (item.volume || rpjmObj.volume || rpjmObj.volume_kegiatan || '1');
-                        const satuan = totalManfaatVal > 0 ? 'Orang' : (item.satuan || rpjmObj.satuan || 'Kegiatan');
+                        const rawVol = item.volume || rpjmObj.volume || item.volume_kegiatan || rpjmObj.volume_kegiatan || '1';
+                        const rawSat = item.satuan || rpjmObj.satuan || rpjmObj.satuan_rab || 'Kegiatan';
+                        const volumeSatuanStr = (String(rawVol).toLowerCase().includes(String(rawSat).toLowerCase()) || !rawSat)
+                            ? String(rawVol)
+                            : `${rawVol} ${rawSat}`;
+
                         const penerimaManfaatStr = parsePenerimaManfaat(item);
                         
-                        const targetCapaianVal = item.target_capaian || rpjmObj.target_capaian || rpjmObj.target_capaian_kegiatan || item.volume || '-';
+                        let targetCapaianVal = item.target_capaian || rpjmObj.target_capaian || rpjmObj.target_capaian_kegiatan || item.volume_kegiatan || volumeSatuanStr || '-';
+                        if (targetCapaianVal === '-' && volumeSatuanStr !== '-') {
+                            targetCapaianVal = volumeSatuanStr;
+                        }
                         
                         const rawWaktu = item.waktu_pelaksanaan || rpjmObj.waktu_pelaksanaan || '';
                         const waktuPelaksanaanVal = (rawWaktu && rawWaktu !== String(activeYear)) ? rawWaktu : '12 Bulan';
@@ -419,7 +425,11 @@ function updateLivePreview() {
                         const namaKegiatan = item.nama_kegiatan || item._namaKegiatan || item.jenis_kegiatan || rpjmObj.nama_kegiatan || '-';
                         const dataEksistingVal = item.data_eksisting || item.data_existing || rpjmObj.data_eksisting || rpjmObj.data_existing || '-';
 
-                        const sdgsVal = item.mendukung_sdgs || item.sdgs || rpjmObj.mendukung_sdgs || rpjmObj.sdgs || '-';
+                        let rawSdgs = item.mendukung_sdgs || item.sdgs || rpjmObj.mendukung_sdgs || rpjmObj.sdgs || '-';
+                        if (rawSdgs && rawSdgs !== '-' && !String(rawSdgs).toLowerCase().includes('sdg') && !isNaN(Number(rawSdgs))) {
+                            rawSdgs = `SDGs ${rawSdgs}`;
+                        }
+                        const sdgsVal = rawSdgs || '-';
                         const verifVal = item.verifikasi_proposal || rpjmObj.verifikasi_proposal || 'Belum';
                         const stuntingVal = item.stunting || rpjmObj.stunting || 'Tidak';
 
@@ -430,14 +440,14 @@ function updateLivePreview() {
                                 <td class="align-top border border-slate-300 px-3 py-2 text-slate-900 font-semibold pl-6">
                                     ${namaKegiatan}
                                 </td>
-                                <td class="text-center align-top border border-slate-300 px-2 py-2 font-semibold text-slate-800">${sdgsVal}</td>
-                                <td class="align-top border border-slate-300 px-2 py-2 text-slate-700">${dataEksistingVal}</td>
-                                <td class="align-top border border-slate-300 px-2 py-2 text-slate-700">${targetCapaianVal}</td>
-                                <td class="align-top border border-slate-300 px-2 py-2 text-slate-700">${item.lokasi || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-2 py-2 whitespace-nowrap text-slate-800 font-medium">${volume} ${satuan}</td>
-                                <td class="text-center align-top border border-slate-300 px-2 py-2 text-slate-800">${penerimaManfaatStr}</td>
+                                <td class="text-center align-top border border-slate-300 px-2 py-2 font-semibold text-slate-800">${sdgsVal || '-'}</td>
+                                <td class="align-top border border-slate-300 px-2 py-2 text-slate-700">${dataEksistingVal || '-'}</td>
+                                <td class="align-top border border-slate-300 px-2 py-2 text-slate-700">${targetCapaianVal || '-'}</td>
+                                <td class="align-top border border-slate-300 px-2 py-2 text-slate-700">${item.lokasi || item.lokasi_kegiatan || rpjmObj.lokasi_kegiatan || 'Desa Batetangnga'}</td>
+                                <td class="text-center align-top border border-slate-300 px-2 py-2 whitespace-nowrap text-slate-800 font-medium">${volumeSatuanStr}</td>
+                                <td class="text-center align-top border border-slate-300 px-2 py-2 text-slate-800">${penerimaManfaatStr || '-'}</td>
                                 <td class="text-center align-top border border-slate-300 px-2 py-2 whitespace-nowrap text-slate-800">${waktuPelaksanaanVal}</td>
-                                <td class="text-center align-top border border-slate-300 px-2 py-2 font-semibold text-slate-700">${item.sumber_pembiayaan || 'DDS'}</td>
+                                <td class="text-center align-top border border-slate-300 px-2 py-2 font-semibold text-slate-700">${item.sumber_pembiayaan || item.sumber_dana || 'DDS'}</td>
                                 <td class="text-right align-top border border-slate-300 px-2 py-2 font-bold text-slate-900 whitespace-nowrap">${formatRupiah(biaya)}</td>
                                 <td class="text-center align-top border border-slate-300 px-2 py-2 text-slate-700">${item.pola_pelaksanaan || 'Swakelola'}</td>
                                 <td class="text-center align-top border border-slate-300 px-2 py-2 no-print whitespace-nowrap">
@@ -583,17 +593,17 @@ function openEditRkpModal(key) {
     document.getElementById('edit-rkp-sdgs').value = item.mendukung_sdgs || item.sdgs || '';
     document.getElementById('edit-rkp-verifikasi-proposal').value = item.verifikasi_proposal || 'Belum';
     document.getElementById('edit-rkp-stunting').value = item.stunting || 'Tidak';
-    document.getElementById('edit-rkp-lokasi').value = item.lokasi || '';
+    document.getElementById('edit-rkp-lokasi').value = item.lokasi || item.lokasi_kegiatan || 'Desa Batetangnga';
     document.getElementById('edit-rkp-data-eksisting').value = item.data_eksisting || item.data_existing || '';
     
-    document.getElementById('edit-rkp-target-capaian').value = item.target_capaian || item.volume || '';
+    document.getElementById('edit-rkp-target-capaian').value = item.target_capaian || item.volume_kegiatan || item.volume || '';
     
     document.getElementById('edit-rkp-volume').value = item.volume || '1';
-    document.getElementById('edit-rkp-satuan').value = 'Kegiatan';
+    document.getElementById('edit-rkp-satuan').value = item.satuan || 'Kegiatan';
     document.getElementById('edit-rkp-biaya').value = item.prakiraan_biaya || 0;
     
-    // Parse manfaat from sasaran_manfaat
-    let mVal = item.sasaran_manfaat || '';
+    // Parse manfaat from sasaran_manfaat / total_manfaat
+    let mVal = (item.total_manfaat != null && item.total_manfaat > 0) ? String(item.total_manfaat) : (item.sasaran_manfaat || item.penerima_manfaat || '');
     if (typeof mVal === 'string' && mVal.includes('Total:')) {
         const totalMatch = mVal.match(/Total:\s*(\d+)/i);
         mVal = totalMatch ? totalMatch[1] : '';
@@ -601,7 +611,7 @@ function openEditRkpModal(key) {
         const matches = mVal.match(/\d+/g);
         mVal = matches ? matches[0] : '';
     }
-    document.getElementById('edit-rkp-manfaat').value = mVal;
+    document.getElementById('edit-rkp-manfaat').value = mVal || '1';
     
     const rawWaktu = item.waktu_pelaksanaan || '';
     document.getElementById('edit-rkp-waktu').value = (rawWaktu && rawWaktu !== String(activeYear)) ? rawWaktu : '12 Bulan';

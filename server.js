@@ -4999,9 +4999,12 @@ app.get('/api/rkpdes', async (req, res) => {
         if (!data) data = [];
 
         if (data.length === 0) {
-            console.log(`⚠️ Tabel 'rkpdes' kosong untuk tahun ${tahunInt}, mencoba fallback hanya dari data RAB tahun ini...`);
             try {
-                const { data: rabData } = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt);
+                let { data: rabData } = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt).eq('tipe_anggaran', 'MURNI');
+                if (!rabData || rabData.length === 0) {
+                    const fallbackAny = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt);
+                    rabData = fallbackAny.data || [];
+                }
 
                 const rabMapByCode = new Map();
                 if (Array.isArray(rabData)) {
@@ -5111,20 +5114,30 @@ app.get('/api/rkpdes', async (req, res) => {
 
                 const rpjmObj = (rab && (typeof rab.rpjm_data === 'object' ? rab.rpjm_data : (() => { try { return JSON.parse(rab.rpjm_data); } catch(e) { return {}; } })())) || {};
 
-                const dataEks = row.data_eksisting || row.data_existing || rpjmObj.data_eksisting || rpjmObj.data_existing || (std && (std.data_existing || std.data_eksisting));
-                if (!row.data_eksisting || row.data_eksisting === '-' || row.data_eksisting === '') {
-                    row.data_eksisting = dataEks || '-';
-                }
+                const isValidVal = (v) => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '-';
 
-                const target = row.target_capaian || rpjmObj.target_capaian || (std && std.target_capaian_kegiatan) || row.volume;
-                if (!row.target_capaian || row.target_capaian === '-' || row.target_capaian === '') {
-                    row.target_capaian = target || '-';
-                }
+                const dataEks = isValidVal(row.data_eksisting) ? row.data_eksisting :
+                                isValidVal(row.data_existing) ? row.data_existing :
+                                isValidVal(rpjmObj.data_eksisting) ? rpjmObj.data_eksisting :
+                                isValidVal(rpjmObj.data_existing) ? rpjmObj.data_existing :
+                                (std && (isValidVal(std.data_existing) ? std.data_existing : std.data_eksisting)) || 'Kegiatan rutin desa';
+                row.data_eksisting = dataEks;
+                row.data_existing = dataEks;
 
-                const sdg = row.mendukung_sdgs || row.sdgs || rpjmObj.mendukung_sdgs || rpjmObj.sdgs || (std && (std.sdgs || std.mendukung_sdgs));
-                if (!row.mendukung_sdgs || row.mendukung_sdgs === '-' || row.mendukung_sdgs === '') {
-                    row.mendukung_sdgs = sdg || '-';
-                }
+                const target = isValidVal(row.target_capaian) ? row.target_capaian :
+                               isValidVal(rpjmObj.target_capaian) ? rpjmObj.target_capaian :
+                               (std && (std.volume_kegiatan || std.target_capaian_kegiatan)) ? (std.volume_kegiatan || std.target_capaian_kegiatan) :
+                               (row.volume ? `${row.volume} ${row.satuan || ''}`.trim() : '1 Kegiatan');
+                row.target_capaian = target;
+
+                const sdg = isValidVal(row.mendukung_sdgs) ? row.mendukung_sdgs :
+                            isValidVal(row.sdgs) ? row.sdgs :
+                            isValidVal(rpjmObj.mendukung_sdgs) ? rpjmObj.mendukung_sdgs :
+                            isValidVal(rpjmObj.sdgs) ? rpjmObj.sdgs :
+                            (std && (std.sdgs || std.mendukung_sdgs)) || '17';
+                const sdgFormatted = String(sdg).toLowerCase().startsWith('sdg') ? String(sdg) : `SDGs ${sdg}`;
+                row.mendukung_sdgs = sdgFormatted;
+                row.sdgs = String(sdg).replace(/^sdgs?\s*/i, '');
 
                 if (std) {
                     if (std.bidang) row.bidang = std.bidang;
@@ -5164,17 +5177,113 @@ app.get('/api/rkpdes', async (req, res) => {
     }
 });
 
+// PUT /api/rkpdes - update satu baris rkpdes
+app.put('/api/rkpdes', async (req, res) => {
+    try {
+        const item = req.body;
+        if (!item) return res.status(400).json({ success: false, error: 'Data item diperlukan' });
+        
+        const updatePayload = {
+            data_eksisting: item.data_eksisting || item.data_existing || '-',
+            target_capaian: item.target_capaian || '-',
+            sdgs: item.sdgs || '-',
+            mendukung_sdgs: item.mendukung_sdgs || item.sdgs || '-',
+            verifikasi_proposal: item.verifikasi_proposal || 'Belum',
+            stunting: item.stunting || 'Tidak',
+            volume: String(item.volume || 1),
+            satuan: item.satuan || 'Kegiatan',
+            prakiraan_biaya: Number(item.prakiraan_biaya || 0),
+            sasaran_manfaat: item.sasaran_manfaat || '-',
+            penerima_manfaat: item.penerima_manfaat || '-',
+            total_manfaat: Number(item.total_manfaat || 0),
+            waktu_pelaksanaan: item.waktu_pelaksanaan || '12 Bulan',
+            sumber_pembiayaan: item.sumber_pembiayaan || 'DDS',
+            pola_pelaksanaan: item.pola_pelaksanaan || 'Swakelola',
+            updated_at: new Date().toISOString()
+        };
+
+        let q = supabase.from('rkpdes').update(updatePayload);
+        if (item.id && !isNaN(Number(item.id))) {
+            q = q.eq('id', Number(item.id));
+        } else if (item.kode_unik_full && item.tahun) {
+            q = q.eq('kode_unik_full', item.kode_unik_full).eq('tahun', Number(item.tahun));
+        } else {
+            return res.status(400).json({ success: false, error: 'ID atau kode_unik_full & tahun diperlukan' });
+        }
+
+        const { error } = await q.select('id');
+        if (error) throw error;
+
+        res.json({ success: true, message: 'Data RKPDes berhasil diperbarui' });
+    } catch (err) {
+        console.error('❌ Error PUT /api/rkpdes:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// DELETE /api/rkpdes?id=...
+app.delete('/api/rkpdes', async (req, res) => {
+    try {
+        const { id } = req.query;
+        if (!id) return res.status(400).json({ success: false, error: 'ID kegiatan diperlukan' });
+
+        let q = supabase.from('rkpdes').delete();
+        if (!isNaN(Number(id))) {
+            q = q.eq('id', Number(id));
+        } else {
+            q = q.eq('kode_unik_full', id);
+        }
+
+        const { error } = await q.select('id');
+        if (error) throw error;
+
+        res.json({ success: true, message: 'Kegiatan RKPDes berhasil dihapus' });
+    } catch (err) {
+        console.error('❌ Error DELETE /api/rkpdes:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
     let rabData = preloadedRab;
     if (!rabData) {
         const { data, error } = await supabase
             .from('rab')
             .select(RAB_SYNC_COLUMNS)
-            .eq('tahun', tahunInt);
+            .eq('tahun', tahunInt)
+            .eq('tipe_anggaran', 'MURNI');
         if (error) throw error;
         rabData = data || [];
+        if (rabData.length === 0) {
+            const fallbackAny = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt);
+            rabData = fallbackAny.data || [];
+        }
     }
-    const rows = (rabData || []).map(rb => {
+
+    // Ambil referensi pengayaan dari rpjmdes_standar
+    let stdMap = new Map();
+    let stdNameMap = new Map();
+    try {
+        const { data: stdData } = await supabase.from('rpjmdes_standar').select(RPJM_LOOKUP_COLUMNS);
+        if (Array.isArray(stdData)) {
+            stdData.forEach(s => {
+                if (s.kode_unik_full) stdMap.set(String(s.kode_unik_full).trim(), s);
+                if (s.kode_unik) stdMap.set(String(s.kode_unik).trim(), s);
+                if (s.nama_kegiatan) stdNameMap.set(String(s.nama_kegiatan).trim().toLowerCase(), s);
+            });
+        }
+    } catch (e) {}
+
+    const isValidVal = (v) => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '-';
+
+    const seenCodes = new Set();
+    const rows = [];
+
+    (rabData || []).forEach(rb => {
+        const code = String(rb.kode_unik_full || rb.kode_unik || '').trim();
+        if (code && seenCodes.has(code)) return;
+        if (code) seenCodes.add(code);
+
         let rpjmObj = {};
         if (rb.rpjm_data) {
             try {
@@ -5183,28 +5292,59 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
                 rpjmObj = rb.rpjm_data;
             }
         }
+        const std = stdMap.get(code) || stdNameMap.get(String(rb.nama_kegiatan || '').toLowerCase());
         const items = Array.isArray(rb.items) ? rb.items : [];
         const totalBiaya = Number(rb.jumlah_anggaran || rb.total_biaya || 0) || items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
-        const code = String(rb.kode_unik_full || rb.kode_unik || '').trim();
-        return {
+
+        const dataEks = isValidVal(rpjmObj.data_existing) ? rpjmObj.data_existing :
+                        isValidVal(rpjmObj.data_eksisting) ? rpjmObj.data_eksisting :
+                        (std && (isValidVal(std.data_existing) ? std.data_existing : std.data_eksisting)) || 'Peningkatan Kesejahteraan';
+
+        const target = (std && (std.volume_kegiatan || std.target_capaian_kegiatan)) ? (std.volume_kegiatan || std.target_capaian_kegiatan) :
+                       isValidVal(rpjmObj.target_capaian) ? rpjmObj.target_capaian :
+                       (rb.volume ? `${rb.volume} ${rb.satuan || ''}`.trim() : '1 Kegiatan');
+
+        const sdg = isValidVal(rpjmObj.sdgs) ? rpjmObj.sdgs :
+                    isValidVal(rpjmObj.mendukung_sdgs) ? rpjmObj.mendukung_sdgs :
+                    (std && (std.sdgs || std.mendukung_sdgs)) || '17';
+        const sdgFormatted = String(sdg).toLowerCase().startsWith('sdg') ? String(sdg) : `SDGs ${sdg}`;
+
+        const totManfaat = (std && std.total_manfaat != null) ? Number(std.total_manfaat) : 1;
+        const waktu = (std && std.waktu_pelaksanaan && std.waktu_pelaksanaan !== String(tahunInt)) ? std.waktu_pelaksanaan : '12 Bulan';
+
+        rows.push({
             tahun: tahunInt,
+            kode_bidang: std ? std.kode_bidang : '01.',
+            kode_sub: std ? std.kode_sub : '01.01.',
+            kode_kegiatan: std ? std.kode_kegiatan : '01.01.01.',
             kode_unik_full: code,
-            bidang: rb.bidang || rpjmObj.bidang || 'Bidang Penyelenggaraan Pemerintah Desa',
-            jenis_bidang: rb.jenis_bidang || rpjmObj.jenis_bidang || '-',
-            jenis_kegiatan: rpjmObj.jenis_kegiatan || rb.jenis_kegiatan || rb.nama_kegiatan || '-',
-            nama_kegiatan: rb.nama_kegiatan || rpjmObj.nama_kegiatan || '-',
-            lokasi: rb.lokasi || rb.lokasi_kegiatan || rpjmObj.lokasi_kegiatan || 'Desa Batetangnga',
+            bidang: rb.bidang || (std && std.bidang) || rpjmObj.bidang || 'Bidang Penyelenggaraan Pemerintah Desa',
+            jenis_kegiatan: (std && std.jenis_kegiatan) || rpjmObj.jenis_kegiatan || rb.nama_kegiatan || '-',
+            nama_kegiatan: rb.nama_kegiatan || (std && std.nama_kegiatan) || rpjmObj.nama_kegiatan || '-',
+            lokasi: rb.lokasi || (std && std.lokasi_kegiatan) || rb.lokasi_kegiatan || rpjmObj.lokasi_kegiatan || 'Desa Batetangnga',
+            lokasi_kegiatan: rb.lokasi || (std && std.lokasi_kegiatan) || rb.lokasi_kegiatan || rpjmObj.lokasi_kegiatan || 'Desa Batetangnga',
             volume: String(rb.volume || items[0]?.volume || 1),
-            satuan: rb.satuan || rpjmObj.satuan_rab || 'Paket',
-            waktu_pelaksanaan: rpjmObj.waktu_pelaksanaan || '12 Bulan',
+            volume_kegiatan: (std && std.volume_kegiatan) || target,
+            satuan: rb.satuan || rpjmObj.satuan_rab || (std && std.satuan) || 'Kegiatan',
+            sasaran_manfaat: `${totManfaat} Orang`,
+            penerima_manfaat: `${totManfaat} Orang`,
+            manfaat_l: std ? (std.manfaat_l || 0) : 1,
+            manfaat_p: std ? (std.manfaat_p || 0) : 0,
+            manfaat_rtm: std ? (std.manfaat_rtm || 0) : 0,
+            total_manfaat: totManfaat,
+            target_capaian: target,
+            waktu_pelaksanaan: waktu,
             prakiraan_biaya: totalBiaya,
-            sumber_pembiayaan: rb.sumber_dana || rpjmObj.sumber_dana || 'DDS',
-            pola_pelaksanaan: rpjmObj.pola_pelaksanaan || 'Swakelola',
+            sumber_pembiayaan: rb.sumber_dana || (std && std.sumber_dana) || rpjmObj.sumber_dana || 'DDS',
+            pola_pelaksanaan: (std && std.pola_pelaksanaan) || rpjmObj.pola_pelaksanaan || 'Swakelola',
+            rencana_pelaksana: 'Kaur Perencanaan',
             status_rab: 'Sudah Dibuat',
-            data_eksisting: rpjmObj.data_existing || rpjmObj.data_eksisting || '-',
-            target_capaian: rpjmObj.target_capaian || String(rb.volume || 1),
-            mendukung_sdgs: rpjmObj.sdgs || '-'
-        };
+            data_eksisting: dataEks,
+            sdgs: String(sdg).replace(/^sdgs?\s*/i, ''),
+            mendukung_sdgs: sdgFormatted,
+            verifikasi_proposal: 'Ya',
+            stunting: (rb.nama_kegiatan && rb.nama_kegiatan.toLowerCase().includes('ibu hamil')) ? 'Ya' : 'Tidak'
+        });
     });
     return { rows };
 }
