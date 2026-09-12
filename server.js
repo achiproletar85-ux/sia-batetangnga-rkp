@@ -1632,7 +1632,7 @@ const RPJM_LOOKUP_COLUMNS = [
     'bidang', 'jenis_bidang', 'jenis_kegiatan', 'nama_kegiatan',
     'data_existing', 'sdgs', 'volume_kegiatan', 'pagu_rpjm', 'sumber_dana',
     'manfaat_l', 'manfaat_p', 'manfaat_rtm', 'total_manfaat',
-    'lokasi_kegiatan', 'waktu_pelaksanaan', 'updated_at'
+    'lokasi_kegiatan', 'waktu_pelaksanaan', 'nama_pengusul', 'updated_at'
 ].join(', ');
 
 // Cache in-memory + TTL utk lookup rpjmdes_standar (data referensi, jarang berubah).
@@ -2318,7 +2318,7 @@ app.delete('/api/prioritas-usulan', async (req, res) => {
 // ============================================================
 // MODUL USULAN MASYARAKAT (MUSRENBANG)
 // ============================================================
-const USULAN_SELECT_COLUMNS = 'id, tahun, tahun_usulan, bidang, kode_unik_full, kode_unik, prioritas, nama_kegiatan, kegiatan, sdgs, data_eksisting, lokasi, volume, biaya, sasaran, pengusul, laki_laki, perempuan, rtm, sumber_dana, created_at, updated_at';
+const USULAN_SELECT_COLUMNS = 'id, tahun, tahun_usulan, bidang, kode_unik_full, kode_unik, prioritas, nama_kegiatan, kegiatan, sdgs, data_eksisting, lokasi, volume, biaya, sasaran, pengusul, nama_pengusul, laki_laki, perempuan, rtm, sumber_dana, created_at, updated_at';
 
 // GET /api/usulan & /api/usulan-masyarakat?tahun=YYYY
 app.get(['/api/usulan', '/api/usulan-masyarakat'], async (req, res) => {
@@ -2337,7 +2337,52 @@ app.get(['/api/usulan', '/api/usulan-masyarakat'], async (req, res) => {
 
         const { data, error } = await query;
         if (error) throw error;
-        res.json({ success: true, data: data || [] });
+
+        let resultRows = data || [];
+
+        // Auto-fallback: Jika data usulan kosong untuk tahun tersebut, tarik dari rpjmdes_standar (target_<tahun>)
+        if (resultRows.length === 0 && tahun) {
+            const tahunInt = parseInt(tahun, 10);
+            const targetCol = `target_${tahunInt}`;
+            const { data: stdData } = await supabase
+                .from('rpjmdes_standar')
+                .select('id, kode_bidang, kode_sub, kode_kegiatan, kode_unik_full, kode_unik, nama_kegiatan, jenis_kegiatan, bidang, lokasi_kegiatan, volume_kegiatan, pagu_rpjm, sumber_dana, nama_pengusul, ' + targetCol)
+                .limit(1000);
+
+            if (Array.isArray(stdData) && stdData.length > 0) {
+                resultRows = stdData.filter(item => {
+                    const val = String(item[targetCol] || '').trim().toLowerCase();
+                    return val === String(tahunInt) || val === 'ya';
+                }).map(item => ({
+                    id: item.id,
+                    tahun: tahunInt,
+                    bidang: item.bidang || 'Bidang Pelaksanaan Pembangunan Desa',
+                    kode_unik_full: String(item.kode_unik_full || item.kode_unik || '').trim(),
+                    kode_unik: String(item.kode_unik || item.kode_unik_full || '').trim(),
+                    nama_kegiatan: item.nama_kegiatan || item.jenis_kegiatan || '-',
+                    kegiatan: item.nama_kegiatan || item.jenis_kegiatan || '-',
+                    lokasi: item.lokasi_kegiatan || 'Desa Batetangnga',
+                    volume: item.volume_kegiatan || '1 Paket',
+                    biaya: parseFloat(item.pagu_rpjm) || 0,
+                    sasaran: 'Masyarakat Desa',
+                    pengusul: item.nama_pengusul || 'Masyarakat',
+                    nama_pengusul: item.nama_pengusul || 'Masyarakat',
+                    sumber_dana: item.sumber_dana || '-'
+                }));
+            }
+        }
+
+        // Map pastikan nama_pengusul dan pengusul selalu sinkron terisi
+        const mapped = resultRows.map(r => {
+            const pengusulFinal = r.nama_pengusul || r.pengusul || 'Masyarakat';
+            return {
+                ...r,
+                pengusul: pengusulFinal,
+                nama_pengusul: pengusulFinal
+            };
+        });
+
+        res.json({ success: true, data: mapped });
     } catch (error) {
         console.error('❌ Error GET /api/usulan:', error.message);
         res.status(500).json({ success: false, error: error.message, data: [] });
@@ -2353,6 +2398,7 @@ app.post(['/api/usulan', '/api/usulan-masyarakat'], async (req, res) => {
             return res.status(400).json({ success: false, message: 'Nama usulan kegiatan wajib diisi.' });
         }
         const tahunInt = parseInt(p.tahun, 10) || parseInt(p.tahun_usulan, 10) || 2027;
+        const pengusulVal = p.nama_pengusul || p.pengusul || '';
         const payload = {
             tahun: tahunInt,
             tahun_usulan: tahunInt,
@@ -2368,7 +2414,8 @@ app.post(['/api/usulan', '/api/usulan-masyarakat'], async (req, res) => {
             volume: p.volume || '1 Paket',
             biaya: parseFloat(p.biaya) || 0,
             sasaran: p.sasaran || '',
-            pengusul: p.pengusul || '',
+            pengusul: pengusulVal,
+            nama_pengusul: pengusulVal,
             laki_laki: parseInt(p.laki_laki ?? p.penerima_laki ?? 0, 10) || 0,
             perempuan: parseInt(p.perempuan ?? p.penerima_perempuan ?? 0, 10) || 0,
             rtm: parseInt(p.rtm ?? p.penerima_rtm ?? 0, 10) || 0,

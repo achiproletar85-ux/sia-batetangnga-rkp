@@ -211,7 +211,7 @@ function getFilteredUsulanList() {
         const kode = String(item.kode_unik_full || item.kode_unik || '').toLowerCase();
         const nama = String(displayName(item)).toLowerCase();
         const bidang = String(item.bidang || '').toLowerCase();
-        const pengusul = String(item.pengusul || '').toLowerCase();
+        const pengusul = String(item.nama_pengusul || item.pengusul || '').toLowerCase();
         const lk = loc.toLowerCase();
         return kode.includes(searchKeyword) || nama.includes(searchKeyword) || bidang.includes(searchKeyword) || pengusul.includes(searchKeyword) || lk.includes(searchKeyword);
     });
@@ -247,7 +247,7 @@ function renderTable() {
             <td class="text-slate-600 text-center">${escapeHtml(item.volume || '-')}</td>
             <td class="font-bold text-emerald-600 text-right font-mono">Rp ${(Number(item.biaya) || 0).toLocaleString('id-ID')}</td>
             <td class="text-slate-600 text-xs">${escapeHtml(item.sasaran || '-')}</td>
-            <td class="text-slate-600 text-xs">${escapeHtml(item.pengusul || '-')}</td>
+            <td class="text-slate-600 text-xs">${escapeHtml(item.nama_pengusul || item.pengusul || '-')}</td>
             <td class="text-center no-print">
                 <button type="button" onclick="hapusUsulan('${item.id}')" title="Hapus Usulan" class="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-xs font-bold transition border border-red-200">
                     <i class="fas fa-trash-alt"></i>
@@ -410,7 +410,7 @@ function cetakUsulanMusrenbang() {
                     <td style="border: 1px solid #000; padding: 4px 6px; font-weight: 500;">${escapeHtml(displayName(item))}</td>
                     <td style="border: 1px solid #000; text-align: center; vertical-align: middle;">${escapeHtml(item.lokasi || '-')}</td>
                     <td style="border: 1px solid #000; text-align: center; vertical-align: middle;">${escapeHtml(item.volume || '-')}</td>
-                    <td style="border: 1px solid #000; text-align: center; vertical-align: middle;">${escapeHtml(item.pengusul || 'Masyarakat')}</td>
+                    <td style="border: 1px solid #000; text-align: center; vertical-align: middle;">${escapeHtml(item.nama_pengusul || item.pengusul || 'Masyarakat')}</td>
                 </tr>
             `;
         });
