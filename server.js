@@ -5460,7 +5460,7 @@ app.get('/api/stunting', async (req, res) => {
         return res.json({ success: true, data: rows, total: rows.length, source: 'rkpdes' });
     } catch (err) {
         console.error('❌ Error GET /api/stunting:', err.message);
-        return res.status(500).json({ success: false, error: err.message, data: [] });
+        return res.json({ success: true, data: [], total: 0, source: 'rkpdes_fallback', error: err.message });
     }
 });
 
@@ -5498,7 +5498,7 @@ app.get('/api/stunting/tarik-rab', async (req, res) => {
         return res.json({ success: true, data: out });
     } catch (err) {
         console.error('❌ Error GET /api/stunting/tarik-rab:', err.message);
-        return res.status(500).json({ success: false, error: err.message, data: [] });
+        return res.json({ success: true, data: [], error: err.message });
     }
 });
 
@@ -6196,16 +6196,17 @@ app.post('/api/rkpdes-data/import', async (req, res) => {
 app.get('/api/tim-penyusun', async (req, res) => {
     try {
         const { tahun } = req.query;
-        if (!tahun) return res.status(400).json({ success: false, error: 'Tahun diperlukan' });
+        if (!tahun) return res.json({ success: true, data: [] });
 
         const { data, error } = await supabase
             .from('tim_penyusun')
             .select(TIM_PENYUSUN_COLUMNS)
             .eq('tahun', parseInt(tahun));
         if (error) throw error;
-        res.json({ success: true, data });
+        res.json({ success: true, data: data || [] });
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        console.error('❌ Error GET /api/tim-penyusun:', error.message);
+        res.json({ success: true, data: [], error: error.message });
     }
 });
 

@@ -1089,11 +1089,13 @@ async function generateNextKode(baseKode) {
                 document.getElementById('stat-pagu').textContent = 'Rp ' + formatRupiah(result.data.totalPagu || 0);
 
                 // Hitung ranking I
-                const rankRes = await fetch(`${API_URL}/rpjmdes?tahun=${tahun || '2026'}&limit=9999`);
-                const rankResult = await rankRes.json();
-                if (rankResult.success) {
-                    const rank1 = rankResult.data.filter(item => item.ranking === 'I').length;
-                    document.getElementById('stat-ranking1').textContent = rank1;
+                const rankRes = await fetch(`${API_URL}/rpjmdes?tahun=${tahun || '2026'}&limit=500`);
+                if (rankRes.ok) {
+                    const rankResult = await rankRes.json();
+                    if (rankResult.success && Array.isArray(rankResult.data)) {
+                        const rank1 = rankResult.data.filter(item => item.ranking === 'I').length;
+                        document.getElementById('stat-ranking1').textContent = rank1;
+                    }
                 }
             }
         } catch (error) {

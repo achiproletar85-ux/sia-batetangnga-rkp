@@ -110,7 +110,18 @@ CREATE TABLE IF NOT EXISTS public.rkpdes (
     updated_at          timestamptz DEFAULT now(),
     sdgs                text,
     verifikasi_proposal text,
-    stunting            text
+    stunting            text,
+    bidang              text,
+    jenis_kegiatan      text,
+    lokasi              text,
+    volume              text,
+    satuan              text DEFAULT 'Kegiatan',
+    sasaran_manfaat     text,
+    penerima_manfaat    text,
+    target_capaian      text,
+    status_rab          text DEFAULT 'Belum Dibuat',
+    data_eksisting      text,
+    mendukung_sdgs      text
 );
 CREATE INDEX IF NOT EXISTS idx_rkpdes_tahun ON public.rkpdes (tahun);
 
@@ -881,4 +892,29 @@ DO $$ BEGIN
         GRANT ALL ON SEQUENCE public.program_masuk_desa_id_seq TO anon, authenticated, service_role;
     END IF;
 END $$;
+
+-- ────────────────────────────────────────────────────────────
+-- TABEL: tim_penyusun
+-- ────────────────────────────────────────────────────────────
+DROP TABLE IF EXISTS public.tim_penyusun CASCADE;
+CREATE TABLE IF NOT EXISTS public.tim_penyusun (
+    id           bigserial PRIMARY KEY,
+    tahun        integer NOT NULL DEFAULT 2027,
+    nama         text,
+    jabatan_tim  text DEFAULT 'Anggota',
+    created_at   timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_tim_penyusun_tahun ON public.tim_penyusun (tahun);
+
+-- RLS & Permissions untuk tim_penyusun
+ALTER TABLE public.tim_penyusun ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tim_penyusun_all" ON public.tim_penyusun;
+CREATE POLICY "tim_penyusun_all" ON public.tim_penyusun FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON TABLE public.tim_penyusun TO anon, authenticated, service_role;
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'tim_penyusun_id_seq') THEN
+        GRANT ALL ON SEQUENCE public.tim_penyusun_id_seq TO anon, authenticated, service_role;
+    END IF;
+END $$;
+
 
