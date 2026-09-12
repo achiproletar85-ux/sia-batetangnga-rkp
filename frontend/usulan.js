@@ -51,7 +51,7 @@ async function loadUsulanData() {
     const year = document.getElementById('select-year')?.value || '2027';
     const tbody = document.getElementById('table-body');
     if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-slate-400 font-semibold"><i class="fas fa-spinner fa-spin mr-2 text-indigo-500"></i> Memuat data usulan tahun ' + year + '...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-slate-400 font-semibold"><i class="fas fa-spinner fa-spin mr-2 text-indigo-500"></i> Memuat data usulan tahun ' + year + '...</td></tr>';
     }
 
     try {
@@ -105,49 +105,45 @@ function renderLokasiCheckboxes(filterKeyword = '') {
     const filteredLokasi = allDistinctLokasi.filter(loc => loc.toLowerCase().includes(kw));
 
     if (filteredLokasi.length === 0) {
-        container.innerHTML = '<div class="text-slate-400 italic text-center py-2">Lokasi tidak ditemukan</div>';
+        container.innerHTML = '<div class="text-slate-400 text-[11px] py-2 text-center">Tidak ada lokasi yang cocok</div>';
         return;
     }
 
     container.innerHTML = filteredLokasi.map(loc => {
         const isChecked = selectedLokasiSet.has(loc);
-        const safeId = 'chk-lokasi-' + loc.replace(/[^a-zA-Z0-9]/g, '_');
         return `
-            <label for="${safeId}" class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-100 cursor-pointer text-slate-700">
-                <input type="checkbox" id="${safeId}" value="${escapeHtml(loc)}" ${isChecked ? 'checked' : ''} onchange="toggleSingleLokasi(this)" class="rounded text-indigo-600 focus:ring-indigo-500" />
-                <span class="truncate flex-1 font-medium">${escapeHtml(loc)}</span>
+            <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded-lg cursor-pointer text-xs select-none transition">
+                <input type="checkbox" value="${escapeHtml(loc)}" ${isChecked ? 'checked' : ''} onchange="toggleSingleLokasi('${escapeHtml(loc)}', this.checked)" class="rounded text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5" />
+                <span class="text-slate-700 font-medium">${escapeHtml(loc)}</span>
             </label>
         `;
     }).join('');
 }
 
-function toggleLokasiDropdown(event) {
-    if (event) event.stopPropagation();
+function toggleLokasiDropdown(e) {
+    if (e) e.stopPropagation();
     const menu = document.getElementById('dropdown-lokasi-menu');
-    if (menu) menu.classList.toggle('hidden');
+    if (!menu) return;
+    const isHidden = menu.classList.contains('hidden');
+    if (isHidden) {
+        menu.classList.remove('hidden');
+        renderLokasiCheckboxes();
+    } else {
+        menu.classList.add('hidden');
+    }
 }
 
-document.addEventListener('click', (e) => {
-    const menu = document.getElementById('dropdown-lokasi-menu');
-    const btn = document.getElementById('btn-toggle-lokasi-filter');
-    if (menu && !menu.classList.contains('hidden')) {
-        if (!menu.contains(e.target) && !btn.contains(e.target)) {
-            menu.classList.add('hidden');
-        }
-    }
-});
-
-function toggleSingleLokasi(chk) {
-    if (chk.checked) {
-        selectedLokasiSet.add(chk.value);
+function toggleSingleLokasi(loc, isChecked) {
+    if (isChecked) {
+        selectedLokasiSet.add(loc);
     } else {
-        selectedLokasiSet.delete(chk.value);
+        selectedLokasiSet.delete(loc);
     }
     updateLokasiLabel();
 }
 
-function selectAllLokasi(selectAll) {
-    if (selectAll) {
+function selectAllLokasi(select) {
+    if (select) {
         selectedLokasiSet = new Set(allDistinctLokasi);
     } else {
         selectedLokasiSet.clear();
@@ -166,6 +162,16 @@ function applyLokasiFilter() {
     if (menu) menu.classList.add('hidden');
     renderTable();
 }
+
+// Tutup dropdown bila klik di luar
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('dropdown-lokasi-menu');
+    const btn = document.getElementById('btn-toggle-lokasi-filter');
+    if (!menu || !btn) return;
+    if (!menu.contains(e.target) && !btn.contains(e.target)) {
+        menu.classList.add('hidden');
+    }
+});
 
 function updateLokasiLabel() {
     const lbl = document.getElementById('lbl-lokasi-selected');
@@ -202,11 +208,12 @@ function getFilteredUsulanList() {
         if (!matchLokasi) return false;
         if (!searchKeyword) return true;
 
+        const kode = String(item.kode_unik_full || item.kode_unik || '').toLowerCase();
         const nama = String(displayName(item)).toLowerCase();
         const bidang = String(item.bidang || '').toLowerCase();
         const pengusul = String(item.pengusul || '').toLowerCase();
         const lk = loc.toLowerCase();
-        return nama.includes(searchKeyword) || bidang.includes(searchKeyword) || pengusul.includes(searchKeyword) || lk.includes(searchKeyword);
+        return kode.includes(searchKeyword) || nama.includes(searchKeyword) || bidang.includes(searchKeyword) || pengusul.includes(searchKeyword) || lk.includes(searchKeyword);
     });
 }
 
@@ -222,13 +229,14 @@ function renderTable() {
     }
 
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-slate-400 font-medium">📭 Tidak ada data usulan yang sesuai dengan filter lokasi/pencarian.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-slate-400 font-medium">📭 Tidak ada data usulan yang sesuai dengan filter lokasi/pencarian.</td></tr>';
         return;
     }
 
     tbody.innerHTML = filtered.map((item, idx) => `
         <tr class="hover:bg-amber-50/50 transition">
             <td class="font-semibold text-slate-500 text-center">${idx + 1}</td>
+            <td class="text-center font-mono text-xs font-bold text-indigo-700 whitespace-nowrap">${escapeHtml(item.kode_unik_full || item.kode_unik || '-')}</td>
             <td class="text-slate-700 font-medium text-xs">
                 ${isPemerintahanDesa(item) 
                     ? `<span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">Aparat Desa</span> <span class="text-slate-600 block text-[11px]">${escapeHtml(item.bidang || 'Penyelenggaraan Pemerintahan')}</span>` 
@@ -359,12 +367,13 @@ function cetakUsulanMusrenbang() {
     if (itemsAparat.length > 0) {
         tableRowsHtml += `
             <tr style="background-color: #e2e8f0; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                <td colspan="5" style="border: 1px solid #000; padding: 5px 8px; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px;">
+                <td colspan="6" style="border: 1px solid #000; padding: 5px 8px; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px;">
                     Usulan/Kegiatan Penyelenggaraan Pemerintahan Desa - Khusus Aparat Desa
                 </td>
             </tr>
             <tr>
                 <td style="border: 1px solid #000; text-align: center; font-weight: bold; vertical-align: middle;">${noUrut++}</td>
+                <td style="border: 1px solid #000; text-align: center; font-family: monospace; font-weight: bold; font-size: 8.5px; vertical-align: middle;">01.01.01.01.</td>
                 <td style="border: 1px solid #000; padding: 5px 6px;">
                     <div style="font-weight: bold; color: #111;">
                         Operasional Pemerintah Desa, Penghasilan Tetap (Siltap), Tunjangan, Operasional BPD/RT &amp; Sarana Aparat Desa
@@ -387,7 +396,7 @@ function cetakUsulanMusrenbang() {
     for (const [bidangName, items] of Object.entries(groupsMasyarakat)) {
         tableRowsHtml += `
             <tr style="background-color: #f1f5f9; font-weight: bold; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                <td colspan="5" style="border: 1px solid #000; padding: 5px 8px; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px;">
+                <td colspan="6" style="border: 1px solid #000; padding: 5px 8px; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px;">
                     ${escapeHtml(bidangName)}
                 </td>
             </tr>
@@ -397,6 +406,7 @@ function cetakUsulanMusrenbang() {
             tableRowsHtml += `
                 <tr>
                     <td style="border: 1px solid #000; text-align: center; vertical-align: middle;">${noUrut++}</td>
+                    <td style="border: 1px solid #000; text-align: center; font-family: monospace; font-size: 8.5px; font-weight: 600; vertical-align: middle;">${escapeHtml(item.kode_unik_full || item.kode_unik || '-')}</td>
                     <td style="border: 1px solid #000; padding: 4px 6px; font-weight: 500;">${escapeHtml(displayName(item))}</td>
                     <td style="border: 1px solid #000; text-align: center; vertical-align: middle;">${escapeHtml(item.lokasi || '-')}</td>
                     <td style="border: 1px solid #000; text-align: center; vertical-align: middle;">${escapeHtml(item.volume || '-')}</td>
@@ -422,7 +432,7 @@ function cetakUsulanMusrenbang() {
         <html lang="id">
         <head>
             <meta charset="UTF-8">
-            <title>Lembar Usulan Masyarakat Musrenbang - ${activeYear}</title>
+            <title>Kamus Usulan Masyarakat Desa Batetangnga - ${activeYear}</title>
             <style>
                 @page {
                     size: A4 portrait;
@@ -506,7 +516,7 @@ function cetakUsulanMusrenbang() {
         </head>
         <body>
             <div class="header-kop">
-                <h1>LEMBAR USULAN MASYARAKAT HASIL MUSRENBANG DESA</h1>
+                <h1>KAMUS USULAN MASYARAKAT DESA BATETANGNGA</h1>
                 <h2>DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR</h2>
                 <p>TAHUN ANGGARAN ${activeYear} &bull; FORMAT HEMAT KERTAS USULAN PRIORITAS</p>
             </div>
@@ -529,11 +539,12 @@ function cetakUsulanMusrenbang() {
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th style="width: 30px;">No</th>
+                        <th style="width: 28px;">No</th>
+                        <th style="width: 105px;">Kode Unik Full</th>
                         <th>Gagasan Usulan Program / Kegiatan</th>
-                        <th style="width: 130px;">Lokasi / Dusun</th>
-                        <th style="width: 90px;">Volume &amp; Satuan</th>
-                        <th style="width: 120px;">Pengusul / Delegasi</th>
+                        <th style="width: 125px;">Lokasi / Dusun</th>
+                        <th style="width: 85px;">Volume &amp; Satuan</th>
+                        <th style="width: 110px;">Pengusul / Delegasi</th>
                     </tr>
                 </thead>
                 <tbody>
