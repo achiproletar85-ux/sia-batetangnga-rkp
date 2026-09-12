@@ -1549,15 +1549,19 @@ const RANCANGAN_LIST_COLUMNS = [
 const RPJMDES_LIST_COLUMNS = [
     'id',
     'kode_bidang', 'kode_sub', 'kode_kegiatan',
-    'kode_unik_full', 'kode_unik', 'no_urut',
+    'kode_unik_full', 'kode_unik', 'kode_unik_h', 'no_urut',
     'bidang', 'jenis_bidang', 'jenis_kegiatan', 'nama_kegiatan',
     'sifat_kegiatan', 'lokasi_kegiatan', 'usulan_berdasarkan', 'nama_pengusul',
     'data_existing', 'sdgs',
     'volume_kegiatan', 'pagu_rpjm', 'anggaran_perubahan', 'sumber_dana', 'pola_pelaksanaan',
+    'skala_prioritas', 'urutan_prioritas',
     'waktu_pelaksanaan',
-    'manfaat_l', 'manfaat_p', 'manfaat_rtm', 'total_manfaat',
+    'manfaat_l', 'manfaat_p', 'manfaat_rtm', 'total_manfaat', 'penerima_manfaat_bg',
+    'masalah', 'penyebab', 'potensi', 'alternatif_pemecahan', 'tindakan_masalah', 'tindakan_layak',
     'target_2023', 'target_2024', 'target_2025', 'target_2026',
     'target_2027', 'target_2028', 'target_2029', 'target_2030',
+    'dirasakan', 'parah', 'hambat', 'sering', 'potensi_skor', 'jumlah_nilai_total', 'uraian_peringkat',
+    'visi_misi', 'pokok_bpd', 'program_masyarakat', 'prioritas_sdgs_skor', 'total_kesesuaian', 'ranking',
     'updated_at'
 ].join(', ');
 
@@ -4782,12 +4786,47 @@ app.put('/api/rpjmdes/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const payload = req.body;
+        delete payload.id;
 
-        const manfaatL = parseInt(payload.manfaat_l) || 0;
-        const manfaatP = parseInt(payload.manfaat_p) || 0;
-        const manfaatRTM = parseInt(payload.manfaat_rtm) || 0;
-        payload.total_manfaat = manfaatL + manfaatP;
-        payload.penerima_manfaat_bg = payload.total_manfaat;
+        // Hitung total manfaat (Laki-laki + Perempuan, tanpa RTM)
+        if (payload.manfaat_l !== undefined || payload.manfaat_p !== undefined) {
+            const manfaatL = parseInt(payload.manfaat_l) || 0;
+            const manfaatP = parseInt(payload.manfaat_p) || 0;
+            payload.total_manfaat = manfaatL + manfaatP;
+            payload.penerima_manfaat_bg = payload.total_manfaat;
+        }
+
+        // Hitung skor masalah jika ada
+        if (payload.dirasakan !== undefined || payload.parah !== undefined || payload.hambat !== undefined || payload.sering !== undefined || payload.potensi_skor !== undefined) {
+            const dirasakan = parseInt(payload.dirasakan) || 0;
+            const parah = parseInt(payload.parah) || 0;
+            const hambat = parseInt(payload.hambat) || 0;
+            const sering = parseInt(payload.sering) || 0;
+            const potensiSkor = parseInt(payload.potensi_skor) || 0;
+            const jumlahNilaiTotal = dirasakan + parah + hambat + sering + potensiSkor;
+            payload.jumlah_nilai_total = jumlahNilaiTotal;
+
+            if (jumlahNilaiTotal >= 401) payload.uraian_peringkat = 'I';
+            else if (jumlahNilaiTotal >= 301) payload.uraian_peringkat = 'II';
+            else if (jumlahNilaiTotal >= 201) payload.uraian_peringkat = 'III';
+            else if (jumlahNilaiTotal >= 101) payload.uraian_peringkat = 'IV';
+            else payload.uraian_peringkat = 'V';
+        }
+
+        // Hitung total kesesuaian jika ada
+        if (payload.visi_misi !== undefined || payload.pokok_bpd !== undefined || payload.program_masyarakat !== undefined || payload.prioritas_sdgs_skor !== undefined) {
+            const visiMisi = parseInt(payload.visi_misi) || 0;
+            const pokokBpd = parseInt(payload.pokok_bpd) || 0;
+            const programMasyarakat = parseInt(payload.program_masyarakat) || 0;
+            const prioritasSdgs = parseInt(payload.prioritas_sdgs_skor) || 0;
+            const totalKesesuaian = visiMisi + pokokBpd + programMasyarakat + prioritasSdgs;
+            payload.total_kesesuaian = totalKesesuaian;
+
+            if (totalKesesuaian >= 301) payload.ranking = 'I';
+            else if (totalKesesuaian >= 201) payload.ranking = 'II';
+            else if (totalKesesuaian >= 101) payload.ranking = 'III';
+            else payload.ranking = 'IV';
+        }
 
         const { data, error } = await supabase
             .from('rpjmdes_standar')

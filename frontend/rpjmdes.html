@@ -623,12 +623,65 @@
     let totalData = 0;
     let editingId = null;
 
+    // Urutan prioritas standar bidang RPJMDes
+    const ORDER_BIDANG = [
+        "Bidang Penyelenggaraan Pemerintah Desa",
+        "Bidang Pelaksanaan Pembangunan Desa",
+        "Bidang Pembinaan Kemasyarakatan",
+        "Bidang Pemberdayaan Masyarakat",
+        "Bidang Penanggulangan Bencana, Darurat Dan Mendesak Desa"
+    ];
+
+    // Data cache in-memory untuk render & edit instan
+    let currentRpjmdesData = [];
+    let isPopulatingForm = false;
+
     // Data dropdown dari master_klasifikasi
     let klasifikasiData = [];
     let bidangList = [];
     let jenisBidangMap = {};
     let jenisKegiatanMap = {};
     let latestKodePrefix = '';
+
+    // Helper aman untuk mengisi nilai dropdown tanpa gagal jika opsi belum terdaftar
+    function setSelectValueSafely(selectEl, value, labelFallback) {
+        if (!selectEl) return;
+        const valStr = String(value ?? '').trim();
+        if (!valStr) {
+            selectEl.value = '';
+            return;
+        }
+
+        // 1. Exact match
+        let matchedOpt = [...selectEl.options].find(o => o.value === valStr);
+
+        // 2. Case-insensitive / trimmed match
+        if (!matchedOpt) {
+            matchedOpt = [...selectEl.options].find(o => o.value.trim().toLowerCase() === valStr.toLowerCase());
+        }
+
+        // 3. Partial match
+        if (!matchedOpt) {
+            matchedOpt = [...selectEl.options].find(o => {
+                const optVal = o.value.trim().toLowerCase();
+                const optText = o.textContent.trim().toLowerCase();
+                const target = valStr.toLowerCase();
+                return (optVal && (optVal.includes(target) || target.includes(optVal))) ||
+                       (optText && (optText.includes(target) || target.includes(optText)));
+            });
+        }
+
+        if (matchedOpt) {
+            selectEl.value = matchedOpt.value;
+        } else {
+            // Buat opsi baru secara dinamis agar nilai tersimpan tetap tampil sempurna
+            const opt = document.createElement('option');
+            opt.value = valStr;
+            opt.textContent = labelFallback || valStr;
+            selectEl.appendChild(opt);
+            selectEl.value = valStr;
+        }
+    }
 
     // ========== TOAST ==========
     function showToast(msg, type = 'success') {
@@ -807,6 +860,7 @@
 
     // ========== DROPDOWN BERTINGKAT ==========
     function onBidangChange() {
+        if (isPopulatingForm) return;
         const selJenisBidang = document.getElementById('form-jenis-bidang');
         const selJenisKegiatan = document.getElementById('form-jenis-kegiatan');
 
@@ -848,6 +902,7 @@
     }
 
     function onJenisBidangChange() {
+        if (isPopulatingForm) return;
         const selJenisKegiatan = document.getElementById('form-jenis-kegiatan');
         if (selJenisKegiatan) selJenisKegiatan.innerHTML = '<option value="">-- Pilih --</option>';
 
@@ -884,6 +939,7 @@
     }
 
     function onJenisKegiatanChange() {
+        if (isPopulatingForm) return;
         const selJenisKegiatan = document.getElementById('form-jenis-kegiatan');
         if (selJenisKegiatan && selJenisKegiatan.selectedIndex >= 0) {
             const opt = selJenisKegiatan.options[selJenisKegiatan.selectedIndex];
@@ -897,6 +953,10 @@
 
     // ========== KODE OTOMATIS ==========
 async function updateKodeOtomatis() {
+    if (isPopulatingForm || editingId) {
+        return; // Jangan modifikasi kode saat mengisi form edit atau sedang dalam mode edit
+    }
+
     const bidangValue = String(document.getElementById('form-bidang')?.value || '').trim();
     const jenisBidangValue = String(document.getElementById('form-jenis-bidang')?.value || '').trim();
     const jenisKegiatanKode = String(document.getElementById('form-kode-kegiatan')?.value || '').trim();
@@ -921,10 +981,6 @@ async function updateKodeOtomatis() {
     if (document.getElementById('form-kode-bidang')) document.getElementById('form-kode-bidang').value = kodeBidang;
     if (document.getElementById('form-kode-sub')) document.getElementById('form-kode-sub').value = kodeSub;
     if (document.getElementById('form-kode-kegiatan')) document.getElementById('form-kode-kegiatan').value = jenisKegiatanKode;
-
-    if (editingId) {
-        return; // Jangan overwrite kode_unik_full saat mengedit data yang sudah ada
-    }
 
     // GENERATE KODE UNIK if jenisKegiatanKode exists
     if (jenisKegiatanKode) {
@@ -1105,6 +1161,7 @@ async function generateNextKode(baseKode) {
 
     // ========== RENDER TABLE ==========
     function renderTable(data) {
+        currentRpjmdesData = Array.isArray(data) ? data : [];
         const tbody = document.getElementById('table-body');
 
         if (!data || data.length === 0) {
@@ -1174,6 +1231,7 @@ async function generateNextKode(baseKode) {
     // ========== OPEN ADD MODAL ==========
     function openAddModal() {
         editingId = null;
+        isPopulatingForm = false;
         document.getElementById('modal-title').innerHTML = '<i class="fas fa-plus-circle text-indigo-600 mr-2"></i>Tambah Data RPJMDes';
         document.getElementById('btn-submit').innerHTML = '<i class="fas fa-save"></i> Simpan';
         document.getElementById('form-rpjmdes').reset();
@@ -1208,103 +1266,199 @@ async function generateNextKode(baseKode) {
     }
 
     function closeModal() {
+        isPopulatingForm = false;
         document.getElementById('modal-form').classList.remove('show');
+    }
+
+    // Helper untuk mengisi dropdown klasifikasi secara aman saat edit
+    function populateDropdownsForEdit(data) {
+        const selBidang = document.getElementById('form-bidang');
+        const selJenisBidang = document.getElementById('form-jenis-bidang');
+        const selJenisKegiatan = document.getElementById('form-jenis-kegiatan');
+
+        // 1. Set Bidang
+        setSelectValueSafely(selBidang, data.bidang);
+
+        // 2. Populasi opsi Jenis Bidang
+        if (selJenisBidang) {
+            selJenisBidang.innerHTML = '<option value="">-- Pilih --</option>';
+            if (Array.isArray(klasifikasiData)) {
+                const filteredMaster = klasifikasiData.filter(matchBidangItem);
+                const subMap = new Map();
+                filteredMaster.forEach(item => {
+                    const sbName = String(item.sub_bidang || item.jenis_bidang || '').trim();
+                    if (sbName) {
+                        const h = getCodeHierarchy(item);
+                        if (!subMap.has(sbName) || (h.kSub && !subMap.get(sbName).kode)) {
+                            subMap.set(sbName, { name: sbName, kode: h.kSub || item.kode_sub || '' });
+                        }
+                    }
+                });
+                const subList = Array.from(subMap.values());
+                subList.sort((a, b) => a.kode.localeCompare(b.kode, undefined, { numeric: true, sensitivity: 'base' }));
+                subList.forEach(sb => {
+                    const label = sb.kode ? `${sb.kode} ${sb.name}` : sb.name;
+                    selJenisBidang.innerHTML += `<option value="${sb.name}">${label}</option>`;
+                });
+            }
+            setSelectValueSafely(selJenisBidang, data.jenis_bidang);
+        }
+
+        // 3. Populasi opsi Jenis Kegiatan
+        if (selJenisKegiatan) {
+            selJenisKegiatan.innerHTML = '<option value="">-- Pilih --</option>';
+            if (Array.isArray(klasifikasiData)) {
+                const filteredKegiatan = klasifikasiData.filter(item => {
+                    const hasKeg = Boolean(item.jenis_kegiatan || item.nama_kegiatan);
+                    return matchSubItem(item) && hasKeg;
+                });
+                const kegList = [...filteredKegiatan];
+                sortHierarchical(kegList);
+                const seenName = new Set();
+                kegList.forEach(item => {
+                    const h = getCodeHierarchy(item);
+                    const kodeKeg = item.kode_klasifikasi || item.kode_kegiatan || h.kKeg || item.kode || '';
+                    const namaJenis = item.jenis_kegiatan || item.nama_kegiatan || '';
+                    if (kodeKeg && namaJenis && !seenName.has(namaJenis)) {
+                        seenName.add(namaJenis);
+                        const label = `[${kodeKeg}] ${namaJenis}`;
+                        selJenisKegiatan.innerHTML += `<option value="${namaJenis}" data-kode="${kodeKeg}">${label}</option>`;
+                    }
+                });
+            }
+            setSelectValueSafely(selJenisKegiatan, data.jenis_kegiatan, data.jenis_kegiatan ? (data.kode_kegiatan ? `[${data.kode_kegiatan}] ${data.jenis_kegiatan}` : data.jenis_kegiatan) : '');
+        }
     }
 
     // ========== EDIT DATA ==========
     async function editData(id) {
         try {
-            const res = await fetch(`${API_URL}/rpjmdes/${id}`);
-            const result = await res.json();
-            if (result.success) {
-                const data = result.data;
-                editingId = id;
-                document.getElementById('modal-title').innerHTML = '<i class="fas fa-edit text-indigo-600 mr-2"></i>Edit Data RPJMDes';
-                document.getElementById('btn-submit').innerHTML = '<i class="fas fa-save"></i> Update';
-                document.getElementById('form-id').value = data.id;
+            // 1. Ambil dari cache lokal terlebih dahulu jika tersedia
+            const localItem = currentRpjmdesData.find(item => String(item.id) === String(id));
+            let data = localItem ? { ...localItem } : null;
 
-                // Isi form
-                document.getElementById('form-kode-bidang').value = data.kode_bidang || '';
-                document.getElementById('form-kode-sub').value = data.kode_sub || '';
-                document.getElementById('form-kode-kegiatan').value = data.kode_kegiatan || '';
-                document.getElementById('form-kode-unik').value = data.kode_unik_full || '';
-                document.getElementById('form-kode-unik-h').value = data.kode_unik_full || '';
-                document.getElementById('form-nama').value = data.nama_kegiatan || '';
-                document.getElementById('form-pagu').value = data.pagu_rpjm ? formatRupiah(data.pagu_rpjm) : '';
-                document.getElementById('form-sifat').value = data.sifat_kegiatan || 'Rutin';
-                document.getElementById('form-volume').value = data.volume_kegiatan || '';
-                document.getElementById('form-lokasi').value = data.lokasi_kegiatan || '';
-                document.getElementById('form-usulan').value = data.usulan_berdasarkan || '';
-                document.getElementById('form-bidang').value = data.bidang || '';
-                onBidangChange();
-                document.getElementById('form-jenis-bidang').value = data.jenis_bidang || '';
-                onJenisBidangChange();
-                
-                const selKeg = document.getElementById('form-jenis-kegiatan');
-                if (selKeg && data.jenis_kegiatan) {
-                    if (![...selKeg.options].some(o => o.value === data.jenis_kegiatan)) {
-                        selKeg.innerHTML += `<option value="${data.jenis_kegiatan}" data-kode="${data.kode_kegiatan || ''}">${data.jenis_kegiatan}</option>`;
-                    }
-                    selKeg.value = data.jenis_kegiatan;
-                }
-                if (document.getElementById('form-kode-kegiatan')) document.getElementById('form-kode-kegiatan').value = data.kode_kegiatan || '';
-                if (document.getElementById('form-kode-unik')) document.getElementById('form-kode-unik').value = data.kode_unik_full || '';
-                if (document.getElementById('form-kode-unik-h')) document.getElementById('form-kode-unik-h').value = data.kode_unik_full || '';
-
-                document.getElementById('form-sdgs').value = data.sdgs || '';
-                document.getElementById('form-pengusul').value = data.nama_pengusul || '';
-                document.getElementById('form-data-existing').value = data.data_existing || '';
-                document.getElementById('form-manfaat-l').value = data.manfaat_l || 0;
-                document.getElementById('form-manfaat-p').value = data.manfaat_p || 0;
-                document.getElementById('form-manfaat-rtm').value = data.manfaat_rtm || 0;
-                hitungTotalManfaat();
-                document.getElementById('form-waktu').value = data.waktu_pelaksanaan || '';
-                document.getElementById('form-anggaran-perubahan').value = data.anggaran_perubahan ? formatRupiah(data.anggaran_perubahan) : '';
-                document.getElementById('form-sumber-dana').value = data.sumber_dana || '';
-                document.getElementById('form-pola').value = data.pola_pelaksanaan || 'Swakelola';
-                document.getElementById('form-skala').value = data.skala_prioritas || 'Ya';
-                document.getElementById('form-urutan').value = data.urutan_prioritas || '';
-                document.getElementById('form-masalah').value = data.masalah || '';
-                document.getElementById('form-penyebab').value = data.penyebab || '';
-                document.getElementById('form-potensi').value = data.potensi || '';
-                document.getElementById('form-alternatif').value = data.alternatif_pemecahan || '';
-                document.getElementById('form-tindakan-masalah').value = data.tindakan_masalah || '';
-                document.getElementById('form-tindakan-layak').value = data.tindakan_layak || '';
-
-                // Target tahun
-                for (let y = 2023; y <= 2030; y++) {
-                    const el = document.getElementById(`form-target-${y}`);
-                    if (el) {
-                        const val = data[`target_${y}`];
-                        const isTarget = String(val || '').trim() === String(y) || String(val || '').trim().toLowerCase() === 'ya';
-                        el.value = isTarget ? String(y) : '-';
+            // 2. Ambil detail lengkap dari server
+            try {
+                const res = await fetch(`${API_URL}/rpjmdes/${id}`);
+                if (res.ok) {
+                    const result = await res.json();
+                    if (result.success && result.data) {
+                        data = Object.assign({}, data || {}, result.data);
                     }
                 }
-
-                // Skor masalah
-                document.getElementById('form-dirasakan').value = data.dirasakan || 0;
-                document.getElementById('form-parah').value = data.parah || 0;
-                document.getElementById('form-hambat').value = data.hambat || 0;
-                document.getElementById('form-sering').value = data.sering || 0;
-                document.getElementById('form-potensi-skor').value = data.potensi_skor || 0;
-                hitungSkorMasalah();
-                document.getElementById('form-jumlah-nilai').value = data.jumlah_nilai_total || 0;
-                document.getElementById('form-uraian-peringkat').value = data.uraian_peringkat || '-';
-
-                // Skor kesesuaian
-                document.getElementById('form-visi-misi').value = data.visi_misi || 0;
-                document.getElementById('form-pokok-bpd').value = data.pokok_bpd || 0;
-                document.getElementById('form-program-masy').value = data.program_masyarakat || 0;
-                document.getElementById('form-prioritas-sdgs').value = data.prioritas_sdgs_skor || 0;
-                hitungKesesuaian();
-                document.getElementById('form-total-kesesuaian').value = data.total_kesesuaian || 0;
-                document.getElementById('form-ranking').value = data.ranking || '-';
-
-                document.getElementById('modal-form').classList.add('show');
+            } catch (fetchErr) {
+                console.warn('Gagal memuat detail dari API, fallback ke cache lokal:', fetchErr);
             }
+
+            if (!data) {
+                showToast('Data tidak ditemukan!', 'error');
+                return;
+            }
+
+            editingId = id;
+            isPopulatingForm = true;
+
+            // Pastikan dropdown master data sudah termuat jika belum
+            if (!klasifikasiData || klasifikasiData.length === 0) {
+                await loadDropdownData();
+            }
+
+            document.getElementById('modal-title').innerHTML = '<i class="fas fa-edit text-indigo-600 mr-2"></i>Edit Data RPJMDes';
+            document.getElementById('btn-submit').innerHTML = '<i class="fas fa-save"></i> Update';
+            document.getElementById('form-id').value = data.id;
+
+            // Bagian 1: Kode Otomatis
+            document.getElementById('form-kode-bidang').value = data.kode_bidang || '';
+            document.getElementById('form-kode-sub').value = data.kode_sub || '';
+            document.getElementById('form-kode-kegiatan').value = data.kode_kegiatan || '';
+            document.getElementById('form-kode-unik').value = data.kode_unik_full || data.kode_unik || '';
+            document.getElementById('form-kode-unik-h').value = data.kode_unik_h || data.kode_unik_full || data.kode_unik || '';
+
+            // Bagian 2: Data Dasar
+            document.getElementById('form-nama').value = data.nama_kegiatan || '';
+            document.getElementById('form-pagu').value = data.pagu_rpjm ? formatRupiah(data.pagu_rpjm) : '';
+            setSelectValueSafely(document.getElementById('form-sifat'), data.sifat_kegiatan || 'Rutin');
+
+            // Bagian 3: Lokasi & Usulan
+            document.getElementById('form-volume').value = data.volume_kegiatan || '';
+            document.getElementById('form-lokasi').value = data.lokasi_kegiatan || data.lokasi || '';
+            setSelectValueSafely(document.getElementById('form-usulan'), data.usulan_berdasarkan || '');
+
+            // Bagian 4: Dropdown Bertingkat Klasifikasi
+            populateDropdownsForEdit(data);
+
+            // Bagian 5: SDGs & Pengusul
+            setSelectValueSafely(document.getElementById('form-sdgs'), data.sdgs || '');
+            document.getElementById('form-pengusul').value = data.nama_pengusul || '';
+            document.getElementById('form-data-existing').value = data.data_existing || '';
+
+            // Bagian 6: Penerima Manfaat
+            document.getElementById('form-manfaat-l').value = data.manfaat_l ?? 0;
+            document.getElementById('form-manfaat-p').value = data.manfaat_p ?? 0;
+            document.getElementById('form-manfaat-rtm').value = data.manfaat_rtm ?? 0;
+            hitungTotalManfaat();
+            setSelectValueSafely(document.getElementById('form-waktu'), data.waktu_pelaksanaan || '');
+
+            // Bagian 7: Anggaran & Sumber Dana
+            document.getElementById('form-anggaran-perubahan').value = data.anggaran_perubahan ? formatRupiah(data.anggaran_perubahan) : '';
+            setSelectValueSafely(document.getElementById('form-sumber-dana'), data.sumber_dana || '');
+            setSelectValueSafely(document.getElementById('form-pola'), data.pola_pelaksanaan || 'Swakelola');
+            setSelectValueSafely(document.getElementById('form-skala'), data.skala_prioritas || 'Ya');
+            setSelectValueSafely(document.getElementById('form-urutan'), data.urutan_prioritas || '');
+
+            // Bagian 8: Masalah & Potensi
+            document.getElementById('form-masalah').value = data.masalah || '';
+            document.getElementById('form-penyebab').value = data.penyebab || '';
+            document.getElementById('form-potensi').value = data.potensi || '';
+            document.getElementById('form-alternatif').value = data.alternatif_pemecahan || '';
+            document.getElementById('form-tindakan-masalah').value = data.tindakan_masalah || '';
+            document.getElementById('form-tindakan-layak').value = data.tindakan_layak || '';
+
+            // Bagian 9: Target Tahun (2023-2030)
+            for (let y = 2023; y <= 2030; y++) {
+                const el = document.getElementById(`form-target-${y}`);
+                if (el) {
+                    const val = data[`target_${y}`];
+                    const isTarget = String(val || '').trim() === String(y) || String(val || '').trim().toLowerCase() === 'ya';
+                    el.value = isTarget ? String(y) : '-';
+                }
+            }
+
+            // Bagian 10: Skor Masalah
+            document.getElementById('form-dirasakan').value = data.dirasakan ?? 0;
+            document.getElementById('form-parah').value = data.parah ?? 0;
+            document.getElementById('form-hambat').value = data.hambat ?? 0;
+            document.getElementById('form-sering').value = data.sering ?? 0;
+            document.getElementById('form-potensi-skor').value = data.potensi_skor ?? 0;
+            hitungSkorMasalah();
+            if (data.jumlah_nilai_total !== undefined && data.jumlah_nilai_total !== null && data.jumlah_nilai_total !== '') {
+                document.getElementById('form-jumlah-nilai').value = data.jumlah_nilai_total;
+            }
+            if (data.uraian_peringkat) {
+                document.getElementById('form-uraian-peringkat').value = data.uraian_peringkat;
+            }
+
+            // Bagian 11: Skor Kesesuaian
+            document.getElementById('form-visi-misi').value = data.visi_misi ?? 0;
+            document.getElementById('form-pokok-bpd').value = data.pokok_bpd ?? 0;
+            document.getElementById('form-program-masy').value = data.program_masyarakat ?? 0;
+            document.getElementById('form-prioritas-sdgs').value = data.prioritas_sdgs_skor ?? 0;
+            hitungKesesuaian();
+            if (data.total_kesesuaian !== undefined && data.total_kesesuaian !== null && data.total_kesesuaian !== '') {
+                document.getElementById('form-total-kesesuaian').value = data.total_kesesuaian;
+            }
+            if (data.ranking) {
+                document.getElementById('form-ranking').value = data.ranking;
+            }
+
+            // Buka Modal
+            isPopulatingForm = false;
+            document.getElementById('modal-form').classList.add('show');
+
         } catch (error) {
+            isPopulatingForm = false;
             console.error('Error editing data:', error);
-            showToast('Gagal memuat data untuk diedit', 'error');
+            showToast('Gagal memuat data untuk diedit: ' + error.message, 'error');
         }
     }
 
@@ -1420,13 +1574,7 @@ async function generateNextKode(baseKode) {
         }
     }
 
-    const ORDER_BIDANG = [
-        "Bidang Penyelenggaraan Pemerintah Desa",
-        "Bidang Pelaksanaan Pembangunan Desa",
-        "Bidang Pembinaan Kemasyarakatan",
-        "Bidang Pemberdayaan Masyarakat",
-        "Bidang Penanggulangan Bencana, Darurat Dan Mendesak Desa"
-    ];
+
 
     // ========== LOAD BIDANG LIST UNTUK FILTER ==========
     // Diambil dari database (via /api/bidang-list) agar nama bidang PERSIS
