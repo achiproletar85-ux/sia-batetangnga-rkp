@@ -6255,7 +6255,17 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
             }
 
             const lpRtmSemula = parseLPRTMDetails(m, resolved);
-            const lpRtmMenjadi = p ? parseLPRTMDetails(p, resolved) : lpRtmSemula;
+            let lpRtmMenjadi = p ? parseLPRTMDetails(p, resolved) : { ...lpRtmSemula };
+            // Fallback otomatis jika data Menjadi kosong: salin dari Semula
+            if ((!lpRtmMenjadi.l || lpRtmMenjadi.l === '-') && lpRtmSemula.l && lpRtmSemula.l !== '-') {
+                lpRtmMenjadi.l = lpRtmSemula.l;
+            }
+            if ((!lpRtmMenjadi.p || lpRtmMenjadi.p === '-') && lpRtmSemula.p && lpRtmSemula.p !== '-') {
+                lpRtmMenjadi.p = lpRtmSemula.p;
+            }
+            if ((!lpRtmMenjadi.rtm || lpRtmMenjadi.rtm === '-') && lpRtmSemula.rtm && lpRtmSemula.rtm !== '-') {
+                lpRtmMenjadi.rtm = lpRtmSemula.rtm;
+            }
 
             combinedMap.set(code, {
                 id: m.id,

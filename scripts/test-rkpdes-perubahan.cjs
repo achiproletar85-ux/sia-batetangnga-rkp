@@ -71,6 +71,25 @@ assert(jsCode.includes('SUMAILA DAMANG'), 'Kepala Desa SUMAILA DAMANG tercantum 
 assert(jsCode.includes('ABDUL AZIS SPM'), 'Ketua Tim ABDUL AZIS SPM tercantum di footer');
 assert(jsCode.includes('Disusun oleh,'), 'Penulisan resmi Disusun oleh, tercantum');
 
+// 4. Cek Fitur Fallback Data Semula & Modal Edit Penerima Manfaat (MENJADI)
+assert(serverCode.includes('lpRtmMenjadi.l = lpRtmSemula.l'), 'Fallback default otomatis Laki-laki dari Semula di server.js');
+assert(serverCode.includes('lpRtmMenjadi.p = lpRtmSemula.p'), 'Fallback default otomatis Perempuan dari Semula di server.js');
+assert(serverCode.includes('lpRtmMenjadi.rtm = lpRtmSemula.rtm'), 'Fallback default otomatis RTM dari Semula di server.js');
+
+assert(htmlCode.includes('id="modalEditManfaatMenjadi"'), 'Modal edit penerima manfaat ada di rkpdes.html');
+assert(htmlCode.includes('id="input-menjadi-l"'), 'Input Laki-laki ada di modal');
+assert(htmlCode.includes('id="input-menjadi-p"'), 'Input Perempuan ada di modal');
+assert(htmlCode.includes('id="input-menjadi-rtm"'), 'Input RTM ada di modal');
+assert(htmlCode.includes('copyFromSemulaToMenjadi()'), 'Tombol salin dari Semula ada di modal');
+assert(htmlCode.includes('resetManfaatMenjadi()'), 'Tombol reset default ada di modal');
+
+assert(jsCode.includes('function openEditManfaatMenjadi'), 'Fungsi openEditManfaatMenjadi terdefinisi');
+assert(jsCode.includes('function closeEditManfaatMenjadiModal'), 'Fungsi closeEditManfaatMenjadiModal terdefinisi');
+assert(jsCode.includes('function copyFromSemulaToMenjadi'), 'Fungsi copyFromSemulaToMenjadi terdefinisi');
+assert(jsCode.includes('function resetManfaatMenjadi'), 'Fungsi resetManfaatMenjadi terdefinisi');
+assert(jsCode.includes('function saveEditManfaatMenjadi'), 'Fungsi saveEditManfaatMenjadi terdefinisi');
+assert(jsCode.includes('applyManfaatOverridesToPerubahanList'), 'Fungsi applyManfaatOverridesToPerubahanList terdefinisi');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

@@ -847,6 +847,60 @@ async function switchRkpdesTab(tab) {
 }
 window.switchRkpdesTab = switchRkpdesTab;
 
+function getManfaatOverrides(year) {
+    try {
+        const y = year || activeYear || 2027;
+        const raw = localStorage.getItem(`rkpdes_manfaat_overrides_${y}`);
+        return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+        console.error('Error reading manfaat overrides:', e);
+        return {};
+    }
+}
+window.getManfaatOverrides = getManfaatOverrides;
+
+function saveManfaatOverrides(year, overrides) {
+    try {
+        const y = year || activeYear || 2027;
+        localStorage.setItem(`rkpdes_manfaat_overrides_${y}`, JSON.stringify(overrides));
+    } catch (e) {
+        console.error('Error saving manfaat overrides:', e);
+    }
+}
+window.saveManfaatOverrides = saveManfaatOverrides;
+
+function applyManfaatOverridesToPerubahanList() {
+    if (!Array.isArray(rkpdesPerubahanList)) return;
+    const overrides = getManfaatOverrides(activeYear);
+
+    rkpdesPerubahanList.forEach(item => {
+        if (!item.semula) item.semula = {};
+        if (!item.menjadi) item.menjadi = {};
+
+        // 1. Default Fallback Otomatis: Salin dari SEMULA jika MENJADI kosong atau '-'
+        if ((!item.menjadi.manfaat_l || item.menjadi.manfaat_l === '-') && item.semula.manfaat_l && item.semula.manfaat_l !== '-') {
+            item.menjadi.manfaat_l = item.semula.manfaat_l;
+        }
+        if ((!item.menjadi.manfaat_p || item.menjadi.manfaat_p === '-') && item.semula.manfaat_p && item.semula.manfaat_p !== '-') {
+            item.menjadi.manfaat_p = item.semula.manfaat_p;
+        }
+        if ((!item.menjadi.manfaat_rtm || item.menjadi.manfaat_rtm === '-') && item.semula.manfaat_rtm && item.semula.manfaat_rtm !== '-') {
+            item.menjadi.manfaat_rtm = item.semula.manfaat_rtm;
+        }
+
+        // 2. Terapkan Override Pengguna jika tersimpan
+        const itemKey = item.kode_unik_full || item.id || item.nama_kegiatan;
+        if (itemKey && overrides[itemKey]) {
+            const ov = overrides[itemKey];
+            if (ov.l !== undefined && ov.l !== '') item.menjadi.manfaat_l = ov.l;
+            if (ov.p !== undefined && ov.p !== '') item.menjadi.manfaat_p = ov.p;
+            if (ov.rtm !== undefined && ov.rtm !== '') item.menjadi.manfaat_rtm = ov.rtm;
+            item.menjadi._overridden = true;
+        }
+    });
+}
+window.applyManfaatOverridesToPerubahanList = applyManfaatOverridesToPerubahanList;
+
 async function loadRkpdesPerubahanData() {
     activeYear = Number(document.getElementById('select-year')?.value) || 2027;
     const container = document.getElementById('livePreviewContainer');
@@ -864,6 +918,7 @@ async function loadRkpdesPerubahanData() {
         if (json.success && Array.isArray(json.data)) {
             rkpdesPerubahanList = json.data;
             rkpdesPerubahanTotals = json.total || { semula: 0, menjadi: 0, selisih: 0 };
+            applyManfaatOverridesToPerubahanList();
             renderRkpdesPerubahanPreview();
         } else {
             rkpdesPerubahanList = [];
@@ -985,6 +1040,9 @@ function renderRkpdesPerubahanPreview() {
                         grandTotalMenjadi += bMenjadi;
                         grandTotalSelisih += diff;
 
+                        const itemKey = item.kode_unik_full || item.id || item.nama_kegiatan || ('row_' + index);
+                        const itemKeyEscaped = String(itemKey).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
                         const namaKegiatan = item.nama_kegiatan || item.jenis_kegiatan || '-';
                         let statusBadge = '';
                         if (item.status_perubahan === 'bertambah') {
@@ -1006,8 +1064,11 @@ function renderRkpdesPerubahanPreview() {
                                 <!-- 1. Identifikasi Umum -->
                                 <td class="text-center align-top border border-slate-300 text-slate-500 py-1.5 px-1">${index + 1}</td>
                                 <td class="align-top border border-slate-300 px-2 py-1.5 text-slate-900 font-semibold pl-6">
-                                    ${namaKegiatan}
+                                    <span>${namaKegiatan}</span>
                                     ${statusBadge}
+                                    <button type="button" onclick="openEditManfaatMenjadi('${itemKeyEscaped}')" class="no-print ml-2 text-slate-400 hover:text-indigo-600 transition inline-flex items-center text-[10px] px-1.5 py-0.5 rounded hover:bg-indigo-50 border border-slate-200" title="Edit Penerima Manfaat (Menjadi)">
+                                        <i class="fas fa-users-cog mr-1"></i>Edit Manfaat
+                                    </button>
                                 </td>
                                 
                                 <!-- 2. Blok SEMULA -->
@@ -1025,10 +1086,19 @@ function renderRkpdesPerubahanPreview() {
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap">${menjadi.sdgs || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.data_eksisting || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.lokasi || 'Desa Batetangnga'}</td>
-                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 whitespace-nowrap text-slate-800 font-medium">${menjadi.volume_satuan || menjadi.volume || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${menjadi.manfaat_l || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${menjadi.manfaat_p || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${menjadi.manfaat_rtm || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800 font-medium">${menjadi.volume_satuan || menjadi.volume || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group" onclick="openEditManfaatMenjadi('${itemKeyEscaped}')" title="Klik untuk edit penerima manfaat MENJADI">
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${menjadi.manfaat_l || '-'}</span>
+                                    <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5"><i class="fas fa-pen"></i></span>
+                                </td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group" onclick="openEditManfaatMenjadi('${itemKeyEscaped}')" title="Klik untuk edit penerima manfaat MENJADI">
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${menjadi.manfaat_p || '-'}</span>
+                                    <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5"><i class="fas fa-pen"></i></span>
+                                </td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group" onclick="openEditManfaatMenjadi('${itemKeyEscaped}')" title="Klik untuk edit penerima manfaat MENJADI">
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${menjadi.manfaat_rtm || '-'}</span>
+                                    <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5"><i class="fas fa-pen"></i></span>
+                                </td>
                                 <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-bold text-slate-900 whitespace-nowrap">${formatRupiah(bMenjadi)}</td>
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${menjadi.sumber_biaya || 'DDS'}</td>
                                 
@@ -1250,3 +1320,111 @@ window.cetakRkpdesPerubahan = cetakRkpdesPerubahan;
 window.addEventListener('afterprint', () => {
     document.body.classList.remove('print-perubahan');
 });
+
+// ==========================================
+// FITUR INTERAKTIF EDIT PENERIMA MANFAAT (MENJADI)
+// ==========================================
+function openEditManfaatMenjadi(itemKey) {
+    if (!rkpdesPerubahanList || rkpdesPerubahanList.length === 0) return;
+    const item = rkpdesPerubahanList.find(x => (x.kode_unik_full || x.id || x.nama_kegiatan) === itemKey);
+    if (!item) {
+        showToast('❌ Data kegiatan tidak ditemukan', 'error');
+        return;
+    }
+
+    const modal = document.getElementById('modalEditManfaatMenjadi');
+    if (!modal) return;
+
+    const code = item.kode_unik_full || '-';
+    const name = item.nama_kegiatan || item.jenis_kegiatan || '-';
+    const sL = item.semula?.manfaat_l || '-';
+    const sP = item.semula?.manfaat_p || '-';
+    const sRtm = item.semula?.manfaat_rtm || '-';
+
+    const mTitle = document.getElementById('edit-manfaat-kegiatan-title');
+    const mKeyInput = document.getElementById('edit-manfaat-item-key');
+    const lblL = document.getElementById('label-semula-l');
+    const lblP = document.getElementById('label-semula-p');
+    const lblRtm = document.getElementById('label-semula-rtm');
+    const inL = document.getElementById('input-menjadi-l');
+    const inP = document.getElementById('input-menjadi-p');
+    const inRtm = document.getElementById('input-menjadi-rtm');
+
+    if (mKeyInput) mKeyInput.value = itemKey;
+    if (mTitle) mTitle.textContent = `[${code}] ${name}`;
+    if (lblL) lblL.textContent = sL;
+    if (lblP) lblP.textContent = sP;
+    if (lblRtm) lblRtm.textContent = sRtm;
+
+    if (inL) inL.value = (item.menjadi?.manfaat_l && item.menjadi.manfaat_l !== '-') ? item.menjadi.manfaat_l : (sL !== '-' ? sL : '');
+    if (inP) inP.value = (item.menjadi?.manfaat_p && item.menjadi.manfaat_p !== '-') ? item.menjadi.manfaat_p : (sP !== '-' ? sP : '');
+    if (inRtm) inRtm.value = (item.menjadi?.manfaat_rtm && item.menjadi.manfaat_rtm !== '-') ? item.menjadi.manfaat_rtm : (sRtm !== '-' ? sRtm : '');
+
+    modal.classList.remove('hidden');
+}
+window.openEditManfaatMenjadi = openEditManfaatMenjadi;
+
+function closeEditManfaatMenjadiModal() {
+    const modal = document.getElementById('modalEditManfaatMenjadi');
+    if (modal) modal.classList.add('hidden');
+}
+window.closeEditManfaatMenjadiModal = closeEditManfaatMenjadiModal;
+
+function copyFromSemulaToMenjadi() {
+    const sL = document.getElementById('label-semula-l')?.textContent?.trim() || '';
+    const sP = document.getElementById('label-semula-p')?.textContent?.trim() || '';
+    const sRtm = document.getElementById('label-semula-rtm')?.textContent?.trim() || '';
+
+    const inL = document.getElementById('input-menjadi-l');
+    const inP = document.getElementById('input-menjadi-p');
+    const inRtm = document.getElementById('input-menjadi-rtm');
+
+    if (inL && sL && sL !== '-') inL.value = sL;
+    if (inP && sP && sP !== '-') inP.value = sP;
+    if (inRtm && sRtm && sRtm !== '-') inRtm.value = sRtm;
+
+    showToast('Data SEMULA disalin ke kolom MENJADI', 'success');
+}
+window.copyFromSemulaToMenjadi = copyFromSemulaToMenjadi;
+
+function resetManfaatMenjadi() {
+    const itemKey = document.getElementById('edit-manfaat-item-key')?.value;
+    if (!itemKey) return;
+
+    const overrides = getManfaatOverrides(activeYear);
+    if (overrides[itemKey]) {
+        delete overrides[itemKey];
+        saveManfaatOverrides(activeYear, overrides);
+    }
+
+    applyManfaatOverridesToPerubahanList();
+    renderRkpdesPerubahanPreview();
+    closeEditManfaatMenjadiModal();
+    showToast('🔄 Penyesuaian penerima manfaat berhasil direset ke nilai awal', 'success');
+}
+window.resetManfaatMenjadi = resetManfaatMenjadi;
+
+function saveEditManfaatMenjadi(event) {
+    if (event) event.preventDefault();
+    const itemKey = document.getElementById('edit-manfaat-item-key')?.value;
+    if (!itemKey) return;
+
+    const valL = document.getElementById('input-menjadi-l')?.value?.trim() || '-';
+    const valP = document.getElementById('input-menjadi-p')?.value?.trim() || '-';
+    const valRtm = document.getElementById('input-menjadi-rtm')?.value?.trim() || '-';
+
+    const overrides = getManfaatOverrides(activeYear);
+    overrides[itemKey] = {
+        l: valL,
+        p: valP,
+        rtm: valRtm,
+        updated_at: new Date().toISOString()
+    };
+    saveManfaatOverrides(activeYear, overrides);
+
+    applyManfaatOverridesToPerubahanList();
+    renderRkpdesPerubahanPreview();
+    closeEditManfaatMenjadiModal();
+    showToast('✅ Penerima manfaat (MENJADI) berhasil disimpan!', 'success');
+}
+window.saveEditManfaatMenjadi = saveEditManfaatMenjadi;
