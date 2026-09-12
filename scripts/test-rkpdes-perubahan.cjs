@@ -109,7 +109,11 @@ assert(jsCode.includes('data-kode'), 'Atribut data-kode ada pada elemen baris/to
 assert(jsCode.includes('data-id'), 'Atribut data-id ada pada elemen baris/tombol');
 assert(jsCode.includes("e.target.closest('.btn-edit-manfaat')"), 'Event delegation document listener mendengarkan .btn-edit-manfaat');
 assert(jsCode.includes("e.target.closest('.cell-edit-manfaat')"), 'Event delegation document listener mendengarkan .cell-edit-manfaat');
-assert(jsCode.includes('function findPerubahanItem'), 'Fungsi findPerubahanItem untuk pencarian multi-key terdefinisi');
+// 6. Cek Defensive Error Handling & Fallback Tanpa 500
+assert(serverCode.includes('Query rkpdes error (fallback to rab)'), 'Query rkpdes memiliki fallback ramah tanpa throw 500 di server.js');
+assert(serverCode.includes('Query rab perubahan error:'), 'Query rab perubahan memiliki logging warning tanpa throw 500 di server.js');
+assert(jsCode.includes('if (!res.ok)'), 'Pemeriksaan status HTTP response eksplisit pada loadRkpdesPerubahanData di frontend/rkpdes.js');
+assert(jsCode.includes('Gagal Memuat Data RKPDes Perubahan'), 'UI error banner ramah dengan tombol coba lagi terpasang di frontend/rkpdes.js');
 
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);

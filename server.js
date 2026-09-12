@@ -6146,53 +6146,78 @@ app.get('/api/rkpdes', async (req, res) => {
 app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, res) => {
     try {
         const { tahun } = req.query;
-        const tahunInt = parseInt(tahun, 10) || 2027;
+        const parsedYear = parseInt(tahun, 10);
+        const tahunInt = (Number.isFinite(parsedYear) && parsedYear > 1900 && parsedYear < 2100) ? parsedYear : 2027;
 
         // 1. Tarik data RKPDes Murni
-        let { data: rkpData, error: rkpErr } = await supabase
-            .from('rkpdes')
-            .select(RKPDES_COLUMNS)
-            .eq('tahun', tahunInt);
-        if (rkpErr && !isTableMissingError(rkpErr)) throw rkpErr;
-        let murniRows = rkpData || [];
+        let murniRows = [];
+        try {
+            const { data: rkpData, error: rkpErr } = await supabase
+                .from('rkpdes')
+                .select(RKPDES_COLUMNS)
+                .eq('tahun', tahunInt);
+            if (rkpErr) {
+                console.warn('⚠️ Query rkpdes error (fallback to rab):', rkpErr.message);
+            } else if (Array.isArray(rkpData)) {
+                murniRows = rkpData;
+            }
+        } catch (rkpQueryErr) {
+            console.warn('⚠️ Supabase rkpdes fetch failed:', rkpQueryErr.message);
+        }
 
         // 2. Fallback jika rkpdes kosong: ambil dari RAB Murni
         if (murniRows.length === 0) {
-            let { data: rabMurni } = await supabase
-                .from('rab')
-                .select(RAB_SYNC_COLUMNS)
-                .eq('tahun', tahunInt)
-                .eq('tipe_anggaran', 'MURNI');
-            murniRows = (rabMurni || []).map(rb => ({
-                id: rb.id,
-                tahun: tahunInt,
-                kode_unik_full: String(rb.kode_unik_full || rb.kode_unik || '').trim(),
-                bidang: rb.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
-                jenis_bidang: rb.jenis_bidang || '-',
-                jenis_kegiatan: rb.nama_kegiatan || rb.uraian || rb.jenis_kegiatan || '-',
-                nama_kegiatan: rb.nama_kegiatan || rb.uraian || '-',
-                lokasi: rb.lokasi || rb.lokasi_kegiatan || 'Desa Batetangnga',
-                volume: String(rb.volume || 1),
-                satuan: rb.satuan || 'Paket',
-                prakiraan_biaya: Number(rb.jumlah_anggaran || 0),
-                sumber_pembiayaan: rb.sumber_dana || 'DDS',
-                mendukung_sdgs: 'SDGs 17',
-                data_eksisting: '-',
-                penerima_manfaat: '-',
-                total_manfaat: null,
-                waktu_pelaksanaan: '12 Bulan',
-                pola_pelaksanaan: 'Swakelola'
-            }));
+            try {
+                const { data: rabMurni, error: rabMurniErr } = await supabase
+                    .from('rab')
+                    .select(RAB_SYNC_COLUMNS)
+                    .eq('tahun', tahunInt)
+                    .eq('tipe_anggaran', 'MURNI');
+                if (rabMurniErr) {
+                    console.warn('⚠️ Query rab murni fallback error:', rabMurniErr.message);
+                } else if (Array.isArray(rabMurni)) {
+                    murniRows = rabMurni.map(rb => ({
+                        id: rb.id,
+                        tahun: tahunInt,
+                        kode_unik_full: String(rb.kode_unik_full || rb.kode_unik || '').trim(),
+                        bidang: rb.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
+                        jenis_bidang: rb.jenis_bidang || '-',
+                        jenis_kegiatan: rb.nama_kegiatan || rb.uraian || rb.jenis_kegiatan || '-',
+                        nama_kegiatan: rb.nama_kegiatan || rb.uraian || '-',
+                        lokasi: rb.lokasi || rb.lokasi_kegiatan || 'Desa Batetangnga',
+                        volume: String(rb.volume || 1),
+                        satuan: rb.satuan || 'Paket',
+                        prakiraan_biaya: Number(rb.jumlah_anggaran || 0),
+                        sumber_pembiayaan: rb.sumber_dana || 'DDS',
+                        mendukung_sdgs: 'SDGs 17',
+                        data_eksisting: '-',
+                        penerima_manfaat: '-',
+                        total_manfaat: null,
+                        waktu_pelaksanaan: '12 Bulan',
+                        pola_pelaksanaan: 'Swakelola'
+                    }));
+                }
+            } catch (rabMurniQueryErr) {
+                console.warn('⚠️ Fallback rab murni fetch failed:', rabMurniQueryErr.message);
+            }
         }
 
         // 3. Tarik data RAB Perubahan
-        let { data: rabPerubahan, error: rabErr } = await supabase
-            .from('rab')
-            .select(RAB_SYNC_COLUMNS)
-            .eq('tahun', tahunInt)
-            .eq('tipe_anggaran', 'PERUBAHAN');
-        if (rabErr && !isTableMissingError(rabErr)) throw rabErr;
-        const perRows = rabPerubahan || [];
+        let perRows = [];
+        try {
+            const { data: rabPerubahan, error: rabErr } = await supabase
+                .from('rab')
+                .select(RAB_SYNC_COLUMNS)
+                .eq('tahun', tahunInt)
+                .eq('tipe_anggaran', 'PERUBAHAN');
+            if (rabErr) {
+                console.warn('⚠️ Query rab perubahan error:', rabErr.message);
+            } else if (Array.isArray(rabPerubahan)) {
+                perRows = rabPerubahan;
+            }
+        } catch (rabPerQueryErr) {
+            console.warn('⚠️ Query rab perubahan fetch failed:', rabPerQueryErr.message);
+        }
 
         const perMap = new Map();
         perRows.forEach(p => {
@@ -6201,7 +6226,12 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
         });
 
         // 4. Pengayaan dengan metadata RPJMDes Standar
-        const rpjmLookup = await loadRpjmLookup();
+        let rpjmLookup = null;
+        try {
+            rpjmLookup = await loadRpjmLookup();
+        } catch (rpjmErr) {
+            console.warn('⚠️ loadRpjmLookup failed, using fallback:', rpjmErr.message);
+        }
 
         const combinedMap = new Map();
         murniRows.forEach(m => {
@@ -6415,12 +6445,12 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
         });
 
         const results = Array.from(combinedMap.values());
-        results.sort((a, b) => compareKodeUnikFull(a.kode_unik_full, b.kode_unik_full));
+        results.sort((a, b) => compareKodeUnikFull(a?.kode_unik_full || '', b?.kode_unik_full || ''));
 
         const grandTotal = results.reduce((acc, it) => {
-            acc.semula += it.semula.biaya;
-            acc.menjadi += it.menjadi.biaya;
-            acc.selisih += it.selisih;
+            acc.semula += Number(it?.semula?.biaya || 0);
+            acc.menjadi += Number(it?.menjadi?.biaya || 0);
+            acc.selisih += Number(it?.selisih || 0);
             return acc;
         }, { semula: 0, menjadi: 0, selisih: 0 });
 
@@ -6432,8 +6462,13 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             data: results
         });
     } catch (error) {
-        console.error('❌ Error GET /api/rkpdes/perubahan:', error.message);
-        res.status(500).json({ success: false, error: error.message, data: [] });
+        console.error('❌ Error GET /api/rkpdes/perubahan:', error.message, error.stack);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Terjadi kesalahan saat memproses data RKPDes Perubahan',
+            data: [],
+            total: { semula: 0, menjadi: 0, selisih: 0 }
+        });
     }
 });
 

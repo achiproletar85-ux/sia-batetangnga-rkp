@@ -987,6 +987,14 @@ async function loadRkpdesPerubahanData() {
 
     try {
         const res = await fetch(`/api/rkpdes/perubahan?tahun=${activeYear}`);
+        if (!res.ok) {
+            let errMsg = `HTTP ${res.status}`;
+            try {
+                const errJson = await res.json();
+                if (errJson && errJson.error) errMsg += `: ${errJson.error}`;
+            } catch (_) {}
+            throw new Error(errMsg);
+        }
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
             rkpdesPerubahanList = json.data;
@@ -999,7 +1007,17 @@ async function loadRkpdesPerubahanData() {
             renderRkpdesPerubahanPreview();
         }
     } catch (err) {
-        container.innerHTML = `<div class="text-center py-8 text-red-500 font-bold">❌ Gagal memuat data Perubahan: ${err.message}</div>`;
+        console.error('❌ loadRkpdesPerubahanData failed:', err);
+        container.innerHTML = `
+            <div class="text-center py-12 bg-rose-50 border border-rose-200 rounded-2xl max-w-xl mx-auto my-6 p-6">
+                <i class="fas fa-exclamation-triangle text-3xl text-rose-500 mb-3"></i>
+                <h4 class="font-bold text-rose-800 text-sm mb-1">Gagal Memuat Data RKPDes Perubahan</h4>
+                <p class="text-xs text-rose-600 mb-4">${err.message || 'Terjadi gangguan jaringan atau server.'}</p>
+                <button type="button" onclick="loadRkpdesPerubahanData()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow transition cursor-pointer">
+                    <i class="fas fa-rotate-right mr-1.5"></i> Coba Lagi
+                </button>
+            </div>
+        `;
     }
 }
 window.loadRkpdesPerubahanData = loadRkpdesPerubahanData;
