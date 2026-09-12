@@ -90,6 +90,16 @@ assert(jsCode.includes('function resetManfaatMenjadi'), 'Fungsi resetManfaatMenj
 assert(jsCode.includes('function saveEditManfaatMenjadi'), 'Fungsi saveEditManfaatMenjadi terdefinisi');
 assert(jsCode.includes('applyManfaatOverridesToPerubahanList'), 'Fungsi applyManfaatOverridesToPerubahanList terdefinisi');
 
+// 5. Cek Event Delegation & Dataset Attributes untuk Tahun 2026 & Dinamis
+assert(jsCode.includes('btn-edit-manfaat'), 'Class btn-edit-manfaat ada pada tombol render preview');
+assert(jsCode.includes('cell-edit-manfaat'), 'Class cell-edit-manfaat ada pada sel render preview');
+assert(jsCode.includes('data-item-key'), 'Atribut data-item-key ada pada elemen baris/tombol');
+assert(jsCode.includes('data-kode'), 'Atribut data-kode ada pada elemen baris/tombol');
+assert(jsCode.includes('data-id'), 'Atribut data-id ada pada elemen baris/tombol');
+assert(jsCode.includes("e.target.closest('.btn-edit-manfaat')"), 'Event delegation document listener mendengarkan .btn-edit-manfaat');
+assert(jsCode.includes("e.target.closest('.cell-edit-manfaat')"), 'Event delegation document listener mendengarkan .cell-edit-manfaat');
+assert(jsCode.includes('function findPerubahanItem'), 'Fungsi findPerubahanItem untuk pencarian multi-key terdefinisi');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

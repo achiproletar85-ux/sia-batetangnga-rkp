@@ -888,10 +888,18 @@ function applyManfaatOverridesToPerubahanList() {
             item.menjadi.manfaat_rtm = item.semula.manfaat_rtm;
         }
 
-        // 2. Terapkan Override Pengguna jika tersimpan
-        const itemKey = item.kode_unik_full || item.id || item.nama_kegiatan;
-        if (itemKey && overrides[itemKey]) {
-            const ov = overrides[itemKey];
+        // 2. Terapkan Override Pengguna jika tersimpan (Mendukung kode titik, tanpa titik, ID string/angka, dan nama kegiatan)
+        const key1 = String(item.kode_unik_full || '').trim();
+        const keyNorm = key1.replace(/\.+$/, '');
+        const keyId = item.id != null ? String(item.id) : '';
+        const keyName = String(item.nama_kegiatan || item.jenis_kegiatan || '').trim();
+
+        const ov = (key1 && overrides[key1]) ||
+                   (keyNorm && overrides[keyNorm]) ||
+                   (keyId && overrides[keyId]) ||
+                   (keyName && overrides[keyName]);
+
+        if (ov) {
             if (ov.l !== undefined && ov.l !== '') item.menjadi.manfaat_l = ov.l;
             if (ov.p !== undefined && ov.p !== '') item.menjadi.manfaat_p = ov.p;
             if (ov.rtm !== undefined && ov.rtm !== '') item.menjadi.manfaat_rtm = ov.rtm;
@@ -1040,8 +1048,11 @@ function renderRkpdesPerubahanPreview() {
                         grandTotalMenjadi += bMenjadi;
                         grandTotalSelisih += diff;
 
-                        const itemKey = item.kode_unik_full || item.id || item.nama_kegiatan || ('row_' + index);
-                        const itemKeyEscaped = String(itemKey).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                        const rawKey = item.kode_unik_full || (item.id != null ? String(item.id) : null) || item.nama_kegiatan || ('row_' + index);
+                        const itemKeyEscaped = String(rawKey).replace(/"/g, '&quot;');
+                        const itemId = item.id != null ? String(item.id) : '';
+                        const itemKode = String(item.kode_unik_full || item.kode_unik || '').trim();
+                        const itemKodeAttr = itemKode.replace(/"/g, '&quot;');
 
                         const namaKegiatan = item.nama_kegiatan || item.jenis_kegiatan || '-';
                         let statusBadge = '';
@@ -1060,14 +1071,20 @@ function renderRkpdesPerubahanPreview() {
                         else if (diff < 0) selisihColor = 'text-rose-700 font-bold';
 
                         tableBodyHtml += `
-                            <tr class="hover:bg-slate-50/80 transition-colors">
+                            <tr class="hover:bg-slate-50/80 transition-colors" data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}">
                                 <!-- 1. Identifikasi Umum -->
                                 <td class="text-center align-top border border-slate-300 text-slate-500 py-1.5 px-1">${index + 1}</td>
                                 <td class="align-top border border-slate-300 px-2 py-1.5 text-slate-900 font-semibold pl-6">
                                     <span>${namaKegiatan}</span>
                                     ${statusBadge}
-                                    <button type="button" onclick="openEditManfaatMenjadi('${itemKeyEscaped}')" class="no-print ml-2 text-slate-400 hover:text-indigo-600 transition inline-flex items-center text-[10px] px-1.5 py-0.5 rounded hover:bg-indigo-50 border border-slate-200" title="Edit Penerima Manfaat (Menjadi)">
-                                        <i class="fas fa-users-cog mr-1"></i>Edit Manfaat
+                                    <button type="button"
+                                        class="btn-edit-manfaat no-print ml-2 text-slate-400 hover:text-indigo-600 transition inline-flex items-center text-[10px] px-1.5 py-0.5 rounded hover:bg-indigo-50 border border-slate-200 cursor-pointer"
+                                        data-item-key="${itemKeyEscaped}"
+                                        data-id="${itemId}"
+                                        data-kode="${itemKodeAttr}"
+                                        onclick="openEditManfaatMenjadi('${itemKeyEscaped}')"
+                                        title="Edit Penerima Manfaat (Menjadi)">
+                                        <i class="fas fa-users-cog mr-1 pointer-events-none"></i><span class="pointer-events-none">Edit Manfaat</span>
                                     </button>
                                 </td>
                                 
@@ -1087,17 +1104,32 @@ function renderRkpdesPerubahanPreview() {
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.data_eksisting || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.lokasi || 'Desa Batetangnga'}</td>
                                 <td class="text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800 font-medium">${menjadi.volume_satuan || menjadi.volume || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group" onclick="openEditManfaatMenjadi('${itemKeyEscaped}')" title="Klik untuk edit penerima manfaat MENJADI">
-                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${menjadi.manfaat_l || '-'}</span>
-                                    <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5"><i class="fas fa-pen"></i></span>
+                                <td class="cell-edit-manfaat text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group"
+                                    data-item-key="${itemKeyEscaped}"
+                                    data-id="${itemId}"
+                                    data-kode="${itemKodeAttr}"
+                                    onclick="openEditManfaatMenjadi('${itemKeyEscaped}')"
+                                    title="Klik untuk edit penerima manfaat MENJADI">
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${menjadi.manfaat_l || '-'}</span>
+                                    <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span>
                                 </td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group" onclick="openEditManfaatMenjadi('${itemKeyEscaped}')" title="Klik untuk edit penerima manfaat MENJADI">
-                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${menjadi.manfaat_p || '-'}</span>
-                                    <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5"><i class="fas fa-pen"></i></span>
+                                <td class="cell-edit-manfaat text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group"
+                                    data-item-key="${itemKeyEscaped}"
+                                    data-id="${itemId}"
+                                    data-kode="${itemKodeAttr}"
+                                    onclick="openEditManfaatMenjadi('${itemKeyEscaped}')"
+                                    title="Klik untuk edit penerima manfaat MENJADI">
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${menjadi.manfaat_p || '-'}</span>
+                                    <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span>
                                 </td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group" onclick="openEditManfaatMenjadi('${itemKeyEscaped}')" title="Klik untuk edit penerima manfaat MENJADI">
-                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${menjadi.manfaat_rtm || '-'}</span>
-                                    <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5"><i class="fas fa-pen"></i></span>
+                                <td class="cell-edit-manfaat text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group"
+                                    data-item-key="${itemKeyEscaped}"
+                                    data-id="${itemId}"
+                                    data-kode="${itemKodeAttr}"
+                                    onclick="openEditManfaatMenjadi('${itemKeyEscaped}')"
+                                    title="Klik untuk edit penerima manfaat MENJADI">
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${menjadi.manfaat_rtm || '-'}</span>
+                                    <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span>
                                 </td>
                                 <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-bold text-slate-900 whitespace-nowrap">${formatRupiah(bMenjadi)}</td>
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${menjadi.sumber_biaya || 'DDS'}</td>
@@ -1324,10 +1356,57 @@ window.addEventListener('afterprint', () => {
 // ==========================================
 // FITUR INTERAKTIF EDIT PENERIMA MANFAAT (MENJADI)
 // ==========================================
+function findPerubahanItem(key) {
+    if (!Array.isArray(rkpdesPerubahanList) || rkpdesPerubahanList.length === 0 || !key) return null;
+    const strKey = String(key).trim();
+    const cleanKey = strKey.replace(/\.+$/, '').toLowerCase();
+
+    // 1. Direct match on kode_unik_full or id or nama_kegiatan
+    let found = rkpdesPerubahanList.find(x => {
+        if (!x) return false;
+        if (String(x.kode_unik_full || '').trim() === strKey) return true;
+        if (String(x.id || '') === strKey) return true;
+        if (String(x.nama_kegiatan || '').trim() === strKey) return true;
+        if (String(x.jenis_kegiatan || '').trim() === strKey) return true;
+        return false;
+    });
+    if (found) return found;
+
+    // 2. Normalized kode match (stripping trailing dots)
+    found = rkpdesPerubahanList.find(x => {
+        if (!x) return false;
+        const c1 = String(x.kode_unik_full || x.kode_unik || '').trim().replace(/\.+$/, '').toLowerCase();
+        if (c1 && c1 === cleanKey) return true;
+        return false;
+    });
+    if (found) return found;
+
+    // 3. Case-insensitive name match
+    found = rkpdesPerubahanList.find(x => {
+        if (!x) return false;
+        const n1 = String(x.nama_kegiatan || x.jenis_kegiatan || '').trim().toLowerCase();
+        if (n1 && (n1 === cleanKey || cleanKey.includes(n1) || n1.includes(cleanKey))) return true;
+        return false;
+    });
+    if (found) return found;
+
+    // 4. Index-based fallback if key is row_X
+    if (strKey.startsWith('row_')) {
+        const idx = parseInt(strKey.replace('row_', ''), 10);
+        if (!isNaN(idx) && rkpdesPerubahanList[idx]) {
+            return rkpdesPerubahanList[idx];
+        }
+    }
+
+    return null;
+}
+window.findPerubahanItem = findPerubahanItem;
+
 function openEditManfaatMenjadi(itemKey) {
     if (!rkpdesPerubahanList || rkpdesPerubahanList.length === 0) return;
-    const item = rkpdesPerubahanList.find(x => (x.kode_unik_full || x.id || x.nama_kegiatan) === itemKey);
+    const item = findPerubahanItem(itemKey);
     if (!item) {
+        console.warn('[RKPDes Perubahan] Kegiatan tidak ditemukan untuk key:', itemKey);
         showToast('❌ Data kegiatan tidak ditemukan', 'error');
         return;
     }
@@ -1350,7 +1429,7 @@ function openEditManfaatMenjadi(itemKey) {
     const inP = document.getElementById('input-menjadi-p');
     const inRtm = document.getElementById('input-menjadi-rtm');
 
-    if (mKeyInput) mKeyInput.value = itemKey;
+    if (mKeyInput) mKeyInput.value = item.kode_unik_full || itemKey;
     if (mTitle) mTitle.textContent = `[${code}] ${name}`;
     if (lblL) lblL.textContent = sL;
     if (lblP) lblP.textContent = sP;
@@ -1391,11 +1470,18 @@ function resetManfaatMenjadi() {
     const itemKey = document.getElementById('edit-manfaat-item-key')?.value;
     if (!itemKey) return;
 
+    const item = findPerubahanItem(itemKey);
     const overrides = getManfaatOverrides(activeYear);
-    if (overrides[itemKey]) {
-        delete overrides[itemKey];
-        saveManfaatOverrides(activeYear, overrides);
+
+    delete overrides[itemKey];
+    if (item) {
+        if (item.kode_unik_full) {
+            delete overrides[String(item.kode_unik_full).trim()];
+            delete overrides[String(item.kode_unik_full).trim().replace(/\.+$/, '')];
+        }
+        if (item.id != null) delete overrides[String(item.id)];
     }
+    saveManfaatOverrides(activeYear, overrides);
 
     applyManfaatOverridesToPerubahanList();
     renderRkpdesPerubahanPreview();
@@ -1413,13 +1499,23 @@ function saveEditManfaatMenjadi(event) {
     const valP = document.getElementById('input-menjadi-p')?.value?.trim() || '-';
     const valRtm = document.getElementById('input-menjadi-rtm')?.value?.trim() || '-';
 
+    const item = findPerubahanItem(itemKey);
     const overrides = getManfaatOverrides(activeYear);
-    overrides[itemKey] = {
+    const payload = {
         l: valL,
         p: valP,
         rtm: valRtm,
         updated_at: new Date().toISOString()
     };
+
+    overrides[itemKey] = payload;
+    if (item) {
+        if (item.kode_unik_full) {
+            overrides[String(item.kode_unik_full).trim()] = payload;
+            overrides[String(item.kode_unik_full).trim().replace(/\.+$/, '')] = payload;
+        }
+        if (item.id != null) overrides[String(item.id)] = payload;
+    }
     saveManfaatOverrides(activeYear, overrides);
 
     applyManfaatOverridesToPerubahanList();
@@ -1428,3 +1524,42 @@ function saveEditManfaatMenjadi(event) {
     showToast('✅ Penerima manfaat (MENJADI) berhasil disimpan!', 'success');
 }
 window.saveEditManfaatMenjadi = saveEditManfaatMenjadi;
+
+// ==========================================
+// EVENT DELEGATION GLOBAL UNTUK EDIT MANFAAT
+// ==========================================
+// Memastikan klik pada tombol/sel edit penerima manfaat tetap aktif di semua tahun
+// (2026, 2027, dst.) bahkan setelah DOM tabel dirender ulang secara dinamis.
+document.addEventListener('click', function(e) {
+    const editBtn = e.target.closest('.btn-edit-manfaat');
+    if (editBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const itemKey = editBtn.getAttribute('data-item-key') ||
+                        editBtn.dataset.itemKey ||
+                        editBtn.getAttribute('data-kode') ||
+                        editBtn.dataset.kode ||
+                        editBtn.getAttribute('data-id') ||
+                        editBtn.dataset.id;
+        if (itemKey) {
+            openEditManfaatMenjadi(itemKey);
+        }
+        return;
+    }
+
+    const editCell = e.target.closest('.cell-edit-manfaat');
+    if (editCell) {
+        e.preventDefault();
+        e.stopPropagation();
+        const itemKey = editCell.getAttribute('data-item-key') ||
+                        editCell.dataset.itemKey ||
+                        editCell.getAttribute('data-kode') ||
+                        editCell.dataset.kode ||
+                        editCell.getAttribute('data-id') ||
+                        editCell.dataset.id;
+        if (itemKey) {
+            openEditManfaatMenjadi(itemKey);
+        }
+        return;
+    }
+});
