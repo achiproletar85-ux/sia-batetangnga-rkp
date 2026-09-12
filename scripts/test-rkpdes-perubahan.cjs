@@ -75,6 +75,9 @@ assert(jsCode.includes('Disusun oleh,'), 'Penulisan resmi Disusun oleh, tercantu
 assert(serverCode.includes('lpRtmMenjadi.l = lpRtmSemula.l'), 'Fallback default otomatis Laki-laki dari Semula di server.js');
 assert(serverCode.includes('lpRtmMenjadi.p = lpRtmSemula.p'), 'Fallback default otomatis Perempuan dari Semula di server.js');
 assert(serverCode.includes('lpRtmMenjadi.rtm = lpRtmSemula.rtm'), 'Fallback default otomatis RTM dari Semula di server.js');
+assert(serverCode.includes('penerima_l_menjadi: lpRtmMenjadi.l'), 'Properti penerima_l_menjadi terdaftar di server.js');
+assert(serverCode.includes('penerima_p_menjadi: lpRtmMenjadi.p'), 'Properti penerima_p_menjadi terdaftar di server.js');
+assert(serverCode.includes('penerima_rtm_menjadi: lpRtmMenjadi.rtm'), 'Properti penerima_rtm_menjadi terdaftar di server.js');
 
 assert(htmlCode.includes('id="modalEditManfaatMenjadi"'), 'Modal edit penerima manfaat ada di rkpdes.html');
 assert(htmlCode.includes('id="input-menjadi-l"'), 'Input Laki-laki ada di modal');
@@ -89,6 +92,7 @@ assert(jsCode.includes('function copyFromSemulaToMenjadi'), 'Fungsi copyFromSemu
 assert(jsCode.includes('function resetManfaatMenjadi'), 'Fungsi resetManfaatMenjadi terdefinisi');
 assert(jsCode.includes('function saveEditManfaatMenjadi'), 'Fungsi saveEditManfaatMenjadi terdefinisi');
 assert(jsCode.includes('applyManfaatOverridesToPerubahanList'), 'Fungsi applyManfaatOverridesToPerubahanList terdefinisi');
+assert(jsCode.includes('item.penerima_l_menjadi = mL'), 'Auto-fallback penerima_l_menjadi terdefinisi di frontend/rkpdes.js');
 
 // 5. Cek Event Delegation & Dataset Attributes untuk Tahun 2026 & Dinamis
 assert(jsCode.includes('btn-edit-manfaat'), 'Class btn-edit-manfaat ada pada tombol render preview');

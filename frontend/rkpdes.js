@@ -877,18 +877,48 @@ function applyManfaatOverridesToPerubahanList() {
         if (!item.semula) item.semula = {};
         if (!item.menjadi) item.menjadi = {};
 
-        // 1. Default Fallback Otomatis: Salin dari SEMULA jika MENJADI kosong atau '-'
-        if ((!item.menjadi.manfaat_l || item.menjadi.manfaat_l === '-') && item.semula.manfaat_l && item.semula.manfaat_l !== '-') {
-            item.menjadi.manfaat_l = item.semula.manfaat_l;
-        }
-        if ((!item.menjadi.manfaat_p || item.menjadi.manfaat_p === '-') && item.semula.manfaat_p && item.semula.manfaat_p !== '-') {
-            item.menjadi.manfaat_p = item.semula.manfaat_p;
-        }
-        if ((!item.menjadi.manfaat_rtm || item.menjadi.manfaat_rtm === '-') && item.semula.manfaat_rtm && item.semula.manfaat_rtm !== '-') {
-            item.menjadi.manfaat_rtm = item.semula.manfaat_rtm;
+        // 1. Ambil nilai dasar dari SEMULA
+        const sL = item.semula.manfaat_l || item.penerima_l_semula || item.manfaat_l || '-';
+        const sP = item.semula.manfaat_p || item.penerima_p_semula || item.manfaat_p || '-';
+        const sRtm = item.semula.manfaat_rtm || item.penerima_rtm_semula || item.manfaat_rtm || '-';
+
+        item.semula.manfaat_l = sL;
+        item.semula.manfaat_p = sP;
+        item.semula.manfaat_rtm = sRtm;
+        item.penerima_l_semula = sL;
+        item.penerima_p_semula = sP;
+        item.penerima_rtm_semula = sRtm;
+
+        // 2. Default Fallback Otomatis: Salin dari SEMULA ke MENJADI
+        // Jika kolom MENJADI masih kosong, null, undefined, atau '-'
+        let mL = item.menjadi.manfaat_l || item.penerima_l_menjadi;
+        if (!mL || mL === '' || mL === '-') {
+            mL = (sL !== '-') ? sL : (mL || '-');
         }
 
-        // 2. Terapkan Override Pengguna jika tersimpan (Mendukung kode titik, tanpa titik, ID string/angka, dan nama kegiatan)
+        let mP = item.menjadi.manfaat_p || item.penerima_p_menjadi;
+        if (!mP || mP === '' || mP === '-') {
+            mP = (sP !== '-') ? sP : (mP || '-');
+        }
+
+        let mRtm = item.menjadi.manfaat_rtm || item.penerima_rtm_menjadi;
+        if (!mRtm || mRtm === '' || mRtm === '-') {
+            mRtm = (sRtm !== '-') ? sRtm : (mRtm || '-');
+        }
+
+        item.menjadi.manfaat_l = mL;
+        item.menjadi.manfaat_p = mP;
+        item.menjadi.manfaat_rtm = mRtm;
+
+        // Set properti eksplisit penerima_*_menjadi sesuai spesifikasi
+        item.penerima_l_menjadi = mL;
+        item.penerima_p_menjadi = mP;
+        item.penerima_rtm_menjadi = mRtm;
+        item.menjadi.penerima_l_menjadi = mL;
+        item.menjadi.penerima_p_menjadi = mP;
+        item.menjadi.penerima_rtm_menjadi = mRtm;
+
+        // 3. Terapkan Override Pengguna jika tersimpan (Mendukung kode titik, tanpa titik, ID string/angka, dan nama kegiatan)
         const key1 = String(item.kode_unik_full || '').trim();
         const keyNorm = key1.replace(/\.+$/, '');
         const keyId = item.id != null ? String(item.id) : '';
@@ -900,9 +930,21 @@ function applyManfaatOverridesToPerubahanList() {
                    (keyName && overrides[keyName]);
 
         if (ov) {
-            if (ov.l !== undefined && ov.l !== '') item.menjadi.manfaat_l = ov.l;
-            if (ov.p !== undefined && ov.p !== '') item.menjadi.manfaat_p = ov.p;
-            if (ov.rtm !== undefined && ov.rtm !== '') item.menjadi.manfaat_rtm = ov.rtm;
+            if (ov.l !== undefined && ov.l !== '') {
+                item.menjadi.manfaat_l = ov.l;
+                item.penerima_l_menjadi = ov.l;
+                item.menjadi.penerima_l_menjadi = ov.l;
+            }
+            if (ov.p !== undefined && ov.p !== '') {
+                item.menjadi.manfaat_p = ov.p;
+                item.penerima_p_menjadi = ov.p;
+                item.menjadi.penerima_p_menjadi = ov.p;
+            }
+            if (ov.rtm !== undefined && ov.rtm !== '') {
+                item.menjadi.manfaat_rtm = ov.rtm;
+                item.penerima_rtm_menjadi = ov.rtm;
+                item.menjadi.penerima_rtm_menjadi = ov.rtm;
+            }
             item.menjadi._overridden = true;
         }
     });
@@ -1035,7 +1077,9 @@ function renderRkpdesPerubahanPreview() {
 
                     items.forEach((item, index) => {
                         const semula = item.semula || {};
-                        const menjadi = item.menjadi || {};
+                        if (!item.menjadi) item.menjadi = {};
+                        const menjadi = item.menjadi;
+
                         const bSemula = Number(semula.biaya || 0);
                         const bMenjadi = Number(menjadi.biaya || 0);
                         const diff = Number(item.selisih != null ? item.selisih : (bMenjadi - bSemula));
@@ -1047,6 +1091,44 @@ function renderRkpdesPerubahanPreview() {
                         grandTotalSemula += bSemula;
                         grandTotalMenjadi += bMenjadi;
                         grandTotalSelisih += diff;
+
+                        // OTOMATISASI FALLBACK PENERIMA MANFAAT: SEMULA KE MENJADI
+                        const sL = semula.manfaat_l || item.penerima_l_semula || item.manfaat_l || '-';
+                        const sP = semula.manfaat_p || item.penerima_p_semula || item.manfaat_p || '-';
+                        const sRtm = semula.manfaat_rtm || item.penerima_rtm_semula || item.manfaat_rtm || '-';
+
+                        semula.manfaat_l = sL;
+                        semula.manfaat_p = sP;
+                        semula.manfaat_rtm = sRtm;
+                        item.penerima_l_semula = sL;
+                        item.penerima_p_semula = sP;
+                        item.penerima_rtm_semula = sRtm;
+
+                        // Nilai MENJADI mengambil nilai dari SEMULA sebagai default jika belum diisi/diubah
+                        let mL = menjadi.manfaat_l || item.penerima_l_menjadi;
+                        if (!mL || mL === '' || mL === '-') {
+                            mL = (sL !== '-') ? sL : (mL || '-');
+                        }
+
+                        let mP = menjadi.manfaat_p || item.penerima_p_menjadi;
+                        if (!mP || mP === '' || mP === '-') {
+                            mP = (sP !== '-') ? sP : (mP || '-');
+                        }
+
+                        let mRtm = menjadi.manfaat_rtm || item.penerima_rtm_menjadi;
+                        if (!mRtm || mRtm === '' || mRtm === '-') {
+                            mRtm = (sRtm !== '-') ? sRtm : (mRtm || '-');
+                        }
+
+                        menjadi.manfaat_l = mL;
+                        menjadi.manfaat_p = mP;
+                        menjadi.manfaat_rtm = mRtm;
+                        item.penerima_l_menjadi = mL;
+                        item.penerima_p_menjadi = mP;
+                        item.penerima_rtm_menjadi = mRtm;
+                        menjadi.penerima_l_menjadi = mL;
+                        menjadi.penerima_p_menjadi = mP;
+                        menjadi.penerima_rtm_menjadi = mRtm;
 
                         const rawKey = item.kode_unik_full || (item.id != null ? String(item.id) : null) || item.nama_kegiatan || ('row_' + index);
                         const itemKeyEscaped = String(rawKey).replace(/"/g, '&quot;');
@@ -1092,10 +1174,10 @@ function renderRkpdesPerubahanPreview() {
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap">${semula.sdgs || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${semula.data_eksisting || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${semula.lokasi || 'Desa Batetangnga'}</td>
-                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 whitespace-nowrap text-slate-800">${semula.volume_satuan || semula.volume || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${semula.manfaat_l || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${semula.manfaat_p || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${semula.manfaat_rtm || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800">${semula.volume_satuan || semula.volume || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${sL || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${sP || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${sRtm || '-'}</td>
                                 <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-semibold text-slate-900 whitespace-nowrap">${formatRupiah(bSemula)}</td>
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${semula.sumber_biaya || 'DDS'}</td>
                                 
@@ -1110,7 +1192,7 @@ function renderRkpdesPerubahanPreview() {
                                     data-kode="${itemKodeAttr}"
                                     onclick="openEditManfaatMenjadi('${itemKeyEscaped}')"
                                     title="Klik untuk edit penerima manfaat MENJADI">
-                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${menjadi.manfaat_l || '-'}</span>
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${mL || '-'}</span>
                                     <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span>
                                 </td>
                                 <td class="cell-edit-manfaat text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group"
@@ -1119,7 +1201,7 @@ function renderRkpdesPerubahanPreview() {
                                     data-kode="${itemKodeAttr}"
                                     onclick="openEditManfaatMenjadi('${itemKeyEscaped}')"
                                     title="Klik untuk edit penerima manfaat MENJADI">
-                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${menjadi.manfaat_p || '-'}</span>
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${mP || '-'}</span>
                                     <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span>
                                 </td>
                                 <td class="cell-edit-manfaat text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group"
@@ -1128,7 +1210,7 @@ function renderRkpdesPerubahanPreview() {
                                     data-kode="${itemKodeAttr}"
                                     onclick="openEditManfaatMenjadi('${itemKeyEscaped}')"
                                     title="Klik untuk edit penerima manfaat MENJADI">
-                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${menjadi.manfaat_rtm || '-'}</span>
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${mRtm || '-'}</span>
                                     <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span>
                                 </td>
                                 <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-bold text-slate-900 whitespace-nowrap">${formatRupiah(bMenjadi)}</td>
@@ -1416,9 +1498,9 @@ function openEditManfaatMenjadi(itemKey) {
 
     const code = item.kode_unik_full || '-';
     const name = item.nama_kegiatan || item.jenis_kegiatan || '-';
-    const sL = item.semula?.manfaat_l || '-';
-    const sP = item.semula?.manfaat_p || '-';
-    const sRtm = item.semula?.manfaat_rtm || '-';
+    const sL = item.semula?.manfaat_l || item.penerima_l_semula || '-';
+    const sP = item.semula?.manfaat_p || item.penerima_p_semula || '-';
+    const sRtm = item.semula?.manfaat_rtm || item.penerima_rtm_semula || '-';
 
     const mTitle = document.getElementById('edit-manfaat-kegiatan-title');
     const mKeyInput = document.getElementById('edit-manfaat-item-key');
@@ -1435,9 +1517,19 @@ function openEditManfaatMenjadi(itemKey) {
     if (lblP) lblP.textContent = sP;
     if (lblRtm) lblRtm.textContent = sRtm;
 
-    if (inL) inL.value = (item.menjadi?.manfaat_l && item.menjadi.manfaat_l !== '-') ? item.menjadi.manfaat_l : (sL !== '-' ? sL : '');
-    if (inP) inP.value = (item.menjadi?.manfaat_p && item.menjadi.manfaat_p !== '-') ? item.menjadi.manfaat_p : (sP !== '-' ? sP : '');
-    if (inRtm) inRtm.value = (item.menjadi?.manfaat_rtm && item.menjadi.manfaat_rtm !== '-') ? item.menjadi.manfaat_rtm : (sRtm !== '-' ? sRtm : '');
+    const curL = (item.menjadi?.manfaat_l && item.menjadi.manfaat_l !== '-') ? item.menjadi.manfaat_l :
+                 ((item.penerima_l_menjadi && item.penerima_l_menjadi !== '-') ? item.penerima_l_menjadi :
+                 (sL !== '-' ? sL : ''));
+    const curP = (item.menjadi?.manfaat_p && item.menjadi.manfaat_p !== '-') ? item.menjadi.manfaat_p :
+                 ((item.penerima_p_menjadi && item.penerima_p_menjadi !== '-') ? item.penerima_p_menjadi :
+                 (sP !== '-' ? sP : ''));
+    const curRtm = (item.menjadi?.manfaat_rtm && item.menjadi.manfaat_rtm !== '-') ? item.menjadi.manfaat_rtm :
+                   ((item.penerima_rtm_menjadi && item.penerima_rtm_menjadi !== '-') ? item.penerima_rtm_menjadi :
+                   (sRtm !== '-' ? sRtm : ''));
+
+    if (inL) inL.value = curL;
+    if (inP) inP.value = curP;
+    if (inRtm) inRtm.value = curRtm;
 
     modal.classList.remove('hidden');
 }

@@ -6244,6 +6244,9 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
                         const half = Math.round(tot / 2);
                         l = String(half);
                         p = String(tot - half);
+                        if (!rtm || rtm === '0') {
+                            rtm = String(Math.max(1, Math.round(tot / 4)));
+                        }
                     }
                 }
 
@@ -6274,6 +6277,12 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
                 jenis_bidang: m.jenis_bidang || resolved.jenis_bidang || '-',
                 jenis_kegiatan: m.jenis_kegiatan || m.nama_kegiatan || resolved.nama_kegiatan || '-',
                 nama_kegiatan: m.nama_kegiatan || m.jenis_kegiatan || resolved.nama_kegiatan || '-',
+                penerima_l_semula: lpRtmSemula.l,
+                penerima_p_semula: lpRtmSemula.p,
+                penerima_rtm_semula: lpRtmSemula.rtm,
+                penerima_l_menjadi: lpRtmMenjadi.l,
+                penerima_p_menjadi: lpRtmMenjadi.p,
+                penerima_rtm_menjadi: lpRtmMenjadi.rtm,
                 semula: {
                     sdgs: sdgsVal,
                     data_eksisting: dataEksistingVal,
