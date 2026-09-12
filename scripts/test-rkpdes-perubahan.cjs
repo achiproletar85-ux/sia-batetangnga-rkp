@@ -39,7 +39,7 @@ assert(htmlCode.includes('tab-btn-perubahan'), 'Tab switch RKPDes Perubahan ada 
 assert(htmlCode.includes('ABDUL AZIS SPM'), 'Opsi Ketua Tim ABDUL AZIS SPM ada di rkpdes.html');
 assert(htmlCode.includes('print-perubahan'), 'CSS styling print-perubahan ada di rkpdes.html');
 
-// 3. Cek file frontend/rkpdes.js
+// 3. Cek file frontend/rkpdes.js (Struktur Baku 21 Kolom & Format Resmi)
 const jsCode = fs.readFileSync(path.resolve(__dirname, '..', 'frontend', 'rkpdes.js'), 'utf8');
 assert(jsCode.includes('function formatSelisihRupiah'), 'Helper formatSelisihRupiah terdefinisi');
 assert(jsCode.includes('function switchRkpdesTab'), 'Fungsi switchRkpdesTab terdefinisi');
@@ -47,9 +47,29 @@ assert(jsCode.includes('function loadRkpdesPerubahanData'), 'Fungsi loadRkpdesPe
 assert(jsCode.includes('function renderRkpdesPerubahanPreview'), 'Fungsi renderRkpdesPerubahanPreview terdefinisi');
 assert(jsCode.includes('function cetakRkpdesPerubahan'), 'Fungsi cetakRkpdesPerubahan terdefinisi');
 assert(jsCode.includes('function cetakRkpdesMurni'), 'Fungsi cetakRkpdesMurni terdefinisi');
-assert(jsCode.includes('ABDUL AZIS SPM'), 'ABDUL AZIS SPM digunakan sebagai fallback/default');
+
+// Asersi A: Kop Surat & Header
+assert(jsCode.includes('RENCANA KERJA PEMERINTAH DESA PERUBAHAN TAHUN ANGGARAN'), 'Judul resmi RKPDesa Perubahan tercantum');
+assert(jsCode.includes('DESA') && jsCode.includes('BATETANGNGA'), 'Kop Desa Batetangnga tercantum');
+assert(jsCode.includes('KECAMATAN') && jsCode.includes('BINUANG'), 'Kop Kecamatan Binuang tercantum');
+assert(jsCode.includes('KABUPATEN') && jsCode.includes('POLEWALI MANDAR'), 'Kop Kabupaten Polewali Mandar tercantum');
+assert(jsCode.includes('PROVINSI') && jsCode.includes('SULAWESI BARAT'), 'Kop Provinsi Sulawesi Barat tercantum');
+
+// Asersi B: 3 Blok Utama & 21 Kolom Baku
+assert(jsCode.includes('SEMULA') && jsCode.includes('MENJADI'), 'Blok SEMULA dan MENJADI berdampingan');
+assert(jsCode.includes('Selisih Anggaran / Volume'), 'Kolom Selisih Anggaran / Volume tercantum');
+assert(jsCode.includes('Mendukung SDGs Ke-'), 'Sub-kolom Mendukung SDGs Ke- tercantum');
+assert(jsCode.includes('Data Eksisting Tahun Berjalan'), 'Sub-kolom Data Eksisting Tahun Berjalan tercantum');
+assert(jsCode.includes('Lokasi (RT/RW/DUSUN)'), 'Sub-kolom Lokasi (RT/RW/DUSUN) tercantum');
+assert(jsCode.includes('Volume &amp; Satuan') && jsCode.includes('Prakiraan Volume &amp; Satuan'), 'Sub-kolom Volume & Satuan (Semula & Menjadi) tercantum');
+assert(jsCode.includes('Laki-laki') && jsCode.includes('Perempuan') && jsCode.includes('RTM'), 'Sub-kolom Penerima Manfaat Laki-laki, Perempuan, RTM tercantum');
+assert(jsCode.includes('Jumlah (Rp.)') && jsCode.includes('Sumber'), 'Sub-kolom Biaya & Sumber Pembiayaan tercantum');
+
+// Asersi C: Footer & Penandatangan
+assert(jsCode.includes('JUMLAH TOTAL'), 'Baris JUMLAH TOTAL tercantum');
 assert(jsCode.includes('SUMAILA DAMANG'), 'Kepala Desa SUMAILA DAMANG tercantum di footer');
-assert(jsCode.includes('RENCANA KERJA PEMERINTAH DESA PERUBAHAN (RKPDesa PERUBAHAN)'), 'Judul resmi RKPDesa Perubahan tercantum');
+assert(jsCode.includes('ABDUL AZIS SPM'), 'Ketua Tim ABDUL AZIS SPM tercantum di footer');
+assert(jsCode.includes('Disusun oleh,'), 'Penulisan resmi Disusun oleh, tercantum');
 
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);

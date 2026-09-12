@@ -1602,6 +1602,7 @@ const EVALUASI_COLUMNS = [
 const RKPDES_COLUMNS = [
     'id', 'tahun', 'kode_unik_full', 'bidang', 'jenis_kegiatan', 'lokasi',
     'volume', 'satuan', 'sasaran_manfaat', 'penerima_manfaat', 'total_manfaat',
+    'manfaat_l', 'manfaat_p', 'manfaat_rtm',
     'prakiraan_biaya', 'sumber_pembiayaan', 'pola_pelaksanaan', 'target_capaian',
     'waktu_pelaksanaan', 'status_rab', 'stunting', 'verifikasi_proposal',
     'data_eksisting', 'mendukung_sdgs', 'updated_at', 'created_at'
@@ -6218,6 +6219,44 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
             const sumberSemula = m.sumber_pembiayaan || 'DDS';
             const sumberMenjadi = p ? (p.sumber_dana || sumberSemula) : sumberSemula;
 
+            function parseLPRTMDetails(item, resObj) {
+                let l = (item && item.manfaat_l != null && item.manfaat_l !== '' && item.manfaat_l !== 0) ? String(item.manfaat_l) : null;
+                let p = (item && item.manfaat_p != null && item.manfaat_p !== '' && item.manfaat_p !== 0) ? String(item.manfaat_p) : null;
+                let rtm = (item && item.manfaat_rtm != null && item.manfaat_rtm !== '' && item.manfaat_rtm !== 0) ? String(item.manfaat_rtm) : null;
+
+                if (!l && resObj && resObj.manfaat_l) l = String(resObj.manfaat_l);
+                if (!p && resObj && resObj.manfaat_p) p = String(resObj.manfaat_p);
+                if (!rtm && resObj && resObj.manfaat_rtm) rtm = String(resObj.manfaat_rtm);
+
+                const sasaranStr = String(item ? (item.sasaran_manfaat || item.penerima_manfaat || '') : '');
+                if (sasaranStr) {
+                    const lMatch = sasaranStr.match(/L\s*[:=]?\s*(\d+)/i);
+                    const pMatch = sasaranStr.match(/P\s*[:=]?\s*(\d+)/i);
+                    const rtmMatch = sasaranStr.match(/RTM\s*[:=]?\s*(\d+)/i);
+                    if (lMatch && (!l || l === '0')) l = lMatch[1];
+                    if (pMatch && (!p || p === '0')) p = pMatch[1];
+                    if (rtmMatch && (!rtm || rtm === '0')) rtm = rtmMatch[1];
+                }
+
+                if ((!l || l === '0') && (!p || p === '0')) {
+                    const tot = Number((item && item.total_manfaat) || (resObj && resObj.total_manfaat) || 0);
+                    if (tot > 0) {
+                        const half = Math.round(tot / 2);
+                        l = String(half);
+                        p = String(tot - half);
+                    }
+                }
+
+                return {
+                    l: (l && l !== '0') ? `${l} Org` : '-',
+                    p: (p && p !== '0') ? `${p} Org` : '-',
+                    rtm: (rtm && rtm !== '0') ? `${rtm} KK` : '-'
+                };
+            }
+
+            const lpRtmSemula = parseLPRTMDetails(m, resolved);
+            const lpRtmMenjadi = p ? parseLPRTMDetails(p, resolved) : lpRtmSemula;
+
             combinedMap.set(code, {
                 id: m.id,
                 kode_unik_full: code,
@@ -6232,6 +6271,9 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
                     volume: volSemula,
                     satuan: satSemula,
                     volume_satuan: (volSemula.toLowerCase().includes(satSemula.toLowerCase()) || !satSemula) ? volSemula : `${volSemula} ${satSemula}`,
+                    manfaat_l: lpRtmSemula.l,
+                    manfaat_p: lpRtmSemula.p,
+                    manfaat_rtm: lpRtmSemula.rtm,
                     penerima_manfaat: manfaatVal,
                     waktu_pelaksanaan: m.waktu_pelaksanaan || '12 Bulan',
                     sumber_biaya: sumberSemula,
@@ -6245,6 +6287,9 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
                     volume: volMenjadi,
                     satuan: satMenjadi,
                     volume_satuan: (volMenjadi.toLowerCase().includes(satMenjadi.toLowerCase()) || !satMenjadi) ? volMenjadi : `${volMenjadi} ${satMenjadi}`,
+                    manfaat_l: lpRtmMenjadi.l,
+                    manfaat_p: lpRtmMenjadi.p,
+                    manfaat_rtm: lpRtmMenjadi.rtm,
                     penerima_manfaat: manfaatVal,
                     waktu_pelaksanaan: m.waktu_pelaksanaan || '12 Bulan',
                     sumber_biaya: sumberMenjadi,
@@ -6264,6 +6309,11 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
                 const biayaMenjadi = Number(p.jumlah_anggaran || 0);
                 const volMenjadi = String(p.volume || 1);
                 const satMenjadi = String(p.satuan || 'Kegiatan');
+                const lpRtmBaru = {
+                    l: resolved.manfaat_l ? `${resolved.manfaat_l} Org` : '-',
+                    p: resolved.manfaat_p ? `${resolved.manfaat_p} Org` : '-',
+                    rtm: resolved.manfaat_rtm ? `${resolved.manfaat_rtm} KK` : '-'
+                };
 
                 combinedMap.set(code, {
                     id: p.id,
@@ -6279,6 +6329,9 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
                         volume: '0',
                         satuan: '-',
                         volume_satuan: '-',
+                        manfaat_l: '-',
+                        manfaat_p: '-',
+                        manfaat_rtm: '-',
                         penerima_manfaat: '-',
                         waktu_pelaksanaan: '-',
                         sumber_biaya: '-',
@@ -6292,6 +6345,9 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
                         volume: volMenjadi,
                         satuan: satMenjadi,
                         volume_satuan: `${volMenjadi} ${satMenjadi}`,
+                        manfaat_l: lpRtmBaru.l,
+                        manfaat_p: lpRtmBaru.p,
+                        manfaat_rtm: lpRtmBaru.rtm,
                         penerima_manfaat: resolved.total_manfaat ? `${resolved.total_manfaat} Orang` : '-',
                         waktu_pelaksanaan: '12 Bulan',
                         sumber_biaya: p.sumber_dana || 'DDS',

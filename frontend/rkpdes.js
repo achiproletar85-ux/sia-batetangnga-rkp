@@ -936,11 +936,11 @@ function renderRkpdesPerubahanPreview() {
                 kelMap.get(kelName).push(item);
             });
 
-            // Bidang Header
+            // Bidang Header (1 + 20 = 21 kolom)
             tableBodyHtml += `
-                <tr class="bg-slate-200 font-extrabold text-slate-900 border border-slate-300">
-                    <td class="text-center align-top border border-slate-300 font-bold py-2 px-1 bg-slate-200 text-slate-900">${currentNo}</td>
-                    <td colspan="16" class="align-top border border-slate-300 font-extrabold bg-slate-200 text-slate-900 px-3 py-2 leading-snug uppercase text-xs">
+                <tr class="bg-slate-200 font-extrabold text-slate-900 border border-slate-400">
+                    <td class="text-center align-top border border-slate-400 font-bold py-2 px-1 bg-slate-200 text-slate-900">${currentNo}</td>
+                    <td colspan="20" class="align-top border border-slate-400 font-extrabold bg-slate-200 text-slate-900 px-3 py-2 leading-snug uppercase text-xs">
                         ${bidang.key}. ${bidang.name}
                     </td>
                 </tr>
@@ -949,9 +949,9 @@ function renderRkpdesPerubahanPreview() {
             subMap.forEach((kelMap, subName) => {
                 if (subName) {
                     tableBodyHtml += `
-                        <tr class="bg-indigo-50/90 font-bold text-indigo-950 border border-slate-300">
-                            <td class="border border-slate-300 bg-indigo-50/90"></td>
-                            <td colspan="16" class="align-top border border-slate-300 px-4 py-1 text-xs text-indigo-950 font-extrabold uppercase tracking-wide bg-indigo-50/90">
+                        <tr class="bg-indigo-50/90 font-bold text-indigo-950 border border-slate-400">
+                            <td class="border border-slate-400 bg-indigo-50/90"></td>
+                            <td colspan="20" class="align-top border border-slate-400 px-4 py-1 text-xs text-indigo-950 font-extrabold uppercase tracking-wide bg-indigo-50/90">
                                 <i class="fas fa-folder-open text-indigo-600 mr-1.5"></i> ${subName}
                             </td>
                         </tr>
@@ -961,9 +961,9 @@ function renderRkpdesPerubahanPreview() {
                 kelMap.forEach((items, kelName) => {
                     if (kelName && kelName !== subName) {
                         tableBodyHtml += `
-                            <tr class="bg-slate-100/90 font-semibold text-slate-800 border border-slate-300">
-                                <td class="border border-slate-300 bg-slate-100/90"></td>
-                                <td colspan="16" class="align-top border border-slate-300 px-6 py-1 text-[11px] text-slate-800 font-bold italic bg-slate-100/90">
+                            <tr class="bg-slate-100/90 font-semibold text-slate-800 border border-slate-400">
+                                <td class="border border-slate-400 bg-slate-100/90"></td>
+                                <td colspan="20" class="align-top border border-slate-400 px-6 py-1 text-[11px] text-slate-800 font-bold italic bg-slate-100/90">
                                     <i class="fas fa-caret-right text-slate-500 mr-1.5"></i> ${kelName}
                                 </td>
                             </tr>
@@ -1003,28 +1003,36 @@ function renderRkpdesPerubahanPreview() {
 
                         tableBodyHtml += `
                             <tr class="hover:bg-slate-50/80 transition-colors">
-                                <td class="text-center align-top border border-slate-300 text-slate-400 py-1.5 px-1">${index + 1}</td>
-                                <td class="align-top border border-slate-300 px-3 py-1.5 text-slate-900 font-semibold pl-8">
+                                <!-- 1. Identifikasi Umum -->
+                                <td class="text-center align-top border border-slate-300 text-slate-500 py-1.5 px-1">${index + 1}</td>
+                                <td class="align-top border border-slate-300 px-2 py-1.5 text-slate-900 font-semibold pl-6">
                                     ${namaKegiatan}
                                     ${statusBadge}
                                 </td>
-                                <!-- SEMULA -->
+                                
+                                <!-- 2. Blok SEMULA -->
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap">${semula.sdgs || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${semula.data_eksisting || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${semula.lokasi || 'Desa Batetangnga'}</td>
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 whitespace-nowrap text-slate-800">${semula.volume_satuan || semula.volume || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-800">${semula.penerima_manfaat || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700">${semula.sumber_biaya || 'DDS'}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${semula.manfaat_l || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${semula.manfaat_p || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${semula.manfaat_rtm || '-'}</td>
                                 <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-semibold text-slate-900 whitespace-nowrap">${formatRupiah(bSemula)}</td>
-                                <!-- MENJADI -->
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${semula.sumber_biaya || 'DDS'}</td>
+                                
+                                <!-- 3. Blok MENJADI -->
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap">${menjadi.sdgs || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.data_eksisting || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.lokasi || 'Desa Batetangnga'}</td>
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 whitespace-nowrap text-slate-800 font-medium">${menjadi.volume_satuan || menjadi.volume || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-800">${menjadi.penerima_manfaat || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${menjadi.sumber_biaya || 'DDS'}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${menjadi.manfaat_l || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${menjadi.manfaat_p || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${menjadi.manfaat_rtm || '-'}</td>
                                 <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-bold text-slate-900 whitespace-nowrap">${formatRupiah(bMenjadi)}</td>
-                                <!-- SELISIH -->
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${menjadi.sumber_biaya || 'DDS'}</td>
+                                
+                                <!-- 4. Blok SELISIH -->
                                 <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap ${selisihColor}">${formatSelisihRupiah(diff)}</td>
                             </tr>
                         `;
@@ -1032,15 +1040,17 @@ function renderRkpdesPerubahanPreview() {
                 });
             });
 
-            // Subtotal per Bidang
+            // Subtotal per Bidang (2 + 7 + 1 + 1 + 7 + 1 + 1 + 1 = 21 kolom)
             tableBodyHtml += `
-                <tr class="font-bold bg-slate-100 text-slate-800 border border-slate-300">
-                    <td colspan="2" class="text-left uppercase border border-slate-300 px-3 py-2 font-bold">JUMLAH ${bidang.name}</td>
-                    <td colspan="6" class="border border-slate-300 bg-slate-50"></td>
-                    <td class="text-right border border-slate-300 px-2 py-2 font-extrabold text-slate-900 whitespace-nowrap">${formatRupiah(subSemula)}</td>
-                    <td colspan="6" class="border border-slate-300 bg-slate-50"></td>
-                    <td class="text-right border border-slate-300 px-2 py-2 font-extrabold text-indigo-900 whitespace-nowrap">${formatRupiah(subMenjadi)}</td>
-                    <td class="text-right border border-slate-300 px-2 py-2 font-extrabold ${subSelisih > 0 ? 'text-emerald-700' : (subSelisih < 0 ? 'text-rose-700' : 'text-slate-700')} whitespace-nowrap">${formatSelisihRupiah(subSelisih)}</td>
+                <tr class="font-bold bg-slate-100 text-slate-800 border border-slate-400">
+                    <td colspan="2" class="text-left uppercase border border-slate-400 px-3 py-1.5 font-bold">JUMLAH ${bidang.name}</td>
+                    <td colspan="7" class="border border-slate-400 bg-slate-50"></td>
+                    <td class="text-right border border-slate-400 px-2 py-1.5 font-extrabold text-slate-900 whitespace-nowrap">${formatRupiah(subSemula)}</td>
+                    <td class="border border-slate-400 bg-slate-50"></td>
+                    <td colspan="7" class="border border-slate-400 bg-slate-50"></td>
+                    <td class="text-right border border-slate-400 px-2 py-1.5 font-extrabold text-indigo-900 whitespace-nowrap">${formatRupiah(subMenjadi)}</td>
+                    <td class="border border-slate-400 bg-slate-50"></td>
+                    <td class="text-right border border-slate-400 px-2 py-1.5 font-extrabold ${subSelisih > 0 ? 'text-emerald-700' : (subSelisih < 0 ? 'text-rose-700' : 'text-slate-700')} whitespace-nowrap">${formatSelisihRupiah(subSelisih)}</td>
                 </tr>
             `;
         }
@@ -1081,11 +1091,10 @@ function renderRkpdesPerubahanPreview() {
             </div>
         </div>
 
-        <!-- HEADER DOKUMEN RESMI -->
+        <!-- A. KOP SURAT & HEADER DOKUMEN RESMI -->
         <div class="mb-6 text-slate-900">
             <div class="text-center mb-4">
-                <h3 class="font-extrabold text-xl uppercase tracking-wide text-slate-900">RENCANA KERJA PEMERINTAH DESA PERUBAHAN (RKPDesa PERUBAHAN)</h3>
-                <h4 class="font-bold text-lg uppercase text-slate-700">TAHUN ANGGARAN ${activeYear}</h4>
+                <h3 class="font-extrabold text-xl uppercase tracking-wide text-slate-900">RENCANA KERJA PEMERINTAH DESA PERUBAHAN TAHUN ANGGARAN ${activeYear}</h3>
             </div>
 
             <div class="border-t-2 border-b-2 border-slate-900 py-3 my-4 text-xs font-bold uppercase leading-relaxed flex justify-between items-center px-2">
@@ -1100,53 +1109,103 @@ function renderRkpdesPerubahanPreview() {
             </div>
         </div>
 
-        <!-- TABEL RKPDesa PERUBAHAN (17 KOLOM RESMI) -->
-        <div class="overflow-x-auto shadow-sm rounded-xl border border-slate-300 bg-white">
-            <table class="w-full border-collapse border border-slate-300 text-xs">
+        <!-- B. STRUKTUR TABEL UTAMA (21 KOLOM BAKU) -->
+        <div class="overflow-x-auto shadow-sm rounded-xl border border-slate-400 bg-white">
+            <table class="w-full border-collapse border border-slate-400 text-xs">
                 <thead class="bg-slate-100 font-bold text-slate-800">
                     <tr class="text-center">
-                        <th class="border border-slate-300 align-middle py-2 px-1 bg-slate-100" rowspan="2" style="width: 35px; min-width: 35px;">No.<br><span class="text-[9px] font-normal text-slate-500">(a)</span></th>
-                        <th class="border border-slate-300 align-middle py-2 px-3 bg-slate-100" rowspan="2" style="min-width: 200px;">Bidang / Sub Bidang / Kegiatan<br><span class="text-[9px] font-normal text-slate-500">(b)</span></th>
-                        <th class="border border-slate-300 py-1.5 px-2 bg-amber-50 text-amber-900 border-b-2 border-amber-300 font-extrabold uppercase tracking-wide" colspan="7">SEMULA</th>
-                        <th class="border border-slate-300 py-1.5 px-2 bg-indigo-50 text-indigo-900 border-b-2 border-indigo-300 font-extrabold uppercase tracking-wide" colspan="7">MENJADI</th>
-                        <th class="border border-slate-300 align-middle py-2 px-2 bg-slate-200 text-slate-900 font-extrabold" rowspan="2" style="width: 110px; min-width: 105px;">SELISIH (+/-)<br><span class="text-[9px] font-normal text-slate-500">(q)</span></th>
+                        <!-- 1. Identifikasi Umum -->
+                        <th class="border border-slate-400 align-middle py-2 px-1 bg-slate-100" rowspan="3" style="width: 35px; min-width: 35px;">No.</th>
+                        <th class="border border-slate-400 align-middle py-2 px-3 bg-slate-100" rowspan="3" style="min-width: 180px;">Bidang / Jenis Kegiatan</th>
+                        
+                        <!-- 2. Blok SEMULA -->
+                        <th class="border border-slate-400 py-1.5 px-2 bg-amber-50 text-amber-950 font-extrabold uppercase tracking-wide border-b-2 border-amber-300" colspan="9">SEMULA</th>
+                        
+                        <!-- 3. Blok MENJADI -->
+                        <th class="border border-slate-400 py-1.5 px-2 bg-indigo-50 text-indigo-950 font-extrabold uppercase tracking-wide border-b-2 border-indigo-300" colspan="9">MENJADI</th>
+                        
+                        <!-- 4. Blok SELISIH -->
+                        <th class="border border-slate-400 align-middle py-2 px-2 bg-slate-200 text-slate-900 font-extrabold" rowspan="3" style="width: 105px; min-width: 95px;">Selisih Anggaran / Volume</th>
                     </tr>
                     <tr class="text-center text-[10px]">
-                        <!-- SEMULA (c s/d i) -->
-                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 65px; min-width: 55px;">SDGs<br><span class="text-[9px] font-normal text-slate-400">(c)</span></th>
-                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 80px; min-width: 70px;">Eksisting<br><span class="text-[9px] font-normal text-slate-400">(d)</span></th>
-                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 85px; min-width: 75px;">Lokasi<br><span class="text-[9px] font-normal text-slate-400">(e)</span></th>
-                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 75px; min-width: 65px;">Volume<br><span class="text-[9px] font-normal text-slate-400">(f)</span></th>
-                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 80px; min-width: 70px;">Manfaat<br><span class="text-[9px] font-normal text-slate-400">(g)</span></th>
-                        <th class="border border-slate-300 py-1 px-1 bg-amber-50/50" style="width: 65px; min-width: 55px;">Sumber<br><span class="text-[9px] font-normal text-slate-400">(h)</span></th>
-                        <th class="border border-slate-300 py-1 px-1.5 bg-amber-100/60 font-bold text-slate-900" style="width: 105px; min-width: 95px;">Biaya (Rp)<br><span class="text-[9px] font-normal text-slate-400">(i)</span></th>
-                        <!-- MENJADI (j s/d p) -->
-                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 65px; min-width: 55px;">SDGs<br><span class="text-[9px] font-normal text-slate-400">(j)</span></th>
-                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 80px; min-width: 70px;">Eksisting<br><span class="text-[9px] font-normal text-slate-400">(k)</span></th>
-                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 85px; min-width: 75px;">Lokasi<br><span class="text-[9px] font-normal text-slate-400">(l)</span></th>
-                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 75px; min-width: 65px;">Volume<br><span class="text-[9px] font-normal text-slate-400">(m)</span></th>
-                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 80px; min-width: 70px;">Manfaat<br><span class="text-[9px] font-normal text-slate-400">(n)</span></th>
-                        <th class="border border-slate-300 py-1 px-1 bg-indigo-50/50" style="width: 65px; min-width: 55px;">Sumber<br><span class="text-[9px] font-normal text-slate-400">(o)</span></th>
-                        <th class="border border-slate-300 py-1 px-1.5 bg-indigo-100/60 font-bold text-slate-900" style="width: 105px; min-width: 95px;">Biaya (Rp)<br><span class="text-[9px] font-normal text-slate-400">(p)</span></th>
+                        <!-- Sub-kolom SEMULA -->
+                        <th class="border border-slate-400 py-1 px-1 bg-amber-50/70 align-middle" rowspan="2" style="width: 55px; min-width: 50px;">Mendukung SDGs Ke-</th>
+                        <th class="border border-slate-400 py-1 px-1 bg-amber-50/70 align-middle" rowspan="2" style="width: 70px; min-width: 65px;">Data Eksisting Tahun Berjalan</th>
+                        <th class="border border-slate-400 py-1 px-1 bg-amber-50/70 align-middle" rowspan="2" style="width: 75px; min-width: 70px;">Lokasi (RT/RW/DUSUN)</th>
+                        <th class="border border-slate-400 py-1 px-1 bg-amber-50/70 align-middle" rowspan="2" style="width: 65px; min-width: 60px;">Volume &amp; Satuan</th>
+                        <th class="border border-slate-400 py-1 px-1 bg-amber-100/70 align-middle font-bold text-amber-950" colspan="3">Penerima Manfaat</th>
+                        <th class="border border-slate-400 py-1 px-1 bg-amber-200/50 align-middle font-bold text-amber-950" colspan="2">Biaya &amp; Sumber Pembiayaan</th>
+
+                        <!-- Sub-kolom MENJADI -->
+                        <th class="border border-slate-400 py-1 px-1 bg-indigo-50/70 align-middle" rowspan="2" style="width: 55px; min-width: 50px;">Mendukung SDGs Ke-</th>
+                        <th class="border border-slate-400 py-1 px-1 bg-indigo-50/70 align-middle" rowspan="2" style="width: 70px; min-width: 65px;">Data Eksisting Tahun Berjalan</th>
+                        <th class="border border-slate-400 py-1 px-1 bg-indigo-50/70 align-middle" rowspan="2" style="width: 75px; min-width: 70px;">Lokasi (RT/RW/DUSUN)</th>
+                        <th class="border border-slate-400 py-1 px-1 bg-indigo-50/70 align-middle" rowspan="2" style="width: 65px; min-width: 60px;">Prakiraan Volume &amp; Satuan</th>
+                        <th class="border border-slate-400 py-1 px-1 bg-indigo-100/70 align-middle font-bold text-indigo-950" colspan="3">Penerima Manfaat</th>
+                        <th class="border border-slate-400 py-1 px-1 bg-indigo-200/50 align-middle font-bold text-indigo-950" colspan="2">Biaya &amp; Sumber Pembiayaan</th>
+                    </tr>
+                    <tr class="text-center text-[9px]">
+                        <!-- Rincian SEMULA Penerima Manfaat -->
+                        <th class="border border-slate-400 py-1 px-0.5 bg-amber-100/50" style="width: 45px; min-width: 40px;">Laki-laki</th>
+                        <th class="border border-slate-400 py-1 px-0.5 bg-amber-100/50" style="width: 45px; min-width: 40px;">Perempuan</th>
+                        <th class="border border-slate-400 py-1 px-0.5 bg-amber-100/50" style="width: 45px; min-width: 40px;">RTM</th>
+                        <!-- Rincian SEMULA Biaya & Sumber -->
+                        <th class="border border-slate-400 py-1 px-1 bg-amber-200/40 font-bold text-slate-900" style="width: 90px; min-width: 80px;">Jumlah (Rp.)</th>
+                        <th class="border border-slate-400 py-1 px-0.5 bg-amber-200/40" style="width: 55px; min-width: 50px;">Sumber</th>
+
+                        <!-- Rincian MENJADI Penerima Manfaat -->
+                        <th class="border border-slate-400 py-1 px-0.5 bg-indigo-100/50" style="width: 45px; min-width: 40px;">Laki-laki</th>
+                        <th class="border border-slate-400 py-1 px-0.5 bg-indigo-100/50" style="width: 45px; min-width: 40px;">Perempuan</th>
+                        <th class="border border-slate-400 py-1 px-0.5 bg-indigo-100/50" style="width: 45px; min-width: 40px;">RTM</th>
+                        <!-- Rincian MENJADI Biaya & Sumber -->
+                        <th class="border border-slate-400 py-1 px-1 bg-indigo-200/40 font-bold text-slate-900" style="width: 90px; min-width: 80px;">Jumlah (Rp.)</th>
+                        <th class="border border-slate-400 py-1 px-0.5 bg-indigo-200/40" style="width: 55px; min-width: 50px;">Sumber</th>
+                    </tr>
+                    <!-- Baris Penomoran Kolom Resmi (1 s/d 21) -->
+                    <tr class="text-center text-[9px] font-normal text-slate-500 bg-slate-50">
+                        <td class="border border-slate-400 py-0.5">1</td>
+                        <td class="border border-slate-400 py-0.5">2</td>
+                        <td class="border border-slate-400 py-0.5">3</td>
+                        <td class="border border-slate-400 py-0.5">4</td>
+                        <td class="border border-slate-400 py-0.5">5</td>
+                        <td class="border border-slate-400 py-0.5">6</td>
+                        <td class="border border-slate-400 py-0.5">7</td>
+                        <td class="border border-slate-400 py-0.5">8</td>
+                        <td class="border border-slate-400 py-0.5">9</td>
+                        <td class="border border-slate-400 py-0.5">10</td>
+                        <td class="border border-slate-400 py-0.5">11</td>
+                        <td class="border border-slate-400 py-0.5">12</td>
+                        <td class="border border-slate-400 py-0.5">13</td>
+                        <td class="border border-slate-400 py-0.5">14</td>
+                        <td class="border border-slate-400 py-0.5">15</td>
+                        <td class="border border-slate-400 py-0.5">16</td>
+                        <td class="border border-slate-400 py-0.5">17</td>
+                        <td class="border border-slate-400 py-0.5">18</td>
+                        <td class="border border-slate-400 py-0.5">19</td>
+                        <td class="border border-slate-400 py-0.5">20</td>
+                        <td class="border border-slate-400 py-0.5">21</td>
                     </tr>
                 </thead>
                 <tbody>
                     ${tableBodyHtml}
                 </tbody>
+                <!-- C. BARIS JUMLAH TOTAL (2 + 7 + 1 + 1 + 7 + 1 + 1 + 1 = 21 kolom) -->
                 <tfoot>
                     <tr class="font-extrabold bg-slate-800 text-white text-xs">
-                        <td colspan="2" class="text-center uppercase border border-slate-900 py-2.5 font-bold tracking-wider">TOTAL KESELURUHAN</td>
-                        <td colspan="6" class="border border-slate-900 bg-slate-800"></td>
+                        <td colspan="2" class="text-center uppercase border border-slate-900 py-2.5 font-bold tracking-wider">JUMLAH TOTAL</td>
+                        <td colspan="7" class="border border-slate-900 bg-slate-800"></td>
                         <td class="text-right border border-slate-900 py-2.5 px-2 whitespace-nowrap text-white font-extrabold">${formatRupiah(grandTotalSemula)}</td>
-                        <td colspan="6" class="border border-slate-900 bg-slate-800"></td>
+                        <td class="border border-slate-900 bg-slate-800"></td>
+                        <td colspan="7" class="border border-slate-900 bg-slate-800"></td>
                         <td class="text-right border border-slate-900 py-2.5 px-2 whitespace-nowrap text-amber-300 font-extrabold">${formatRupiah(grandTotalMenjadi)}</td>
+                        <td class="border border-slate-900 bg-slate-800"></td>
                         <td class="text-right border border-slate-900 py-2.5 px-2 whitespace-nowrap ${grandTotalSelisih > 0 ? 'text-emerald-300' : (grandTotalSelisih < 0 ? 'text-rose-300' : 'text-white')} font-extrabold">${formatSelisihRupiah(grandTotalSelisih)}</td>
                     </tr>
                 </tfoot>
             </table>
         </div>
 
-        <!-- FOOTER TANDA TANGAN -->
+        <!-- C. BAGIAN PENANDATANGAN RESMI (FOOTER) -->
         <div class="mt-12 flex justify-between text-sm text-slate-900" style="page-break-inside: avoid;">
             <div class="text-center w-64">
                 <p>Mengetahui,</p>
@@ -1156,10 +1215,10 @@ function renderRkpdesPerubahanPreview() {
             </div>
             <div class="text-center w-64">
                 <p>Batetangnga, ${formattedDate}</p>
-                <p>Disusun Oleh,</p>
-                <p class="font-bold uppercase">${timInfo.jabatan}</p>
+                <p>Disusun oleh,</p>
+                <p class="font-bold uppercase">${timInfo.jabatan || 'Ketua Tim Penyusun RKPDesa'}</p>
                 <div style="height: 70px;"></div>
-                <p class="font-bold underline uppercase">${timInfo.nama}</p>
+                <p class="font-bold underline uppercase">${timInfo.nama || 'ABDUL AZIS SPM'}</p>
             </div>
         </div>
     `;
