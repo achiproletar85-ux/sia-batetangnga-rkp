@@ -1076,11 +1076,7 @@ async function saveRAB() {
         return;
     }
 
-    // Versi MURNI dikunci setelah RAB PERUBAHAN dibuat (nilai historis terjaga)
-    if (rabMurniLocked) {
-        showToast('RAB MURNI dikunci karena versi PERUBAHAN sudah dibuat. Ganti ke versi PERUBAHAN untuk mengubah item.', 'error');
-        return;
-    }
+    // RAB Murni terbuka penuh untuk disesuaikan dan disimpan
 
     const activity = selectedRpjm || {};
     const namaBidangFull = getNamaBidangFull(activity.bidang, activity.kode_unik_full || kodeUnikFix);
@@ -1131,8 +1127,8 @@ async function saveRAB() {
             await loadSavedRabList();
             await refreshLockStatus();
         } else if (json && json.locked) {
-            showToast(json.error || 'RAB MURNI sudah dikunci oleh RAB PERUBAHAN.', 'error');
-            rabMurniLocked = true;
+            showToast(json.error || 'Gagal menyimpan data RAB.', 'error');
+            rabMurniLocked = false;
             applyReadOnlyMode();
             await loadSavedRabList();
         } else {
@@ -1220,10 +1216,6 @@ function addRabItem() {
 function editRabItem(index) {
     const item = rabItems[index];
     if (!item) return;
-    if (rabMurniLocked) {
-        showToast('RAB MURNI dikunci (read-only). Buka versi PERUBAHAN untuk mengedit item.', 'error');
-        return;
-    }
     const selectGroup = document.getElementById('select-group');
     if (selectGroup) {
         if (item.group && ![...selectGroup.options].some(o => o.value === item.group)) {
@@ -1279,10 +1271,6 @@ function editRabItem(index) {
 }
 
 function removeRabItem(index) {
-    if (rabMurniLocked) {
-        showToast('RAB MURNI dikunci (read-only). Buka versi PERUBAHAN untuk menghapus item.', 'error');
-        return;
-    }
     rabItems.splice(index, 1);
     renderRabItems();
     saveRAB();
@@ -2144,7 +2132,8 @@ async function refreshLockStatus() {
         let json = null;
         try { json = await res.json(); } catch (_) {}
         if (json && json.success) {
-            rabMurniLocked = !isModePerubahan() && !!json.perubahan;
+            // RAB Murni tidak dikunci otomatis: pengguna tetap dapat menyesuaikan/mengedit data RAB Awal
+            rabMurniLocked = false;
         }
     } catch (e) {
         console.warn('Gagal memeriksa status versi RAB:', e);
@@ -2152,7 +2141,7 @@ async function refreshLockStatus() {
     applyReadOnlyMode();
 }
 
-// Terapkan mode baca-saja pada form rincian saat versi MURNI sudah dikunci.
+// Terapkan mode form rincian (RAB Awal / Murni selalu terbuka untuk disesuaikan/diedit)
 function applyReadOnlyMode() {
     const fieldIds = [
         'select-group', 'select-subgroup', 'input-uraian', 'input-volume',
@@ -2176,7 +2165,7 @@ function applyReadOnlyMode() {
             badge.textContent = 'MODE: RAB PERUBAHAN';
             badge.className = 'px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-amber-500 text-white';
         } else {
-            badge.textContent = 'MODE: RAB MURNI';
+            badge.textContent = 'MODE: RAB MURNI (Aktif / Dapat Diedit)';
             badge.className = 'px-3 py-1.5 rounded-full text-[11px] font-extrabold bg-emerald-500 text-white';
         }
     }

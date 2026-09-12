@@ -3323,18 +3323,7 @@ app.post('/api/rab', async (req, res) => {
         const bidangFull = namaBidangPrioritas(noBidang);
         const tipeAnggaran = normalizeRabTipe(payload.tipe_anggaran || payload.tipe);
 
-        // Kunci versi MURNI: begitu RAB PERUBAHAN untuk kegiatan+tahun ini dibuat,
-        // nilai historis MURNI tidak boleh diubah lagi (read-only pada mode perubahan).
-        if (tipeAnggaran === RAB_TIPE_MURNI) {
-            const perubahanCount = await countPerubahanFor(Number(tahun), targetKode);
-            if (perubahanCount > 0) {
-                return res.status(409).json({
-                    success: false,
-                    locked: true,
-                    error: 'RAB MURNI kegiatan ini sudah dikunci karena RAB PERUBAHAN telah dibuat. Silakan edit melalui versi PERUBAHAN.'
-                });
-            }
-        }
+        // Formulir RAB Murni dibuka penuh agar pengguna dapat menyesuaikan rincian anggaran kapan saja
 
         const record = {
             kode_unik: targetKode,
@@ -3403,17 +3392,7 @@ app.delete('/api/rab', async (req, res) => {
         const safeTahun = parseInt(tahun, 10) || 2027;
         const tipeAnggaran = normalizeRabTipe(req.query.tipe || req.query.tipe_anggaran);
 
-        // Kunci versi MURNI: tidak boleh dihapus selama PERUBAHAN masih ada.
-        if (tipeAnggaran === RAB_TIPE_MURNI) {
-            const perubahanCount = await countPerubahanFor(safeTahun, kode_unik_full);
-            if (perubahanCount > 0) {
-                return res.status(409).json({
-                    success: false,
-                    locked: true,
-                    error: 'RAB MURNI kegiatan ini dikunci karena RAB PERUBAHAN masih ada. Hapus versi PERUBAHAN terlebih dahulu.'
-                });
-            }
-        }
+        // Pengelolaan hapus data RAB dibuka fleksibel sesuai kebutuhan operator
 
         await deleteRabFromDb(kode_unik_full, safeTahun, tipeAnggaran);
         // Bersihkan baris RKPDes turunan dari RAB yang dihapus tahun tersebut
