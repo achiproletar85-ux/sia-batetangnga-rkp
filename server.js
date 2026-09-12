@@ -6472,7 +6472,7 @@ app.post('/api/tim-penyusun/sync', async (req, res) => {
 
 // Kolom eksplisit (zero-wildcard policy) — sesuai kolom LIVE di Supabase
 const KERJASAMA_LIST_COLUMNS = 'id,tahun,bidang_ke,nomor_urut,nama_kegiatan,sdgs_desa,lokasi,volume_satuan,penerima_manfaat,biaya_desa,sumber_dana,biaya_pihak_ketiga,nama_pihak_ketiga';
-const PROGRAM_MASUK_DESA_COLUMNS = 'id,tahun,bidang,sub_kegiatan,instansi_pemberi,mendukung_sdgs,tahun_pelaksanaan,lokasi,volume,satuan,total_pagu';
+const PROGRAM_MASUK_DESA_COLUMNS = 'id, tahun, bidang, sub_kegiatan, nama_program, nama_kegiatan, instansi_pemberi, pelaksana, sumber_dana, mendukung_sdgs, tahun_pelaksanaan, lokasi, volume, satuan, total_pagu, anggaran';
 
 // Helper: map payload frontend -> kolom live (dua halaman pakai nama kolom beda utk hal sama)
 function mapKerjasamaRow(r, tahunInt) {
@@ -6737,9 +6737,13 @@ app.post('/api/program-masuk-desa/sync', async (req, res) => {
         const { error: delErr } = await supabase.from('program_masuk_desa').delete().eq('tahun', tahunInt);
         if (delErr) throw delErr;
 
-        const validRows = rows.filter(r => (r.sub_kegiatan || r.nama_program || r.nama_kegiatan || '').trim());
+        const validRows = rows.filter(r => (
+            String(r.sub_kegiatan || r.nama_program || r.nama_kegiatan || '').trim() ||
+            String(r.instansi_pemberi || r.pelaksana || '').trim() ||
+            (parseFloat(r.total_pagu || r.anggaran) > 0)
+        ));
         if (validRows.length === 0) {
-            return res.json({ success: true, message: `Program masuk desa tahun ${tahunInt} dikosongkan.`, count: 0 });
+            return res.json({ success: true, message: `Program masuk desa tahun ${tahunInt} dikosongkan.`, count: 0, data: [] });
         }
 
         const payload = validRows.map(r => {
@@ -6768,9 +6772,12 @@ app.post('/api/program-masuk-desa/sync', async (req, res) => {
             };
         });
 
-        const { error: insErr } = await supabase.from('program_masuk_desa').insert(payload).select('id');
-        if (insErr) throw insErr;
-        res.json({ success: true, message: `Berhasil menyimpan ${payload.length} baris program masuk desa tahun ${tahunInt}.`, count: payload.length });
+        const { data: insData, error: insErr } = await supabase.from('program_masuk_desa').insert(payload).select('id');
+        if (insErr) {
+            console.error('❌ Error insert in sync:', insErr.message);
+            throw insErr;
+        }
+        res.json({ success: true, message: `Berhasil menyimpan ${payload.length} baris program masuk desa tahun ${tahunInt}.`, count: payload.length, data: insData });
     } catch (error) {
         console.error('❌ Error POST /api/program-masuk-desa/sync:', error.message);
         res.status(500).json({ success: false, error: error.message });
