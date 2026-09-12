@@ -2256,7 +2256,11 @@ app.get('/api/prioritas-usulan/tarik-rpjm', async (req, res) => {
         }
         console.log(`📡 GET /api/prioritas-usulan/tarik-rpjm?tahun=${tahunInt}`);
 
-        const { data, error } = await supabase.from('rpjmdes_standar').select(RPJMDES_LIST_COLUMNS).limit(500);
+        const { data, error } = await supabase
+            .from('rpjmdes_standar')
+            .select(RPJMDES_LIST_COLUMNS)
+            .order('kode_unik_full', { ascending: true })
+            .limit(2000);
         if (error) throw error;
 
         const filtered = (data || []).filter(item => isRpjmTargetDitarik(item, tahunInt));
@@ -2813,6 +2817,11 @@ app.delete('/api/rancangan-rkpdes', async (req, res) => {
     }
 });
 
+const normKode = (k) => {
+    if (!k) return '';
+    return String(k).trim().replace(/\.+$/, '');
+};
+
 const parseNumScore = (val, fallback = 100) => {
     if (val !== null && val !== undefined && val !== '') {
         const n = parseInt(val, 10);
@@ -2834,20 +2843,23 @@ app.get('/api/prioritas-rkpdes/tarik-rancangan', async (req, res) => {
             .eq('tahun', tahunInt);
         if (error) throw error;
 
+        // Ambil data referensi nilai skoring dan kegiatan ber-target tahunInt dari rpjmdes_standar
         const { data: rpjmRows } = await supabase
             .from('rpjmdes_standar')
-            .select('kode_unik_full, visi_misi, pokok_bpd, program_masyarakat, prioritas_sdgs_skor');
+            .select(RPJMDES_LIST_COLUMNS)
+            .order('kode_unik_full', { ascending: true })
+            .limit(2000);
 
         const rpjmScoreMap = new Map();
         (rpjmRows || []).forEach(rp => {
-            const k = String(rp.kode_unik_full || '').trim();
+            const k = normKode(rp.kode_unik_full || rp.kode_unik);
             if (k) rpjmScoreMap.set(k, rp);
         });
 
         const seenKode = new Set();
         const validRows = [];
         (data || []).forEach(r => {
-            const kode = String(r.kode_unik_full || r.kode_unik || '').trim();
+            const kode = normKode(r.kode_unik_full || r.kode_unik);
             if (kode) {
                 if (seenKode.has(kode)) return;
                 seenKode.add(kode);
@@ -2860,6 +2872,23 @@ app.get('/api/prioritas-rkpdes/tarik-rancangan', async (req, res) => {
                 skor_kabupaten: parseNumScore(rpjm.program_masyarakat, 100),
                 skor_sumber_daya: parseNumScore(rpjm.prioritas_sdgs_skor, 100)
             });
+        });
+
+        // Sertakan juga kegiatan rpjmdes_standar yang ber-target tahunInt jika belum ada di rancangan
+        (rpjmRows || []).forEach(rp => {
+            if (!isRpjmTargetDitarik(rp, tahunInt)) return;
+            const kode = normKode(rp.kode_unik_full || rp.kode_unik);
+            if (kode && !seenKode.has(kode)) {
+                seenKode.add(kode);
+                const built = buildRancanganInsertItem(rp, tahunInt);
+                validRows.push({
+                    ...built,
+                    skor_kewenangan: parseNumScore(rp.visi_misi, 100),
+                    skor_sdgs: parseNumScore(rp.pokok_bpd, 100),
+                    skor_kabupaten: parseNumScore(rp.program_masyarakat, 100),
+                    skor_sumber_daya: parseNumScore(rp.prioritas_sdgs_skor, 100)
+                });
+            }
         });
 
         validRows.sort((a, b) => compareKodeUnikFull(a.kode_unik_full || a.kode_unik, b.kode_unik_full || b.kode_unik));
@@ -2884,21 +2913,49 @@ app.post('/api/prioritas-rkpdes/sync', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Parameter tahun diperlukan.' });
         }
 
-        const { data: rancanganRows, error: rErr } = await supabase
+        const { data: rancanganRowsRaw, error: rErr } = await supabase
             .from('rancangan_rkpdes')
             .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunInt);
         if (rErr) throw rErr;
 
+        let rancanganRows = rancanganRowsRaw || [];
+
+        // Ambil data referensi nilai skoring dan kegiatan ber-target tahunInt dari rpjmdes_standar
         const { data: rpjmRows } = await supabase
             .from('rpjmdes_standar')
-            .select('kode_unik_full, visi_misi, pokok_bpd, program_masyarakat, prioritas_sdgs_skor');
+            .select(RPJMDES_LIST_COLUMNS)
+            .order('kode_unik_full', { ascending: true })
+            .limit(2000);
 
         const rpjmScoreMap = new Map();
         (rpjmRows || []).forEach(rp => {
-            const k = String(rp.kode_unik_full || '').trim();
+            const k = normKode(rp.kode_unik_full || rp.kode_unik);
             if (k) rpjmScoreMap.set(k, rp);
         });
+
+        const rancanganMap = new Map();
+        rancanganRows.forEach(r => {
+            const k = normKode(r.kode_unik_full || r.kode_unik);
+            if (k) rancanganMap.set(k, r);
+        });
+
+        // Sinkronkan kegiatan target dari rpjmdes_standar yang belum ada di rancangan_rkpdes
+        const missingRancanganToInsert = [];
+        (rpjmRows || []).forEach(s => {
+            if (!isRpjmTargetDitarik(s, tahunInt)) return;
+            const k = normKode(s.kode_unik_full || s.kode_unik);
+            if (k && !rancanganMap.has(k)) {
+                const built = buildRancanganInsertItem(s, tahunInt);
+                missingRancanganToInsert.push(built);
+                rancanganMap.set(k, built);
+            }
+        });
+
+        if (missingRancanganToInsert.length > 0) {
+            await supabase.from('rancangan_rkpdes').insert(missingRancanganToInsert).select('id');
+        }
+        rancanganRows = Array.from(rancanganMap.values());
 
         const { data: existingPrioritas } = await supabase
             .from('prioritas_rkpdes')
@@ -2907,23 +2964,15 @@ app.post('/api/prioritas-rkpdes/sync', async (req, res) => {
         
         const existingScoreMap = new Map();
         (existingPrioritas || []).forEach(ex => {
-            const k = String(ex.kode_unik_full || ex.kode_unik || '').trim();
+            const k = normKode(ex.kode_unik_full || ex.kode_unik);
             if (k) existingScoreMap.set(k, ex);
         });
 
-        const parseNumScore = (val, fallback) => {
-            if (val !== null && val !== undefined && val !== '') {
-                const n = parseInt(val, 10);
-                if (!isNaN(n)) return Math.min(100, Math.max(0, n));
-            }
-            return fallback;
-        };
-
         const seenKodeSync = new Set();
         const validRows = [];
-        for (const r of (rancanganRows || [])) {
+        for (const r of rancanganRows) {
             if (!r || typeof r !== 'object') continue;
-            const kode = String(r.kode_unik_full || r.kode_unik || '').trim();
+            const kode = normKode(r.kode_unik_full || r.kode_unik);
             if (kode) {
                 if (seenKodeSync.has(kode)) continue;
                 seenKodeSync.add(kode);
@@ -2943,8 +2992,9 @@ app.post('/api/prioritas-rkpdes/sync', async (req, res) => {
         if (validRows.length > 0) {
             const payload = validRows.map(r => {
                 const kodeFull = String(r.kode_unik_full || r.kode_unik || '').trim();
-                const old = existingScoreMap.get(kodeFull) || {};
-                const rpjm = rpjmScoreMap.get(kodeFull) || {};
+                const kNorm = normKode(kodeFull);
+                const old = existingScoreMap.get(kNorm) || {};
+                const rpjm = rpjmScoreMap.get(kNorm) || {};
                 const noBidang = extractRancanganBidangNum(r);
 
                 const sk1 = parseNumScore(old.skor_kewenangan, parseNumScore(rpjm.visi_misi, 100));
@@ -3073,10 +3123,12 @@ app.get('/api/prioritas-rkpdes', async (req, res) => {
         const noBidang = parseInt(bidang_no || bidang, 10);
         console.log(`📡 GET /api/prioritas-rkpdes?tahun=${tahunInt}&bidang_no=${noBidang}`);
 
-        const { data: rancanganRows } = await supabase
+        const { data: rancanganRowsRaw } = await supabase
             .from('rancangan_rkpdes')
             .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunInt);
+
+        let rancanganRows = rancanganRowsRaw || [];
 
         const { data: existingPrioritas, error: fetchErr } = await supabase
             .from('prioritas_rkpdes')
@@ -3086,25 +3138,46 @@ app.get('/api/prioritas-rkpdes', async (req, res) => {
 
         const { data: rpjmRows } = await supabase
             .from('rpjmdes_standar')
-            .select('kode_unik_full, visi_misi, pokok_bpd, program_masyarakat, prioritas_sdgs_skor');
+            .select(RPJMDES_LIST_COLUMNS)
+            .order('kode_unik_full', { ascending: true })
+            .limit(2000);
 
         const rpjmScoreMap = new Map();
-        (rpjmRows || []).forEach(rp => {
-            const k = String(rp.kode_unik_full || '').trim();
-            if (k) rpjmScoreMap.set(k, rp);
+        const targetStdKodeSet = new Set();
+        const missingRancanganToInsert = [];
+        const rancanganKodeMap = new Map();
+
+        (rancanganRows || []).forEach(r => {
+            const k = normKode(r.kode_unik_full || r.kode_unik);
+            if (k) rancanganKodeMap.set(k, r);
         });
 
-        const parseNumScore = (val, fallback) => {
-            if (val !== null && val !== undefined && val !== '') {
-                const n = parseInt(val, 10);
-                if (!isNaN(n)) return Math.min(100, Math.max(0, n));
+        (rpjmRows || []).forEach(rp => {
+            const k = normKode(rp.kode_unik_full || rp.kode_unik);
+            if (!k) return;
+            rpjmScoreMap.set(k, rp);
+            if (isRpjmTargetDitarik(rp, tahunInt)) {
+                targetStdKodeSet.add(k);
+                if (!rancanganKodeMap.has(k)) {
+                    const built = buildRancanganInsertItem(rp, tahunInt);
+                    missingRancanganToInsert.push(built);
+                    rancanganKodeMap.set(k, built);
+                }
             }
-            return fallback;
-        };
+        });
+
+        if (missingRancanganToInsert.length > 0) {
+            try {
+                await supabase.from('rancangan_rkpdes').insert(missingRancanganToInsert).select('id');
+            } catch (insErr) {
+                console.warn('⚠️ Auto-insert missing rancangan in prioritas-rkpdes error:', insErr.message);
+            }
+        }
+        rancanganRows = Array.from(rancanganKodeMap.values());
 
         const existingMap = new Map();
         (existingPrioritas || []).forEach(p => {
-            const k = String(p.kode_unik_full || p.kode_unik || '').trim();
+            const k = normKode(p.kode_unik_full || p.kode_unik);
             if (k) existingMap.set(k, p);
         });
 
@@ -3115,18 +3188,19 @@ app.get('/api/prioritas-rkpdes', async (req, res) => {
         (rancanganRows || []).forEach(r => {
             const kodeFull = String(r.kode_unik_full || r.kode_unik || '').trim();
             if (!kodeFull) return;
-            if (rancanganKodeSet.has(kodeFull)) return;
-            rancanganKodeSet.add(kodeFull);
+            const kNorm = normKode(kodeFull);
+            if (rancanganKodeSet.has(kNorm)) return;
+            rancanganKodeSet.add(kNorm);
 
-            const rpjm = rpjmScoreMap.get(kodeFull) || {};
+            const rpjm = rpjmScoreMap.get(kNorm) || {};
             const nB = extractRancanganBidangNum(r);
             const namaKeg = String(r.sub_kegiatan || r.nama_kegiatan || '-');
             const lokasiKeg = String(r.lokasi || 'Desa Batetangnga');
             const volKeg = String(r.volume_satuan || r.volume || '12 Bulan');
             const biayaKeg = Number(r.prakiraan_biaya || 0);
 
-            if (existingMap.has(kodeFull)) {
-                const ex = existingMap.get(kodeFull);
+            if (existingMap.has(kNorm)) {
+                const ex = existingMap.get(kNorm);
                 if (ex.nama_kegiatan !== namaKeg || ex.lokasi !== lokasiKeg || ex.volume !== volKeg || ex.prakiraan_biaya !== biayaKeg) {
                     itemsToUpdate.push({
                         id: ex.id,
@@ -3183,8 +3257,8 @@ app.get('/api/prioritas-rkpdes', async (req, res) => {
 
         const idsToDelete = [];
         (existingPrioritas || []).forEach(p => {
-            const k = String(p.kode_unik_full || p.kode_unik || '').trim();
-            if (k && !rancanganKodeSet.has(k)) {
+            const k = normKode(p.kode_unik_full || p.kode_unik);
+            if (k && !rancanganKodeSet.has(k) && !targetStdKodeSet.has(k)) {
                 idsToDelete.push(p.id);
             }
         });
@@ -3260,7 +3334,8 @@ app.post('/api/prioritas-rkpdes/upsert', async (req, res) => {
 
         const mapByKode = new Map();
         (existing || []).forEach(row => {
-            mapByKode.set((row.kode_unik_full || row.kode_unik || '').trim(), row.id);
+            const k = normKode(row.kode_unik_full || row.kode_unik);
+            if (k) mapByKode.set(k, row.id);
         });
 
         const upsertRows = [];
@@ -3303,13 +3378,14 @@ app.post('/api/prioritas-rkpdes/upsert', async (req, res) => {
                 updated_at: now
             };
 
-            const existingId = kodeFull ? (mapByKode.get(kodeFull) ?? null) : null;
+            const kNorm = normKode(kodeFull);
+            const existingId = kNorm ? (mapByKode.get(kNorm) ?? null) : null;
             if (existingId != null) {
                 delete rowPayload.tahun;
                 updatePairs.push({ id: existingId, data: rowPayload });
             } else {
                 upsertRows.push(rowPayload);
-                if (kodeFull) mapByKode.set(kodeFull, 'PENDING_INSERT');
+                if (kNorm) mapByKode.set(kNorm, 'PENDING_INSERT');
             }
         }
 

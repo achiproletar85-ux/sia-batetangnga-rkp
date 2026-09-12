@@ -313,29 +313,29 @@ function renderTabelPrioritas(data) {
                     <input type="number" min="0" max="100" value="${item.skor_kewenangan}" 
                         onchange="updateSkorLive(${index}, 'skor_kewenangan', this.value, this)" 
                         class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                    <span class="hidden print:inline font-bold">${item.skor_kewenangan}</span>
+                    <span class="skor-print-val hidden print:inline font-bold">${item.skor_kewenangan}</span>
                 </td>
                 <td class="border border-slate-400 p-1 text-center">
                     <input type="number" min="0" max="100" value="${item.skor_sdgs}" 
                         onchange="updateSkorLive(${index}, 'skor_sdgs', this.value, this)" 
                         class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                    <span class="hidden print:inline font-bold">${item.skor_sdgs}</span>
+                    <span class="skor-print-val hidden print:inline font-bold">${item.skor_sdgs}</span>
                 </td>
                 <td class="border border-slate-400 p-1 text-center">
                     <input type="number" min="0" max="100" value="${item.skor_kabupaten}" 
                         onchange="updateSkorLive(${index}, 'skor_kabupaten', this.value, this)" 
                         class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                    <span class="hidden print:inline font-bold">${item.skor_kabupaten}</span>
+                    <span class="skor-print-val hidden print:inline font-bold">${item.skor_kabupaten}</span>
                 </td>
                 <td class="border border-slate-400 p-1 text-center">
                     <input type="number" min="0" max="100" value="${item.skor_sumber_daya}" 
                         onchange="updateSkorLive(${index}, 'skor_sumber_daya', this.value, this)" 
                         class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                    <span class="hidden print:inline font-bold">${item.skor_sumber_daya}</span>
+                    <span class="skor-print-val hidden print:inline font-bold">${item.skor_sumber_daya}</span>
                 </td>
 
-                <td data-total class="border border-slate-400 text-center py-2 font-extrabold bg-slate-100 text-slate-900">${total}</td>
-                <td data-rank class="border border-slate-400 text-center py-2 font-extrabold text-amber-700">${rankRomawi}</td>
+                <td data-total class="border border-slate-400 text-center py-2 font-extrabold bg-slate-100 text-slate-900"><span class="skor-print-val">${total}</span></td>
+                <td data-rank class="border border-slate-400 text-center py-2 font-extrabold text-amber-700"><span class="skor-print-val">${rankRomawi}</span></td>
                 <td class="border border-slate-400 text-center py-2 no-print">
                     <button onclick="hapusItemData(${index})" title="Hapus Baris" class="bg-rose-100 hover:bg-rose-200 text-rose-800 font-sans text-xs px-2 py-1 rounded border border-rose-300 font-bold">
                         🗑️
@@ -379,8 +379,17 @@ function updateSkorLive(index, field, value, inputEl) {
     if (tr) {
         const totalTd = tr.querySelectorAll('td[data-total]');
         const rankTd = tr.querySelectorAll('td[data-rank]');
-        if (totalTd.length) totalTd[0].textContent = item.total_skor;
-        if (rankTd.length) rankTd[0].textContent = hitungRankingRkpdes(item.total_skor);
+        if (totalTd.length) {
+            const spanTot = totalTd[0].querySelector('.skor-print-val');
+            if (spanTot) spanTot.textContent = item.total_skor;
+            else totalTd[0].textContent = item.total_skor;
+        }
+        if (rankTd.length) {
+            const rankVal = hitungRankingRkpdes(item.total_skor);
+            const spanRnk = rankTd[0].querySelector('.skor-print-val');
+            if (spanRnk) spanRnk.textContent = rankVal;
+            else rankTd[0].textContent = rankVal;
+        }
     }
 
     scheduleSaveSkor(item);
@@ -895,6 +904,24 @@ async function tetapkanRkpdes() {
     }
 }
 
+function cetakPrioritas(skoringKosong = false) {
+    if (skoringKosong) {
+        document.body.classList.add('print-skoring-kosong');
+    } else {
+        document.body.classList.remove('print-skoring-kosong');
+    }
+
+    const cleanup = () => {
+        document.body.classList.remove('print-skoring-kosong');
+        window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+
+    window.print();
+
+    setTimeout(cleanup, 1000);
+}
+
 // Global Exports
 window.loadPrioritasData = loadPrioritasData;
 window.updateSkorLive = updateSkorLive;
@@ -912,6 +939,7 @@ window.tarikSatuKegiatanRancangan = tarikSatuKegiatanRancangan;
 window.tarikKegiatanTerpilihRancangan = tarikKegiatanTerpilihRancangan;
 window.filterPrioritasTable = filterPrioritasTable;
 window.clearSearchPrioritas = clearSearchPrioritas;
+window.cetakPrioritas = cetakPrioritas;
 
 document.addEventListener('DOMContentLoaded', () => {
     loadPrioritasData();
