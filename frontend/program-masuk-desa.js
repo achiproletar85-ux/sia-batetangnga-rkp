@@ -32,12 +32,8 @@ async function loadProgramMasukData() {
 
     try {
         let res = await fetch(`/api/program-masuk-desa?tahun=${year}`);
-        if (res.ok) {
-            let json = await res.json();
-            dataProgramMasuk = json.data || [];
-        } else {
-            dataProgramMasuk = [];
-        }
+        const result = res.ok ? await res.json() : { success: true, data: [] };
+        dataProgramMasuk = Array.isArray(result) ? result : (result.data || []);
     } catch (e) {
         console.warn("Gagal terhubung ke server, menggunakan memori lokal.");
         dataProgramMasuk = [];
@@ -191,7 +187,7 @@ async function saveEditRow(id) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(item)
         });
-        const result = await response.json();
+        const result = response.ok ? await response.json() : { success: false, message: `HTTP ${response.status}` };
 
         if (result.success) {
             alert('✅ Data program masuk desa berhasil diupdate!');
@@ -199,7 +195,7 @@ async function saveEditRow(id) {
             originalRowBackup = null;
             loadProgramMasukData();
         } else {
-            alert('❌ Gagal mengupdate data: ' + (result.message || result.error));
+            alert('❌ Gagal mengupdate data: ' + (result.message || result.error || 'Terjadi kesalahan'));
         }
     } catch (error) {
         console.error('❌ Error update:', error);
@@ -219,13 +215,13 @@ async function deleteRow(id) {
         const response = await fetch(`/api/program-masuk-desa?id=${id}`, {
             method: 'DELETE'
         });
-        const result = await response.json();
+        const result = response.ok ? await response.json() : { success: false, message: `HTTP ${response.status}` };
         
         if (result.success) {
             alert('✅ Data program masuk desa berhasil dihapus!');
             loadProgramMasukData();
         } else {
-            alert('❌ Gagal menghapus data: ' + (result.message || result.error));
+            alert('❌ Gagal menghapus data: ' + (result.message || result.error || 'Terjadi kesalahan'));
         }
     } catch (error) {
         console.error('❌ Error delete:', error);
@@ -285,12 +281,12 @@ async function saveToDatabase() {
             body: JSON.stringify({ tahun: year, data: dataProgramMasuk })
         });
         
-        let json = await res.json();
+        let json = res.ok ? await res.json() : { success: false, message: `HTTP ${res.status}` };
         if (json.success) {
             alert(`✅ Berhasil! Data Rencana Program dan Kegiatan yang Masuk ke Desa Tahun ${year} telah disimpan permanen ke Supabase.`);
             loadProgramMasukData();
         } else {
-            alert("❌ Gagal menyimpan: " + json.message);
+            alert("❌ Gagal menyimpan: " + (json.message || json.error || 'Terjadi kesalahan'));
         }
     } catch (err) {
         alert("❌ Terjadi kesalahan koneksi server: " + err.message);

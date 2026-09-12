@@ -871,16 +871,30 @@ END $$;
 DROP TABLE IF EXISTS public.program_masuk_desa CASCADE;
 CREATE TABLE IF NOT EXISTS public.program_masuk_desa (
     id                  bigserial PRIMARY KEY,
-    tahun               integer,
+    tahun               integer NOT NULL,
+    bidang              integer,
+    sub_kegiatan        text,
+    nama_program        text,
     nama_kegiatan       text,
+    instansi_pemberi    text,
+    pelaksana           text,
+    sumber_dana         text,
+    mendukung_sdgs      text,
+    tahun_pelaksanaan   integer,
+    lokasi              text,
     lokasi_kegiatan     text,
+    volume              text,
     volume_kegiatan     text,
+    satuan              text,
     sasaran_manfaat     text,
-    pagu_anggaran       numeric,
+    total_pagu          numeric DEFAULT 0,
+    anggaran            numeric DEFAULT 0,
+    pagu_anggaran       numeric DEFAULT 0,
     sumber_anggaran     text,
     created_at          timestamptz DEFAULT now(),
     updated_at          timestamptz DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_program_masuk_desa_tahun ON public.program_masuk_desa (tahun);
 
 -- RLS & Permissions untuk program_masuk_desa
 ALTER TABLE public.program_masuk_desa ENABLE ROW LEVEL SECURITY;

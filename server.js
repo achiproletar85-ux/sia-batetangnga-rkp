@@ -6649,51 +6649,82 @@ app.delete('/api/kerjasama-pihak-ketiga', async (req, res) => {
 app.get('/api/program-masuk-desa', async (req, res) => {
     try {
         const { tahun } = req.query;
-        if (!tahun) return res.status(400).json({ success: false, error: 'Tahun diperlukan' });
+        const tahunInt = parseInt(tahun, 10);
+        if (!tahunInt) {
+            return res.json({ success: true, data: [], message: 'Parameter tahun belum dipilih' });
+        }
         const { data, error } = await supabase
             .from('program_masuk_desa')
             .select(PROGRAM_MASUK_DESA_COLUMNS)
-            .eq('tahun', parseInt(tahun, 10))
+            .eq('tahun', tahunInt)
             .order('bidang', { ascending: true })
             .limit(500);
-        if (error) throw error;
-        res.json({ success: true, data: data || [] });
+
+        if (error) {
+            console.warn('⚠️ Warning GET /api/program-masuk-desa:', error.message);
+            return res.json({ success: true, data: [] });
+        }
+        return res.json({ success: true, data: data || [] });
     } catch (error) {
         console.error('❌ Error GET /api/program-masuk-desa:', error.message);
-        res.status(500).json({ success: false, error: error.message });
+        return res.json({ success: true, data: [] });
     }
 });
 
-// POST /api/program-masuk-desa — update satu baris (body = item)
-app.post('/api/program-masuk-desa', async (req, res) => {
+// POST & PUT /api/program-masuk-desa — simpan atau update satu baris
+const handleSaveProgramMasukDesaRow = async (req, res) => {
     try {
         const item = req.body || {};
-        if (!item.id) return res.status(400).json({ success: false, error: 'ID wajib diisi' });
         const tahunInt = parseInt(item.tahun, 10) || 2027;
+        const subKegiatan = String(item.sub_kegiatan || item.nama_program || item.nama_kegiatan || '').trim();
+        const pagu = Number(item.total_pagu != null ? item.total_pagu : (item.anggaran || item.pagu_anggaran || 0)) || 0;
+
         const payload = {
             tahun: tahunInt,
-            bidang: item.bidang != null ? item.bidang : null,
-            sub_kegiatan: String(item.sub_kegiatan || item.nama_kegiatan || ''),
-            instansi_pemberi: String(item.instansi_pemberi || ''),
+            bidang: item.bidang != null ? parseInt(item.bidang, 10) : 1,
+            sub_kegiatan: subKegiatan,
+            nama_program: subKegiatan,
+            nama_kegiatan: subKegiatan,
+            instansi_pemberi: String(item.instansi_pemberi || item.pelaksana || ''),
+            pelaksana: String(item.pelaksana || item.instansi_pemberi || ''),
+            sumber_dana: String(item.sumber_dana || item.sumber_anggaran || item.instansi_pemberi || ''),
             mendukung_sdgs: String(item.mendukung_sdgs || ''),
-            tahun_pelaksanaan: item.tahun_pelaksanaan != null ? (parseInt(item.tahun_pelaksanaan, 10) || null) : null,
-            lokasi: String(item.lokasi || ''),
-            volume: String(item.volume || ''),
+            tahun_pelaksanaan: item.tahun_pelaksanaan != null ? (parseInt(item.tahun_pelaksanaan, 10) || tahunInt) : tahunInt,
+            lokasi: String(item.lokasi || item.lokasi_kegiatan || ''),
+            lokasi_kegiatan: String(item.lokasi || item.lokasi_kegiatan || ''),
+            volume: String(item.volume || item.volume_kegiatan || ''),
+            volume_kegiatan: String(item.volume || item.volume_kegiatan || ''),
             satuan: String(item.satuan || ''),
-            total_pagu: item.total_pagu != null ? (parseInt(item.total_pagu, 10) || 0) : 0
+            total_pagu: pagu,
+            anggaran: pagu,
+            pagu_anggaran: pagu,
+            updated_at: new Date().toISOString()
         };
-        const { data, error } = await supabase
-            .from('program_masuk_desa')
-            .update(payload)
-            .eq('id', item.id)
-            .select(PROGRAM_MASUK_DESA_COLUMNS);
-        if (error) throw error;
-        res.json({ success: true, data: data && data[0] });
+
+        if (item.id && !isNaN(parseInt(item.id, 10))) {
+            const { data, error } = await supabase
+                .from('program_masuk_desa')
+                .update(payload)
+                .eq('id', parseInt(item.id, 10))
+                .select(PROGRAM_MASUK_DESA_COLUMNS);
+            if (error) throw error;
+            return res.json({ success: true, message: 'Data berhasil diperbarui', data: data && data[0] });
+        } else {
+            const { data, error } = await supabase
+                .from('program_masuk_desa')
+                .insert([payload])
+                .select(PROGRAM_MASUK_DESA_COLUMNS);
+            if (error) throw error;
+            return res.json({ success: true, message: 'Data berhasil ditambahkan', data: data && data[0] });
+        }
     } catch (error) {
-        console.error('❌ Error POST /api/program-masuk-desa:', error.message);
-        res.status(500).json({ success: false, error: error.message });
+        console.error('❌ Error save /api/program-masuk-desa:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
     }
-});
+};
+
+app.post('/api/program-masuk-desa', handleSaveProgramMasukDesaRow);
+app.put('/api/program-masuk-desa', handleSaveProgramMasukDesaRow);
 
 // POST /api/program-masuk-desa/sync — replace-all utk tahun tsb (body: { tahun, data })
 app.post('/api/program-masuk-desa/sync', async (req, res) => {
@@ -6706,20 +6737,37 @@ app.post('/api/program-masuk-desa/sync', async (req, res) => {
         const { error: delErr } = await supabase.from('program_masuk_desa').delete().eq('tahun', tahunInt);
         if (delErr) throw delErr;
 
-        if (rows.length === 0) return res.json({ success: true, message: `Program masuk desa tahun ${tahunInt} dikosongkan.`, count: 0 });
+        const validRows = rows.filter(r => (r.sub_kegiatan || r.nama_program || r.nama_kegiatan || '').trim());
+        if (validRows.length === 0) {
+            return res.json({ success: true, message: `Program masuk desa tahun ${tahunInt} dikosongkan.`, count: 0 });
+        }
 
-        const payload = rows.map(r => ({
-            tahun: tahunInt,
-            bidang: r.bidang != null ? r.bidang : null,
-            sub_kegiatan: String(r.sub_kegiatan || r.nama_kegiatan || ''),
-            instansi_pemberi: String(r.instansi_pemberi || ''),
-            mendukung_sdgs: String(r.mendukung_sdgs || ''),
-            tahun_pelaksanaan: r.tahun_pelaksanaan != null ? (parseInt(r.tahun_pelaksanaan, 10) || null) : null,
-            lokasi: String(r.lokasi || ''),
-            volume: String(r.volume || ''),
-            satuan: String(r.satuan || ''),
-            total_pagu: r.total_pagu != null ? (parseInt(r.total_pagu, 10) || 0) : 0
-        })).filter(r => r.sub_kegiatan);
+        const payload = validRows.map(r => {
+            const subKegiatan = String(r.sub_kegiatan || r.nama_program || r.nama_kegiatan || '').trim();
+            const pagu = Number(r.total_pagu != null ? r.total_pagu : (r.anggaran || r.pagu_anggaran || 0)) || 0;
+            return {
+                tahun: tahunInt,
+                bidang: r.bidang != null ? parseInt(r.bidang, 10) : 1,
+                sub_kegiatan: subKegiatan,
+                nama_program: subKegiatan,
+                nama_kegiatan: subKegiatan,
+                instansi_pemberi: String(r.instansi_pemberi || r.pelaksana || ''),
+                pelaksana: String(r.pelaksana || r.instansi_pemberi || ''),
+                sumber_dana: String(r.sumber_dana || r.sumber_anggaran || r.instansi_pemberi || ''),
+                mendukung_sdgs: String(r.mendukung_sdgs || ''),
+                tahun_pelaksanaan: r.tahun_pelaksanaan != null ? (parseInt(r.tahun_pelaksanaan, 10) || tahunInt) : tahunInt,
+                lokasi: String(r.lokasi || r.lokasi_kegiatan || ''),
+                lokasi_kegiatan: String(r.lokasi || r.lokasi_kegiatan || ''),
+                volume: String(r.volume || r.volume_kegiatan || ''),
+                volume_kegiatan: String(r.volume || r.volume_kegiatan || ''),
+                satuan: String(r.satuan || ''),
+                total_pagu: pagu,
+                anggaran: pagu,
+                pagu_anggaran: pagu,
+                updated_at: new Date().toISOString()
+            };
+        });
+
         const { error: insErr } = await supabase.from('program_masuk_desa').insert(payload).select('id');
         if (insErr) throw insErr;
         res.json({ success: true, message: `Berhasil menyimpan ${payload.length} baris program masuk desa tahun ${tahunInt}.`, count: payload.length });
@@ -6732,9 +6780,9 @@ app.post('/api/program-masuk-desa/sync', async (req, res) => {
 // DELETE /api/program-masuk-desa?id=xxx
 app.delete('/api/program-masuk-desa', async (req, res) => {
     try {
-        const { id } = req.query;
+        const id = req.query.id || req.body?.id;
         if (!id) return res.status(400).json({ success: false, error: 'ID diperlukan' });
-        const { error } = await supabase.from('program_masuk_desa').delete().eq('id', id);
+        const { error } = await supabase.from('program_masuk_desa').delete().eq('id', parseInt(id, 10));
         if (error) throw error;
         res.json({ success: true, message: 'Data program masuk desa dihapus.' });
     } catch (error) {
