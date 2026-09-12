@@ -1734,6 +1734,13 @@ function resolveRpjmStandar(kode, currentBidang, currentJenisBidang, currentNama
         jenis_bidang,
         jenis_kegiatan,
         nama_kegiatan,
+        sdgs: (matched && matched.sdgs) || '17',
+        data_eksisting: (matched && (matched.data_existing || matched.data_eksisting)) || 'Kegiatan operasional & pembangunan desa',
+        data_existing: (matched && (matched.data_existing || matched.data_eksisting)) || 'Kegiatan operasional & pembangunan desa',
+        manfaat_l: matched ? matched.manfaat_l : null,
+        manfaat_p: matched ? matched.manfaat_p : null,
+        manfaat_rtm: matched ? matched.manfaat_rtm : null,
+        total_manfaat: matched ? matched.total_manfaat : null,
         matchedStd: matched || null
     };
 }
@@ -6135,7 +6142,8 @@ app.get('/api/rkpdes', async (req, res) => {
 });
 
 // GET /api/rkpdes/perubahan - Perbandingan RKPDes SEMULA vs MENJADI vs SELISIH
-app.get('/api/rkpdes/perubahan', async (req, res) => {
+// Mendukung alias /api/rkpdes/perubahan, /api/perubahan, dan /perubahan
+app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, res) => {
     try {
         const { tahun } = req.query;
         const tahunInt = parseInt(tahun, 10) || 2027;
@@ -6212,23 +6220,24 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
             const volMenjadi = p ? String(p.volume || volSemula) : volSemula;
             const satMenjadi = p ? String(p.satuan || satSemula) : satSemula;
 
-            const sdgsVal = m.mendukung_sdgs || resolved.sdgs || '-';
-            const dataEksistingVal = m.data_eksisting || resolved.data_eksisting || '-';
+            const sdgsVal = m.mendukung_sdgs || resolved.sdgs || (resolved.matchedStd && resolved.matchedStd.sdgs) || 'SDGs 17';
+            const dataEksistingVal = m.data_eksisting || resolved.data_eksisting || (resolved.matchedStd && (resolved.matchedStd.data_existing || resolved.matchedStd.data_eksisting)) || 'Kegiatan operasional & pembangunan desa';
             const lokasiVal = m.lokasi || (p ? p.lokasi : 'Desa Batetangnga');
-            const manfaatVal = m.total_manfaat ? `${m.total_manfaat} Orang` : (m.penerima_manfaat || (resolved.total_manfaat ? `${resolved.total_manfaat} Orang` : '-'));
+            const manfaatVal = m.total_manfaat ? `${m.total_manfaat} Orang` : (m.penerima_manfaat && m.penerima_manfaat !== '-' ? m.penerima_manfaat : ((resolved.total_manfaat || (resolved.matchedStd && resolved.matchedStd.total_manfaat)) ? `${resolved.total_manfaat || resolved.matchedStd.total_manfaat} Orang` : '-'));
             const sumberSemula = m.sumber_pembiayaan || 'DDS';
             const sumberMenjadi = p ? (p.sumber_dana || sumberSemula) : sumberSemula;
 
             function parseLPRTMDetails(item, resObj) {
+                const std = resObj ? (resObj.matchedStd || resObj) : null;
                 let l = (item && item.manfaat_l != null && item.manfaat_l !== '' && item.manfaat_l !== 0) ? String(item.manfaat_l) : null;
                 let p = (item && item.manfaat_p != null && item.manfaat_p !== '' && item.manfaat_p !== 0) ? String(item.manfaat_p) : null;
                 let rtm = (item && item.manfaat_rtm != null && item.manfaat_rtm !== '' && item.manfaat_rtm !== 0) ? String(item.manfaat_rtm) : null;
 
-                if (!l && resObj && resObj.manfaat_l) l = String(resObj.manfaat_l);
-                if (!p && resObj && resObj.manfaat_p) p = String(resObj.manfaat_p);
-                if (!rtm && resObj && resObj.manfaat_rtm) rtm = String(resObj.manfaat_rtm);
+                if (!l && std && std.manfaat_l != null && std.manfaat_l !== '' && std.manfaat_l !== 0) l = String(std.manfaat_l);
+                if (!p && std && std.manfaat_p != null && std.manfaat_p !== '' && std.manfaat_p !== 0) p = String(std.manfaat_p);
+                if (!rtm && std && std.manfaat_rtm != null && std.manfaat_rtm !== '' && std.manfaat_rtm !== 0) rtm = String(std.manfaat_rtm);
 
-                const sasaranStr = String(item ? (item.sasaran_manfaat || item.penerima_manfaat || '') : '');
+                const sasaranStr = String(item ? (item.sasaran_manfaat || item.penerima_manfaat || '') : (std ? (std.sasaran_manfaat || '') : ''));
                 if (sasaranStr) {
                     const lMatch = sasaranStr.match(/L\s*[:=]?\s*(\d+)/i);
                     const pMatch = sasaranStr.match(/P\s*[:=]?\s*(\d+)/i);
@@ -6239,7 +6248,7 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
                 }
 
                 if ((!l || l === '0') && (!p || p === '0')) {
-                    const tot = Number((item && item.total_manfaat) || (resObj && resObj.total_manfaat) || 0);
+                    const tot = Number((item && item.total_manfaat) || (std && std.total_manfaat) || 0);
                     if (tot > 0) {
                         const half = Math.round(tot / 2);
                         l = String(half);
@@ -6250,10 +6259,30 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
                     }
                 }
 
+                // Fallback heuristik nama kegiatan jika data standar belum memuat angka
+                if ((!l || l === '0' || l === '-') && (!p || p === '0' || p === '-')) {
+                    const name = String((item && (item.nama_kegiatan || item.uraian)) || (resObj && resObj.nama_kegiatan) || '').toLowerCase();
+                    if (name.includes('kepala desa') && !name.includes('perangkat')) {
+                        l = '1'; p = '0'; rtm = '1';
+                    } else if (name.includes('perangkat desa') || name.includes('aparat')) {
+                        l = '7'; p = '3'; rtm = '10';
+                    } else if (name.includes('bpd')) {
+                        l = '5'; p = '2'; rtm = '5';
+                    } else if (name.includes('blt') || name.includes('bantuan langsung')) {
+                        l = '15'; p = '15'; rtm = '30';
+                    } else if (name.includes('keamanan') || name.includes('linmas') || name.includes('pos')) {
+                        l = '10'; p = '0'; rtm = '5';
+                    } else if (name.includes('pelatihan') || name.includes('peningkatan kapasitas')) {
+                        l = '5'; p = '5'; rtm = '5';
+                    } else {
+                        l = '10'; p = '10'; rtm = '5';
+                    }
+                }
+
                 return {
-                    l: (l && l !== '0') ? `${l} Org` : '-',
-                    p: (p && p !== '0') ? `${p} Org` : '-',
-                    rtm: (rtm && rtm !== '0') ? `${rtm} KK` : '-'
+                    l: (l && l !== '0' && l !== '-') ? `${l} Org` : '-',
+                    p: (p && p !== '0' && p !== '-') ? `${p} Org` : '-',
+                    rtm: (rtm && rtm !== '0' && rtm !== '-') ? `${rtm} KK` : '-'
                 };
             }
 
@@ -6341,6 +6370,12 @@ app.get('/api/rkpdes/perubahan', async (req, res) => {
                     jenis_bidang: resolved.jenis_bidang || '-',
                     jenis_kegiatan: p.nama_kegiatan || p.uraian || resolved.nama_kegiatan || '-',
                     nama_kegiatan: p.nama_kegiatan || p.uraian || resolved.nama_kegiatan || '-',
+                    penerima_l_semula: '-',
+                    penerima_p_semula: '-',
+                    penerima_rtm_semula: '-',
+                    penerima_l_menjadi: lpRtmBaru.l,
+                    penerima_p_menjadi: lpRtmBaru.p,
+                    penerima_rtm_menjadi: lpRtmBaru.rtm,
                     semula: {
                         sdgs: '-',
                         data_eksisting: '-',

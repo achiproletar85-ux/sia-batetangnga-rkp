@@ -24,9 +24,9 @@ function assert(condition, message) {
 
 console.log('\n=== UJI FITUR RKPDES PERUBAHAN ===\n');
 
-// 1. Cek file server.js memiliki endpoint /api/rkpdes/perubahan
+// 1. Cek file server.js memiliki endpoint /api/rkpdes/perubahan dan alias /perubahan
 const serverCode = fs.readFileSync(path.resolve(__dirname, '..', 'server.js'), 'utf8');
-assert(serverCode.includes("app.get('/api/rkpdes/perubahan'"), 'Endpoint /api/rkpdes/perubahan terdaftar di server.js');
+assert(serverCode.includes("'/api/rkpdes/perubahan'") && serverCode.includes("'/perubahan'"), 'Endpoint /api/rkpdes/perubahan dan alias /perubahan terdaftar di server.js');
 const star = '*';
 assert(!serverCode.includes(`from('rkpdes').select('${star}')`), 'Kepatuhan Zero-wildcard pada query rkpdes');
 assert(!serverCode.includes(`from('rab').select('${star}')`), 'Kepatuhan Zero-wildcard pada query rab');
@@ -92,7 +92,9 @@ assert(jsCode.includes('function copyFromSemulaToMenjadi'), 'Fungsi copyFromSemu
 assert(jsCode.includes('function resetManfaatMenjadi'), 'Fungsi resetManfaatMenjadi terdefinisi');
 assert(jsCode.includes('function saveEditManfaatMenjadi'), 'Fungsi saveEditManfaatMenjadi terdefinisi');
 assert(jsCode.includes('applyManfaatOverridesToPerubahanList'), 'Fungsi applyManfaatOverridesToPerubahanList terdefinisi');
-assert(jsCode.includes('item.penerima_l_menjadi = mL'), 'Auto-fallback penerima_l_menjadi terdefinisi di frontend/rkpdes.js');
+assert(jsCode.includes('item.penerima_l_menjadi = penerimaL') || jsCode.includes('item.penerima_l_menjadi = mL'), 'Auto-fallback penerima_l_menjadi terdefinisi di frontend/rkpdes.js');
+assert(jsCode.includes('penerimaL =') && jsCode.includes('item.penerima_l_menjadi ?? item.penerima_l_semula'), 'Logika fallback aktif penerimaL terdefinisi di frontend/rkpdes.js');
+assert(serverCode.includes('manfaat_l: matched ? matched.manfaat_l : null'), 'resolveRpjmStandar mengembalikan manfaat_l dari matchedStd di server.js');
 
 // 5. Cek Event Delegation & Dataset Attributes untuk Tahun 2026 & Dinamis
 assert(jsCode.includes('btn-edit-manfaat'), 'Class btn-edit-manfaat ada pada tombol render preview');
