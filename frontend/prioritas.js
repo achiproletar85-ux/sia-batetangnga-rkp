@@ -51,9 +51,20 @@ function skorHeader(item, headerCol, skorCol) {
 
 let prioritasClientCache = new Map(); // key: year, val: rawData array
 
-// 2. Load Data dari Supabase / In-Memory Cache
+// Mutex & In-Flight Tracker untuk mencegah fetch ganda serentak
+let isFetchingPrioritas = false;
+let activePrioritasAbortController = null;
+let currentFetchYear = null;
+
+// Aliases agar pemanggilan loadData() dan loadPrioritasData() keduanya berfungsi sempurna
+async function loadData(forceReload = false) {
+    return loadPrioritasData(forceReload);
+}
+
+// 2. Load Data dari Supabase / In-Memory Cache (Lazy & Sequential)
 async function loadPrioritasData(forceReload = false) {
-    const year = parseInt(document.getElementById('select-year')?.value || '2027', 10);
+    const yearSelect = document.getElementById('select-year');
+    const year = parseInt(yearSelect?.value || '2027', 10);
     const bidang = document.getElementById('select-bidang')?.value || 'BIDANG SEMUA';
 
     const bidangSel = document.getElementById('select-bidang');
@@ -87,6 +98,7 @@ async function loadPrioritasData(forceReload = false) {
             );
         }
         activeData = filtered;
+        prioritasCurrentPage = 1;
         sortAndRenderData();
     };
 
@@ -97,10 +109,27 @@ async function loadPrioritasData(forceReload = false) {
         return;
     }
 
+    // 2. Hindari fetch ganda serentak:
+    // Jika sedang fetch untuk TAHUN YANG SAMA, abaikan panggilan berulang
+    if (isFetchingPrioritas && currentFetchYear === year) {
+        console.log(`⏳ Pemuatan data prioritas tahun ${year} sedang berjalan, mengabaikan fetch ganda.`);
+        return;
+    }
+
+    // Jika sedang fetch untuk TAHUN BERBEDA, batalkan request sebelumnya (AbortController)
+    if (isFetchingPrioritas && activePrioritasAbortController) {
+        activePrioritasAbortController.abort();
+        activePrioritasAbortController = null;
+    }
+
+    isFetchingPrioritas = true;
+    currentFetchYear = year;
+    activePrioritasAbortController = new AbortController();
+
     tbody.innerHTML = `
         <tr>
             <td colspan="12" class="text-center py-8 text-slate-400 font-sans italic">
-                <i class="fas fa-spinner fa-spin mr-2"></i> Memuat data matriks skoring Prioritas RKPDes tahun ${year}...
+                <i class="fas fa-spinner fa-spin mr-2 text-amber-600"></i> Memuat data matriks skoring Prioritas RKPDes tahun ${year}...
             </td>
         </tr>
     `;
@@ -108,8 +137,10 @@ async function loadPrioritasData(forceReload = false) {
     try {
         let rawData = [];
 
-        // Tarik data seluruh bidang untuk tahun tsb agar client-cache langsung terisi penuh
-        let res = await fetch(`/api/prioritas-rkpdes?tahun=${year}`);
+        // Tarik HANYA tahun aktif yang sedang dipilih (lazy / sequential)
+        let res = await fetch(`/api/prioritas-rkpdes?tahun=${year}`, {
+            signal: activePrioritasAbortController.signal
+        });
         if (res.ok) {
             let json = await res.json();
             rawData = json.data || [];
@@ -121,8 +152,10 @@ async function loadPrioritasData(forceReload = false) {
             await fetch('/api/prioritas-rkpdes/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tahun: year })
+                body: JSON.stringify({ tahun: year }),
+                signal: activePrioritasAbortController.signal
             });
+            isFetchingPrioritas = false;
             return loadPrioritasData(true);
         }
 
@@ -152,8 +185,15 @@ async function loadPrioritasData(forceReload = false) {
         applyClientFilterAndRender(normalizedData);
 
     } catch (err) {
+        if (err.name === 'AbortError') {
+            console.log(`⏹️ Request fetch prioritas tahun ${year} dibatalkan karena pembaruan filter.`);
+            return;
+        }
         console.error("Error loading prioritas data:", err);
         tbody.innerHTML = `<tr><td colspan="12" class="text-center py-8 text-rose-500 font-sans">Gagal memuat data: ${err.message}</td></tr>`;
+    } finally {
+        isFetchingPrioritas = false;
+        activePrioritasAbortController = null;
     }
 }
 
@@ -265,11 +305,14 @@ function clearSearchPrioritas() {
     sortAndRenderData();
 }
 
-// 5. Render Tabel Matriks Prioritas (Progressive / Chunked DOM Streaming)
+// 5. Render Tabel Matriks Prioritas (Paginated / Virtualized & Anti-Blocking)
+let prioritasCurrentPage = 1;
+const PRIORITAS_PAGE_SIZE = 30; // 30 baris per halaman (hanya ~120 input di DOM, bebas lag & 0 violation)
+let prioritasShowAllRows = false;
 let currentRenderToken = 0;
-const CHUNK_SIZE = 40; // 40 baris per frame: instan di layar & beban DOM ringan
+let currentRenderTimer = null;
 
-function buildPrioritasRowHtml(item, index, ctx) {
+function buildPrioritasRowHtml(item, index, ctx, isForPrint = false) {
     const total = item.total_skor;
     const currentJenisBidang = String(item.jenis_bidang || '-').trim();
     const currentJenisKegiatan = String(item.jenis_kegiatan || '-').trim();
@@ -316,28 +359,36 @@ function buildPrioritasRowHtml(item, index, ctx) {
             <td class="border border-slate-400 px-2 py-2 text-center font-medium">${esc(item.volume) || '-'}</td>
             
             <td class="border border-slate-400 p-1 text-center">
+                ${isForPrint ? `<span class="skor-print-val font-bold">${item.skor_kewenangan}</span>` : `
                 <input type="number" min="0" max="100" value="${item.skor_kewenangan}" 
+                    autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
                     onchange="updateSkorLive(${index}, 'skor_kewenangan', this.value, this)" 
                     class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                <span class="skor-print-val hidden print:inline font-bold">${item.skor_kewenangan}</span>
+                <span class="skor-print-val hidden print:inline font-bold">${item.skor_kewenangan}</span>`}
             </td>
             <td class="border border-slate-400 p-1 text-center">
+                ${isForPrint ? `<span class="skor-print-val font-bold">${item.skor_sdgs}</span>` : `
                 <input type="number" min="0" max="100" value="${item.skor_sdgs}" 
+                    autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
                     onchange="updateSkorLive(${index}, 'skor_sdgs', this.value, this)" 
                     class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                <span class="skor-print-val hidden print:inline font-bold">${item.skor_sdgs}</span>
+                <span class="skor-print-val hidden print:inline font-bold">${item.skor_sdgs}</span>`}
             </td>
             <td class="border border-slate-400 p-1 text-center">
+                ${isForPrint ? `<span class="skor-print-val font-bold">${item.skor_kabupaten}</span>` : `
                 <input type="number" min="0" max="100" value="${item.skor_kabupaten}" 
+                    autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
                     onchange="updateSkorLive(${index}, 'skor_kabupaten', this.value, this)" 
                     class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                <span class="skor-print-val hidden print:inline font-bold">${item.skor_kabupaten}</span>
+                <span class="skor-print-val hidden print:inline font-bold">${item.skor_kabupaten}</span>`}
             </td>
             <td class="border border-slate-400 p-1 text-center">
+                ${isForPrint ? `<span class="skor-print-val font-bold">${item.skor_sumber_daya}</span>` : `
                 <input type="number" min="0" max="100" value="${item.skor_sumber_daya}" 
+                    autocomplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
                     onchange="updateSkorLive(${index}, 'skor_sumber_daya', this.value, this)" 
                     class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                <span class="skor-print-val hidden print:inline font-bold">${item.skor_sumber_daya}</span>
+                <span class="skor-print-val hidden print:inline font-bold">${item.skor_sumber_daya}</span>`}
             </td>
 
             <td data-total class="border border-slate-400 text-center py-2 font-extrabold bg-slate-100 text-slate-900"><span class="skor-print-val">${total}</span></td>
@@ -353,9 +404,87 @@ function buildPrioritasRowHtml(item, index, ctx) {
     return html;
 }
 
-function renderTabelPrioritas(data, forceSyncAll = false) {
+function renderPrioritasPaginationControls(totalItems) {
+    const container = document.getElementById('prioritas-pagination-container');
+    if (!container) return;
+
+    if (totalItems <= PRIORITAS_PAGE_SIZE && !prioritasShowAllRows) {
+        container.innerHTML = '';
+        return;
+    }
+
+    if (prioritasShowAllRows) {
+        container.innerHTML = `
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
+                <span class="text-slate-600 font-medium">Menampilkan seluruh <b>${totalItems}</b> kegiatan (Mode Lengkap)</span>
+                <button type="button" onclick="setPrioritasShowAll(false)" class="px-3 py-1.5 rounded-lg border border-indigo-300 bg-white hover:bg-indigo-50 font-bold text-indigo-700 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fas fa-file-lines"></i> Mode Halaman (${PRIORITAS_PAGE_SIZE} per hal)
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    const totalPages = Math.max(1, Math.ceil(totalItems / PRIORITAS_PAGE_SIZE));
+    const startIdx = (prioritasCurrentPage - 1) * PRIORITAS_PAGE_SIZE + 1;
+    const endIdx = Math.min(prioritasCurrentPage * PRIORITAS_PAGE_SIZE, totalItems);
+
+    let pageButtonsHtml = '';
+    const maxBtns = 5;
+    let startPage = Math.max(1, prioritasCurrentPage - Math.floor(maxBtns / 2));
+    let endPage = Math.min(totalPages, startPage + maxBtns - 1);
+    if (endPage - startPage + 1 < maxBtns) {
+        startPage = Math.max(1, endPage - maxBtns + 1);
+    }
+
+    for (let p = startPage; p <= endPage; p++) {
+        pageButtonsHtml += `
+            <button type="button" onclick="goToPrioritasPage(${p})" class="px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${p === prioritasCurrentPage ? 'bg-amber-600 text-white shadow-sm' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100'}">
+                ${p}
+            </button>
+        `;
+    }
+
+    container.innerHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
+            <span class="text-slate-600 font-medium">
+                Menampilkan <b>${startIdx} - ${endIdx}</b> dari total <b>${totalItems}</b> kegiatan (Hal ${prioritasCurrentPage}/${totalPages})
+            </span>
+            <div class="flex items-center gap-1.5">
+                <button type="button" onclick="goToPrioritasPage(${prioritasCurrentPage - 1})" ${prioritasCurrentPage <= 1 ? 'disabled class="opacity-40 cursor-not-allowed px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-xs"' : 'class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 shadow-sm transition cursor-pointer"'}>
+                    ◀
+                </button>
+                ${pageButtonsHtml}
+                <button type="button" onclick="goToPrioritasPage(${prioritasCurrentPage + 1})" ${prioritasCurrentPage >= totalPages ? 'disabled class="opacity-40 cursor-not-allowed px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-xs"' : 'class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 shadow-sm transition cursor-pointer"'}>
+                    ▶
+                </button>
+            </div>
+            <button type="button" onclick="setPrioritasShowAll(true)" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 font-bold text-slate-700 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                <i class="fas fa-list"></i> Tampilkan Semua (${totalItems})
+            </button>
+        </div>
+    `;
+}
+
+function goToPrioritasPage(page) {
+    prioritasCurrentPage = page;
+    sortAndRenderData();
+}
+
+function setPrioritasShowAll(show) {
+    prioritasShowAllRows = show;
+    prioritasCurrentPage = 1;
+    sortAndRenderData();
+}
+
+function renderTabelPrioritas(data, forceSyncAll = false, isForPrint = false) {
     const tbody = document.getElementById('tabel-prioritas-body');
     if (!tbody) return;
+
+    if (currentRenderTimer) {
+        clearTimeout(currentRenderTimer);
+        currentRenderTimer = null;
+    }
 
     let displayData = data;
     if (prioritasSearchKeyword) {
@@ -384,39 +513,76 @@ function renderTabelPrioritas(data, forceSyncAll = false) {
                 </td>
             </tr>
         `;
+        renderPrioritasPaginationControls(0);
         return;
     }
 
+    // Jika untuk cetak atau forceSyncAll: render SEMUA baris secara sinkron
+    if (forceSyncAll || isForPrint) {
+        const ctx = { lastJenisBidang: '', lastJenisKegiatan: '', nomorUrut: 1 };
+        const allRowsHtml = displayData.map((item, index) => buildPrioritasRowHtml(item, index, ctx, isForPrint)).join('');
+        tbody.innerHTML = allRowsHtml;
+        return;
+    }
+
+    // Mode Normal / Interaktif (Paginated by PRIORITAS_PAGE_SIZE = 30)
+    if (!prioritasShowAllRows) {
+        const totalPages = Math.max(1, Math.ceil(displayData.length / PRIORITAS_PAGE_SIZE));
+        if (prioritasCurrentPage > totalPages) prioritasCurrentPage = totalPages;
+        if (prioritasCurrentPage < 1) prioritasCurrentPage = 1;
+
+        const start = (prioritasCurrentPage - 1) * PRIORITAS_PAGE_SIZE;
+        const end = start + PRIORITAS_PAGE_SIZE;
+        const pageItems = displayData.slice(start, end);
+
+        // Pre-compute group context up to start of page
+        const ctx = { lastJenisBidang: '', lastJenisKegiatan: '', nomorUrut: 1 };
+        for (let i = 0; i < start; i++) {
+            const item = displayData[i];
+            const currentJenisBidang = String(item.jenis_bidang || '-').trim();
+            const currentJenisKegiatan = String(item.jenis_kegiatan || '-').trim();
+            if (currentJenisBidang !== ctx.lastJenisBidang) {
+                ctx.lastJenisBidang = currentJenisBidang;
+                ctx.lastJenisKegiatan = '';
+                ctx.nomorUrut = 1;
+            }
+            if (currentJenisKegiatan !== ctx.lastJenisKegiatan || ctx.lastJenisKegiatan === '') {
+                ctx.lastJenisKegiatan = currentJenisKegiatan;
+                ctx.nomorUrut = 1;
+            }
+            ctx.nomorUrut++;
+        }
+
+        const pageHtml = pageItems.map((item, idx) => buildPrioritasRowHtml(item, start + idx, ctx, false)).join('');
+        tbody.innerHTML = pageHtml;
+        renderPrioritasPaginationControls(displayData.length);
+        return;
+    }
+
+    // Mode "Tampilkan Semua": Batched via setTimeout (16ms) agar browser event loop tidak terblokir
     const ctx = { lastJenisBidang: '', lastJenisKegiatan: '', nomorUrut: 1 };
-    const rowHtmlList = displayData.map((item, index) => buildPrioritasRowHtml(item, index, ctx));
+    const rowHtmlList = displayData.map((item, index) => buildPrioritasRowHtml(item, index, ctx, false));
 
-    // Jika diminta full sync (untuk print) atau baris data sedikit, render seketika
-    if (forceSyncAll || rowHtmlList.length <= CHUNK_SIZE) {
-        tbody.innerHTML = rowHtmlList.join('');
-        return;
-    }
+    tbody.innerHTML = rowHtmlList.slice(0, PRIORITAS_PAGE_SIZE).join('');
+    renderPrioritasPaginationControls(displayData.length);
 
-    // 1. Render batch pertama (CHUNK_SIZE) seketika (< 16ms) agar browser tidak nge-lag/freeze
-    tbody.innerHTML = rowHtmlList.slice(0, CHUNK_SIZE).join('');
-
-    // 2. Render sisa batch secara streaming di frame berikutnya
+    let offset = PRIORITAS_PAGE_SIZE;
     const token = ++currentRenderToken;
-    let offset = CHUNK_SIZE;
 
-    function streamRemainingChunks() {
+    function streamNextChunk() {
         if (token !== currentRenderToken) return;
         if (offset >= rowHtmlList.length) return;
 
-        const nextBatch = rowHtmlList.slice(offset, offset + CHUNK_SIZE).join('');
-        tbody.insertAdjacentHTML('beforeend', nextBatch);
-        offset += CHUNK_SIZE;
+        const chunk = rowHtmlList.slice(offset, offset + PRIORITAS_PAGE_SIZE).join('');
+        tbody.insertAdjacentHTML('beforeend', chunk);
+        offset += PRIORITAS_PAGE_SIZE;
 
         if (offset < rowHtmlList.length) {
-            requestAnimationFrame(streamRemainingChunks);
+            currentRenderTimer = setTimeout(streamNextChunk, 16);
         }
     }
 
-    requestAnimationFrame(streamRemainingChunks);
+    currentRenderTimer = setTimeout(streamNextChunk, 16);
 }
 
 function updateSkorLive(index, field, value, inputEl) {
@@ -977,8 +1143,8 @@ async function tetapkanRkpdes() {
 }
 
 function cetakPrioritas(skoringKosong = false) {
-    // Pastikan seluruh baris telah dirender lengkap (sinkron) sebelum dialog cetak terbuka
-    renderTabelPrioritas(activeData, true);
+    // Pastikan seluruh baris telah dirender lengkap (sinkron) sebelum dialog cetak terbuka, mode print tanpa form input berat
+    renderTabelPrioritas(activeData, true, true);
 
     if (skoringKosong) {
         document.body.classList.add('print-skoring-kosong');
@@ -989,6 +1155,8 @@ function cetakPrioritas(skoringKosong = false) {
     const cleanup = () => {
         document.body.classList.remove('print-skoring-kosong');
         window.removeEventListener('afterprint', cleanup);
+        // Kembalikan ke tampilan terpaginasi normal setelah selesai cetak
+        renderTabelPrioritas(activeData, false, false);
     };
     window.addEventListener('afterprint', cleanup);
 
@@ -999,6 +1167,9 @@ function cetakPrioritas(skoringKosong = false) {
 
 // Global Exports
 window.loadPrioritasData = loadPrioritasData;
+window.loadData = loadData;
+window.goToPrioritasPage = goToPrioritasPage;
+window.setPrioritasShowAll = setPrioritasShowAll;
 window.updateSkorLive = updateSkorLive;
 window.hapusItemData = hapusItemData;
 window.renderFooterTanggal = renderFooterTanggal;
