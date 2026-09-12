@@ -111,9 +111,14 @@
                         <input type="date" id="tgl-cetak" class="text-xs text-slate-700 font-medium outline-none bg-transparent" />
                     </div>
 
-                    <!-- Tombol Cetak Dokumen Usulan Musrenbang -->
-                    <button type="button" onclick="cetakUsulanMusrenbang()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer" title="Cetak Format Hemat Kertas (Tanpa Kolom Biaya & Sasaran)">
-                        <i class="fas fa-print"></i> Cetak Lembar Usulan (Musrenbang)
+                    <!-- Tombol Cetak Usulan Masyarakat Umum -->
+                    <button type="button" onclick="cetakUsulanMusrenbang()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer" title="Cetak Usulan Murni Masyarakat (Tanpa Bidang Pemerintahan Desa)">
+                        <i class="fas fa-print"></i> Cetak Usulan Masyarakat
+                    </button>
+
+                    <!-- Tombol Cetak Khusus Bidang Penyelenggaraan Pemerintah Desa (Aparat Desa) -->
+                    <button type="button" onclick="cetakUsulanAparatDesa()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-md shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer" title="Cetak Khusus Kegiatan Bidang Penyelenggaraan Pemerintah Desa (Aparat Desa)">
+                        <i class="fas fa-file-invoice"></i> Cetak Usulan Aparat Desa
                     </button>
                 </div>
             </div>

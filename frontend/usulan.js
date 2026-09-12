@@ -323,11 +323,11 @@ async function hapusUsulan(id) {
 }
 
 // ============================================================
-// CETAK LEMBAR USULAN MASYARAKAT (MUSRENBANG)
-// 1. Format Hemat Kertas: TANPA KOLOM BIAYA DAN SASARAN
-// 2. Filter Lokasi Multi-select Dipertahankan
-// 3. Seluruh Kegiatan Mengalir Berurutan Sesuai Bidang
-// 4. Penomoran Linier Rapi 1..N Tanpa Loncatan
+// MODUL CETAK DOKUMEN USULAN
+// 1. cetakUsulanMusrenbang: Format Hemat Kertas Usulan Murni Masyarakat
+//    (Mengecualikan Bidang Penyelenggaraan Pemerintah Desa)
+// 2. cetakUsulanAparatDesa: Format Khusus Kegiatan Aparat Desa
+//    (Hanya memuat Bidang Penyelenggaraan Pemerintah Desa)
 // ============================================================
 function getBidangOrder(bidangName) {
     const b = String(bidangName || '').toLowerCase();
@@ -339,22 +339,22 @@ function getBidangOrder(bidangName) {
     return 6;
 }
 
-function cetakUsulanMusrenbang() {
-    const activeYear = document.getElementById('select-year')?.value || '2027';
-    const inputTgl = document.getElementById('tgl-cetak')?.value;
-    const tglIndo = formatTanggalIndonesia(inputTgl);
-
-    // Ambil data yang telah difilter berdasarkan multi-select lokasi yang aktif
-    const itemsToPrint = getFilteredUsulanList();
-
-    if (itemsToPrint.length === 0) {
-        alert('⚠️ Tidak ada data usulan yang dipilih untuk dicetak. Periksa kembali filter lokasi Anda.');
-        return;
-    }
-
-    // Kelompokkan seluruh usulan berdasarkan Bidang
+function renderCetakHtml({
+    docTitle,
+    judulKop,
+    subJudulKop,
+    keteranganKop,
+    infoLokasi,
+    items,
+    labelKolomKegiatan = 'Gagasan Usulan Program / Kegiatan',
+    labelKolomPengusul = 'Pengusul / Delegasi',
+    tglIndo,
+    activeYear,
+    penandatanganKanan = 'Ketua Musrenbang Desa / Tim Penyusun'
+}) {
+    // Kelompokkan usulan berdasarkan Bidang
     const groups = {};
-    itemsToPrint.forEach(item => {
+    items.forEach(item => {
         const rawBidang = String(item.bidang || 'Bidang Pelaksanaan Pembangunan Desa').trim();
         if (!groups[rawBidang]) {
             groups[rawBidang] = [];
@@ -362,7 +362,7 @@ function cetakUsulanMusrenbang() {
         groups[rawBidang].push(item);
     });
 
-    // Urutkan nama bidang secara logis (Pemerintahan -> Pembangunan -> Pembinaan -> Pemberdayaan -> Bencana)
+    // Urutkan nama bidang secara logis
     const sortedBidangNames = Object.keys(groups).sort((a, b) => {
         const orderA = getBidangOrder(a);
         const orderB = getBidangOrder(b);
@@ -374,9 +374,9 @@ function cetakUsulanMusrenbang() {
     let tableRowsHtml = '';
 
     sortedBidangNames.forEach(bidangName => {
-        const items = groups[bidangName];
+        const groupItems = groups[bidangName];
         // Urutkan kegiatan berdasarkan kode unik bila tersedia
-        items.sort((a, b) => {
+        groupItems.sort((a, b) => {
             const ka = String(a.kode_unik_full || a.kode_unik || '');
             const kb = String(b.kode_unik_full || b.kode_unik || '');
             return ka.localeCompare(kb, undefined, { numeric: true });
@@ -390,7 +390,7 @@ function cetakUsulanMusrenbang() {
             </tr>
         `;
 
-        items.forEach(item => {
+        groupItems.forEach(item => {
             tableRowsHtml += `
                 <tr>
                     <td style="border: 1px solid #000; text-align: center; vertical-align: middle;">${noUrut++}</td>
@@ -404,11 +404,6 @@ function cetakUsulanMusrenbang() {
         });
     });
 
-    // Ringkasan info lokasi yang sedang difilter
-    const infoLokasiCetak = selectedLokasiSet.size === allDistinctLokasi.length
-        ? 'Seluruh Dusun / Wilayah Desa Batetangnga'
-        : `${selectedLokasiSet.size} Lokasi Terpilih (${Array.from(selectedLokasiSet).slice(0, 4).join(', ')}${selectedLokasiSet.size > 4 ? ', dst.' : ''})`;
-
     const printWindow = window.open('', '_blank', 'width=1100,height=750');
     if (!printWindow) {
         alert('⚠️ Izinkan pop-up browser untuk mencetak lembar usulan!');
@@ -420,7 +415,7 @@ function cetakUsulanMusrenbang() {
         <html lang="id">
         <head>
             <meta charset="UTF-8">
-            <title>Kamus Usulan Masyarakat Desa Batetangnga - ${activeYear}</title>
+            <title>${escapeHtml(docTitle)} - ${escapeHtml(activeYear)}</title>
             <style>
                 @page {
                     size: A4 portrait;
@@ -504,9 +499,9 @@ function cetakUsulanMusrenbang() {
         </head>
         <body>
             <div class="header-kop">
-                <h1>KAMUS USULAN MASYARAKAT DESA BATETANGNGA</h1>
-                <h2>DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR</h2>
-                <p>TAHUN ANGGARAN ${activeYear} &bull; FORMAT HEMAT KERTAS USULAN PRIORITAS</p>
+                <h1>${escapeHtml(judulKop)}</h1>
+                <h2>${escapeHtml(subJudulKop)}</h2>
+                <p>${keteranganKop}</p>
             </div>
 
             <table class="meta-table">
@@ -520,7 +515,7 @@ function cetakUsulanMusrenbang() {
                     <td>KECAMATAN</td>
                     <td>: BINUANG</td>
                     <td>CAKUPAN FILTER</td>
-                    <td>: ${escapeHtml(infoLokasiCetak)}</td>
+                    <td>: ${escapeHtml(infoLokasi)}</td>
                 </tr>
             </table>
 
@@ -529,10 +524,10 @@ function cetakUsulanMusrenbang() {
                     <tr>
                         <th style="width: 28px;">No</th>
                         <th style="width: 105px;">Kode Unik Full</th>
-                        <th>Gagasan Usulan Program / Kegiatan</th>
+                        <th>${escapeHtml(labelKolomKegiatan)}</th>
                         <th style="width: 125px;">Lokasi / Dusun</th>
                         <th style="width: 85px;">Volume &amp; Satuan</th>
-                        <th style="width: 110px;">Pengusul / Delegasi</th>
+                        <th style="width: 110px;">${escapeHtml(labelKolomPengusul)}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -548,8 +543,8 @@ function cetakUsulanMusrenbang() {
                     <p style="margin: 0; font-weight: bold; text-decoration: underline; text-transform: uppercase;">SUMAILA DAMANG</p>
                 </div>
                 <div class="sig-box">
-                    <p style="margin: 0;">Batetangnga, ${tglIndo}</p>
-                    <p style="margin: 2px 0 0 0; font-weight: bold;">Ketua Musrenbang Desa / Tim Penyusun</p>
+                    <p style="margin: 0;">Batetangnga, ${escapeHtml(tglIndo)}</p>
+                    <p style="margin: 2px 0 0 0; font-weight: bold;">${escapeHtml(penandatanganKanan)}</p>
                     <div class="sig-space"></div>
                     <p style="margin: 0; font-weight: bold; text-decoration: underline;">( .................................................. )</p>
                 </div>
@@ -565,6 +560,72 @@ function cetakUsulanMusrenbang() {
     }, 450);
 }
 
+// 1. Cetak Lembar Kamus Usulan Murni Masyarakat (Non-Pemerintahan Desa)
+function cetakUsulanMusrenbang() {
+    const activeYear = document.getElementById('select-year')?.value || '2027';
+    const inputTgl = document.getElementById('tgl-cetak')?.value;
+    const tglIndo = formatTanggalIndonesia(inputTgl);
+
+    // KECUALIKAN Bidang Penyelenggaraan Pemerintah Desa (khusus masyarakat)
+    const itemsToPrint = getFilteredUsulanList().filter(item => !isPemerintahanDesa(item));
+
+    if (itemsToPrint.length === 0) {
+        alert('⚠️ Tidak ada data usulan masyarakat umum yang dipilih untuk dicetak. Periksa kembali filter lokasi Anda.');
+        return;
+    }
+
+    const infoLokasiCetak = selectedLokasiSet.size === allDistinctLokasi.length
+        ? 'Seluruh Dusun / Wilayah Desa Batetangnga'
+        : `${selectedLokasiSet.size} Lokasi Terpilih (${Array.from(selectedLokasiSet).slice(0, 4).join(', ')}${selectedLokasiSet.size > 4 ? ', dst.' : ''})`;
+
+    renderCetakHtml({
+        docTitle: 'Kamus Usulan Masyarakat Desa Batetangnga',
+        judulKop: 'KAMUS USULAN MASYARAKAT DESA BATETANGNGA',
+        subJudulKop: 'DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR',
+        keteranganKop: `TAHUN ANGGARAN ${escapeHtml(activeYear)} &bull; USULAN MURNI MASYARAKAT (FORMAT HEMAT KERTAS)`,
+        infoLokasi: infoLokasiCetak,
+        items: itemsToPrint,
+        labelKolomKegiatan: 'Gagasan Usulan Program / Kegiatan',
+        labelKolomPengusul: 'Pengusul / Delegasi',
+        tglIndo,
+        activeYear,
+        penandatanganKanan: 'Ketua Musrenbang Desa / Tim Penyusun'
+    });
+}
+
+// 2. Cetak Lembar Usulan Khusus Bidang Penyelenggaraan Pemerintah Desa (Aparat Desa)
+function cetakUsulanAparatDesa() {
+    const activeYear = document.getElementById('select-year')?.value || '2027';
+    const inputTgl = document.getElementById('tgl-cetak')?.value;
+    const tglIndo = formatTanggalIndonesia(inputTgl);
+
+    // HANYA SERTAKAN Bidang Penyelenggaraan Pemerintah Desa (khusus aparat desa)
+    const itemsToPrint = getFilteredUsulanList().filter(item => isPemerintahanDesa(item));
+
+    if (itemsToPrint.length === 0) {
+        alert(`⚠️ Tidak ada data kegiatan Bidang Penyelenggaraan Pemerintah Desa (Aparat Desa) untuk tahun ${activeYear}.`);
+        return;
+    }
+
+    const infoLokasiCetak = selectedLokasiSet.size === allDistinctLokasi.length
+        ? 'Kantor Desa Batetangnga / Seluruh Wilayah Pemerintahan'
+        : `${selectedLokasiSet.size} Lokasi Terpilih (${Array.from(selectedLokasiSet).slice(0, 4).join(', ')}${selectedLokasiSet.size > 4 ? ', dst.' : ''})`;
+
+    renderCetakHtml({
+        docTitle: 'Daftar Kegiatan Penyelenggaraan Pemerintahan Desa (Aparat Desa)',
+        judulKop: 'DAFTAR USULAN & KEGIATAN PENYELENGGARAAN PEMERINTAHAN DESA',
+        subJudulKop: 'PEMERINTAH DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR',
+        keteranganKop: `TAHUN ANGGARAN ${escapeHtml(activeYear)} &bull; KHUSUS OPERASIONAL &amp; KEPERLUAN APARAT DESA`,
+        infoLokasi: infoLokasiCetak,
+        items: itemsToPrint,
+        labelKolomKegiatan: 'Uraian Kegiatan Penyelenggaraan Pemerintahan Desa',
+        labelKolomPengusul: 'Penanggung Jawab / Pengusul',
+        tglIndo,
+        activeYear,
+        penandatanganKanan: 'Sekretaris Desa / Kaur Perencanaan'
+    });
+}
+
 // Window Exposures
 window.loadUsulanData = loadUsulanData;
 window.tambahUsulan = tambahUsulan;
@@ -576,6 +637,7 @@ window.filterLokasiCheckboxes = filterLokasiCheckboxes;
 window.applyLokasiFilter = applyLokasiFilter;
 window.filterUsulanTable = filterUsulanTable;
 window.cetakUsulanMusrenbang = cetakUsulanMusrenbang;
+window.cetakUsulanAparatDesa = cetakUsulanAparatDesa;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Inisialisasi tgl cetak ke hari ini jika kosong
