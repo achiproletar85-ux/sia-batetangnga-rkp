@@ -1415,11 +1415,11 @@ app.get('/api/master-klasifikasi', async (req, res) => {
 
         let resultData = [];
 
-        // 1. Query master_klasifikasi (kolom nyata: id, bidang, sub_bidang, jenis_kegiatan, kode_klasifikasi)
+        // 1. Query master_klasifikasi (kolom: id, bidang, sub_bidang, jenis_kegiatan, kode_klasifikasi, kode_bidang, kode_sub, kode_kegiatan)
         try {
             const { data, error } = await supabase
                 .from('master_klasifikasi')
-                .select('id, bidang, sub_bidang, jenis_kegiatan, kode_klasifikasi')
+                .select('id, bidang, sub_bidang, jenis_kegiatan, kode_klasifikasi, kode_bidang, kode_sub, kode_kegiatan')
                 .limit(300);
 
             if (!error && Array.isArray(data) && data.length > 0) {
@@ -1646,7 +1646,8 @@ async function loadRpjmLookup() {
     }
     const { data, error } = await supabase
         .from('rpjmdes_standar')
-        .select(RPJM_LOOKUP_COLUMNS);
+        .select(RPJM_LOOKUP_COLUMNS)
+        .limit(1000);
     if (error) {
         console.warn('⚠️ Gagal memuat rpjmdes_standar:', error.message);
         if (rpjmLookupCache) return rpjmLookupCache;
@@ -1776,7 +1777,8 @@ app.get('/api/rpjmdes-standar', async (req, res) => {
 
         const { data, error } = await supabase
             .from('rpjmdes_standar')
-            .select(RPJMDES_LIST_COLUMNS);
+            .select(RPJMDES_LIST_COLUMNS)
+            .limit(1000);
 
         // Hanya kegiatan dengan nilai "Ya" atau teks tahun tsb di kolom
         // target_<TAHUN> yang dianggap ditarik (nilai Tidak/'-'/kosong = tidak).
@@ -2146,6 +2148,7 @@ function buildPrioritasInsertItem(r, tahunInt) {
         skala_prioritas: String(r.skala_prioritas || ''),
         bidang: namaBidangPrioritas(r.bidang),
         data_existing: String(r.data_eksisting || r.data_existing || ''),
+        lokasi: String(r.lokasi || r.lokasi_kegiatan || 'Desa Batetangnga'),
         lokasi_kegiatan: String(r.lokasi || r.lokasi_kegiatan || 'Desa Batetangnga'),
         volume_kegiatan: String(r.volume_satuan || r.volume || r.volume_kegiatan || ''),
         waktu_pelaksanaan: String(r.waktu_pelaksanaan || ''),
@@ -2169,7 +2172,7 @@ app.get('/api/prioritas-usulan', async (req, res) => {
 
         const { data, error } = await supabase
             .from('prioritas_usulan')
-            .select('id, tahun, kode_unik_full, kode_unik, no_urut, nama_kegiatan, jenis_bidang, jenis_kegiatan, urutan_prioritas, skala_prioritas, bidang, data_existing, lokasi_kegiatan, volume_kegiatan, waktu_pelaksanaan, sdgs, manfaat_l, manfaat_p, manfaat_rtm, total_manfaat, sumber_dana, pagu_rpjm, updated_at, created_at')
+            .select('id, tahun, kode_unik_full, kode_unik, no_urut, nama_kegiatan, jenis_bidang, jenis_kegiatan, urutan_prioritas, skala_prioritas, bidang, data_existing, lokasi, lokasi_kegiatan, volume_kegiatan, waktu_pelaksanaan, sdgs, manfaat_l, manfaat_p, manfaat_rtm, total_manfaat, sumber_dana, pagu_rpjm, updated_at, created_at')
             .eq('tahun', tahunInt)
             .order('bidang', { ascending: true })
             .order('kode_unik_full', { ascending: true });
@@ -2177,6 +2180,8 @@ app.get('/api/prioritas-usulan', async (req, res) => {
 
         const mapped = (data || []).map(r => ({
             ...r,
+            lokasi: r.lokasi || r.lokasi_kegiatan || 'Desa Batetangnga',
+            lokasi_kegiatan: r.lokasi_kegiatan || r.lokasi || 'Desa Batetangnga',
             kode_unik_full: String(r.kode_unik_full || r.kode_unik || ''),
             prakiraan_biaya: Number(r.pagu_rpjm || r.prakiraan_biaya || 0),
             pagu_rpjm: Number(r.pagu_rpjm || r.prakiraan_biaya || 0)
@@ -2313,21 +2318,24 @@ app.delete('/api/prioritas-usulan', async (req, res) => {
 // ============================================================
 // MODUL USULAN MASYARAKAT (MUSRENBANG)
 // ============================================================
-const USULAN_SELECT_COLUMNS = 'id, tahun, bidang, kode_unik_full, prioritas, nama_kegiatan, kegiatan, lokasi, volume, biaya, sasaran, pengusul, sumber_dana, created_at, updated_at';
+const USULAN_SELECT_COLUMNS = 'id, tahun, tahun_usulan, bidang, kode_unik_full, kode_unik, prioritas, nama_kegiatan, kegiatan, sdgs, data_eksisting, lokasi, volume, biaya, sasaran, pengusul, laki_laki, perempuan, rtm, sumber_dana, created_at, updated_at';
 
-// GET /api/usulan?tahun=YYYY
-app.get('/api/usulan', async (req, res) => {
+// GET /api/usulan & /api/usulan-masyarakat?tahun=YYYY
+app.get(['/api/usulan', '/api/usulan-masyarakat'], async (req, res) => {
     try {
         const { tahun } = req.query;
-        const tahunInt = parseInt(tahun, 10) || 2027;
-        console.log(`📡 GET /api/usulan?tahun=${tahunInt}`);
+        console.log(`📡 GET /api/usulan?tahun=${tahun || 'ALL'}`);
 
-        const { data, error } = await supabase
+        let query = supabase
             .from('usulan')
             .select(USULAN_SELECT_COLUMNS)
-            .eq('tahun', tahunInt)
             .order('id', { ascending: true });
 
+        if (tahun) {
+            query = query.eq('tahun', parseInt(tahun, 10));
+        }
+
+        const { data, error } = await query;
         if (error) throw error;
         res.json({ success: true, data: data || [] });
     } catch (error) {
@@ -2336,44 +2344,90 @@ app.get('/api/usulan', async (req, res) => {
     }
 });
 
-// POST /api/usulan
-app.post('/api/usulan', async (req, res) => {
+// POST /api/usulan & /api/usulan-masyarakat
+app.post(['/api/usulan', '/api/usulan-masyarakat'], async (req, res) => {
     try {
-        const { kegiatan, nama_kegiatan, lokasi, volume, biaya, sasaran, pengusul, tahun, bidang } = req.body || {};
-        const nama = kegiatan || nama_kegiatan;
-        if (!nama) {
+        const p = req.body || {};
+        const nama = p.kegiatan || p.nama_kegiatan;
+        if (!nama && !p.id) {
             return res.status(400).json({ success: false, message: 'Nama usulan kegiatan wajib diisi.' });
         }
-        const tahunInt = parseInt(tahun, 10) || 2027;
+        const tahunInt = parseInt(p.tahun, 10) || parseInt(p.tahun_usulan, 10) || 2027;
         const payload = {
-            kegiatan: nama,
-            nama_kegiatan: nama,
-            lokasi: lokasi || 'Desa Batetangnga',
-            volume: volume || '1 Paket',
-            biaya: parseFloat(biaya) || 0,
-            sasaran: sasaran || '',
-            pengusul: pengusul || '',
-            bidang: bidang || 'Bidang Pelaksanaan Pembangunan Desa',
             tahun: tahunInt,
-            created_at: new Date().toISOString(),
+            tahun_usulan: tahunInt,
+            bidang: p.bidang || 'Bidang Pelaksanaan Pembangunan Desa',
+            kode_unik_full: p.kode_unik_full || p.kode_unik || null,
+            kode_unik: p.kode_unik || p.kode_unik_full || null,
+            prioritas: parseInt(p.prioritas, 10) || null,
+            nama_kegiatan: nama || null,
+            kegiatan: nama || null,
+            sdgs: p.sdgs || null,
+            data_eksisting: p.data_eksisting || null,
+            lokasi: p.lokasi || 'Desa Batetangnga',
+            volume: p.volume || '1 Paket',
+            biaya: parseFloat(p.biaya) || 0,
+            sasaran: p.sasaran || '',
+            pengusul: p.pengusul || '',
+            laki_laki: parseInt(p.laki_laki ?? p.penerima_laki ?? 0, 10) || 0,
+            perempuan: parseInt(p.perempuan ?? p.penerima_perempuan ?? 0, 10) || 0,
+            rtm: parseInt(p.rtm ?? p.penerima_rtm ?? 0, 10) || 0,
+            sumber_dana: p.sumber_dana || null,
             updated_at: new Date().toISOString()
         };
-        const { data, error } = await supabase
-            .from('usulan')
-            .insert([payload])
-            .select('id, tahun, kegiatan, nama_kegiatan, lokasi, volume, biaya, sasaran, pengusul, bidang');
-        if (error) throw error;
-        res.json({ success: true, data: data ? data[0] : null });
+
+        let result;
+        if (p.id) {
+            const { data: upd, error: updErr } = await supabase
+                .from('usulan')
+                .update(payload)
+                .eq('id', p.id)
+                .select(USULAN_SELECT_COLUMNS);
+            if (updErr) throw updErr;
+            result = Array.isArray(upd) && upd.length > 0 ? upd[0] : payload;
+        } else {
+            payload.created_at = new Date().toISOString();
+            const { data: ins, error: insErr } = await supabase
+                .from('usulan')
+                .insert([payload])
+                .select(USULAN_SELECT_COLUMNS);
+            if (insErr) throw insErr;
+            result = Array.isArray(ins) && ins.length > 0 ? ins[0] : payload;
+        }
+        res.json({ success: true, data: result });
     } catch (error) {
         console.error('❌ Error POST /api/usulan:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// DELETE /api/usulan/:id
-app.delete(['/api/usulan/:id', '/api/usulan'], async (req, res) => {
+// PUT /api/usulan/:id & /api/usulan-masyarakat/:id
+app.put(['/api/usulan/:id', '/api/usulan-masyarakat/:id', '/api/usulan', '/api/usulan-masyarakat'], async (req, res) => {
     try {
-        const id = req.params.id || req.query.id;
+        const id = req.params.id || req.body?.id;
+        if (!id) {
+            return res.status(400).json({ success: false, message: 'ID usulan diperlukan.' });
+        }
+        const p = req.body || {};
+        const payload = { ...p, updated_at: new Date().toISOString() };
+        delete payload.id;
+        const { data, error } = await supabase
+            .from('usulan')
+            .update(payload)
+            .eq('id', id)
+            .select(USULAN_SELECT_COLUMNS);
+        if (error) throw error;
+        res.json({ success: true, data: Array.isArray(data) ? data[0] : data });
+    } catch (err) {
+        console.error('❌ Error PUT /api/usulan:', err.message);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// DELETE /api/usulan/:id & /api/usulan-masyarakat/:id
+app.delete(['/api/usulan/:id', '/api/usulan-masyarakat/:id', '/api/usulan', '/api/usulan-masyarakat'], async (req, res) => {
+    try {
+        const id = req.params.id || req.query.id || req.body?.id;
         const idInt = parseInt(id, 10);
         if (!idInt) {
             return res.status(400).json({ success: false, message: 'ID usulan diperlukan.' });
@@ -2568,7 +2622,7 @@ app.get('/api/rancangan-rkpdes/tarik-prioritas', async (req, res) => {
 
         const { data, error } = await supabase
             .from('prioritas_usulan')
-            .select('id, tahun, kode_unik_full, kode_unik, no_urut, nama_kegiatan, jenis_bidang, jenis_kegiatan, urutan_prioritas, skala_prioritas, bidang, data_existing, lokasi_kegiatan, volume_kegiatan, waktu_pelaksanaan, sdgs, manfaat_l, manfaat_p, manfaat_rtm, total_manfaat, sumber_dana, pagu_rpjm, visi_misi, pokok_bpd, program_masyarakat, prioritas_sdgs_skor, total_kesesuaian, ranking, updated_at, created_at')
+            .select('id, tahun, kode_unik_full, kode_unik, no_urut, nama_kegiatan, jenis_bidang, jenis_kegiatan, urutan_prioritas, skala_prioritas, bidang, data_existing, lokasi, lokasi_kegiatan, volume_kegiatan, waktu_pelaksanaan, sdgs, manfaat_l, manfaat_p, manfaat_rtm, total_manfaat, sumber_dana, pagu_rpjm, visi_misi, pokok_bpd, program_masyarakat, prioritas_sdgs_skor, total_kesesuaian, ranking, updated_at, created_at')
             .eq('tahun', tahunInt)
             .order('kode_unik_full', { ascending: true });
         if (error) throw error;
@@ -3404,7 +3458,8 @@ app.get('/api/rab-activities', async (req, res) => {
         const { data: rabRows, error: rabErr } = await supabase
             .from(RAB_TABLE)
             .select(RAB_LIST_COLUMNS)
-            .eq('tahun', tahunInt);
+            .eq('tahun', tahunInt)
+            .limit(500);
 
         if (rabErr) {
             console.warn('⚠️ Gagal mengambil public.rab di /api/rab-activities:', rabErr.message);
@@ -3414,7 +3469,8 @@ app.get('/api/rab-activities', async (req, res) => {
         let { data: rancanganRows, error: rancanganErr } = await supabase
             .from('rancangan_rkpdes')
             .select(RANCANGAN_LIST_COLUMNS)
-            .eq('tahun', tahunInt);
+            .eq('tahun', tahunInt)
+            .limit(500);
 
         if (rancanganErr) {
             console.warn('⚠️ Gagal mengambil rancangan_rkpdes di /api/rab-activities:', rancanganErr.message);
@@ -3423,7 +3479,7 @@ app.get('/api/rab-activities', async (req, res) => {
         // Auto-pull dari rpjmdes_standar jika DB rancangan_rkpdes dan rab keduanya masih kosong untuk tahun tersebut
         if ((!rancanganRows || rancanganRows.length === 0) && (!rabRows || rabRows.length === 0)) {
             console.log(`🔄 DB rancangan_rkpdes & rab kosong untuk tahun ${tahunInt}, menarik dari rpjmdes_standar...`);
-            const { data: stdData } = await supabase.from('rpjmdes_standar').select(RPJM_LOOKUP_COLUMNS);
+            const { data: stdData } = await supabase.from('rpjmdes_standar').select(RPJM_LOOKUP_COLUMNS).limit(1000);
             if (Array.isArray(stdData) && stdData.length > 0) {
                 const targetCol = `target_${tahunInt}`;
                 const validToInsert = stdData.filter(item => {
@@ -4581,19 +4637,40 @@ app.post('/api/master/batch-delete', async (req, res) => {
 // ========== RPJMDES API (LENGKAP) ===========================
 // ============================================================
 
+// In-memory Cache untuk RPJMDes Lengkap (cegah 504 Gateway Timeout)
+let rpjmdesAllCache = null;
+let rpjmdesAllCacheTs = 0;
+const RPJMDES_CACHE_TTL_MS = 15 * 60 * 1000; // 15 menit
+
+function invalidateRpjmdesCache() {
+    rpjmdesAllCache = null;
+    rpjmdesAllCacheTs = 0;
+    rpjmLookupCache = null;
+    rpjmLookupCacheTs = 0;
+}
+
 app.get('/api/rpjmdes', async (req, res) => {
     try {
         const { tahun, limit, bidang, search, page } = req.query;
         console.log(`📡 GET /api/rpjmdes?tahun=${tahun || 'ALL'}&limit=${limit || 'ALL'}`);
 
-        let { data, error } = await supabase
-            .from('rpjmdes_standar')
-            .select(RPJMDES_LIST_COLUMNS)
-            .order('id', { ascending: true });
+        let allData = null;
+        if (rpjmdesAllCache && (Date.now() - rpjmdesAllCacheTs) < RPJMDES_CACHE_TTL_MS) {
+            allData = rpjmdesAllCache;
+        } else {
+            const { data, error } = await supabase
+                .from('rpjmdes_standar')
+                .select(RPJMDES_LIST_COLUMNS)
+                .order('id', { ascending: true })
+                .limit(1000);
 
-        if (error) throw error;
+            if (error) throw error;
+            allData = data || [];
+            rpjmdesAllCache = allData;
+            rpjmdesAllCacheTs = Date.now();
+        }
 
-        let filteredData = data || [];
+        let filteredData = allData;
 
         // ✅ FILTER BERDASARKAN TAHUN (JS LEVEL ACCURACY)
         if (tahun && tahun !== 'ALL') {
@@ -4771,6 +4848,7 @@ app.post('/api/rpjmdes', async (req, res) => {
         }
 
         console.log('✅ RPJMDes berhasil disimpan dengan kode:', payload.kode_unik_full);
+        invalidateRpjmdesCache();
         res.json({ success: true, data });
 
     } catch (error) {
@@ -4835,6 +4913,7 @@ app.put('/api/rpjmdes/:id', async (req, res) => {
             .select('id');
 
         if (error) throw error;
+        invalidateRpjmdesCache();
         res.json({ success: true, data });
     } catch (error) {
         console.log('❌ Error /api/rpjmdes PUT:', error.message);
@@ -4851,6 +4930,7 @@ app.delete('/api/rpjmdes/:id', async (req, res) => {
             .eq('id', id);
 
         if (error) throw error;
+        invalidateRpjmdesCache();
         res.json({ success: true });
     } catch (error) {
         console.log('❌ Error /api/rpjmdes DELETE:', error.message);
@@ -5177,102 +5257,7 @@ app.delete('/api/sdgs-rancangan/:id', async (req, res) => {
     }
 });
 
-// ============================================================
-// ========== USULAN PRIORITAS (tabel usulan) =================
-// ============================================================
-const USULAN_TABLE = 'usulan';
 
-// GET /api/usulan?tahun=2027
-app.get('/api/usulan', async (req, res) => {
-    try {
-        const { tahun } = req.query;
-        let query = supabase.from(USULAN_TABLE).select(USULAN_COLUMNS).order('id', { ascending: true });
-        if (tahun) {
-            query = query.eq('tahun', parseInt(tahun, 10));
-        }
-        const { data, error } = await query;
-        if (error) throw error;
-        res.json({ success: true, data: data || [] });
-    } catch (err) {
-        console.error("❌ Error GET /api/usulan:", err.message);
-        res.status(500).json({ success: false, message: err.message, data: [] });
-    }
-});
-
-// POST /api/usulan
-app.post('/api/usulan', async (req, res) => {
-    try {
-        const p = req.body || {};
-        const tahunInt = parseInt(p.tahun, 10) || parseInt(p.tahun_usulan, 10) || 2027;
-        const payload = {
-            tahun: tahunInt,
-            tahun_usulan: tahunInt,
-            bidang: p.bidang || null,
-            kode_unik_full: p.kode_unik_full || p.kode_unik || null,
-            kode_unik: p.kode_unik || null,
-            prioritas: parseInt(p.prioritas, 10) || null,
-            nama_kegiatan: p.nama_kegiatan || p.kegiatan || null,
-            kegiatan: p.kegiatan || p.nama_kegiatan || null,
-            sdgs: p.sdgs || null,
-            data_eksisting: p.data_eksisting || null,
-            lokasi: p.lokasi || null,
-            volume: p.volume || null,
-            biaya: Number(p.biaya) || 0,
-            sasaran: p.sasaran || null,
-            pengusul: p.pengusul || null,
-            laki_laki: parseInt(p.laki_laki, 10) || 0,
-            perempuan: parseInt(p.perempuan, 10) || 0,
-            rtm: parseInt(p.rtm, 10) || 0,
-            sumber_dana: p.sumber_dana || null,
-            updated_at: new Date().toISOString()
-        };
-
-        let result;
-        if (p.id) {
-            const { data: upd, error: updErr } = await supabase
-                .from(USULAN_TABLE).update(payload).eq('id', p.id).select('id, updated_at');
-            if (updErr) throw updErr;
-            result = Array.isArray(upd) && upd.length > 0 ? upd[0] : payload;
-        } else {
-            const { data: data2, error: err2 } = await supabase
-                .from(USULAN_TABLE).insert([payload]).select('id, updated_at');
-            if (err2) throw err2;
-            result = Array.isArray(data2) && data2.length > 0 ? data2[0] : payload;
-        }
-        res.json({ success: true, data: result });
-    } catch (err) {
-        console.error("❌ Error POST /api/usulan:", err.message);
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
-// PUT /api/usulan/:id
-app.put('/api/usulan/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const p = req.body || {};
-        const payload = { ...p, updated_at: new Date().toISOString() };
-        const { data, error } = await supabase.from(USULAN_TABLE).update(payload).eq('id', id).select('id, updated_at');
-        if (error) throw error;
-        res.json({ success: true, data });
-    } catch (err) {
-        console.error("❌ Error PUT /api/usulan:", err.message);
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
-// DELETE /api/usulan/:id
-app.delete('/api/usulan/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { error } = await supabase.from(USULAN_TABLE).delete().eq('id', id);
-        if (error) throw error;
-        res.json({ success: true, message: 'Usulan berhasil dihapus' });
-    } catch (err) {
-        console.error("❌ Error DELETE /api/usulan:", err.message);
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
 
 // ============================================================
 // ========== BIDANG LIST & STATISTIK =========================
