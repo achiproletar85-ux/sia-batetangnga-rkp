@@ -982,11 +982,19 @@ async function loadSavedRabItem(kode, year) {
     await loadRabActivities();
     document.getElementById('search-rpjm').value = '';
 
+    const cleanTarget = String(kode || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
+
     // Jika kode tidak ada di daftar kegiatan (mis. tahun berbeda / kode tak dikenal),
     // tambahkan ke daftar agar dropdown & form selalu bisa memuat RAB tersimpan tsb.
-    const existsInGlobal = rabActivitiesGlobal.some(item => String(item.kode_unik_full || '').trim() === String(kode).trim());
+    const existsInGlobal = rabActivitiesGlobal.some(item => {
+        const k = String(item.kode_unik_full || item.kode_unik || '').trim();
+        return k === String(kode).trim() || k.replace(/\.+$/, '').replace(/^PEM\./i, '') === cleanTarget;
+    });
     if (!existsInGlobal) {
-        const savedRow = savedRabList.find(r => String(r.kode_unik_full || r.kode_unik || '').trim() === String(kode).trim());
+        const savedRow = savedRabList.find(r => {
+            const k = String(r.kode_unik_full || r.kode_unik || '').trim();
+            return k === String(kode).trim() || k.replace(/\.+$/, '').replace(/^PEM\./i, '') === cleanTarget;
+        });
         if (savedRow) {
             rabActivitiesGlobal = [
                 {
@@ -1003,12 +1011,39 @@ async function loadSavedRabItem(kode, year) {
         }
     }
 
-    document.getElementById('select-kode-unik').value = kode;
+    const selEl = document.getElementById('select-kode-unik');
+    if (selEl) {
+        let matchedOpt = [...selEl.options].find(o => o.value === kode);
+        if (!matchedOpt) {
+            matchedOpt = [...selEl.options].find(o => {
+                const c = String(o.value).trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
+                return c === cleanTarget;
+            });
+        }
+        if (matchedOpt) {
+            selEl.value = matchedOpt.value;
+        } else {
+            selEl.value = kode;
+        }
+    }
 
-    const found = rabActivitiesGlobal.find(item => String(item.kode_unik_full || '').trim() === String(kode).trim());
+    const formSel = document.getElementById('select-kode-unik-form');
+    if (formSel && selEl) {
+        formSel.value = selEl.value;
+    }
+
+    const found = rabActivitiesGlobal.find(item => {
+        const k = String(item.kode_unik_full || item.kode_unik || '').trim();
+        return k === String(kode).trim() || k.replace(/\.+$/, '').replace(/^PEM\./i, '') === cleanTarget;
+    });
     if (!found) {
-        const savedRow = savedRabList.find(r => String(r.kode_unik_full || r.kode_unik || '').trim() === String(kode).trim());
-        selectedRpjm = savedRow ? { ...savedRow, kode_unik_full: kode } : null;
+        const savedRow = savedRabList.find(r => {
+            const k = String(r.kode_unik_full || r.kode_unik || '').trim();
+            return k === String(kode).trim() || k.replace(/\.+$/, '').replace(/^PEM\./i, '') === cleanTarget;
+        });
+        selectedRpjm = savedRow ? { ...savedRow, kode_unik_full: savedRow.kode_unik_full || savedRow.kode_unik || kode } : null;
+    } else {
+        selectedRpjm = found;
     }
 
     await selectRpjm();
