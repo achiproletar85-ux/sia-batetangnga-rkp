@@ -542,8 +542,8 @@ async function selectRpjm() {
 
     const summaryContainer = document.getElementById('rpjm-summary');
     if (summaryContainer) {
-        const jenisBid = selectedRpjm.jenis_bid || selectedRpjm.jenis_bidang || selectedRpjm.sub_bidang || selectedRpjm.jenis_sub_bidang || '-';
-        const jenisKeg = selectedRpjm.jenis_kegiatan || selectedRpjm.nama_kegiatan || '-';
+        const jenisBid = getNamaSubBidangFull(selectedRpjm, selectedRpjm.kode_unik_full);
+        const jenisKeg = selectedRpjm.jenis_kegiatan || selectedRpjm.kegiatan_induk || selectedRpjm.nama_kegiatan || 'Kegiatan Desa';
         summaryContainer.innerHTML = `
             <div class="p-5 bg-white rounded-xl border border-slate-200 shadow-sm">
                 <div class="text-xs font-extrabold text-indigo-600 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -1109,6 +1109,50 @@ function getNamaBidangFull(bidangVal, kodeUnik) {
         if (NAMA_BIDANG[bNum]) return NAMA_BIDANG[bNum];
     }
     return "Bidang Penyelenggaraan Pemerintahan Desa";
+}
+
+const RAB_SUB_BIDANG_MAP = {
+    '01.01': 'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa',
+    '01.02': 'Sarana dan Prasarana Pemerintahan Desa',
+    '01.03': 'Administrasi Kependudukan, Pencatatan Sipil, Statistik dan Kearsipan',
+    '01.04': 'Tata Praja Pemerintahan, Perencanaan, Keuangan dan Pelaporan',
+    '01.05': 'Pertanahan',
+    '02.01': 'Pendidikan',
+    '02.02': 'Kesehatan',
+    '02.03': 'Pekerjaan Umum dan Penataan Ruang',
+    '02.04': 'Kawasan Permukiman',
+    '02.05': 'Kehutanan dan Lingkungan Hidup',
+    '02.06': 'Perhubungan, Komunikasi dan Informatika',
+    '02.07': 'Energi dan Sumber Daya Mineral',
+    '02.08': 'Pariwisata',
+    '03.01': 'Ketenteraman, Ketertiban Umum dan Perlindungan Masyarakat',
+    '03.02': 'Kebudayaan dan Keagamaan',
+    '03.03': 'Kepemudaan dan Olahraga',
+    '03.04': 'Kelembagaan Masyarakat',
+    '04.01': 'Kelautan dan Perikanan',
+    '04.02': 'Pertanian dan Peternakan',
+    '04.03': 'Peningkatan Kapasitas Aparatur Desa',
+    '04.04': 'Pemberdayaan Perempuan, Perlindungan Anak dan Keluarga',
+    '04.05': 'Koperasi, Usaha Mikro Kecil dan Menengah (UMKM)',
+    '04.06': 'Dukungan Penanaman Modal',
+    '04.07': 'Perdagangan dan Perindustrian',
+    '05.01': 'Penanggulangan Bencana',
+    '05.02': 'Keadaan Darurat',
+    '05.03': 'Keadaan Mendesak'
+};
+
+function getNamaSubBidangFull(item, kodeUnik) {
+    if (item) {
+        const raw = item.jenis_bid || item.jenis_bidang || item.sub_bidang || item.jenis_sub_bidang || item.sub_group_nama;
+        if (raw && String(raw).trim() !== '' && String(raw).trim() !== '-') return String(raw).trim();
+    }
+    const targetKode = String(kodeUnik || item?.kode_unik_full || item?.kode_unik || '').replace(/^PEM\./i, '').trim();
+    const parts = targetKode.split('.').filter(Boolean);
+    if (parts.length >= 2) {
+        const key = parts[0].padStart(2, '0') + '.' + parts[1].padStart(2, '0');
+        if (RAB_SUB_BIDANG_MAP[key]) return RAB_SUB_BIDANG_MAP[key];
+    }
+    return "Sub Bidang Penyelenggaraan Pemerintahan Desa";
 }
 
 async function saveRAB() {

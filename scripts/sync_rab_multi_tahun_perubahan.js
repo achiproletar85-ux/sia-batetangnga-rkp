@@ -23,6 +23,36 @@ const BIDANG_MAP = {
   '05': 'Bidang Penanggulangan Bencana, Keadaan Darurat dan Mendesak Desa'
 };
 
+const RAB_SUB_BIDANG_MAP = {
+  '01.01': 'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa',
+  '01.02': 'Sarana dan Prasarana Pemerintahan Desa',
+  '01.03': 'Administrasi Kependudukan, Pencatatan Sipil, Statistik dan Kearsipan',
+  '01.04': 'Tata Praja Pemerintahan, Perencanaan, Keuangan dan Pelaporan',
+  '01.05': 'Pertanahan',
+  '02.01': 'Pendidikan',
+  '02.02': 'Kesehatan',
+  '02.03': 'Pekerjaan Umum dan Penataan Ruang',
+  '02.04': 'Kawasan Permukiman',
+  '02.05': 'Kehutanan dan Lingkungan Hidup',
+  '02.06': 'Perhubungan, Komunikasi dan Informatika',
+  '02.07': 'Energi dan Sumber Daya Mineral',
+  '02.08': 'Pariwisata',
+  '03.01': 'Ketenteraman, Ketertiban Umum dan Perlindungan Masyarakat',
+  '03.02': 'Kebudayaan dan Keagamaan',
+  '03.03': 'Kepemudaan dan Olahraga',
+  '03.04': 'Kelembagaan Masyarakat',
+  '04.01': 'Kelautan dan Perikanan',
+  '04.02': 'Pertanian dan Peternakan',
+  '04.03': 'Peningkatan Kapasitas Aparatur Desa',
+  '04.04': 'Pemberdayaan Perempuan, Perlindungan Anak dan Keluarga',
+  '04.05': 'Koperasi, Usaha Mikro Kecil dan Menengah (UMKM)',
+  '04.06': 'Dukungan Penanaman Modal',
+  '04.07': 'Perdagangan dan Perindustrian',
+  '05.01': 'Penanggulangan Bencana',
+  '05.02': 'Keadaan Darurat',
+  '05.03': 'Keadaan Mendesak'
+};
+
 function parseNumber(str) {
   if (!str) return 0;
   const isNegative = str.includes('(') && str.includes(')');
@@ -220,30 +250,37 @@ function buildSubActivities(year, rawItems) {
 
   for (const kode in grouped) {
     const g = grouped[kode];
-    const prefix = kode.slice(0, 2);
+    const cleanKode = kode.replace(/^PEM\./i, '').trim();
+    const parts = cleanKode.split('.').filter(Boolean);
+    const subKey = parts.length >= 2 ? (parts[0].padStart(2, '0') + '.' + parts[1].padStart(2, '0')) : '01.01';
+    const officialSubBidang = RAB_SUB_BIDANG_MAP[subKey] || 'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa';
+    const officialBidang = BIDANG_MAP[parts[0]?.padStart(2, '0')] || 'Bidang Penyelenggaraan Pemerintahan Desa';
+    const namaKegiatanInduk = g.jenis_kegiatan || g.nama_kegiatan || 'Kegiatan Pemerintahan Desa';
+    const namaSubKegiatan = g.nama_kegiatan || namaKegiatanInduk;
+    const finalGroup = g.group_nama && g.group_nama !== '-' ? g.group_nama : officialSubBidang;
+    const finalSubGroup = g.sub_group_nama && g.sub_group_nama !== '-' ? g.sub_group_nama : officialSubBidang;
 
     // 1. Buat MURNI record (dari Semula)
     const murniItems = [];
     let murniTotal = 0;
 
-    g.rawList.forEach((it, idx) => {
-      // Hanya sertakan item dengan anggaran semula > 0
+    g.rawList.forEach((it) => {
       if (it.semula.jumlah > 0 || it.semula.vol > 0) {
         murniItems.push({
-          group: it.kelompok,
-          subgroup: it.sub_kelompok,
-          kelompok_belanja: it.kelompok,
-          sub_kelompok: it.sub_kelompok,
-          kode_rekening: it.rek,
-          uraian: it.uraian,
-          volume: it.semula.vol,
-          satuan: it.semula.satuan,
-          harga: it.semula.harga,
-          harga_satuan: it.semula.harga,
+          group: it.kelompok && it.kelompok !== '-' ? it.kelompok : finalGroup,
+          subgroup: it.sub_kelompok && it.sub_kelompok !== '-' ? it.sub_kelompok : finalSubGroup,
+          kelompok_belanja: it.kelompok && it.kelompok !== '-' ? it.kelompok : finalGroup,
+          sub_kelompok: it.sub_kelompok && it.sub_kelompok !== '-' ? it.sub_kelompok : finalSubGroup,
+          kode_rekening: it.rek || '5.1.1.01.',
+          uraian: it.uraian || namaSubKegiatan,
+          volume: it.semula.vol || 1,
+          satuan: it.semula.satuan || 'Paket',
+          harga: it.semula.harga || it.semula.jumlah,
+          harga_satuan: it.semula.harga || it.semula.jumlah,
           jumlah: it.semula.jumlah,
           total: it.semula.jumlah,
-          sumber: it.sumber,
-          sumber_dana: it.sumber,
+          sumber: it.sumber || 'ADD',
+          sumber_dana: it.sumber || 'ADD',
           urutan_murni: murniItems.length
         });
         murniTotal += it.semula.jumlah;
@@ -256,24 +293,28 @@ function buildSubActivities(year, rawItems) {
         kode_unik_full: kode,
         tahun: year,
         tipe_anggaran: 'MURNI',
-        nama_kegiatan: g.nama_kegiatan,
-        bidang: g.bidang,
-        sumber_dana: g.sumber_dana,
+        nama_kegiatan: namaSubKegiatan,
+        bidang: officialBidang,
+        sumber_dana: g.sumber_dana || 'ADD',
         jumlah_anggaran: murniTotal,
         volume: 1,
         satuan: 'Paket',
         harga_satuan: murniTotal,
-        lokasi: g.lokasi,
-        lokasi_kegiatan: g.lokasi_kegiatan,
-        jenis_kegiatan: g.jenis_kegiatan,
-        group_nama: g.group_nama,
-        sub_group_nama: g.sub_group_nama,
+        lokasi: g.lokasi || 'Desa Batetangnga',
+        lokasi_kegiatan: g.lokasi_kegiatan || 'Desa Batetangnga',
+        jenis_kegiatan: namaKegiatanInduk,
+        group_nama: finalGroup,
+        sub_group_nama: finalSubGroup,
         rpjm_data: {
           kode_unik_full: kode,
-          nama_kegiatan: g.nama_kegiatan,
-          kegiatan_induk: g.jenis_kegiatan,
-          bidang: g.bidang,
-          sumber_dana: g.sumber_dana
+          nama_kegiatan: namaSubKegiatan,
+          sub_kegiatan: namaSubKegiatan,
+          kegiatan_induk: namaKegiatanInduk,
+          jenis_kegiatan: namaKegiatanInduk,
+          bidang: officialBidang,
+          jenis_bidang: officialSubBidang,
+          sub_bidang: officialSubBidang,
+          sumber_dana: g.sumber_dana || 'ADD'
         },
         items: murniItems,
         status: 'Aktif'
@@ -285,30 +326,29 @@ function buildSubActivities(year, rawItems) {
     let perubahanTotal = 0;
 
     g.rawList.forEach((it) => {
-      // Cari padanan urutan di murniItems
-      const murniIdx = murniItems.findIndex(m => m.uraian === it.uraian && m.group === it.kelompok);
+      const murniIdx = murniItems.findIndex(m => m.uraian === it.uraian && m.group === (it.kelompok || finalGroup));
 
       if (it.menjadi.jumlah > 0 || it.menjadi.vol > 0) {
         perubahanItems.push({
-          group: it.kelompok,
-          subgroup: it.sub_kelompok,
-          kelompok_belanja: it.kelompok,
-          sub_kelompok: it.sub_kelompok,
-          kode_rekening: it.rek,
-          uraian: it.uraian,
-          volume: it.menjadi.vol,
-          satuan: it.menjadi.satuan,
-          harga: it.menjadi.harga,
-          harga_satuan: it.menjadi.harga,
+          group: it.kelompok && it.kelompok !== '-' ? it.kelompok : finalGroup,
+          subgroup: it.sub_kelompok && it.sub_kelompok !== '-' ? it.sub_kelompok : finalSubGroup,
+          kelompok_belanja: it.kelompok && it.kelompok !== '-' ? it.kelompok : finalGroup,
+          sub_kelompok: it.sub_kelompok && it.sub_kelompok !== '-' ? it.sub_kelompok : finalSubGroup,
+          kode_rekening: it.rek || '5.1.1.01.',
+          uraian: it.uraian || namaSubKegiatan,
+          volume: it.menjadi.vol || 1,
+          satuan: it.menjadi.satuan || 'Paket',
+          harga: it.menjadi.harga || it.menjadi.jumlah,
+          harga_satuan: it.menjadi.harga || it.menjadi.jumlah,
           jumlah: it.menjadi.jumlah,
           total: it.menjadi.jumlah,
-          sumber: it.sumber,
-          sumber_dana: it.sumber,
+          sumber: it.sumber || 'ADD',
+          sumber_dana: it.sumber || 'ADD',
           urutan_murni: murniIdx >= 0 ? murniIdx : null,
           item_baru: murniIdx < 0,
-          semula_volume: it.semula.vol,
-          semula_harga: it.semula.harga,
-          semula_jumlah: it.semula.jumlah
+          semula_volume: it.semula.vol || 0,
+          semula_harga: it.semula.harga || 0,
+          semula_jumlah: it.semula.jumlah || 0
         });
         perubahanTotal += it.menjadi.jumlah;
       }
@@ -320,24 +360,28 @@ function buildSubActivities(year, rawItems) {
         kode_unik_full: kode,
         tahun: year,
         tipe_anggaran: 'PERUBAHAN',
-        nama_kegiatan: g.nama_kegiatan,
-        bidang: g.bidang,
-        sumber_dana: g.sumber_dana,
+        nama_kegiatan: namaSubKegiatan,
+        bidang: officialBidang,
+        sumber_dana: g.sumber_dana || 'ADD',
         jumlah_anggaran: perubahanTotal,
         volume: 1,
         satuan: 'Paket',
         harga_satuan: perubahanTotal,
-        lokasi: g.lokasi,
-        lokasi_kegiatan: g.lokasi_kegiatan,
-        jenis_kegiatan: g.jenis_kegiatan,
-        group_nama: g.group_nama,
-        sub_group_nama: g.sub_group_nama,
+        lokasi: g.lokasi || 'Desa Batetangnga',
+        lokasi_kegiatan: g.lokasi_kegiatan || 'Desa Batetangnga',
+        jenis_kegiatan: namaKegiatanInduk,
+        group_nama: finalGroup,
+        sub_group_nama: finalSubGroup,
         rpjm_data: {
           kode_unik_full: kode,
-          nama_kegiatan: g.nama_kegiatan,
-          kegiatan_induk: g.jenis_kegiatan,
-          bidang: g.bidang,
-          sumber_dana: g.sumber_dana
+          nama_kegiatan: namaSubKegiatan,
+          sub_kegiatan: namaSubKegiatan,
+          kegiatan_induk: namaKegiatanInduk,
+          jenis_kegiatan: namaKegiatanInduk,
+          bidang: officialBidang,
+          jenis_bidang: officialSubBidang,
+          sub_bidang: officialSubBidang,
+          sumber_dana: g.sumber_dana || 'ADD'
         },
         items: perubahanItems,
         status: 'Aktif'
