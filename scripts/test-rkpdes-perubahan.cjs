@@ -115,6 +115,32 @@ assert(serverCode.includes('Query rab perubahan error:'), 'Query rab perubahan m
 assert(jsCode.includes('if (!res.ok)'), 'Pemeriksaan status HTTP response eksplisit pada loadRkpdesPerubahanData di frontend/rkpdes.js');
 assert(jsCode.includes('Gagal Memuat Data RKPDes Perubahan'), 'UI error banner ramah dengan tombol coba lagi terpasang di frontend/rkpdes.js');
 
+// 7. ZERO-DEFAULT SDGs: tidak boleh ada default tebakan 'SDGs 17' / '17'
+//    di backend maupun frontend, dan fitur edit SDGs harus tersedia.
+console.log('\n--- ZERO-DEFAULT SDGs & FITUR EDIT ---\n');
+assert(!serverCode.includes("|| '17'"), 'server.js tidak lagi memakai fallback \'|| 17\'');
+assert(!serverCode.includes("'SDGs 17'"), 'server.js tidak lagi memakai hardcode \'SDGs 17\'');
+assert(serverCode.includes('function cleanSdgsRaw'), 'Helper cleanSdgsRaw terdefinisi di server.js');
+assert(serverCode.includes('function formatSdgsLabel'), 'Helper formatSdgsLabel terdefinisi di server.js');
+assert(serverCode.includes('sdgs_semula_label') && serverCode.includes('sdgs_menjadi_label'), 'Endpoint perubahan mengekspos label sdgs_semula/sdgs_menjadi');
+assert(serverCode.includes("app.put('/api/rkpdes/perubahan/sdgs'"), 'Endpoint PUT /api/rkpdes/perubahan/sdgs tersedia untuk persist');
+assert(serverCode.includes('mendukung_sdgs: \'-\''), 'Fallback mapping RAB murni memakai \'-\' bukan SDGs 17');
+
+const jsLower = jsCode;
+assert(!jsLower.includes("|| 'SDGs 17'"), 'frontend rkpdes.js tidak memakai fallback \'SDGs 17\'');
+assert(jsLower.includes('ZERO-DEFAULT'), 'frontend rkpdes.js menandai kebijakan ZERO-DEFAULT');
+assert(jsLower.includes('function openEditSdgsModal'), 'Fungsi openEditSdgsModal terdefinisi');
+assert(jsLower.includes('function saveEditSdgs'), 'Fungsi saveEditSdgs terdefinisi');
+assert(jsLower.includes('function closeEditSdgsModal'), 'Fungsi closeEditSdgsModal terdefinisi');
+assert(jsLower.includes('cleanSdgsDisplay'), 'Helper cleanSdgsDisplay terdefinisi (strip label SDGs)');
+assert(jsLower.includes("e.target.closest('.cell-edit-sdgs')"), 'Event delegation mendengarkan sel .cell-edit-sdgs');
+assert(jsLower.includes('data-sdgs-side'), 'Atribut data-sdgs-side (semula/menjadi) pada sel SDGs');
+assert(jsLower.includes("'/api/rkpdes/perubahan/sdgs'"), 'saveEditSdgs mengirim ke endpoint persist database');
+assert(htmlCode.includes('id="modalEditSdgs"'), 'Modal edit SDGs ada di rkpdes.html');
+assert(htmlCode.includes('id="input-sdgs-semula"'), 'Input SDGs SEMULA ada di modal');
+assert(htmlCode.includes('id="input-sdgs-menjadi"'), 'Input SDGs MENJADI ada di modal');
+assert(jsLower.includes('__sdgs__'), 'Fallback localStorage SDGs tersedia');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

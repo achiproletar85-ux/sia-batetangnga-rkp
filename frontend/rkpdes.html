@@ -394,6 +394,44 @@
         </div>
     </div>
 
+    <!-- MODAL EDIT NOMOR SDGs (SEMULA & MENJADI) -->
+    <div id="modalEditSdgs" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden no-print">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+            <div class="px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-800 text-white flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fas fa-globe"></i> Edit Mendukung SDGs Ke-
+                </h3>
+                <button type="button" onclick="closeEditSdgsModal()" class="text-white/80 hover:text-white text-lg">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form onsubmit="saveEditSdgs(event)" class="p-6 space-y-4">
+                <input type="hidden" id="edit-sdgs-item-key" />
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Kegiatan:</label>
+                    <div id="edit-sdgs-kegiatan-title" class="text-xs font-extrabold text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200"></div>
+                </div>
+                <p class="text-[11px] text-slate-400 italic -mt-2">Isi hanya nomor SDGs (contoh: 3). Kosongkan lalu simpan untuk menghapus nilai.</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-amber-700 mb-1">SDGs SEMULA:</label>
+                        <input type="text" id="input-sdgs-semula" class="input-field text-center font-bold" placeholder="cth: 3 / kosong" />
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-indigo-700 mb-1">SDGs MENJADI:</label>
+                        <input type="text" id="input-sdgs-menjadi" class="input-field text-center font-bold" placeholder="cth: 8 / kosong" />
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                    <button type="button" onclick="closeEditSdgsModal()" class="btn-outline">Batal</button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save mr-1"></i> Simpan SDGs
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="rkpdes.js"></script>
     <script>
         fetch('/components/navbar.html')

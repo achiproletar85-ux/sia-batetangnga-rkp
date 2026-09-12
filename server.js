@@ -258,6 +258,24 @@ function writeRpjmdesStorage(data) {
     return; // ✅ Penyimpanan lokal NONAKTIF
 }
 
+// ---- SDGs helpers (ZERO-DEFAULT) ------------------------------------------
+// Membersihkan nilai SDGs mentah: buang prefix "SDGs", null/'-'/kosong => ''.
+// TIDAK PERNAH mengarang nilai default (mis. 17) bila data tidak ada.
+function cleanSdgsRaw(v) {
+    if (v === null || v === undefined) return '';
+    const s = String(v).trim();
+    if (!s || s === '-' || s.toLowerCase() === 'null') return '';
+    const raw = s.replace(/^sdgs?\s*/i, '').trim();
+    return raw || '';
+}
+
+// Format label tampilan: "3" -> "SDGs 3"; sudah berprefix dibiarkan; kosong => ''.
+function formatSdgsLabel(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return '';
+    return s.toLowerCase().startsWith('sdg') ? s : `SDGs ${s}`;
+}
+
 function isTableMissingError(error) {
     const message = String(error?.message || '').toLowerCase();
     // common Postgres / PostgREST messages when a table is missing
@@ -1767,7 +1785,8 @@ function resolveRpjmStandar(kode, currentBidang, currentJenisBidang, currentNama
         jenis_bidang,
         jenis_kegiatan,
         nama_kegiatan,
-        sdgs: (matched && matched.sdgs) || '17',
+        // Tanpa default tebakan: bila data SDGs tidak ditemukan, kembalikan string kosong
+        sdgs: (matched && matched.sdgs) || '',
         data_eksisting: (matched && (matched.data_existing || matched.data_eksisting)) || 'Kegiatan operasional & pembangunan desa',
         data_existing: (matched && (matched.data_existing || matched.data_eksisting)) || 'Kegiatan operasional & pembangunan desa',
         manfaat_l: matched ? matched.manfaat_l : null,
@@ -6127,14 +6146,14 @@ app.get('/api/rkpdes', async (req, res) => {
                                (row.volume ? `${row.volume} ${row.satuan || ''}`.trim() : '1 Kegiatan');
                 row.target_capaian = target;
 
-                const sdg = isValidVal(row.mendukung_sdgs) ? row.mendukung_sdgs :
-                            isValidVal(row.sdgs) ? row.sdgs :
-                            isValidVal(rpjmObj.mendukung_sdgs) ? rpjmObj.mendukung_sdgs :
-                            isValidVal(rpjmObj.sdgs) ? rpjmObj.sdgs :
-                            (std && (std.sdgs || std.mendukung_sdgs)) || '17';
-                const sdgFormatted = String(sdg).toLowerCase().startsWith('sdg') ? String(sdg) : `SDGs ${sdg}`;
-                row.mendukung_sdgs = sdgFormatted;
-                row.sdgs = String(sdg).replace(/^sdgs?\s*/i, '');
+                // ZERO-DEFAULT SDGs: tanpa data sumber => kosong; TIDAK mengarang default (mis. 17)
+                const sdg = isValidVal(row.sdgs) ? cleanSdgsRaw(row.sdgs) :
+                            isValidVal(row.mendukung_sdgs) ? cleanSdgsRaw(row.mendukung_sdgs) :
+                            isValidVal(rpjmObj.sdgs) ? cleanSdgsRaw(rpjmObj.sdgs) :
+                            isValidVal(rpjmObj.mendukung_sdgs) ? cleanSdgsRaw(rpjmObj.mendukung_sdgs) :
+                            (std ? cleanSdgsRaw(std.sdgs || std.mendukung_sdgs) : '');
+                row.mendukung_sdgs = formatSdgsLabel(sdg);
+                row.sdgs = sdg;
 
                 if (std) {
                     if (std.bidang) row.bidang = std.bidang;
@@ -6222,7 +6241,7 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                         satuan: rb.satuan || 'Paket',
                         prakiraan_biaya: Number(rb.jumlah_anggaran || 0),
                         sumber_pembiayaan: rb.sumber_dana || 'DDS',
-                        mendukung_sdgs: 'SDGs 17',
+                        mendukung_sdgs: '-',
                         data_eksisting: '-',
                         penerima_manfaat: '-',
                         total_manfaat: null,
@@ -6283,7 +6302,15 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             const volMenjadi = p ? String(p.volume || volSemula) : volSemula;
             const satMenjadi = p ? String(p.satuan || satSemula) : satSemula;
 
-            const sdgsVal = m.mendukung_sdgs || resolved.sdgs || (resolved.matchedStd && resolved.matchedStd.sdgs) || 'SDGs 17';
+            // ZERO-DEFAULT SDGs: SEMULA dari kolom sdgs baris murni; MENJADI dari
+            // kolom mendukung_sdgs (hasil edit tersimpan) / data RAB perubahan bila ada.
+            // Tanpa data => '-' — tidak pernah menebak default seperti SDGs 17.
+            const sdgsSemulaVal = cleanSdgsRaw(m.sdgs || m.mendukung_sdgs || resolved.sdgs || (resolved.matchedStd && resolved.matchedStd.sdgs) || '');
+            const sdgsMenjadiVal = cleanSdgsRaw(m.mendukung_sdgs) ||
+                                   (p ? cleanSdgsRaw(p.mendukung_sdgs || p.sdgs) : '') ||
+                                   sdgsSemulaVal;
+            const sdgsSemulaLabel = sdgsSemulaVal ? formatSdgsLabel(sdgsSemulaVal) : '-';
+            const sdgsMenjadiLabel = sdgsMenjadiVal ? formatSdgsLabel(sdgsMenjadiVal) : '-';
             const dataEksistingVal = m.data_eksisting || resolved.data_eksisting || (resolved.matchedStd && (resolved.matchedStd.data_existing || resolved.matchedStd.data_eksisting)) || 'Kegiatan operasional & pembangunan desa';
             const lokasiVal = m.lokasi || (p ? p.lokasi : 'Desa Batetangnga');
             const manfaatVal = m.total_manfaat ? `${m.total_manfaat} Orang` : (m.penerima_manfaat && m.penerima_manfaat !== '-' ? m.penerima_manfaat : ((resolved.total_manfaat || (resolved.matchedStd && resolved.matchedStd.total_manfaat)) ? `${resolved.total_manfaat || resolved.matchedStd.total_manfaat} Orang` : '-'));
@@ -6376,7 +6403,7 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                 penerima_p_menjadi: lpRtmMenjadi.p,
                 penerima_rtm_menjadi: lpRtmMenjadi.rtm,
                 semula: {
-                    sdgs: sdgsVal,
+                    sdgs: sdgsSemulaLabel,
                     data_eksisting: dataEksistingVal,
                     lokasi: m.lokasi || 'Desa Batetangnga',
                     volume: volSemula,
@@ -6392,7 +6419,7 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                     pola_pelaksanaan: m.pola_pelaksanaan || 'Swakelola'
                 },
                 menjadi: {
-                    sdgs: sdgsVal,
+                    sdgs: sdgsMenjadiLabel,
                     data_eksisting: dataEksistingVal,
                     lokasi: lokasiVal,
                     volume: volMenjadi,
@@ -6550,6 +6577,69 @@ app.put('/api/rkpdes', async (req, res) => {
 });
 
 // DELETE /api/rkpdes?id=...
+// PUT /api/rkpdes/perubahan/sdgs — simpan nomor SDGs hasil edit manual admin
+// pada lembar RKPDes Perubahan (sisi SEMULA dan/atau MENJADI).
+// Pemetaan persist di tabel rkpdes: sdgs = SEMULA, mendukung_sdgs = MENJADI.
+// ZERO-DEFAULT: nilai kosong disimpan '-' (eksplisit), bukan tebakan.
+app.put('/api/rkpdes/perubahan/sdgs', async (req, res) => {
+    try {
+        const { tahun, kode_unik_full, id, sdgs_semula, sdgs_menjadi } = req.body || {};
+        const tahunInt = parseInt(tahun, 10);
+        const kode = String(kode_unik_full || '').trim();
+
+        if (!tahunInt || (!kode && (id === undefined || id === null || id === ''))) {
+            return res.status(400).json({ success: false, error: 'Parameter tahun dan (kode_unik_full | id) wajib diisi.' });
+        }
+
+        const cleanSemula = cleanSdgsRaw(sdgs_semula);
+        const cleanMenjadi = cleanSdgsRaw(sdgs_menjadi);
+        const labelSemula = cleanSemula ? formatSdgsLabel(cleanSemula) : '-';
+        const labelMenjadi = cleanMenjadi ? formatSdgsLabel(cleanMenjadi) : '-';
+
+        const updatePayload = {
+            sdgs: cleanSemula || '-',
+            mendukung_sdgs: labelMenjadi,
+            updated_at: new Date().toISOString()
+        };
+
+        const runQuery = () => {
+            let q = supabase.from('rkpdes').update(updatePayload);
+            if (id !== undefined && id !== null && id !== '' && !isNaN(Number(id))) {
+                q = q.eq('id', Number(id));
+            } else {
+                q = q.eq('kode_unik_full', kode);
+            }
+            q = q.eq('tahun', tahunInt);
+            return q.select('id, kode_unik_full, sdgs, mendukung_sdgs');
+        };
+
+        const { data, error } = await withTransientRetry(runQuery);
+
+        if (error) {
+            console.error('❌ Error PUT /api/rkpdes/perubahan/sdgs:', error.message);
+            return res.status(500).json({ success: false, error: error.message });
+        }
+        if (!data || data.length === 0) {
+            return res.status(404).json({ success: false, error: 'Baris rkpdes tidak ditemukan untuk tahun/kode tersebut.' });
+        }
+
+        return res.json({
+            success: true,
+            message: 'Nomor SDGs berhasil disimpan.',
+            data: {
+                ...data[0],
+                sdgs_semula: cleanSemula || null,
+                sdgs_menjadi: cleanMenjadi || null,
+                sdgs_semula_label: labelSemula,
+                sdgs_menjadi_label: labelMenjadi
+            }
+        });
+    } catch (error) {
+        console.error('❌ Unhandled PUT /api/rkpdes/perubahan/sdgs:', error.message);
+        return res.status(500).json({ success: false, error: error.message || 'Kesalahan internal server.' });
+    }
+});
+
 app.delete('/api/rkpdes', async (req, res) => {
     try {
         const { id } = req.query;
@@ -6632,10 +6722,11 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
                        isValidVal(rpjmObj.target_capaian) ? rpjmObj.target_capaian :
                        (rb.volume ? `${rb.volume} ${rb.satuan || ''}`.trim() : '1 Kegiatan');
 
-        const sdg = isValidVal(rpjmObj.sdgs) ? rpjmObj.sdgs :
-                    isValidVal(rpjmObj.mendukung_sdgs) ? rpjmObj.mendukung_sdgs :
-                    (std && (std.sdgs || std.mendukung_sdgs)) || '17';
-        const sdgFormatted = String(sdg).toLowerCase().startsWith('sdg') ? String(sdg) : `SDGs ${sdg}`;
+        // ZERO-DEFAULT SDGs: tanpa data sumber => string kosong (kolom boleh kosong)
+        const sdg = isValidVal(rpjmObj.sdgs) ? cleanSdgsRaw(rpjmObj.sdgs) :
+                    isValidVal(rpjmObj.mendukung_sdgs) ? cleanSdgsRaw(rpjmObj.mendukung_sdgs) :
+                    (std ? cleanSdgsRaw(std.sdgs || std.mendukung_sdgs) : '');
+        const sdgFormatted = formatSdgsLabel(sdg);
 
         const totManfaat = (std && std.total_manfaat != null) ? Number(std.total_manfaat) : 1;
         const waktu = (std && std.waktu_pelaksanaan && std.waktu_pelaksanaan !== String(tahunInt)) ? std.waktu_pelaksanaan : '12 Bulan';
@@ -6668,7 +6759,7 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
             rencana_pelaksana: 'Kaur Perencanaan',
             status_rab: 'Sudah Dibuat',
             data_eksisting: dataEks,
-            sdgs: String(sdg).replace(/^sdgs?\s*/i, ''),
+            sdgs: sdg,
             mendukung_sdgs: sdgFormatted,
             verifikasi_proposal: 'Ya',
             stunting: (rb.nama_kegiatan && rb.nama_kegiatan.toLowerCase().includes('ibu hamil')) ? 'Ya' : 'Tidak'
