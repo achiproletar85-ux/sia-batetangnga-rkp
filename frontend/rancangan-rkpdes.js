@@ -766,7 +766,7 @@ function convertRpjmItemToRancangan(rpjmItem, targetYear) {
         manfaat_l: laki,
         manfaat_p: perempuan,
         manfaat_rtm: rtm,
-        total_manfaat: laki + perempuan + rtm,
+        total_manfaat: laki + perempuan,
         prakiraan_biaya: biaya,
         pagu_rpjm: biaya,
         sumber_pembiayaan: rpjmItem.sumber_dana || rpjmItem.sumber_pembiayaan || 'ADD',

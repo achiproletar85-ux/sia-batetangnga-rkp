@@ -20,7 +20,7 @@ function buildDefaultPayload(inputData = {}) {
     const manfaatL = parseInt(inputData.manfaat_l, 10) || 0;
     const manfaatP = parseInt(inputData.manfaat_p, 10) || 0;
     const manfaatRtm = parseInt(inputData.manfaat_rtm, 10) || 0;
-    const totalManfaat = manfaatL + manfaatP + manfaatRtm;
+    const totalManfaat = manfaatL + manfaatP; // Total penerima manfaat: Laki-laki + Perempuan (tanpa RTM)
 
     const dirasakan = parseInt(inputData.dirasakan, 10) || 0;
     const parah = parseInt(inputData.parah, 10) || 0;

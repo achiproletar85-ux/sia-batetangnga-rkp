@@ -1844,7 +1844,7 @@ function duMapFromRancangan(row, tahunInt) {
     const laki = parseInt(row.manfaat_l ?? row.penerima_laki ?? 0, 10) || 0;
     const perempuan = parseInt(row.manfaat_p ?? row.penerima_perempuan ?? 0, 10) || 0;
     const rtm = parseInt(row.manfaat_rtm ?? row.penerima_rtm ?? 0, 10) || 0;
-    const totalManfaat = row.total_manfaat || (laki + perempuan + rtm);
+    const totalManfaat = row.total_manfaat || (laki + perempuan);
     const penerimaStr = totalManfaat > 0
         ? `${totalManfaat} Orang (${laki} L, ${perempuan} P, ${rtm} RTM)`
         : (row.penerima_manfaat || '-');
@@ -2121,7 +2121,7 @@ function namaBidangPrioritas(bidangNum) {
 }
 
 function totalManfaatPrioritas(penerimaLaki, penerimaPerempuan, penerimaRtm) {
-    return (parseInt(penerimaLaki, 10) || 0) + (parseInt(penerimaPerempuan, 10) || 0) + (parseInt(penerimaRtm, 10) || 0);
+    return (parseInt(penerimaLaki, 10) || 0) + (parseInt(penerimaPerempuan, 10) || 0);
 }
 
 // Map payload (format frontend) -> kolom tabel prioritas_usulan
@@ -2441,7 +2441,7 @@ function buildRancanganInsertItem(r, tahunInt) {
         manfaat_l: laki,
         manfaat_p: perempuan,
         manfaat_rtm: rtm,
-        total_manfaat: laki + perempuan + rtm,
+        total_manfaat: laki + perempuan,
         prakiraan_biaya: Number(r.prakiraan_biaya ?? r.pagu_rpjm ?? 0),
         pagu_rpjm: Number(r.prakiraan_biaya ?? r.pagu_rpjm ?? 0),
         sumber_pembiayaan: String(r.sumber_pembiayaan || r.sumber_dana || 'ADD'),
@@ -2531,7 +2531,7 @@ app.get('/api/rancangan-rkpdes/tarik-rpjm', async (req, res) => {
                 manfaat_l: laki,
                 manfaat_p: perempuan,
                 manfaat_rtm: rtm,
-                total_manfaat: laki + perempuan + rtm,
+                total_manfaat: laki + perempuan,
                 prakiraan_biaya: biaya,
                 pagu_rpjm: biaya,
                 sumber_pembiayaan: row.sumber_dana || row.sumber_pembiayaan || 'ADD',
@@ -2597,7 +2597,7 @@ app.get('/api/rancangan-rkpdes/tarik-prioritas', async (req, res) => {
             manfaat_l: parseInt(row.manfaat_l ?? 0, 10) || 0,
             manfaat_p: parseInt(row.manfaat_p ?? 0, 10) || 0,
             manfaat_rtm: parseInt(row.manfaat_rtm ?? 0, 10) || 0,
-            total_manfaat: parseInt(row.total_manfaat ?? ((parseInt(row.manfaat_l ?? 0, 10) || 0) + (parseInt(row.manfaat_p ?? 0, 10) || 0) + (parseInt(row.manfaat_rtm ?? 0, 10) || 0)), 10),
+            total_manfaat: parseInt(row.total_manfaat ?? ((parseInt(row.manfaat_l ?? 0, 10) || 0) + (parseInt(row.manfaat_p ?? 0, 10) || 0)), 10),
             prakiraan_biaya: Number(row.pagu_rpjm ?? row.prakiraan_biaya ?? 0),
             pagu_rpjm: Number(row.pagu_rpjm ?? row.prakiraan_biaya ?? 0),
             sumber_pembiayaan: row.sumber_dana || 'ADD',
@@ -3298,8 +3298,8 @@ app.post('/api/du-rkpdes/tetapkan-prioritas', async (req, res) => {
                     penerima_laki: laki,
                     penerima_perempuan: perempuan,
                     penerima_rtm: rtm,
-                    penerima_manfaat: r.penerima_manfaat || (laki + perempuan + rtm) || '',
-                    total_manfaat: laki + perempuan + rtm,
+                    penerima_manfaat: r.penerima_manfaat || (laki + perempuan) || '',
+                    total_manfaat: laki + perempuan,
                     waktu_pelaksanaan: String(r.waktu_pelaksanaan || '12 Bulan'),
                     prakiraan_biaya: biaya,
                     pagu_rpjm: biaya,
@@ -4718,11 +4718,11 @@ app.post('/api/rpjmdes', async (req, res) => {
             }
         }
 
-        // Hitung total manfaat
+        // Hitung total manfaat (Laki-laki + Perempuan, tanpa RTM)
         const manfaatL = parseInt(payload.manfaat_l) || 0;
         const manfaatP = parseInt(payload.manfaat_p) || 0;
         const manfaatRTM = parseInt(payload.manfaat_rtm) || 0;
-        payload.total_manfaat = manfaatL + manfaatP + manfaatRTM;
+        payload.total_manfaat = manfaatL + manfaatP;
         payload.penerima_manfaat_bg = payload.total_manfaat;
 
         // Hitung skor masalah
@@ -4786,7 +4786,7 @@ app.put('/api/rpjmdes/:id', async (req, res) => {
         const manfaatL = parseInt(payload.manfaat_l) || 0;
         const manfaatP = parseInt(payload.manfaat_p) || 0;
         const manfaatRTM = parseInt(payload.manfaat_rtm) || 0;
-        payload.total_manfaat = manfaatL + manfaatP + manfaatRTM;
+        payload.total_manfaat = manfaatL + manfaatP;
         payload.penerima_manfaat_bg = payload.total_manfaat;
 
         const { data, error } = await supabase

@@ -230,7 +230,7 @@ async function buildPayload(row, headerKeys, prefixState) {
     record.nama_kegiatan = record.jenis_kegiatan || `Kegiatan ${record.kode_unik_full}`;
   }
 
-  record.total_manfaat = (parseInt(record.manfaat_l, 10) || 0) + (parseInt(record.manfaat_p, 10) || 0) + (parseInt(record.manfaat_rtm, 10) || 0);
+  record.total_manfaat = (parseInt(record.manfaat_l, 10) || 0) + (parseInt(record.manfaat_p, 10) || 0);
   record.penerima_manfaat_bg = record.total_manfaat;
 
   record.total_kesesuaian = (parseInt(record.visi_misi, 10) || 0) + (parseInt(record.pokok_bpd, 10) || 0) + (parseInt(record.program_masyarakat, 10) || 0) + (parseInt(record.prioritas_sdgs_skor, 10) || 0);

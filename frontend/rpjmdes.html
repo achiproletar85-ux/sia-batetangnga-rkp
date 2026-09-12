@@ -583,6 +583,7 @@
                         <th style="width:120px;">Kode Unik</th>
                         <th>Nama Kegiatan</th>
                         <th style="width:150px;">Bidang</th>
+                        <th style="width:140px;">Lokasi</th>
                         <th style="width:120px;">Pagu (Rp)</th>
                         <th style="width:80px;">Target</th>
                         <th style="width:70px;">Ranking</th>
@@ -591,7 +592,7 @@
                 </thead>
                 <tbody id="table-body">
                     <tr>
-                        <td colspan="8" class="text-center py-12 text-slate-400">
+                        <td colspan="9" class="text-center py-12 text-slate-400">
                             <i class="fas fa-spinner fa-spin text-2xl"></i>
                             <p class="mt-2 font-medium">Memuat data...</p>
                         </td>
@@ -986,8 +987,7 @@ async function generateNextKode(baseKode) {
     function hitungTotalManfaat() {
         const l = parseInt(document.getElementById('form-manfaat-l').value) || 0;
         const p = parseInt(document.getElementById('form-manfaat-p').value) || 0;
-        const rtm = parseInt(document.getElementById('form-manfaat-rtm').value) || 0;
-        document.getElementById('form-total-manfaat').value = l + p + rtm;
+        document.getElementById('form-total-manfaat').value = l + p;
     }
 
     // ========== HITUNG SKOR MASALAH ==========
@@ -1110,7 +1110,7 @@ async function generateNextKode(baseKode) {
         if (!data || data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="8" class="text-center py-10 text-slate-400">
+                    <td colspan="9" class="text-center py-10 text-slate-400">
                         <i class="fas fa-inbox text-3xl"></i>
                         <p class="mt-2 font-medium">Belum ada data RPJMDes</p>
                     </td>
@@ -1127,6 +1127,7 @@ async function generateNextKode(baseKode) {
             const no = (currentPage - 1) * 50 + index + 1;
             const target = item.target_2026 === '2026' ? '✅' : '-';
             const rankClass = item.ranking ? `badge-${item.ranking}` : 'badge-V';
+            const lokasi = item.lokasi_kegiatan || item.lokasi || '-';
 
             html += `
                 <tr class="hover:bg-slate-50 transition-colors">
@@ -1134,6 +1135,7 @@ async function generateNextKode(baseKode) {
                     <td class="font-mono text-xs text-indigo-600 font-medium">${item.kode_unik_full || '-'}</td>
                     <td class="font-medium">${item.nama_kegiatan || '-'}</td>
                     <td class="text-sm text-slate-600">${item.bidang || '-'}</td>
+                    <td class="text-sm text-slate-600">${lokasi}</td>
                     <td class="text-right font-medium">${formatRupiah(item.pagu_rpjm || 0)}</td>
                     <td class="text-center"><span class="target-badge ${target === '✅' ? 'target-yes' : 'target-no'}">${target}</span></td>
                     <td class="text-center"><span class="badge-ranking ${rankClass}">${item.ranking || '-'}</span></td>
@@ -1331,7 +1333,7 @@ async function generateNextKode(baseKode) {
             manfaat_l: parseInt(document.getElementById('form-manfaat-l').value) || 0,
             manfaat_p: parseInt(document.getElementById('form-manfaat-p').value) || 0,
             manfaat_rtm: parseInt(document.getElementById('form-manfaat-rtm').value) || 0,
-            total_manfaat: parseInt(document.getElementById('form-total-manfaat').value) || 0,
+            total_manfaat: (parseInt(document.getElementById('form-manfaat-l').value) || 0) + (parseInt(document.getElementById('form-manfaat-p').value) || 0),
             waktu_pelaksanaan: document.getElementById('form-waktu').value,
             anggaran_perubahan: parseRupiah(document.getElementById('form-anggaran-perubahan').value),
             sumber_dana: document.getElementById('form-sumber-dana').value,
