@@ -6714,20 +6714,39 @@ app.delete('/api/program-masuk-desa', async (req, res) => {
 app.get('/api/rktl', async (req, res) => {
     try {
         const { tahun } = req.query;
-        if (!tahun) return res.status(400).json({ success: false, error: 'Tahun diperlukan' });
+        const tahunInt = parseInt(tahun, 10);
+        if (!tahunInt) {
+            return res.json({ success: true, data: [], message: 'Data belum tersedia' });
+        }
 
         const { data, error } = await supabase
             .from('rktl')
             .select(RKTL_COLUMNS)
-            .eq('tahun', parseInt(tahun))
-            .maybeSingle();
-        if (error) throw error;
+            .eq('tahun', tahunInt)
+            .order('updated_at', { ascending: false })
+            .limit(1);
 
-        const items = (data && Array.isArray(data.rktl_items)) ? data.rktl_items : [];
-        res.json({ success: true, data: items });
+        if (error) {
+            console.error('❌ Error GET /api/rktl:', error.message);
+            return res.json({ success: true, data: [], message: 'Data belum tersedia' });
+        }
+
+        if (!data || data.length === 0) {
+            return res.json({ success: true, data: [], message: 'Data belum tersedia' });
+        }
+
+        const record = data[0];
+        const items = (record && Array.isArray(record.rktl_items)) ? record.rktl_items : [];
+        if (items.length > 0 && record) {
+            if (!items[0].tanggal_ttd && record.tanggal_ttd) items[0].tanggal_ttd = record.tanggal_ttd;
+            if (!items[0].ketua_tim && record.ketua_tim) items[0].ketua_tim = record.ketua_tim;
+            if (!items[0].fasilitator && record.fasilitator) items[0].fasilitator = record.fasilitator;
+        }
+
+        return res.json({ success: true, data: items });
     } catch (error) {
         console.error('❌ Error GET /api/rktl:', error.message);
-        res.status(500).json({ success: false, error: error.message });
+        return res.json({ success: true, data: [], message: 'Data belum tersedia' });
     }
 });
 

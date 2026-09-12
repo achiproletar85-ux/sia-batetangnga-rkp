@@ -83,7 +83,7 @@ async function loadRKTLData() {
 
         // Fetch RKTL data
         const rktlRes = await fetch(`/api/rktl?tahun=${tahun}`);
-        const rktlJson = await rktlRes.json();
+        const rktlJson = rktlRes.ok ? await rktlRes.json() : { success: true, data: [] };
 
         if (rktlJson.success && Array.isArray(rktlJson.data) && rktlJson.data.length > 0) {
             rktlRowsData = rktlJson.data;
