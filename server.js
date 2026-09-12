@@ -3272,19 +3272,17 @@ app.get('/api/prioritas-rkpdes', async (req, res) => {
                 .eq('tahun', tahunInt);
             if (fetchErr) throw fetchErr;
 
-            if (existingPrioritas && existingPrioritas.length > 0) {
-                allRows = existingPrioritas;
-                allRows.sort((a, b) => comparePrioritasRanking(a, b));
-                prioritasRkpdesCache.set(tahunInt, {
-                    rows: allRows,
-                    timestamp: Date.now()
-                });
-            }
+            allRows = existingPrioritas || [];
+            allRows.sort((a, b) => comparePrioritasRanking(a, b));
+            prioritasRkpdesCache.set(tahunInt, {
+                rows: allRows,
+                timestamp: Date.now()
+            });
         }
 
-        // 3. Hanya jika data di tabel prioritas_rkpdes masih KOSONG sama sekali atau forceRefresh diminta:
+        // 3. Hanya jika forceRefresh / sync eksplisit diminta:
         // Lakukan sinkronisasi komprehensif dari rancangan_rkpdes & rpjmdes_standar
-        if (!allRows || forceRefresh) {
+        if (forceRefresh) {
             const { data: rancanganRowsRaw } = await supabase
                 .from('rancangan_rkpdes')
                 .select(RANCANGAN_LIST_COLUMNS)

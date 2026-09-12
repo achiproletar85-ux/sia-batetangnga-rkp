@@ -146,19 +146,6 @@ async function loadPrioritasData(forceReload = false) {
             rawData = json.data || [];
         }
 
-        if (rawData.length === 0 && autoSyncTahunPrioritas !== year) {
-            autoSyncTahunPrioritas = year;
-            console.log(`🔄 DB prioritas_rkpdes kosong untuk tahun ${year}, menarik otomatis dari Rancangan RKPDes...`);
-            await fetch('/api/prioritas-rkpdes/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tahun: year }),
-                signal: activePrioritasAbortController.signal
-            });
-            isFetchingPrioritas = false;
-            return loadPrioritasData(true);
-        }
-
         const normalizedData = rawData.map(item => ({
             id: item.id,
             _src: 'prioritas',
@@ -506,10 +493,29 @@ function renderTabelPrioritas(data, forceSyncAll = false, isForPrint = false) {
     }
 
     if (!displayData || displayData.length === 0) {
+        const yearVal = document.getElementById('select-year')?.value || '2027';
         tbody.innerHTML = `
             <tr>
-                <td colspan="12" class="text-center py-8 text-slate-400 font-sans">
-                    ${prioritasSearchKeyword ? '🔍 Tidak ada kegiatan yang cocok dengan kata kunci pencarian.' : 'Belum ada data kegiatan pada tahun & bidang ini.'}
+                <td colspan="12" class="text-center py-10 font-sans">
+                    <div class="flex flex-col items-center justify-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center text-lg shadow-sm">
+                            <i class="fas ${prioritasSearchKeyword ? 'fa-search' : 'fa-inbox'}"></i>
+                        </div>
+                        <div class="text-center max-w-md">
+                            <p class="text-slate-700 font-bold text-sm">
+                                ${prioritasSearchKeyword ? 'Tidak ada kegiatan yang cocok' : `Belum Ada Data Prioritas Tahun ${yearVal}`}
+                            </p>
+                            <p class="text-slate-500 text-xs mt-1">
+                                ${prioritasSearchKeyword 
+                                    ? `Tidak ditemukan kegiatan yang cocok dengan kata kunci "${esc(prioritasSearchKeyword)}".` 
+                                    : 'Data matriks prioritas RKPDes tahun ini belum disinkronkan. Klik tombol di bawah untuk menarik usulan dari Rancangan RKPDes secara instan.'}
+                            </p>
+                        </div>
+                        ${!prioritasSearchKeyword ? `
+                        <button type="button" onclick="tarikDariRancanganRKPDes(true)" class="mt-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-md shadow-amber-500/20 transition flex items-center gap-2 cursor-pointer">
+                            <i class="fas fa-sync"></i> Tarik Data dari Rancangan RKPDes Sekarang
+                        </button>` : ''}
+                    </div>
                 </td>
             </tr>
         `;
