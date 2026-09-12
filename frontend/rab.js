@@ -407,25 +407,27 @@ async function loadRabActivities() {
 function renderRabActivityOptions() {
     const selectElement = document.getElementById('select-kode-unik');
     if (selectElement) {
-        selectElement.innerHTML = buildKodeOptionsHtml(rabActivitiesGlobal);
+        selectElement.innerHTML = '<option value="">-- Pilih Kode Unik Kegiatan RAB --</option>' + buildKodeOptionsHtml(rabActivitiesGlobal);
     }
     // Isi juga dropdown kegiatan di dalam form rincian (agar terhindar dari salah pilih)
     const formSelect = document.getElementById('select-kode-unik-form');
     if (formSelect) {
-        const current = selectedRpjm ? String(selectedRpjm.kode_unik_full || '').trim() : '';
+        const current = selectedRpjm ? String(selectedRpjm.kode_unik_full || selectedRpjm.kode_unik || '').trim() : '';
         formSelect.innerHTML = '<option value="">-- Pilih Kegiatan / Kode Unik --</option>' + buildKodeOptionsHtml(rabActivitiesGlobal, current);
     }
 }
 
-// Bangun <option> daftar kegiatan ditarik dari rancangan-rkpdes.
+// Bangun <option> daftar kegiatan ditarik dari tabel rab & rancangan-rkpdes.
 // Label menampilkan [Kode Unik Full] Nama Kegiatan agar mudah dibaca & dipilih.
 function buildKodeOptionsHtml(list, selectedKode) {
     let html = '';
+    const normSel = String(selectedKode || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
     (list || []).forEach(item => {
         const kode = String(item.kode_unik_full || item.kode_unik || '').trim();
-        const nama = item.nama_kegiatan || item.sub_kegiatan || 'Kegiatan Tanpa Nama';
+        const nama = item.nama_kegiatan || item.sub_kegiatan || item.uraian || 'Kegiatan Tanpa Nama';
         const label = kode ? `[${kode}] ${nama}` : nama;
-        const isSel = selectedKode && kode === selectedKode ? ' selected' : '';
+        const normKode = kode.replace(/\.+$/, '').replace(/^PEM\./i, '');
+        const isSel = normSel && (kode === selectedKode || normKode === normSel) ? ' selected' : '';
         html += `<option value="${kode}"${isSel}>${label}</option>`;
     });
     return html;
@@ -452,8 +454,8 @@ function filterRpjmItems() {
         itemsToRender = [...rabActivitiesGlobal];
     } else {
         itemsToRender = rabActivitiesGlobal.filter(item => {
-            const k1 = String(item.kode_unik_full || '').toLowerCase();
-            const nm = String(item.nama_kegiatan || '').toLowerCase();
+            const k1 = String(item.kode_unik_full || item.kode_unik || '').toLowerCase();
+            const nm = String(item.nama_kegiatan || item.sub_kegiatan || item.uraian || '').toLowerCase();
             const bd = String(item.bidang || '').toLowerCase();
             return k1.includes(search) || nm.includes(search) || bd.includes(search);
         });
@@ -465,7 +467,7 @@ function filterRpjmItems() {
     }
     const formSelect = document.getElementById('select-kode-unik-form');
     if (formSelect) {
-        const current = selectedRpjm ? String(selectedRpjm.kode_unik_full || '').trim() : '';
+        const current = selectedRpjm ? String(selectedRpjm.kode_unik_full || selectedRpjm.kode_unik || '').trim() : '';
         formSelect.innerHTML = '<option value="">-- Pilih Kegiatan / Kode Unik --</option>' + buildKodeOptionsHtml(itemsToRender, current);
     }
 }
@@ -508,12 +510,23 @@ async function selectRpjm() {
         return;
     }
 
-    selectedRpjm = rabActivitiesGlobal.find(item => String(item.kode_unik_full || '').trim() === selectedValue) || null;
+    const rawVal = String(selectedValue || '').trim();
+    const cleanSel = rawVal.replace(/\.+$/, '').replace(/^PEM\./i, '');
+
+    selectedRpjm = rabActivitiesGlobal.find(item => {
+        const k = String(item.kode_unik_full || item.kode_unik || '').trim();
+        const kClean = k.replace(/\.+$/, '').replace(/^PEM\./i, '');
+        return k === rawVal || kClean === cleanSel;
+    }) || null;
 
     // Fallback: jika kode tak dikenal di daftar kegiatan, gunakan baris RAB tersimpan
     // agar form tetap bisa dibuka/loaded dari daftar "Buka".
     if (!selectedRpjm) {
-        selectedRpjm = savedRabList.find(r => String(r.kode_unik_full || r.kode_unik || '').trim() === selectedValue) || null;
+        selectedRpjm = savedRabList.find(r => {
+            const k = String(r.kode_unik_full || r.kode_unik || '').trim();
+            const kClean = k.replace(/\.+$/, '').replace(/^PEM\./i, '');
+            return k === rawVal || kClean === cleanSel;
+        }) || null;
     }
 
     if (!selectedRpjm) {

@@ -94,7 +94,10 @@ function loadKegiatanRAB() {
                 data.data.forEach(item => {
                     const opt = document.createElement('option');
                     opt.value = JSON.stringify(item);
-                    opt.textContent = `${item.nama_kegiatan || item.uraian || item.kegiatan || '-'} (${item.bidang || 'Pembangunan'})`;
+                    const kode = String(item.kode_unik_full || item.kode_unik || '').trim();
+                    const kodePrefix = kode ? `[${kode}] ` : '';
+                    const nama = item.nama_kegiatan || item.uraian || item.kegiatan || '-';
+                    opt.textContent = `${kodePrefix}${nama} (${item.bidang || 'Pembangunan'})`;
                     select.appendChild(opt);
                 });
             }

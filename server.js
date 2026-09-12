@@ -349,32 +349,48 @@ const RAB_FULL_COLUMNS_LEGACY = 'id, kode_unik, kode_unik_full, tahun, nama_kegi
 // DUA baris: MURNI dan PERUBAHAN.
 async function getRabFromDb(kode_unik_full, tahun, tipeAnggaran = RAB_TIPE_MURNI) {
     const tipe = normalizeRabTipe(tipeAnggaran);
+    const rawKode = String(kode_unik_full || '').trim();
+    if (!rawKode) return null;
 
-    const build = (cols) => {
+    const buildQuery = (targetKode, cols) => {
         let q = supabase
             .from(RAB_TABLE)
             .select(cols)
-            .eq('kode_unik_full', kode_unik_full)
+            .or(`kode_unik_full.eq.${targetKode},kode_unik.eq.${targetKode}`)
             .eq('tahun', tahun);
-        // Filter versi hanya pada query utama (kolom legacy tidak punya tipe_anggaran)
         if (cols === RAB_FULL_COLUMNS) {
             q = q.eq('tipe_anggaran', tipe);
         }
         return q.order('id', { ascending: true }).limit(1);
     };
 
-    const { data, error } = await rabQueryWithTipeFallback(build, RAB_FULL_COLUMNS, RAB_FULL_COLUMNS_LEGACY);
-
-    if (error) {
-        if (error.code === 'PGRST116') return null;
-        throw error;
+    // 1. Coba pencarian langsung dengan target kode awal
+    const { data, error } = await rabQueryWithTipeFallback((cols) => buildQuery(rawKode, cols), RAB_FULL_COLUMNS, RAB_FULL_COLUMNS_LEGACY);
+    if (!error && data) {
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row && (!row._tipe_fallback || normalizeRabTipe(row.tipe_anggaran) === tipe)) {
+            return row;
+        }
     }
 
-    const row = Array.isArray(data) ? data[0] : data;
-    if (!row) return null;
-    // Fallback legacy: seluruh baris dianggap MURNI, jadi versi PERUBAHAN tidak ada.
-    if (row._tipe_fallback && normalizeRabTipe(row.tipe_anggaran) !== tipe) return null;
-    return row;
+    // 2. Fallback pencarian fleksibel untuk variasi format titik akhir dan prefix PEM.
+    const kodeWithDot = rawKode.endsWith('.') ? rawKode : `${rawKode}.`;
+    const kodeNoDot = rawKode.replace(/\.+$/, '');
+    const kodeWithPem = rawKode.startsWith('PEM.') ? rawKode : `PEM.${rawKode}`;
+    const kodeWithoutPem = rawKode.replace(/^PEM\./i, '');
+    const fallbacks = [...new Set([kodeWithDot, kodeNoDot, kodeWithPem, kodeWithoutPem])].filter(k => k !== rawKode);
+
+    for (const altKode of fallbacks) {
+        const { data: altData, error: altErr } = await rabQueryWithTipeFallback((cols) => buildQuery(altKode, cols), RAB_FULL_COLUMNS, RAB_FULL_COLUMNS_LEGACY);
+        if (!altErr && altData) {
+            const altRow = Array.isArray(altData) ? altData[0] : altData;
+            if (altRow && (!altRow._tipe_fallback || normalizeRabTipe(altRow.tipe_anggaran) === tipe)) {
+                return altRow;
+            }
+        }
+    }
+
+    return null;
 }
 
 // ============================================
@@ -3149,24 +3165,38 @@ app.post('/api/rab/fix-data', async (req, res) => {
     }
 });
 
-// GET /api/rab-activities -> Mengambil daftar kegiatan unik untuk dropdown Pilih Kode Unik RAB
-// DIASOSIASIKAN LANGSUNG DARIPADA TENTANG: Ditarik dari tabel rancangan_rkpdes untuk tahun target.
+// GET /api/rab-activities -> Mengambil seluruh daftar kegiatan unik untuk dropdown Pilih Kode Unik RAB
+// Mengambil dari tabel public.rab (Murni & Perubahan) dan dipadukan dengan rancangan_rkpdes
 app.get('/api/rab-activities', async (req, res) => {
     try {
         const { tahun } = req.query;
         const tahunInt = parseInt(tahun, 10) || 2027;
-        console.log(`📡 GET /api/rab-activities (Ditarik dari rancangan_rkpdes) tahun: ${tahunInt}`);
+        console.log(`📡 GET /api/rab-activities (Tabel public.rab & rancangan_rkpdes) tahun: ${tahunInt}`);
 
-        let { data: rancanganRows, error } = await supabase
+        // 1. Ambil seluruh kegiatan aktif dari tabel public.rab untuk tahun target
+        // Tanpa membatasi tipe_anggaran (agar Murni maupun Perubahan ter-cover) dan tanpa batasan kaku.
+        const { data: rabRows, error: rabErr } = await supabase
+            .from(RAB_TABLE)
+            .select(RAB_LIST_COLUMNS)
+            .eq('tahun', tahunInt);
+
+        if (rabErr) {
+            console.warn('⚠️ Gagal mengambil public.rab di /api/rab-activities:', rabErr.message);
+        }
+
+        // 2. Ambil juga kegiatan yang ada di rancangan_rkpdes untuk tahun target
+        let { data: rancanganRows, error: rancanganErr } = await supabase
             .from('rancangan_rkpdes')
             .select(RANCANGAN_LIST_COLUMNS)
             .eq('tahun', tahunInt);
 
-        if (error) throw error;
+        if (rancanganErr) {
+            console.warn('⚠️ Gagal mengambil rancangan_rkpdes di /api/rab-activities:', rancanganErr.message);
+        }
 
-        // Auto-pull dari rpjmdes_standar jika DB rancangan_rkpdes masih kosong untuk tahun tersebut
-        if (!rancanganRows || rancanganRows.length === 0) {
-            console.log(`🔄 DB rancangan_rkpdes kosong untuk tahun ${tahunInt}, menarik dari rpjmdes_standar...`);
+        // Auto-pull dari rpjmdes_standar jika DB rancangan_rkpdes dan rab keduanya masih kosong untuk tahun tersebut
+        if ((!rancanganRows || rancanganRows.length === 0) && (!rabRows || rabRows.length === 0)) {
+            console.log(`🔄 DB rancangan_rkpdes & rab kosong untuk tahun ${tahunInt}, menarik dari rpjmdes_standar...`);
             const { data: stdData } = await supabase.from('rpjmdes_standar').select(RPJM_LOOKUP_COLUMNS);
             if (Array.isArray(stdData) && stdData.length > 0) {
                 const targetCol = `target_${tahunInt}`;
@@ -3205,13 +3235,49 @@ app.get('/api/rab-activities', async (req, res) => {
         const uniqueActivities = [];
         const seen = new Set();
 
-        (rancanganRows || []).forEach(item => {
-            const kode = String(item.kode_unik_full || item.kode_unik || '').trim();
-            if (kode && !seen.has(kode)) {
-                seen.add(kode);
+        // Prioritas 1: Seluruh kegiatan yang sudah tercatat di public.rab
+        (rabRows || []).forEach(item => {
+            const rawKode = String(item.kode_unik_full || item.kode_unik || '').trim();
+            const normalizedKode = rawKode.replace(/\.+$/, '');
+            if (rawKode && !seen.has(normalizedKode)) {
+                seen.add(normalizedKode);
+
+                let rpjmObj = {};
+                if (item.rpjm_data) {
+                    if (typeof item.rpjm_data === 'string') {
+                        try { rpjmObj = JSON.parse(item.rpjm_data); } catch (_) {}
+                    } else if (typeof item.rpjm_data === 'object') {
+                        rpjmObj = item.rpjm_data;
+                    }
+                }
+
                 uniqueActivities.push({
-                    kode_unik_full: kode,
-                    kode_unik: item.kode_unik || kode,
+                    kode_unik_full: rawKode,
+                    kode_unik: item.kode_unik || rawKode,
+                    nama_kegiatan: item.nama_kegiatan || item.uraian || rpjmObj.nama_kegiatan || 'Kegiatan Tanpa Nama',
+                    bidang: item.bidang || rpjmObj.bidang || '',
+                    jenis_bidang: rpjmObj.jenis_bidang || item.sub_group_nama || '',
+                    jenis_kegiatan: item.jenis_kegiatan || rpjmObj.jenis_kegiatan || item.nama_kegiatan || '',
+                    sumber_dana: item.sumber_dana || rpjmObj.sumber_dana || 'DDS',
+                    lokasi: item.lokasi || item.lokasi_kegiatan || rpjmObj.lokasi_kegiatan || 'Desa Batetangnga',
+                    volume: item.volume || '1 Paket',
+                    satuan: item.satuan || 'Paket',
+                    prakiraan_biaya: Number(item.jumlah_anggaran || item.harga_satuan || 0),
+                    tahun: tahunInt,
+                    tipe_anggaran: item.tipe_anggaran || 'MURNI'
+                });
+            }
+        });
+
+        // Prioritas 2: Tambahkan kegiatan dari rancangan_rkpdes yang belum ada di rab
+        (rancanganRows || []).forEach(item => {
+            const rawKode = String(item.kode_unik_full || item.kode_unik || '').trim();
+            const normalizedKode = rawKode.replace(/\.+$/, '');
+            if (rawKode && !seen.has(normalizedKode)) {
+                seen.add(normalizedKode);
+                uniqueActivities.push({
+                    kode_unik_full: rawKode,
+                    kode_unik: item.kode_unik || rawKode,
                     nama_kegiatan: item.sub_kegiatan || item.nama_kegiatan || 'Kegiatan Tanpa Nama',
                     bidang: item.bidang || '',
                     jenis_bidang: item.jenis_bidang || item.sub_bidang || '',
@@ -3219,6 +3285,7 @@ app.get('/api/rab-activities', async (req, res) => {
                     sumber_dana: item.sumber_pembiayaan || item.sumber_dana || 'DDS',
                     lokasi: item.lokasi || 'Desa Batetangnga',
                     volume: item.volume_satuan || item.volume || '12 Bulan',
+                    satuan: item.satuan || 'Paket',
                     prakiraan_biaya: Number(item.prakiraan_biaya || 0),
                     tahun: tahunInt
                 });
