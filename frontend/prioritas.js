@@ -49,8 +49,10 @@ function skorHeader(item, headerCol, skorCol) {
     return Number.isNaN(h) ? 75 : Math.min(100, Math.max(0, h));
 }
 
-// 2. Load Data dari Supabase (tabel prioritas_rkpdes; jika kosong, auto-sync dari rancangan_rkpdes)
-async function loadPrioritasData() {
+let prioritasClientCache = new Map(); // key: year, val: rawData array
+
+// 2. Load Data dari Supabase / In-Memory Cache
+async function loadPrioritasData(forceReload = false) {
     const year = parseInt(document.getElementById('select-year')?.value || '2027', 10);
     const bidang = document.getElementById('select-bidang')?.value || 'BIDANG SEMUA';
 
@@ -67,6 +69,34 @@ async function loadPrioritasData() {
     const tbody = document.getElementById('tabel-prioritas-body');
     if (!tbody) return;
 
+    // Helper filter client-side dari dataset lengkap tahun tersebut
+    const applyClientFilterAndRender = (fullYearData) => {
+        let filtered = fullYearData;
+        const bNoInt = parseInt(bidangNo, 10);
+        if (!isNaN(bNoInt) && bNoInt >= 1 && bNoInt <= 5) {
+            filtered = fullYearData.filter(item => {
+                const k = String(item.kode_unik_full || item.kode_unik || item.kode_bidang || item.bidang_kode || '');
+                const m = k.match(/^0?([1-5])\./);
+                if (m) return parseInt(m[1], 10) === bNoInt;
+                return parseInt(item.bidang_kode || item.bidang, 10) === bNoInt;
+            });
+        } else if (bidang && !bidang.includes('SEMUA')) {
+            const key = String(bidang).toLowerCase();
+            filtered = fullYearData.filter(item =>
+                String(item.jenis_bidang || item.sub_bidang || item.bidang || '').toLowerCase().includes(key)
+            );
+        }
+        activeData = filtered;
+        sortAndRenderData();
+    };
+
+    // 1. Cek Client Cache untuk respon instan 0ms (misal saat ganti bidang)
+    if (!forceReload && prioritasClientCache.has(year)) {
+        const cachedData = prioritasClientCache.get(year);
+        applyClientFilterAndRender(cachedData);
+        return;
+    }
+
     tbody.innerHTML = `
         <tr>
             <td colspan="12" class="text-center py-8 text-slate-400 font-sans italic">
@@ -78,7 +108,8 @@ async function loadPrioritasData() {
     try {
         let rawData = [];
 
-        let res = await fetch(`/api/prioritas-rkpdes?tahun=${year}&bidang=${encodeURIComponent(bidang)}&bidang_no=${bidangNo}`);
+        // Tarik data seluruh bidang untuk tahun tsb agar client-cache langsung terisi penuh
+        let res = await fetch(`/api/prioritas-rkpdes?tahun=${year}`);
         if (res.ok) {
             let json = await res.json();
             rawData = json.data || [];
@@ -92,10 +123,10 @@ async function loadPrioritasData() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tahun: year })
             });
-            return loadPrioritasData();
+            return loadPrioritasData(true);
         }
 
-        rawData = rawData.map(item => ({
+        const normalizedData = rawData.map(item => ({
             id: item.id,
             _src: 'prioritas',
             tahun: parseInt(year, 10),
@@ -117,8 +148,8 @@ async function loadPrioritasData() {
             mendukung_sdgs: item.mendukung_sdgs || ''
         }));
 
-        activeData = rawData;
-        sortAndRenderData();
+        prioritasClientCache.set(year, normalizedData);
+        applyClientFilterAndRender(normalizedData);
 
     } catch (err) {
         console.error("Error loading prioritas data:", err);
@@ -204,28 +235,125 @@ function sortAndRenderData() {
     renderTabelPrioritas(activeData);
 }
 
-// 4. Fast Search Filter
+// 4. Fast Search Filter (dengan Debounce untuk mencegah freeze/lag saat mengetik)
+let searchDebounceTimer = null;
+
 function filterPrioritasTable() {
     const input = document.getElementById('search-prioritas-input');
     const clearBtn = document.getElementById('btn-clear-search-prioritas');
-    prioritasSearchKeyword = (input?.value || '').toLowerCase().trim();
+    const val = (input?.value || '').toLowerCase().trim();
 
     if (clearBtn) {
-        if (prioritasSearchKeyword.length > 0) clearBtn.classList.remove('hidden');
+        if (val.length > 0) clearBtn.classList.remove('hidden');
         else clearBtn.classList.add('hidden');
     }
 
-    sortAndRenderData();
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+        prioritasSearchKeyword = val;
+        sortAndRenderData();
+    }, 150);
 }
 
 function clearSearchPrioritas() {
     const input = document.getElementById('search-prioritas-input');
     if (input) input.value = '';
-    filterPrioritasTable();
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    prioritasSearchKeyword = '';
+    const clearBtn = document.getElementById('btn-clear-search-prioritas');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    sortAndRenderData();
 }
 
-// 5. Render Tabel Matriks Prioritas
-function renderTabelPrioritas(data) {
+// 5. Render Tabel Matriks Prioritas (Progressive / Chunked DOM Streaming)
+let currentRenderToken = 0;
+const CHUNK_SIZE = 40; // 40 baris per frame: instan di layar & beban DOM ringan
+
+function buildPrioritasRowHtml(item, index, ctx) {
+    const total = item.total_skor;
+    const currentJenisBidang = String(item.jenis_bidang || '-').trim();
+    const currentJenisKegiatan = String(item.jenis_kegiatan || '-').trim();
+    const isNewJK = currentJenisKegiatan !== ctx.lastJenisKegiatan;
+
+    let html = '';
+
+    if (currentJenisBidang !== ctx.lastJenisBidang) {
+        ctx.lastJenisBidang = currentJenisBidang;
+        ctx.lastJenisKegiatan = '';
+        ctx.nomorUrut = 1;
+
+        html += `
+            <tr class="bg-indigo-100 font-bold font-serif">
+                <td colspan="12" class="border border-slate-400 px-3.5 py-2.5 text-slate-900 text-left">
+                    ${esc(currentJenisBidang)}
+                </td>
+            </tr>
+        `;
+    }
+
+    if (isNewJK || ctx.lastJenisKegiatan === '') {
+        ctx.lastJenisKegiatan = currentJenisKegiatan;
+        ctx.nomorUrut = 1;
+    }
+
+    const shownJK = isNewJK ? esc(currentJenisKegiatan) : '';
+    const rankRomawi = hitungRankingRkpdes(total);
+    const kodeVal = String(item.kode_unik_full || item.kode_unik || '').trim();
+
+    html += `
+        <tr class="border border-slate-400 hover:bg-amber-50/50 transition font-serif" data-idx="${index}">
+            <td class="border border-slate-400 text-center py-2 font-bold">${ctx.nomorUrut}</td>
+
+            <td class="border border-slate-400 px-2.5 py-2 text-slate-800">${shownJK}</td>
+
+            <td class="border border-slate-400 px-2.5 py-2 text-slate-900">
+                <div class="flex items-center justify-between gap-1">
+                    <span class="font-bold">${esc(item.nama_kegiatan) || '-'}</span>
+                    ${kodeVal ? `<span class="badge-kode-unik col-kode-unik shrink-0 text-[10px] font-mono font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded border border-amber-300" data-print-hide="kode-unik" title="Kode Unik">${esc(kodeVal)}</span>` : ''}
+                </div>
+            </td>
+            <td class="border border-slate-400 px-2 py-2 text-center">${esc(item.lokasi) || 'Desa Batetangnga'}</td>
+            <td class="border border-slate-400 px-2 py-2 text-center font-medium">${esc(item.volume) || '-'}</td>
+            
+            <td class="border border-slate-400 p-1 text-center">
+                <input type="number" min="0" max="100" value="${item.skor_kewenangan}" 
+                    onchange="updateSkorLive(${index}, 'skor_kewenangan', this.value, this)" 
+                    class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
+                <span class="skor-print-val hidden print:inline font-bold">${item.skor_kewenangan}</span>
+            </td>
+            <td class="border border-slate-400 p-1 text-center">
+                <input type="number" min="0" max="100" value="${item.skor_sdgs}" 
+                    onchange="updateSkorLive(${index}, 'skor_sdgs', this.value, this)" 
+                    class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
+                <span class="skor-print-val hidden print:inline font-bold">${item.skor_sdgs}</span>
+            </td>
+            <td class="border border-slate-400 p-1 text-center">
+                <input type="number" min="0" max="100" value="${item.skor_kabupaten}" 
+                    onchange="updateSkorLive(${index}, 'skor_kabupaten', this.value, this)" 
+                    class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
+                <span class="skor-print-val hidden print:inline font-bold">${item.skor_kabupaten}</span>
+            </td>
+            <td class="border border-slate-400 p-1 text-center">
+                <input type="number" min="0" max="100" value="${item.skor_sumber_daya}" 
+                    onchange="updateSkorLive(${index}, 'skor_sumber_daya', this.value, this)" 
+                    class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
+                <span class="skor-print-val hidden print:inline font-bold">${item.skor_sumber_daya}</span>
+            </td>
+
+            <td data-total class="border border-slate-400 text-center py-2 font-extrabold bg-slate-100 text-slate-900"><span class="skor-print-val">${total}</span></td>
+            <td data-rank class="border border-slate-400 text-center py-2 font-extrabold text-amber-700"><span class="skor-print-val">${rankRomawi}</span></td>
+            <td class="border border-slate-400 text-center py-2 no-print">
+                <button onclick="hapusItemData(${index})" title="Hapus Baris" class="bg-rose-100 hover:bg-rose-200 text-rose-800 font-sans text-xs px-2 py-1 rounded border border-rose-300 font-bold">
+                    🗑️
+                </button>
+            </td>
+        </tr>
+    `;
+    ctx.nomorUrut++;
+    return html;
+}
+
+function renderTabelPrioritas(data, forceSyncAll = false) {
     const tbody = document.getElementById('tabel-prioritas-body');
     if (!tbody) return;
 
@@ -259,94 +387,36 @@ function renderTabelPrioritas(data) {
         return;
     }
 
-    let html = '';
-    let lastJenisBidang = '';
-    let lastJenisKegiatan = '';
-    let nomorUrut = 1;
+    const ctx = { lastJenisBidang: '', lastJenisKegiatan: '', nomorUrut: 1 };
+    const rowHtmlList = displayData.map((item, index) => buildPrioritasRowHtml(item, index, ctx));
 
-    displayData.forEach((item, index) => {
-        const total = item.total_skor;
+    // Jika diminta full sync (untuk print) atau baris data sedikit, render seketika
+    if (forceSyncAll || rowHtmlList.length <= CHUNK_SIZE) {
+        tbody.innerHTML = rowHtmlList.join('');
+        return;
+    }
 
-        const currentJenisBidang = String(item.jenis_bidang || '-').trim();
-        const currentJenisKegiatan = String(item.jenis_kegiatan || '-').trim();
-        const isNewJK = currentJenisKegiatan !== lastJenisKegiatan;
+    // 1. Render batch pertama (CHUNK_SIZE) seketika (< 16ms) agar browser tidak nge-lag/freeze
+    tbody.innerHTML = rowHtmlList.slice(0, CHUNK_SIZE).join('');
 
-        if (currentJenisBidang !== lastJenisBidang) {
-            lastJenisBidang = currentJenisBidang;
-            lastJenisKegiatan = '';
-            nomorUrut = 1;
+    // 2. Render sisa batch secara streaming di frame berikutnya
+    const token = ++currentRenderToken;
+    let offset = CHUNK_SIZE;
 
-            html += `
-                <tr class="bg-indigo-100 font-bold font-serif">
-                    <td colspan="12" class="border border-slate-400 px-3.5 py-2.5 text-slate-900 text-left">
-                        ${esc(currentJenisBidang)}
-                    </td>
-                </tr>
-            `;
+    function streamRemainingChunks() {
+        if (token !== currentRenderToken) return;
+        if (offset >= rowHtmlList.length) return;
+
+        const nextBatch = rowHtmlList.slice(offset, offset + CHUNK_SIZE).join('');
+        tbody.insertAdjacentHTML('beforeend', nextBatch);
+        offset += CHUNK_SIZE;
+
+        if (offset < rowHtmlList.length) {
+            requestAnimationFrame(streamRemainingChunks);
         }
+    }
 
-        if (isNewJK || lastJenisKegiatan === '') {
-            lastJenisKegiatan = currentJenisKegiatan;
-            nomorUrut = 1;
-        }
-
-        const shownJK = isNewJK ? esc(currentJenisKegiatan) : '';
-        const rankRomawi = hitungRankingRkpdes(total);
-        const kodeVal = String(item.kode_unik_full || item.kode_unik || '').trim();
-
-        html += `
-            <tr class="border border-slate-400 hover:bg-amber-50/50 transition font-serif" data-idx="${index}">
-                <td class="border border-slate-400 text-center py-2 font-bold">${nomorUrut}</td>
-
-                <td class="border border-slate-400 px-2.5 py-2 text-slate-800">${shownJK}</td>
-
-                <td class="border border-slate-400 px-2.5 py-2 text-slate-900">
-                    <div class="flex items-center justify-between gap-1">
-                        <span class="font-bold">${esc(item.nama_kegiatan) || '-'}</span>
-                        ${kodeVal ? `<span class="badge-kode-unik col-kode-unik shrink-0 text-[10px] font-mono font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded border border-amber-300" data-print-hide="kode-unik" title="Kode Unik">${esc(kodeVal)}</span>` : ''}
-                    </div>
-                </td>
-                <td class="border border-slate-400 px-2 py-2 text-center">${esc(item.lokasi) || 'Desa Batetangnga'}</td>
-                <td class="border border-slate-400 px-2 py-2 text-center font-medium">${esc(item.volume) || '-'}</td>
-                
-                <td class="border border-slate-400 p-1 text-center">
-                    <input type="number" min="0" max="100" value="${item.skor_kewenangan}" 
-                        onchange="updateSkorLive(${index}, 'skor_kewenangan', this.value, this)" 
-                        class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                    <span class="skor-print-val hidden print:inline font-bold">${item.skor_kewenangan}</span>
-                </td>
-                <td class="border border-slate-400 p-1 text-center">
-                    <input type="number" min="0" max="100" value="${item.skor_sdgs}" 
-                        onchange="updateSkorLive(${index}, 'skor_sdgs', this.value, this)" 
-                        class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                    <span class="skor-print-val hidden print:inline font-bold">${item.skor_sdgs}</span>
-                </td>
-                <td class="border border-slate-400 p-1 text-center">
-                    <input type="number" min="0" max="100" value="${item.skor_kabupaten}" 
-                        onchange="updateSkorLive(${index}, 'skor_kabupaten', this.value, this)" 
-                        class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                    <span class="skor-print-val hidden print:inline font-bold">${item.skor_kabupaten}</span>
-                </td>
-                <td class="border border-slate-400 p-1 text-center">
-                    <input type="number" min="0" max="100" value="${item.skor_sumber_daya}" 
-                        onchange="updateSkorLive(${index}, 'skor_sumber_daya', this.value, this)" 
-                        class="w-12 text-center font-bold bg-amber-50 focus:bg-white border border-slate-300 rounded p-1 print:hidden" />
-                    <span class="skor-print-val hidden print:inline font-bold">${item.skor_sumber_daya}</span>
-                </td>
-
-                <td data-total class="border border-slate-400 text-center py-2 font-extrabold bg-slate-100 text-slate-900"><span class="skor-print-val">${total}</span></td>
-                <td data-rank class="border border-slate-400 text-center py-2 font-extrabold text-amber-700"><span class="skor-print-val">${rankRomawi}</span></td>
-                <td class="border border-slate-400 text-center py-2 no-print">
-                    <button onclick="hapusItemData(${index})" title="Hapus Baris" class="bg-rose-100 hover:bg-rose-200 text-rose-800 font-sans text-xs px-2 py-1 rounded border border-rose-300 font-bold">
-                        🗑️
-                    </button>
-                </td>
-            </tr>
-        `;
-        nomorUrut++;
-    });
-
-    tbody.innerHTML = html;
+    requestAnimationFrame(streamRemainingChunks);
 }
 
 function updateSkorLive(index, field, value, inputEl) {
@@ -467,7 +537,8 @@ async function simpanSemuaSkor() {
         if (json.success) {
             if (typeof showToast === 'function') showToast('✅ ' + json.message, 'success');
             else alert('✅ ' + json.message);
-            loadPrioritasData();
+            prioritasClientCache.delete(tahunVal);
+            loadPrioritasData(true);
         } else {
             if (typeof showToast === 'function') showToast('❌ ' + json.message, 'error');
             else alert('❌ ' + json.message);
@@ -497,7 +568,8 @@ async function tarikDariRancanganRKPDes(showAlert = true) {
 
         if (json.success) {
             autoSyncTahunPrioritas = year;
-            await loadPrioritasData();
+            prioritasClientCache.delete(year);
+            await loadPrioritasData(true);
             if (showAlert) {
                 alert(`✅ ${json.message}`);
             }
@@ -905,6 +977,9 @@ async function tetapkanRkpdes() {
 }
 
 function cetakPrioritas(skoringKosong = false) {
+    // Pastikan seluruh baris telah dirender lengkap (sinkron) sebelum dialog cetak terbuka
+    renderTabelPrioritas(activeData, true);
+
     if (skoringKosong) {
         document.body.classList.add('print-skoring-kosong');
     } else {
