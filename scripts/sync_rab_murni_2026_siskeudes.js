@@ -32,44 +32,80 @@ const BIDANG_MAP = {
 };
 
 async function syncSiskeudes() {
-  console.log('🚀 Memulai sinkronisasi RAB Murni 2026 rujukan Siskeudes...');
+  console.log('🚀 Memulai sinkronisasi RAB Murni 2026 rujukan Siskeudes (Format 4 Blok Sub-Kegiatan)...');
 
   const grouped = {};
 
   rawItems.forEach((item) => {
-    const kode = item.kode;
+    // Gunakan kode_unik_full 4-blok (misal 01.01.08.01.)
+    const kode = item.kode_unik_full || (item.kode + '.' + (item.sub_kegiatan_no || '01') + '.');
     if (!grouped[kode]) {
       const prefix = kode.slice(0, 2);
+      const namaSubKegiatan = item.sub_kegiatan_nama || item.kegiatan;
       grouped[kode] = {
+        kode_unik: kode,
         kode_unik_full: kode,
         tahun: 2026,
         tipe_anggaran: 'MURNI',
-        nama_kegiatan: item.kegiatan,
+        nama_kegiatan: namaSubKegiatan,
         bidang: BIDANG_MAP[prefix] || 'Bidang Penyelenggaraan Pemerintahan Desa',
         sumber_dana: item.sumber,
         jumlah_anggaran: 0,
+        volume: 1,
+        satuan: 'Paket',
+        harga_satuan: 0,
+        lokasi: 'Desa Batetangnga',
+        lokasi_kegiatan: 'Desa Batetangnga',
+        jenis_kegiatan: item.kegiatan || namaSubKegiatan,
+        group_nama: item.kelompok || '',
+        sub_group_nama: item.sub_kelompok || '',
+        rpjm_data: {
+          kode_unik_full: kode,
+          nama_kegiatan: namaSubKegiatan,
+          kegiatan_induk: item.kegiatan,
+          bidang: BIDANG_MAP[prefix] || 'Bidang Penyelenggaraan Pemerintahan Desa',
+          sumber_dana: item.sumber
+        },
         items: [],
         status: 'Aktif'
       };
     }
 
     grouped[kode].jumlah_anggaran += item.total;
+    grouped[kode].harga_satuan = grouped[kode].jumlah_anggaran;
     grouped[kode].items.push({
-      no_urut: grouped[kode].items.length + 1,
+      group: item.kelompok,
+      subgroup: item.sub_kelompok,
       kelompok_belanja: item.kelompok,
       sub_kelompok: item.sub_kelompok,
       kode_rekening: item.rek,
       uraian: item.uraian,
       volume: item.vol,
       satuan: item.satuan,
+      harga: item.harga,
       harga_satuan: item.harga,
+      jumlah: item.total,
       total: item.total,
+      sumber: item.sumber,
       sumber_dana: item.sumber
     });
   });
 
   const records = Object.values(grouped);
-  console.log(`📦 Terbentuk ${records.length} kegiatan RAB Murni 2026.`);
+  console.log(`📦 Terbentuk ${records.length} sub-kegiatan RAB Murni 2026 (format 4 blok).`);
+
+  // Bersihkan data lama 2026 MURNI agar tidak tercampur antara kode 3-blok lama dan 4-blok baru
+  const { error: delErr } = await supabase
+    .from('rab')
+    .delete()
+    .eq('tahun', 2026)
+    .eq('tipe_anggaran', 'MURNI');
+
+  if (delErr) {
+    console.warn('⚠️ Peringatan saat membersihkan data lama 2026:', delErr.message);
+  } else {
+    console.log('🧹 Berhasil membersihkan entri RAB 2026 MURNI lama.');
+  }
 
   let totalRupiah = 0;
   let successCount = 0;

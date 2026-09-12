@@ -39,56 +39,78 @@ const BIDANG_MAP = {
 };
 
 async function syncWithManualMapping() {
-  console.log('🚀 Memulai sinkronisasi RAB Murni 2026 berbasis mapping manual...');
+  console.log('🚀 Memulai sinkronisasi RAB Murni 2026 berbasis mapping manual (Format 4 Blok Sub-Kegiatan)...');
 
   const grouped = {};
 
   rawItems.forEach((item) => {
-    const rawKode = item.kode;
-    // Ambil target kode dari mapping manual
-    const mapEntry = mapping[rawKode];
+    const rawKode = (item.kode_unik_full || (item.kode + '.' + (item.sub_kegiatan_no || '01') + '.')).trim();
+    const rawKodeNoDot = rawKode.replace(/\.+$/, '');
+    
+    // Ambil target kode dari mapping manual jika ada
+    const mapEntry = mapping[rawKode] || mapping[rawKodeNoDot] || mapping[item.kode];
     let targetKode = rawKode;
     if (typeof mapEntry === 'string') {
       targetKode = mapEntry.trim();
     } else if (mapEntry && typeof mapEntry === 'object') {
       targetKode = (mapEntry.target_kode || mapEntry.kode || mapEntry.kode_unik_full || rawKode).trim();
-    } else {
-      // Fallback default format awal
-      targetKode = rawKode.endsWith('.') ? rawKode : `${rawKode}.`;
     }
+    if (!targetKode.endsWith('.')) targetKode += '.';
 
     if (!grouped[targetKode]) {
-      const prefix = rawKode.slice(0, 2);
+      const prefix = targetKode.slice(0, 2);
+      const namaSubKegiatan = item.sub_kegiatan_nama || item.kegiatan;
       grouped[targetKode] = {
+        kode_unik: targetKode,
         kode_unik_full: targetKode,
         tahun: 2026,
         tipe_anggaran: 'MURNI',
-        nama_kegiatan: item.kegiatan,
+        nama_kegiatan: namaSubKegiatan,
         bidang: BIDANG_MAP[prefix] || 'Bidang Penyelenggaraan Pemerintahan Desa',
         sumber_dana: item.sumber,
         jumlah_anggaran: 0,
+        volume: 1,
+        satuan: 'Paket',
+        harga_satuan: 0,
+        lokasi: 'Desa Batetangnga',
+        lokasi_kegiatan: 'Desa Batetangnga',
+        jenis_kegiatan: item.kegiatan || namaSubKegiatan,
+        group_nama: item.kelompok || '',
+        sub_group_nama: item.sub_kelompok || '',
+        rpjm_data: {
+          kode_unik_full: targetKode,
+          nama_kegiatan: namaSubKegiatan,
+          kegiatan_induk: item.kegiatan,
+          bidang: BIDANG_MAP[prefix] || 'Bidang Penyelenggaraan Pemerintahan Desa',
+          sumber_dana: item.sumber
+        },
         items: [],
         status: 'Aktif'
       };
     }
 
     grouped[targetKode].jumlah_anggaran += item.total;
+    grouped[targetKode].harga_satuan = grouped[targetKode].jumlah_anggaran;
     grouped[targetKode].items.push({
-      no_urut: grouped[targetKode].items.length + 1,
+      group: item.kelompok,
+      subgroup: item.sub_kelompok,
       kelompok_belanja: item.kelompok,
       sub_kelompok: item.sub_kelompok,
       kode_rekening: item.rek,
       uraian: item.uraian,
       volume: item.vol,
       satuan: item.satuan,
+      harga: item.harga,
       harga_satuan: item.harga,
+      jumlah: item.total,
       total: item.total,
+      sumber: item.sumber,
       sumber_dana: item.sumber
     });
   });
 
   const records = Object.values(grouped);
-  console.log(`📦 Terbentuk ${records.length} kegiatan RAB Murni 2026 (hasil mapping).`);
+  console.log(`📦 Terbentuk ${records.length} sub-kegiatan RAB Murni 2026 (hasil mapping).`);
 
   // Bersihkan data lama 2026 MURNI agar tidak terjadi konflik/duplikasi kode unik
   const { error: delErr } = await supabase
@@ -98,7 +120,9 @@ async function syncWithManualMapping() {
     .eq('tipe_anggaran', 'MURNI');
 
   if (delErr) {
-    console.warn('⚠️ Gagal membersihkan entri 2026 Murni lama:', delErr.message);
+    console.warn('⚠️ Peringatan saat membersihkan data lama 2026:', delErr.message);
+  } else {
+    console.log('🧹 Berhasil membersihkan entri RAB 2026 MURNI lama.');
   }
 
   let totalRupiah = 0;
@@ -113,7 +137,7 @@ async function syncWithManualMapping() {
     if (error) {
       console.error(`❌ Gagal upsert ${record.kode_unik_full} (${record.nama_kegiatan}):`, error.message);
     } else {
-      console.log(`  ✓ [${record.kode_unik_full}] ${record.nama_kegiatan} -> Rp${record.jumlah_anggaran.toLocaleString('id-ID')} (${record.items.length} item)`);
+      console.log(`  ✓ [${record.kode_unik_full}] ${record.nama_kegiatan} -> Rp${record.jumlah_anggaran.toLocaleString('id-ID')}`);
       successCount++;
     }
   }
