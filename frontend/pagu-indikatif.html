@@ -198,32 +198,45 @@
             try {
                 // SUMBER DATA: tabel `rab` (sumber kebenaran anggaran) dengan fallback RKPDes
                 let rawData = [];
+                let isFromRab = false;
                 try {
-                    const res = await fetch(`/api/rab?tahun=${activeYear}`);
-                    const json = await res.json();
-                    if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-                        rawData = json.data;
-                    } else {
-                        // Fallback ke rkpdes
-                        const resFallback = await fetch(`/api/rkpdes?tahun=${activeYear}`);
-                        const jsonFallback = await resFallback.json();
-                        if (jsonFallback.success && Array.isArray(jsonFallback.data)) {
-                            rawData = jsonFallback.data;
+                    const res = await fetch(`/api/rab?tahun=${activeYear}&tipe=MURNI`, { cache: 'no-store' });
+                    if (res.ok) {
+                        const raw = await res.json();
+                        const rabList = Array.isArray(raw) ? raw : (raw.data || []);
+                        if (Array.isArray(rabList) && rabList.length > 0) {
+                            rawData = rabList;
+                            isFromRab = true;
                         }
                     }
                 } catch (e) {
                     console.warn('Error fetching RAB data:', e);
                 }
 
-                // NORMALISASI data -> bentuk kanonik renderer.
-                // Baris `rab` sudah membawa rpjm_data/items/sumber_dana (tak perlu ditransform);
-                // baris `rkpdes` (fallback) perlu dinormalisasi via normalisasiRkpdesRows.
-                if (typeof window.normalisasiRkpdesRows === 'function' && rawData.length > 0 && !rawData[0].items) {
+                if (!isFromRab || rawData.length === 0) {
+                    try {
+                        const resFallback = await fetch(`/api/rkpdes?tahun=${activeYear}`, { cache: 'no-store' });
+                        if (resFallback.ok) {
+                            const rawFallback = await resFallback.json();
+                            const fallbackList = Array.isArray(rawFallback) ? rawFallback : (rawFallback.data || []);
+                            if (Array.isArray(fallbackList) && fallbackList.length > 0) {
+                                rawData = fallbackList;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Error fetching fallback RKPDes data:', e);
+                    }
+                }
+
+                // NORMALISASI data:
+                // Jika data berasal dari RKPDes fallback, lakukan normalisasi via normalisasiRkpdesRows.
+                // Jika berasal langsung dari tabel `rab`, struktur skalar sudah siap dirender.
+                if (!isFromRab && typeof window.normalisasiRkpdesRows === 'function' && rawData.length > 0) {
                     rawData = window.normalisasiRkpdesRows(rawData);
                 }
 
                 const htmlHasil = renderTabelPaguIndikatif(rawData);
-                if (htmlHasil) {
+                if (htmlHasil && htmlHasil.trim()) {
                     tbody.innerHTML = htmlHasil;
                 } else {
                     tbody.innerHTML = `

@@ -619,6 +619,36 @@ async function saveRabToDb(record) {
 const RAB_LIST_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, tipe_anggaran, id_referensi_murni, saved_at';
 const RAB_LIST_COLUMNS_LEGACY = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, saved_at';
 
+const RAB_SUB_BIDANG_MAP = {
+    '01.01': 'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa',
+    '01.02': 'Sarana dan Prasarana Pemerintahan Desa',
+    '01.03': 'Administrasi Kependudukan, Pencatatan Sipil, Statistik dan Kearsipan',
+    '01.04': 'Tata Praja Pemerintahan, Perencanaan, Keuangan dan Pelaporan',
+    '01.05': 'Pertanahan',
+    '02.01': 'Pendidikan',
+    '02.02': 'Kesehatan',
+    '02.03': 'Pekerjaan Umum dan Penataan Ruang',
+    '02.04': 'Kawasan Permukiman',
+    '02.05': 'Kehutanan dan Lingkungan Hidup',
+    '02.06': 'Perhubungan, Komunikasi dan Informatika',
+    '02.07': 'Energi dan Sumber Daya Mineral',
+    '02.08': 'Pariwisata',
+    '03.01': 'Ketenteraman, Ketertiban Umum dan Perlindungan Masyarakat',
+    '03.02': 'Kebudayaan dan Keagamaan',
+    '03.03': 'Kepemudaan dan Olahraga',
+    '03.04': 'Kelembagaan Masyarakat',
+    '04.01': 'Kelautan dan Perikanan',
+    '04.02': 'Pertanian dan Peternakan',
+    '04.03': 'Peningkatan Kapasitas Aparatur Desa',
+    '04.04': 'Pemberdayaan Perempuan, Perlindungan Anak dan Keluarga',
+    '04.05': 'Koperasi, Usaha Mikro Kecil dan Menengah (UMKM)',
+    '04.06': 'Dukungan Penanaman Modal',
+    '04.07': 'Perdagangan dan Perindustrian',
+    '05.01': 'Penanggulangan Bencana',
+    '05.02': 'Keadaan Darurat',
+    '05.03': 'Keadaan Mendesak'
+};
+
 // Batas wajar baris daftar RAB per tahun/versi (egress guard: kebutuhan riil ~20-30 kegiatan).
 const RAB_LIST_LIMIT = 250;
 
@@ -647,6 +677,13 @@ async function listRabsFromDb(tahun, tipeAnggaran = RAB_TIPE_MURNI) {
     // Fallback legacy: saring versi di memori supaya permintaan PERUBAHAN tidak
     // mengembalikan data MURNI.
     rows = rows.filter(r => normalizeRabTipe(r.tipe_anggaran) === tipe);
+    rows = rows.map(r => {
+        const prefix = (r.kode_unik_full || r.kode_unik || '').slice(0, 5);
+        return {
+            ...r,
+            sub_bidang: r.sub_bidang || RAB_SUB_BIDANG_MAP[prefix] || r.sub_group_nama || r.jenis_kegiatan || ''
+        };
+    });
     sortHierarchical(rows);
     return rows;
 }

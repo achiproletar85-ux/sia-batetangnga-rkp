@@ -47,14 +47,18 @@ function normalizeSumber(raw) {
 function rowRkpdesKanan(row) {
     const bidang = normalizeBidang(row.bidang);
     const uraian = row.uraian_rab || row.uraian || row.nama_kegiatan || row.jenis_kegiatan || '';
-    // Anggaran HANYA dari tabel rab. Baris tanpa RAB diberi nilai 0 (bukan fallback
-    // prakiraan_biaya master yang sering berisi nominal palsu raksasa).
-    const hasRab = !!row.have_rab && row.anggaran_rab != null;
-    const biaya = hasRab ? Number(row.anggaran_rab || 0) : 0;
-    const sumber = hasRab
-        ? normalizeSumber(row.sumber_dana_rab || row.sumber_dana || row.sumber_pembiayaan)
-        : '';
-    const volumeRaw = row.volume_rab || row.volume || row.volume_satuan || row.volume_kegiatan || '';
+    // Anggaran: dukung anggaran_rab, jumlah_anggaran, maupun prakiraan_biaya
+    let biaya = 0;
+    if (row.anggaran_rab != null && Number(row.anggaran_rab) > 0) {
+        biaya = Number(row.anggaran_rab);
+    } else if (row.jumlah_anggaran != null && Number(row.jumlah_anggaran) > 0) {
+        biaya = Number(row.jumlah_anggaran);
+    } else if (row.prakiraan_biaya != null && Number(row.prakiraan_biaya) > 0) {
+        biaya = Number(row.prakiraan_biaya);
+    }
+    const hasRab = (row.have_rab !== undefined ? !!row.have_rab : true) && biaya > 0;
+    const sumber = normalizeSumber(row.sumber_dana || row.sumber_dana_rab || row.sumber_pembiayaan);
+    const volumeRaw = row.volume || row.volume_rab || row.volume_satuan || row.volume_kegiatan || '';
 
     return {
         id: row.id,

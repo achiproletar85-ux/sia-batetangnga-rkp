@@ -59,6 +59,36 @@ function sortByKodeUnikFull(dataArray) {
     });
 }
 
+const SUB_BIDANG_MAP = {
+    '01.01': 'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa',
+    '01.02': 'Sarana dan Prasarana Pemerintahan Desa',
+    '01.03': 'Administrasi Kependudukan, Pencatatan Sipil, Statistik dan Kearsipan',
+    '01.04': 'Tata Praja Pemerintahan, Perencanaan, Keuangan dan Pelaporan',
+    '01.05': 'Pertanahan',
+    '02.01': 'Pendidikan',
+    '02.02': 'Kesehatan',
+    '02.03': 'Pekerjaan Umum dan Penataan Ruang',
+    '02.04': 'Kawasan Permukiman',
+    '02.05': 'Kehutanan dan Lingkungan Hidup',
+    '02.06': 'Perhubungan, Komunikasi dan Informatika',
+    '02.07': 'Energi dan Sumber Daya Mineral',
+    '02.08': 'Pariwisata',
+    '03.01': 'Ketenteraman, Ketertiban Umum dan Perlindungan Masyarakat',
+    '03.02': 'Kebudayaan dan Keagamaan',
+    '03.03': 'Kepemudaan dan Olahraga',
+    '03.04': 'Kelembagaan Masyarakat',
+    '04.01': 'Kelautan dan Perikanan',
+    '04.02': 'Pertanian dan Peternakan',
+    '04.03': 'Peningkatan Kapasitas Aparatur Desa',
+    '04.04': 'Pemberdayaan Perempuan, Perlindungan Anak dan Keluarga',
+    '04.05': 'Koperasi, Usaha Mikro Kecil dan Menengah (UMKM)',
+    '04.06': 'Dukungan Penanaman Modal',
+    '04.07': 'Perdagangan dan Perindustrian',
+    '05.01': 'Penanggulangan Bencana',
+    '05.02': 'Keadaan Darurat',
+    '05.03': 'Keadaan Mendesak'
+};
+
 function renderTabelPaguIndikatif(rawData) {
     if (!Array.isArray(rawData)) return '';
 
@@ -80,15 +110,16 @@ function renderTabelPaguIndikatif(rawData) {
         if (!groupedData[targetBidangKey]) groupedData[targetBidangKey] = {};
 
         // B. Level 2: Sub Bidang / Jenis Bidang
-        let jBidang = (row.rpjm_data && row.rpjm_data.jenis_bidang) || row.jenis_bidang || row.sub_bidang || row.sub_group_nama || row.sub_kegiatan || row.jenis_kegiatan || '';
+        const prefix = String(row.kode_unik_full || row.kode_unik || '').slice(0, 5);
+        let jBidang = (row.rpjm_data && row.rpjm_data.jenis_bidang) || row.sub_bidang || SUB_BIDANG_MAP[prefix] || row.jenis_bidang || row.sub_group_nama || row.sub_kegiatan || '';
         if (!jBidang || /^\d[\d.]*$/.test(jBidang.toString().trim())) {
-            jBidang = 'Penyelenggaran Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa';
+            jBidang = SUB_BIDANG_MAP[prefix] || 'Penyelenggaran Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa';
         }
         jBidang = jBidang.toString().trim();
         if (!groupedData[targetBidangKey][jBidang]) groupedData[targetBidangKey][jBidang] = {};
 
         // C. Level 3: Sub Kegiatan / Jenis Kegiatan
-        let jKegiatan = (row.rpjm_data && row.rpjm_data.jenis_kegiatan) || row.jenis_kegiatan || row.group_nama || '';
+        let jKegiatan = row.jenis_kegiatan || (row.rpjm_data && row.rpjm_data.jenis_kegiatan) || row.group_nama || '';
         if (!jKegiatan || /^\d[\d.]*$/.test(jKegiatan.toString().trim())) {
             jKegiatan = (row.rpjm_data && row.rpjm_data.nama_kegiatan && !/^\d[\d.]*$/.test(row.rpjm_data.nama_kegiatan)) 
                 ? row.rpjm_data.nama_kegiatan 
@@ -98,16 +129,13 @@ function renderTabelPaguIndikatif(rawData) {
         if (!groupedData[targetBidangKey][jBidang][jKegiatan]) groupedData[targetBidangKey][jBidang][jKegiatan] = {};
 
         // D. Level 4: Uraian / Nama Kegiatan
-        let nKegiatan = row.nama_kegiatan || row.uraian || jKegiatan || 'Kegiatan Desa';
-        if (row.rpjm_data && typeof row.rpjm_data === 'object' && row.rpjm_data.nama_kegiatan && !/^\d[\d.]*$/.test(row.rpjm_data.nama_kegiatan)) {
-            nKegiatan = row.rpjm_data.nama_kegiatan.toString().trim();
-        }
+        let nKegiatan = row.nama_kegiatan || row.uraian || (row.rpjm_data && row.rpjm_data.nama_kegiatan) || jKegiatan || 'Kegiatan Desa';
         nKegiatan = nKegiatan.toString().trim();
 
         let itemsArr = (row.items && Array.isArray(row.items) && row.items.length > 0) ? row.items : [];
         if (itemsArr.length === 0) {
-            const budgetVal = Number(row.prakiraan_biaya || row.jumlah_anggaran || row.anggaran_rab || row.pagu_rpjm || 0);
-            const sumberVal = row.sumber_pembiayaan || row.sumber_dana_rab || row.sumber_dana || 'DDS';
+            const budgetVal = Number(row.jumlah_anggaran || row.total_anggaran || row.anggaran || row.prakiraan_biaya || row.anggaran_rab || row.pagu_rpjm || 0);
+            const sumberVal = row.sumber_dana || row.sumber_pembiayaan || row.sumber_dana_rab || 'DDS';
             if (budgetVal > 0) {
                 itemsArr = [{ jumlah: budgetVal, sumber: sumberVal }];
             } else {
@@ -119,9 +147,9 @@ function renderTabelPaguIndikatif(rawData) {
             groupedData[targetBidangKey][jBidang][jKegiatan][nKegiatan] = { dds: 0, add: 0, bagi_hasil: 0, apbd_prov: 0, apbd_kab: 0, total: 0 };
         }
         itemsArr.forEach(item => {
-            const jml = Number(item.jumlah || row.jumlah_anggaran || row.prakiraan_biaya || row.pagu_rab || 0);
+            const jml = Number(item.jumlah || item.jumlah_anggaran || item.total_anggaran || item.anggaran || row.jumlah_anggaran || row.total_anggaran || row.anggaran || row.prakiraan_biaya || row.pagu_rab || 0);
             if (!jml || jml <= 0) return;
-            const s = (item.sumber || row.sumber_pembiayaan || row.sumber_dana_rab || row.sumber_dana || '').toUpperCase();
+            const s = (item.sumber || item.sumber_dana || row.sumber_dana || row.sumber_pembiayaan || row.sumber_dana_rab || '').toUpperCase();
 
             if (s.includes('ADD') || s.includes('ALOKASI DANA DESA') || s.includes('ALOKASI DANA')) {
                 groupedData[targetBidangKey][jBidang][jKegiatan][nKegiatan].add += jml;
