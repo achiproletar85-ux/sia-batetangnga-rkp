@@ -1709,7 +1709,7 @@ async function loadRpjmLookup() {
     const { data, error } = await supabase
         .from('rpjmdes_standar')
         .select(RPJM_LOOKUP_COLUMNS)
-        .limit(1000);
+        .limit(2000);
     if (error) {
         console.warn('⚠️ Gagal memuat rpjmdes_standar:', error.message);
         if (rpjmLookupCache) return rpjmLookupCache;
@@ -1717,6 +1717,7 @@ async function loadRpjmLookup() {
         emptyMap.byFull = new Map();
         emptyMap.byKeg = new Map();
         emptyMap.bySub = new Map();
+        emptyMap.byBid = new Map();
         emptyMap.byName = new Map();
         return emptyMap;
     }
@@ -1725,6 +1726,7 @@ async function loadRpjmLookup() {
     const byFull = new Map();
     const byKeg = new Map();
     const bySub = new Map();
+    const byBid = new Map();
     const byName = new Map();
 
     (data || []).forEach(rec => {
@@ -1738,9 +1740,15 @@ async function loadRpjmLookup() {
 
         const kegClean = String(rec.kode_kegiatan || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
         if (kegClean && !byKeg.has(kegClean)) byKeg.set(kegClean, rec);
+        if (rec.kode_kegiatan && !byKeg.has(String(rec.kode_kegiatan).trim())) byKeg.set(String(rec.kode_kegiatan).trim(), rec);
 
         const subClean = String(rec.kode_sub || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
         if (subClean && !bySub.has(subClean)) bySub.set(subClean, rec);
+        if (rec.kode_sub && !bySub.has(String(rec.kode_sub).trim())) bySub.set(String(rec.kode_sub).trim(), rec);
+
+        const bidClean = String(rec.kode_bidang || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
+        if (bidClean && !byBid.has(bidClean)) byBid.set(bidClean, rec);
+        if (rec.kode_bidang && !byBid.has(String(rec.kode_bidang).trim())) byBid.set(String(rec.kode_bidang).trim(), rec);
 
         if (rec.nama_kegiatan) byName.set(String(rec.nama_kegiatan).trim().toLowerCase(), rec);
         if (rec.jenis_kegiatan && !byName.has(String(rec.jenis_kegiatan).trim().toLowerCase())) {
@@ -1751,6 +1759,7 @@ async function loadRpjmLookup() {
     map.byFull = byFull;
     map.byKeg = byKeg;
     map.bySub = bySub;
+    map.byBid = byBid;
     map.byName = byName;
 
     rpjmLookupCache = map;
@@ -1766,42 +1775,85 @@ function resolveRpjmStandar(kode, currentBidang, currentJenisBidang, currentNama
     const kegKey = parts.length > 2 ? `${subKey}.${parts[2].padStart(2, '0')}` : '';
 
     let matched = null;
+    let matchedKeg = null;
+    let matchedSub = null;
+    let matchedBid = null;
+
     if (rpjmLookupData) {
-        matched = (rpjmLookupData.byFull && (rpjmLookupData.byFull.get(clean) || rpjmLookupData.byFull.get(String(kode || '').trim()))) ||
-                  (kegKey && rpjmLookupData.byKeg ? rpjmLookupData.byKeg.get(kegKey) : null) ||
-                  (subKey && rpjmLookupData.bySub ? rpjmLookupData.bySub.get(subKey) : null) ||
-                  (currentNamaKegiatan && rpjmLookupData.byName ? rpjmLookupData.byName.get(String(currentNamaKegiatan).trim().toLowerCase()) : null);
+        // 1. Exact full code match
+        matched = (rpjmLookupData.byFull && (rpjmLookupData.byFull.get(clean) || rpjmLookupData.byFull.get(String(kode || '').trim())));
+        // 2. Exact name match if no full code match
+        if (!matched && currentNamaKegiatan && rpjmLookupData.byName) {
+            matched = rpjmLookupData.byName.get(String(currentNamaKegiatan).trim().toLowerCase());
+        }
+        // 3. Category matches by code prefix
+        if (kegKey && rpjmLookupData.byKeg) {
+            matchedKeg = rpjmLookupData.byKeg.get(kegKey) || rpjmLookupData.byKeg.get(`${kegKey}.`);
+        }
+        if (subKey && rpjmLookupData.bySub) {
+            matchedSub = rpjmLookupData.bySub.get(subKey) || rpjmLookupData.bySub.get(`${subKey}.`);
+        }
+        if (bidKey && rpjmLookupData.byBid) {
+            matchedBid = rpjmLookupData.byBid.get(bidKey) || rpjmLookupData.byBid.get(`${bidKey}.`);
+        }
     }
 
+    const matchedStd = matched || matchedKeg || matchedSub || matchedBid || null;
+
+    // 1. Bidang (Level 1)
     const bidang = (matched && matched.bidang) ||
+                   (matchedKeg && matchedKeg.bidang) ||
+                   (matchedSub && matchedSub.bidang) ||
+                   (matchedBid && matchedBid.bidang) ||
                    RAB_BIDANG_MAP[bidKey] ||
                    (currentBidang && String(currentBidang).trim() !== '' && String(currentBidang).trim() !== '-' ? String(currentBidang).trim() : 'Bidang Penyelenggaraan Pemerintah Desa');
 
+    // 2. Sub Bidang / jenis_bidang (Level 2)
     const jenis_bidang = (matched && matched.jenis_bidang) ||
+                         (matchedKeg && matchedKeg.jenis_bidang) ||
+                         (matchedSub && matchedSub.jenis_bidang) ||
                          RAB_SUB_BIDANG_MAP[subKey] ||
-                         (currentJenisBidang && String(currentJenisBidang).trim() !== '' && String(currentJenisBidang).trim() !== '-' ? String(currentJenisBidang).trim() : 'Sub Bidang Pemerintahan');
+                         (currentJenisBidang && String(currentJenisBidang).trim() !== '' && String(currentJenisBidang).trim() !== '-' ? String(currentJenisBidang).trim() : 'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa');
 
-    const jenis_kegiatan = (matched && matched.jenis_kegiatan) ||
-                           (matched && matched.nama_kegiatan) ||
+    // 3. Jenis Kegiatan / kelompok kegiatan (Level 3)
+    // Utamakan jenis_kegiatan resmi dari standar agar tidak menyamai nama kegiatan
+    const jenis_kegiatan = (matchedKeg && matchedKeg.jenis_kegiatan) ||
+                           (matched && matched.jenis_kegiatan) ||
+                           (matchedSub && matchedSub.jenis_kegiatan) ||
                            (currentNamaKegiatan && String(currentNamaKegiatan).trim() !== '' && String(currentNamaKegiatan).trim() !== '-' ? String(currentNamaKegiatan).trim() : 'Kegiatan Desa');
 
-    const nama_kegiatan = (currentNamaKegiatan && String(currentNamaKegiatan).trim() !== '' && String(currentNamaKegiatan).trim() !== '-') ? String(currentNamaKegiatan).trim() :
-                          ((matched && matched.nama_kegiatan) || jenis_kegiatan);
+    // 4. Nama Kegiatan (Level 4)
+    // Pertahankan nama spesifik dari item/input user, jangan ditimpa jenis kegiatan jika ada nama spesifik
+    const nama_kegiatan = (currentNamaKegiatan && String(currentNamaKegiatan).trim() !== '' && String(currentNamaKegiatan).trim() !== '-')
+        ? String(currentNamaKegiatan).trim()
+        : ((matched && matched.nama_kegiatan) || jenis_kegiatan);
+
+    const refStd = matched || matchedKeg || matchedSub || null;
+    matched = refStd;
 
     return {
         bidang,
         jenis_bidang,
         jenis_kegiatan,
         nama_kegiatan,
+        kode_bidang: (matchedStd && matchedStd.kode_bidang) || `${bidKey}.`,
+        kode_sub: (matchedStd && matchedStd.kode_sub) || (subKey ? `${subKey}.` : ''),
+        kode_kegiatan: (matchedStd && matchedStd.kode_kegiatan) || (kegKey ? `${kegKey}.` : ''),
         // Tanpa default tebakan: bila data SDGs tidak ditemukan, kembalikan string kosong
-        sdgs: (matched && matched.sdgs) || '',
-        data_eksisting: (matched && (matched.data_existing || matched.data_eksisting)) || 'Kegiatan operasional & pembangunan desa',
-        data_existing: (matched && (matched.data_existing || matched.data_eksisting)) || 'Kegiatan operasional & pembangunan desa',
+        sdgs: (refStd && refStd.sdgs) ? cleanSdgsRaw(refStd.sdgs) : '',
+        data_eksisting: (refStd && (refStd.data_existing || refStd.data_eksisting)) || 'Kegiatan operasional & pembangunan desa',
+        data_existing: (refStd && (refStd.data_existing || refStd.data_eksisting)) || 'Kegiatan operasional & pembangunan desa',
+        lokasi: (refStd && refStd.lokasi_kegiatan) || 'Desa Batetangnga',
+        volume: (refStd && refStd.volume_kegiatan) || null,
+        satuan: (refStd && (refStd.satuan || refStd.satuan_rab)) || null,
         manfaat_l: matched ? matched.manfaat_l : null,
         manfaat_p: matched ? matched.manfaat_p : null,
         manfaat_rtm: matched ? matched.manfaat_rtm : null,
         total_manfaat: matched ? matched.total_manfaat : null,
-        matchedStd: matched || null
+        waktu_pelaksanaan: (refStd && refStd.waktu_pelaksanaan) || '12 Bulan',
+        sumber_dana: (refStd && refStd.sumber_dana) || 'DDS',
+        pola_pelaksanaan: (refStd && refStd.pola_pelaksanaan) || 'Swakelola',
+        matchedStd
     };
 }
 
@@ -6080,28 +6132,8 @@ app.get('/api/rkpdes', async (req, res) => {
         }
 
         try {
-            const { data: enrichStd } = await supabase.from('rpjmdes_standar').select(RPJM_LOOKUP_COLUMNS);
+            const rpjmLookup = await loadRpjmLookup();
             const { data: enrichRab } = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt);
-            const stdMap = new Map();
-            const stdNameMap = new Map();
-            if (Array.isArray(enrichStd)) {
-                enrichStd.forEach(s => {
-                    if (s.kode_unik_full) stdMap.set(String(s.kode_unik_full).trim(), s);
-                    if (s.kode_unik) stdMap.set(String(s.kode_unik).trim(), s);
-                    if (s.nama_kegiatan) stdNameMap.set(String(s.nama_kegiatan).trim().toLowerCase(), s);
-                });
-            }
-            const matchStd = (code, namaKegiatan) => {
-                if (code && stdMap.get(String(code).trim())) return stdMap.get(String(code).trim());
-                if (namaKegiatan) {
-                    const key = String(namaKegiatan).trim().toLowerCase();
-                    if (stdNameMap.has(key)) return stdNameMap.get(key);
-                    for (const [sKey, sRow] of stdNameMap.entries()) {
-                        if (key.includes(sKey) || sKey.includes(key)) return sRow;
-                    }
-                }
-                return null;
-            };
             const rabMap = new Map();
             const rabNameMap = new Map();
             if (Array.isArray(enrichRab)) {
@@ -6115,11 +6147,12 @@ app.get('/api/rkpdes', async (req, res) => {
             data.forEach(row => {
                 const baseKode = String(row.kode_unik_full || row.kode_unik || '').trim();
                 const cleanPrefix = baseKode.split('..')[0].trim();
-                const std = matchStd(baseKode, row.jenis_kegiatan || row.nama_kegiatan);
+                const resolved = resolveRpjmStandar(baseKode, row.bidang, row.jenis_bidang, row.nama_kegiatan || row.jenis_kegiatan, rpjmLookup);
+                const std = resolved.matchedStd;
                 
                 let rab = rabMap.get(baseKode) || rabMap.get(cleanPrefix);
-                if (!rab && (row.jenis_kegiatan || row.nama_kegiatan)) {
-                    const rNameKey = String(row.jenis_kegiatan || row.nama_kegiatan).trim().toLowerCase();
+                if (!rab && (row.nama_kegiatan || row.jenis_kegiatan)) {
+                    const rNameKey = String(row.nama_kegiatan || row.jenis_kegiatan).trim().toLowerCase();
                     rab = rabNameMap.get(rNameKey);
                 }
 
@@ -6144,7 +6177,7 @@ app.get('/api/rkpdes', async (req, res) => {
                                 isValidVal(row.data_existing) ? row.data_existing :
                                 isValidVal(rpjmObj.data_eksisting) ? rpjmObj.data_eksisting :
                                 isValidVal(rpjmObj.data_existing) ? rpjmObj.data_existing :
-                                (std && (isValidVal(std.data_existing) ? std.data_existing : std.data_eksisting)) || 'Kegiatan rutin desa';
+                                resolved.data_eksisting;
                 row.data_eksisting = dataEks;
                 row.data_existing = dataEks;
 
@@ -6159,34 +6192,31 @@ app.get('/api/rkpdes', async (req, res) => {
                             isValidVal(row.mendukung_sdgs) ? cleanSdgsRaw(row.mendukung_sdgs) :
                             isValidVal(rpjmObj.sdgs) ? cleanSdgsRaw(rpjmObj.sdgs) :
                             isValidVal(rpjmObj.mendukung_sdgs) ? cleanSdgsRaw(rpjmObj.mendukung_sdgs) :
-                            (std ? cleanSdgsRaw(std.sdgs || std.mendukung_sdgs) : '');
+                            resolved.sdgs;
                 row.mendukung_sdgs = formatSdgsLabel(sdg);
                 row.sdgs = sdg;
 
-                if (std) {
-                    if (std.bidang) row.bidang = std.bidang;
-                    if (std.jenis_bidang) row.jenis_bidang = std.jenis_bidang;
-                    if (std.jenis_kegiatan) {
-                        row.jenis_kegiatan = std.jenis_kegiatan;
-                        row.jenis_kegiatan_kelompok = std.jenis_kegiatan;
-                    }
-                    if (std.nama_kegiatan) row.nama_kegiatan = std.nama_kegiatan;
-                    if (std.kode_bidang) row.kode_bidang = std.kode_bidang;
-                    if (std.kode_sub) row.kode_sub = std.kode_sub;
-                    if (std.kode_kegiatan) row.kode_kegiatan = std.kode_kegiatan;
-                }
+                // Hierarki 4 Tingkat: Bidang -> Sub Bidang -> Jenis Kegiatan -> Nama Kegiatan
+                row.bidang = resolved.bidang;
+                row.jenis_bidang = resolved.jenis_bidang;
+                row.jenis_kegiatan = resolved.jenis_kegiatan;
+                row.jenis_kegiatan_kelompok = resolved.jenis_kegiatan;
+                row.nama_kegiatan = row.nama_kegiatan || resolved.nama_kegiatan;
+                row.kode_bidang = resolved.kode_bidang;
+                row.kode_sub = resolved.kode_sub;
+                row.kode_kegiatan = resolved.kode_kegiatan;
 
-                const stdTotManfaat = (std && std.total_manfaat != null) ? Number(std.total_manfaat) : NaN;
+                const stdTotManfaat = (resolved.total_manfaat != null) ? Number(resolved.total_manfaat) : NaN;
                 if ((!row.penerima_manfaat || row.penerima_manfaat === '-' || row.penerima_manfaat === '') || (row.total_manfaat === 0 && !isNaN(stdTotManfaat) && stdTotManfaat > 0)) {
-                    let mL = Number((std && std.manfaat_l != null) ? std.manfaat_l : (rpjmObj.manfaat_l || 0));
-                    let mP = Number((std && std.manfaat_p != null) ? std.manfaat_p : (rpjmObj.manfaat_p || 0));
-                    let mR = Number((std && std.manfaat_rtm != null) ? std.manfaat_rtm : (rpjmObj.manfaat_rtm || 0));
+                    let mL = Number((resolved.manfaat_l != null) ? resolved.manfaat_l : (rpjmObj.manfaat_l || 0));
+                    let mP = Number((resolved.manfaat_p != null) ? resolved.manfaat_p : (rpjmObj.manfaat_p || 0));
+                    let mR = Number((resolved.manfaat_rtm != null) ? resolved.manfaat_rtm : (rpjmObj.manfaat_rtm || 0));
                     let tot = (!isNaN(stdTotManfaat) && stdTotManfaat > 0) ? stdTotManfaat : (mL + mP + mR);
                     row.total_manfaat = tot;
                     row.penerima_manfaat = tot > 0 ? `${tot} Orang` : row.sasaran_manfaat || '-';
                 }
                 if (!row.volume || String(row.volume) === '1' || String(row.volume) === '0') {
-                    row.volume = String(row.volume || rpjmObj.volume_kegiatan || (std && std.volume_kegiatan) || 1);
+                    row.volume = String(row.volume || rpjmObj.volume_kegiatan || resolved.volume || 1);
                 }
             });
         } catch (enrichErr) {
@@ -6295,7 +6325,7 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             if (!code) return;
             const p = perMap.get(code);
 
-            const resolved = resolveRpjmStandar(code, m.bidang, null, m.nama_kegiatan || m.jenis_kegiatan, rpjmLookup);
+            const resolved = resolveRpjmStandar(code, m.bidang, m.jenis_bidang, m.nama_kegiatan, rpjmLookup);
 
             const biayaSemula = Number(m.prakiraan_biaya || 0);
             const biayaMenjadi = p ? Number(p.jumlah_anggaran || 0) : biayaSemula;
@@ -6414,10 +6444,10 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             combinedMap.set(code, {
                 id: m.id,
                 kode_unik_full: code,
-                bidang: m.bidang || resolved.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
-                jenis_bidang: m.jenis_bidang || resolved.jenis_bidang || '-',
-                jenis_kegiatan: m.jenis_kegiatan || m.nama_kegiatan || resolved.nama_kegiatan || '-',
-                nama_kegiatan: m.nama_kegiatan || m.jenis_kegiatan || resolved.nama_kegiatan || '-',
+                bidang: resolved.bidang,
+                jenis_bidang: resolved.jenis_bidang,
+                jenis_kegiatan: resolved.jenis_kegiatan,
+                nama_kegiatan: m.nama_kegiatan || resolved.nama_kegiatan,
                 penerima_l_semula: lpRtmSemula.l,
                 penerima_p_semula: lpRtmSemula.p,
                 penerima_rtm_semula: lpRtmSemula.rtm,
@@ -7005,17 +7035,9 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
     }
 
     // Ambil referensi pengayaan dari rpjmdes_standar
-    let stdMap = new Map();
-    let stdNameMap = new Map();
+    let rpjmLookup = null;
     try {
-        const { data: stdData } = await supabase.from('rpjmdes_standar').select(RPJM_LOOKUP_COLUMNS);
-        if (Array.isArray(stdData)) {
-            stdData.forEach(s => {
-                if (s.kode_unik_full) stdMap.set(String(s.kode_unik_full).trim(), s);
-                if (s.kode_unik) stdMap.set(String(s.kode_unik).trim(), s);
-                if (s.nama_kegiatan) stdNameMap.set(String(s.nama_kegiatan).trim().toLowerCase(), s);
-            });
-        }
+        rpjmLookup = await loadRpjmLookup();
     } catch (e) {}
 
     const isValidVal = (v) => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '-';
@@ -7036,13 +7058,15 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
                 rpjmObj = rb.rpjm_data;
             }
         }
-        const std = stdMap.get(code) || stdNameMap.get(String(rb.nama_kegiatan || '').toLowerCase());
+
+        const resolved = resolveRpjmStandar(code, rb.bidang, rb.jenis_bidang || rb.sub_bidang, rb.nama_kegiatan, rpjmLookup);
+        const std = resolved.matchedStd;
         const items = Array.isArray(rb.items) ? rb.items : [];
         const totalBiaya = Number(rb.jumlah_anggaran || rb.total_biaya || 0) || items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
 
         const dataEks = isValidVal(rpjmObj.data_existing) ? rpjmObj.data_existing :
                         isValidVal(rpjmObj.data_eksisting) ? rpjmObj.data_eksisting :
-                        (std && (isValidVal(std.data_existing) ? std.data_existing : std.data_eksisting)) || 'Peningkatan Kesejahteraan';
+                        resolved.data_eksisting;
 
         const target = (std && (std.volume_kegiatan || std.target_capaian_kegiatan)) ? (std.volume_kegiatan || std.target_capaian_kegiatan) :
                        isValidVal(rpjmObj.target_capaian) ? rpjmObj.target_capaian :
@@ -7051,37 +7075,38 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
         // ZERO-DEFAULT SDGs: tanpa data sumber => string kosong (kolom boleh kosong)
         const sdg = isValidVal(rpjmObj.sdgs) ? cleanSdgsRaw(rpjmObj.sdgs) :
                     isValidVal(rpjmObj.mendukung_sdgs) ? cleanSdgsRaw(rpjmObj.mendukung_sdgs) :
-                    (std ? cleanSdgsRaw(std.sdgs || std.mendukung_sdgs) : '');
+                    resolved.sdgs;
         const sdgFormatted = formatSdgsLabel(sdg);
 
-        const totManfaat = (std && std.total_manfaat != null) ? Number(std.total_manfaat) : 1;
-        const waktu = (std && std.waktu_pelaksanaan && std.waktu_pelaksanaan !== String(tahunInt)) ? std.waktu_pelaksanaan : '12 Bulan';
+        const totManfaat = (resolved.total_manfaat != null) ? Number(resolved.total_manfaat) : 1;
+        const waktu = (std && std.waktu_pelaksanaan && std.waktu_pelaksanaan !== String(tahunInt)) ? std.waktu_pelaksanaan : resolved.waktu_pelaksanaan;
 
         rows.push({
             tahun: tahunInt,
-            kode_bidang: std ? std.kode_bidang : '01.',
-            kode_sub: std ? std.kode_sub : '01.01.',
-            kode_kegiatan: std ? std.kode_kegiatan : '01.01.01.',
+            kode_bidang: resolved.kode_bidang,
+            kode_sub: resolved.kode_sub,
+            kode_kegiatan: resolved.kode_kegiatan,
             kode_unik_full: code,
-            bidang: rb.bidang || (std && std.bidang) || rpjmObj.bidang || 'Bidang Penyelenggaraan Pemerintah Desa',
-            jenis_kegiatan: (std && std.jenis_kegiatan) || rpjmObj.jenis_kegiatan || rb.nama_kegiatan || '-',
-            nama_kegiatan: rb.nama_kegiatan || (std && std.nama_kegiatan) || rpjmObj.nama_kegiatan || '-',
-            lokasi: rb.lokasi || (std && std.lokasi_kegiatan) || rb.lokasi_kegiatan || rpjmObj.lokasi_kegiatan || 'Desa Batetangnga',
-            lokasi_kegiatan: rb.lokasi || (std && std.lokasi_kegiatan) || rb.lokasi_kegiatan || rpjmObj.lokasi_kegiatan || 'Desa Batetangnga',
-            volume: String(rb.volume || items[0]?.volume || 1),
+            bidang: resolved.bidang,
+            jenis_bidang: resolved.jenis_bidang,
+            jenis_kegiatan: resolved.jenis_kegiatan,
+            nama_kegiatan: rb.nama_kegiatan || resolved.nama_kegiatan,
+            lokasi: rb.lokasi || rb.lokasi_kegiatan || resolved.lokasi,
+            lokasi_kegiatan: rb.lokasi || rb.lokasi_kegiatan || resolved.lokasi,
+            volume: String(rb.volume || items[0]?.volume || resolved.volume || 1),
             volume_kegiatan: (std && std.volume_kegiatan) || target,
-            satuan: rb.satuan || rpjmObj.satuan_rab || (std && std.satuan) || 'Kegiatan',
+            satuan: rb.satuan || rpjmObj.satuan_rab || resolved.satuan || 'Kegiatan',
             sasaran_manfaat: `${totManfaat} Orang`,
             penerima_manfaat: `${totManfaat} Orang`,
-            manfaat_l: std ? (std.manfaat_l || 0) : 1,
-            manfaat_p: std ? (std.manfaat_p || 0) : 0,
-            manfaat_rtm: std ? (std.manfaat_rtm || 0) : 0,
+            manfaat_l: resolved.manfaat_l != null ? resolved.manfaat_l : 1,
+            manfaat_p: resolved.manfaat_p != null ? resolved.manfaat_p : 0,
+            manfaat_rtm: resolved.manfaat_rtm != null ? resolved.manfaat_rtm : 0,
             total_manfaat: totManfaat,
             target_capaian: target,
             waktu_pelaksanaan: waktu,
             prakiraan_biaya: totalBiaya,
-            sumber_pembiayaan: rb.sumber_dana || (std && std.sumber_dana) || rpjmObj.sumber_dana || 'DDS',
-            pola_pelaksanaan: (std && std.pola_pelaksanaan) || rpjmObj.pola_pelaksanaan || 'Swakelola',
+            sumber_pembiayaan: rb.sumber_dana || resolved.sumber_dana || 'DDS',
+            pola_pelaksanaan: resolved.pola_pelaksanaan || 'Swakelola',
             rencana_pelaksana: 'Kaur Perencanaan',
             status_rab: 'Sudah Dibuat',
             data_eksisting: dataEks,

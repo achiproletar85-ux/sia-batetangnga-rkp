@@ -177,8 +177,9 @@ assert(!buildPerubahanBody.includes('Tetap</span>'), 'Label Tetap telah disingki
 assert(!jsCode.includes('<td class="cell-edit-sdgs'), 'Sel SDGs bersih dari interaksi per-sel yang redundan');
 assert(!jsCode.includes('<td class="cell-edit-manfaat'), 'Sel Manfaat bersih dari interaksi per-sel yang redundan');
 assert(!jsCode.includes('<td class="cell-edit-perubahan'), 'Sel Perubahan bersih dari interaksi per-sel yang redundan');
-assert(!buildPerubahanBody.includes('kelMap'), 'Hierarki ganda kelMap telah dihilangkan dari buildRkpdesPerubahanHtml');
-assert(!buildPerubahanBody.includes('fa-caret-right'), 'Baris sub-header bergaris miring duplikat (fa-caret-right) telah disingkirkan');
+assert(buildPerubahanBody.includes('kegMap'), 'Hierarki 4 tingkat (Bidang -> Sub-Bidang -> Jenis Kegiatan -> Nama Kegiatan) terpasang di buildRkpdesPerubahanHtml');
+assert(buildPerubahanBody.includes('isDupHeader'), 'Pencegahan baris sub-header duplikat teks (isDupHeader) telah terpasang');
+assert(!buildPerubahanBody.includes('kelMap'), 'Struktur hierarki kelMap lawas digantikan secara runtut oleh kegMap');
 
 
 

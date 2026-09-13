@@ -333,14 +333,35 @@ function resolveJenisKegiatanKelompokFallback(item) {
     } else if (typeof item.rpjm_data === 'object' && item.rpjm_data !== null) {
         rpjmObj = item.rpjm_data;
     }
-    const val = (item.jenis_kegiatan_kelompok || item.jenis_kegiatan || rpjmObj.jenis_kegiatan || '').trim();
-    if (val && val !== 'Kelompok Kegiatan Umum') return val;
+    const val = (item.jenis_kegiatan_kelompok || (item.jenis_kegiatan && item.jenis_kegiatan !== item.nama_kegiatan ? item.jenis_kegiatan : '') || rpjmObj.jenis_kegiatan || '').trim();
+    if (val && val !== 'Kelompok Kegiatan Umum' && val !== '-') return val;
     const kode = String(item.kode_unik_full || item.kode_unik || '').trim();
     if (kode.startsWith('01.01.01.') || kode.startsWith('1.1.1.')) return 'Penyediaan Penghasilan Tetap dan Tunjangan Kepala Desa';
     if (kode.startsWith('01.01.02.') || kode.startsWith('1.1.2.')) return 'Penyediaan Penghasilan Tetap dan Tunjangan Perangkat Desa';
     if (kode.startsWith('01.01.03.') || kode.startsWith('1.1.3.')) return 'Penyediaan Jaminan Sosial bagi Kepala Desa dan Perangkat Desa';
     if (kode.startsWith('01.01.04.') || kode.startsWith('1.1.4.')) return 'Penyediaan Operasional Pemerintah Desa (ATK, Honor PKPKD dan PPKD dll)';
-    return val || 'Kelompok Kegiatan Utama';
+    if (kode.startsWith('01.02.01.') || kode.startsWith('1.2.1.')) return 'Penyediaan Sarana (Aset Tetap) Perkantoran/Pemerintahan';
+    if (kode.startsWith('01.02.02.') || kode.startsWith('1.2.2.')) return 'Pemeliharaan Gedung/Prasarana Kantor Desa';
+    if (kode.startsWith('01.04.01.') || kode.startsWith('1.4.1.')) return 'Penyelenggaraan Musyawarah Perencanaan Desa/Pembahasan APBDes (Reguler)';
+    if (kode.startsWith('01.04.04.') || kode.startsWith('1.4.4.')) return 'Penyusunan Dokumen Keuangan Desa (APBDes, APBDes Perubahan, LPJ dll)';
+    if (kode.startsWith('01.05.06.') || kode.startsWith('1.5.6.')) return 'Administrasi Pajak Bumi dan Bangunan (PBB)';
+    if (kode.startsWith('02.01.01.') || kode.startsWith('2.1.1.')) return 'Penyelenggaran PAUD/TK/TPA/TKA/TPQ/Madrasah NonFormal Milik Desa (Honor, Pakaian dll)';
+    if (kode.startsWith('02.02.02.') || kode.startsWith('2.2.2.')) return 'Penyelenggaraan Posyandu (Mkn Tambahan, Kls Bumil, Lamsia, Insentif)';
+    if (kode.startsWith('02.03.11.') || kode.startsWith('2.3.11.')) return 'Pembangunan/Rehabilitasi/Peningkatan/Pengerasan Jalan Lingkungan Permukiman **)';
+    if (kode.startsWith('02.03.14.') || kode.startsWith('2.3.14.')) return 'Pembangunan/Rehabilitasi/Peningkatan Prasarana Jalan Desa (Gorong, selokan dll)';
+    if (kode.startsWith('03.01.02.') || kode.startsWith('3.1.2.')) return 'Penguatan & Peningkatan Kapasitas Tenaga Keamanan/Ketertiban oleh Pemdes';
+    if (kode.startsWith('03.04.01.') || kode.startsWith('3.4.1.')) return 'Pembinaan Lembaga Adat';
+    if (kode.startsWith('03.04.03.') || kode.startsWith('3.4.3.')) return 'Pembinaan PKK';
+    if (kode.startsWith('04.01.05.') || kode.startsWith('4.1.5.')) return 'Bantuan Perikanan (Bibit/Pakan/dll)';
+    if (kode.startsWith('04.02.01.') || kode.startsWith('4.2.1.')) return 'Peningkatan Produksi Tanaman Pangan (alat produksi/pengelolaan/penggilingan)';
+    if (kode.startsWith('04.02.02.') || kode.startsWith('4.2.2.')) return 'Peningkatan Produksi Peternakan (alat produksi/pengelolaan/kandang)';
+    if (kode.startsWith('04.03.01.') || kode.startsWith('4.3.1.')) return 'Peningkatan Kapasitas Kepala Desa';
+    if (kode.startsWith('04.03.02.') || kode.startsWith('4.3.2.')) return 'Peningkatan Kapasitas Perangkat Desa';
+    if (kode.startsWith('04.03.03.') || kode.startsWith('4.3.3.')) return 'Peningkatan Kapasitas BPD';
+    if (kode.startsWith('04.05.01.') || kode.startsWith('4.5.1.')) return 'Pelatihan Manajemen Koperasi/KUD/UMKM';
+    if (kode.startsWith('04.05.02.') || kode.startsWith('4.5.2.')) return 'Pengembangan Sarana Prasarana Usaha Mikro, Kecil, Menengah dan Koperasi';
+    if (kode.startsWith('05.03.00.') || kode.startsWith('5.3.0.') || kode.startsWith('05.03.01.')) return 'Keadaan Mendesak (Penanganan Bencana/BLT Desa)';
+    return val || (item.nama_kegiatan || 'Kelompok Kegiatan Utama');
 }
 
 // Membangun HTML lembar RKPDes MURNI (matriks 13 kolom) — murni string, tanpa menyentuh DOM.
@@ -369,7 +390,7 @@ function buildRkpdesMurniHtml() {
         if (rawItems.length > 0) {
             const currentNo = globalNo++;
             
-            // Build hierarchy map: Sub-Bidang -> Kelompok Kegiatan -> Activities
+            // Build hierarchy map: Sub-Bidang (Level 2) -> Jenis Kegiatan (Level 3) -> Activities (Level 4)
             const subMap = new Map();
             rawItems.forEach(item => {
                 let rpjmObj = {};
@@ -379,10 +400,10 @@ function buildRkpdesMurniHtml() {
                     rpjmObj = item.rpjm_data;
                 }
 
-                const subName = resolveJenisBidangFallback(item);
-                const kelName = resolveJenisKegiatanKelompokFallback(item);
+                const subName = item.jenis_bidang || resolveJenisBidangFallback(item) || 'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa';
+                const kelName = item.jenis_kegiatan || resolveJenisKegiatanKelompokFallback(item) || 'Kelompok Kegiatan Utama';
 
-                const subKey = subName || 'Penyelenggaran Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa';
+                const subKey = subName || 'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa';
                 const kelKey = kelName || 'Kelompok Kegiatan Utama';
 
                 if (!subMap.has(subKey)) subMap.set(subKey, new Map());
@@ -391,12 +412,14 @@ function buildRkpdesMurniHtml() {
                 kelMap.get(kelKey).push({ ...item, _rpjmObj: rpjmObj });
             });
 
-            // Calculate total rows for Bidang cell rowspan
+            // Calculate total rows for Bidang cell rowspan taking into account duplicate header suppression
             let totalRowsInBidang = 0;
             subMap.forEach((kelMap, subName) => {
                 if (subName) totalRowsInBidang++;
                 kelMap.forEach((items, kelName) => {
-                    if (kelName && kelName !== subName) totalRowsInBidang++;
+                    const isDupHeader = (kelName.trim().toLowerCase() === subName.trim().toLowerCase()) ||
+                        (items.length === 1 && String(items[0].nama_kegiatan || items[0].jenis_kegiatan || '').trim().toLowerCase() === kelName.trim().toLowerCase());
+                    if (kelName && !isDupHeader) totalRowsInBidang++;
                     totalRowsInBidang += items.length;
                 });
             });
@@ -421,8 +444,11 @@ function buildRkpdesMurniHtml() {
                 }
 
                 kelMap.forEach((items, kelName) => {
-                    // Render Kelompok Kegiatan Header Row (Level 3)
-                    if (kelName && kelName !== subName) {
+                    const isDupHeader = (kelName.trim().toLowerCase() === subName.trim().toLowerCase()) ||
+                        (items.length === 1 && String(items[0].nama_kegiatan || items[0].jenis_kegiatan || '').trim().toLowerCase() === kelName.trim().toLowerCase());
+
+                    // Render Kelompok / Jenis Kegiatan Header Row (Level 3 - dicegah dari duplikasi teks)
+                    if (kelName && !isDupHeader) {
                         tableBodyHtml += `
                             <tr class="bg-slate-100/90 font-semibold text-slate-800 border border-slate-300">
                                 ${isFirstRowInBidang ? `<td rowspan="${totalRowsInBidang}" class="text-center align-top border border-slate-300 font-bold py-2 px-1 bg-white text-slate-800">${currentNo}</td>` : ''}
@@ -1086,15 +1112,19 @@ function buildRkpdesPerubahanHtml() {
         if (rawItems.length > 0) {
             const currentNo = globalNo++;
 
-            // Grouping Sub-bidang -> Kegiatan (Format Baku Resmi: Bidang -> Sub-Bidang -> Kegiatan)
+            // Grouping Hierarkis 4 Tingkat: Bidang (1) -> Sub-Bidang (2) -> Jenis Kegiatan (3) -> Nama Kegiatan (4)
             const subMap = new Map();
             rawItems.forEach(item => {
-                const subName = item.jenis_bidang || resolveJenisBidangFallback(item) || 'Penyelenggaran Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa';
-                if (!subMap.has(subName)) subMap.set(subName, []);
-                subMap.get(subName).push(item);
+                const subName = item.jenis_bidang || resolveJenisBidangFallback(item) || 'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa';
+                const kegName = item.jenis_kegiatan || resolveJenisKegiatanKelompokFallback(item) || 'Kelompok Kegiatan Utama';
+
+                if (!subMap.has(subName)) subMap.set(subName, new Map());
+                const kegMap = subMap.get(subName);
+                if (!kegMap.has(kegName)) kegMap.set(kegName, []);
+                kegMap.get(kegName).push(item);
             });
 
-            // Bidang Header (1 + 20 = 21 kolom)
+            // Level 1: Bidang Header (1 + 20 = 21 kolom)
             tableBodyHtml += `
                 <tr class="bg-slate-200 font-extrabold text-slate-900 border border-slate-400">
                     <td class="text-center align-top border border-slate-400 font-bold py-2 px-1 bg-slate-200 text-slate-900">${currentNo}</td>
@@ -1104,7 +1134,8 @@ function buildRkpdesPerubahanHtml() {
                 </tr>
             `;
 
-            subMap.forEach((items, subName) => {
+            subMap.forEach((kegMap, subName) => {
+                // Level 2: Sub-Bidang Header Row
                 if (subName) {
                     tableBodyHtml += `
                         <tr class="bg-indigo-50/90 font-bold text-indigo-950 border border-slate-400">
@@ -1116,7 +1147,23 @@ function buildRkpdesPerubahanHtml() {
                     `;
                 }
 
-                items.forEach((item, index) => {
+                kegMap.forEach((items, kegName) => {
+                    const isDupHeader = (kegName.trim().toLowerCase() === subName.trim().toLowerCase()) ||
+                        (items.length === 1 && String(items[0].nama_kegiatan || items[0].jenis_kegiatan || '').trim().toLowerCase() === kegName.trim().toLowerCase());
+
+                    // Level 3: Jenis Kegiatan Header Row (hanya jika tidak redundan/duplikat teks)
+                    if (kegName && !isDupHeader) {
+                        tableBodyHtml += `
+                            <tr class="bg-slate-100/90 font-semibold text-slate-800 border border-slate-400">
+                                <td class="border border-slate-400 bg-slate-100/90"></td>
+                                <td colspan="20" class="align-top border border-slate-400 px-6 py-1 text-[11px] text-slate-800 font-bold italic bg-slate-100/90">
+                                    <i class="fas fa-caret-right text-slate-500 mr-1.5"></i> ${kegName}
+                                </td>
+                            </tr>
+                        `;
+                    }
+
+                    items.forEach((item, index) => {
                         const semula = item.semula || {};
                         if (!item.menjadi) item.menjadi = {};
                         const menjadi = item.menjadi;
@@ -1238,6 +1285,7 @@ function buildRkpdesPerubahanHtml() {
                             </tr>
                         `;
                     });
+                });
             });
 
             // Subtotal per Bidang (2 + 7 + 1 + 1 + 7 + 1 + 1 + 1 = 21 kolom)
