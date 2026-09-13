@@ -141,6 +141,30 @@ assert(htmlCode.includes('id="input-sdgs-semula"'), 'Input SDGs SEMULA ada di mo
 assert(htmlCode.includes('id="input-sdgs-menjadi"'), 'Input SDGs MENJADI ada di modal');
 assert(jsLower.includes('__sdgs__'), 'Fallback localStorage SDGs tersedia');
 
+// 8. FITUR EDIT RINCIAN KEGIATAN RKPDES / RAB PERUBAHAN
+console.log('\n--- FITUR EDIT RINCIAN KEGIATAN RKPDES / RAB PERUBAHAN ---\n');
+assert(htmlCode.includes('id="modalEditRkpPerubahan"'), 'Modal modalEditRkpPerubahan ada di rkpdes.html');
+assert(htmlCode.includes('id="edit-perubahan-volume"'), 'Input Volume Menjadi ada di modal rkpdes.html');
+assert(htmlCode.includes('id="edit-perubahan-biaya"'), 'Input Biaya Menjadi ada di modal rkpdes.html');
+assert(htmlCode.includes('id="edit-perubahan-lokasi"'), 'Input Lokasi Menjadi ada di modal rkpdes.html');
+assert(htmlCode.includes('id="edit-perubahan-sumber-biaya"'), 'Dropdown Sumber Biaya Menjadi ada di modal rkpdes.html');
+assert(htmlCode.includes('copyAllFromSemulaToMenjadi()'), 'Tombol Salin Semua Nilai Semula ada di modal');
+assert(htmlCode.includes('editInRabPerubahanFromModal()'), 'Tombol Buka di Modul RAB ada di modal');
+
+assert(jsCode.includes('btn-edit-perubahan'), 'Class btn-edit-perubahan ada pada baris tabel RKPDes Perubahan');
+assert(jsCode.includes('cell-edit-perubahan'), 'Class cell-edit-perubahan ada pada sel tabel RKPDes Perubahan');
+assert(jsCode.includes('function openEditRkpPerubahanModal'), 'Fungsi openEditRkpPerubahanModal terdefinisi di rkpdes.js');
+assert(jsCode.includes('function closeEditRkpPerubahanModal'), 'Fungsi closeEditRkpPerubahanModal terdefinisi di rkpdes.js');
+assert(jsCode.includes('function copyAllFromSemulaToMenjadi'), 'Fungsi copyAllFromSemulaToMenjadi terdefinisi di rkpdes.js');
+assert(jsCode.includes('function editInRabPerubahanFromModal'), 'Fungsi editInRabPerubahanFromModal terdefinisi di rkpdes.js');
+assert(jsCode.includes('function saveEditRkpPerubahanItem'), 'Fungsi saveEditRkpPerubahanItem terdefinisi di rkpdes.js');
+assert(jsCode.includes("e.target.closest('.btn-edit-perubahan')"), 'Event delegation mendengarkan .btn-edit-perubahan');
+assert(jsCode.includes("e.target.closest('.cell-edit-perubahan')"), 'Event delegation mendengarkan .cell-edit-perubahan');
+
+assert(serverCode.includes("app.put(['/api/rkpdes/perubahan', '/api/perubahan']"), 'Endpoint PUT /api/rkpdes/perubahan terdaftar di server.js');
+assert(serverCode.includes("tipe_anggaran: 'PERUBAHAN'") || serverCode.includes('tipe_anggaran: RAB_TIPE_PERUBAHAN'), 'Persist RAB Perubahan disetel tipe_anggaran PERUBAHAN');
+assert(!serverCode.includes(`from(RAB_TABLE).select('${star}')`), 'Zero-wildcard query pada RAB_TABLE');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

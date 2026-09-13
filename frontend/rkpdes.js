@@ -1221,15 +1221,24 @@ function buildRkpdesPerubahanHtml() {
                                 <td class="align-top border border-slate-300 px-2 py-1.5 text-slate-900 font-semibold pl-6">
                                     <span>${namaKegiatan}</span>
                                     ${statusBadge}
-                                    <button type="button"
-                                        class="btn-edit-manfaat no-print ml-2 text-slate-400 hover:text-indigo-600 transition inline-flex items-center text-[10px] px-1.5 py-0.5 rounded hover:bg-indigo-50 border border-slate-200 cursor-pointer"
-                                        data-item-key="${itemKeyEscaped}"
-                                        data-id="${itemId}"
-                                        data-kode="${itemKodeAttr}"
-                                        
-                                        title="Edit Penerima Manfaat (Menjadi)">
-                                        <i class="fas fa-users-cog mr-1 pointer-events-none"></i><span class="pointer-events-none">Edit Manfaat</span>
-                                    </button>
+                                    <div class="inline-flex items-center gap-1 ml-2 no-print">
+                                        <button type="button"
+                                            class="btn-edit-perubahan text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                            data-item-key="${itemKeyEscaped}"
+                                            data-id="${itemId}"
+                                            data-kode="${itemKodeAttr}"
+                                            title="Edit Rincian RKPDes / RAB Perubahan (Volume, Anggaran, Lokasi, Sumber Dana, dll)">
+                                            <i class="fas fa-edit text-amber-600 pointer-events-none"></i><span class="pointer-events-none">Edit Kegiatan</span>
+                                        </button>
+                                        <button type="button"
+                                            class="btn-edit-manfaat text-slate-400 hover:text-indigo-600 transition inline-flex items-center text-[10px] px-1.5 py-0.5 rounded hover:bg-indigo-50 border border-slate-200 cursor-pointer"
+                                            data-item-key="${itemKeyEscaped}"
+                                            data-id="${itemId}"
+                                            data-kode="${itemKodeAttr}"
+                                            title="Edit Penerima Manfaat (Menjadi)">
+                                            <i class="fas fa-users-cog mr-1 pointer-events-none"></i><span class="pointer-events-none">Manfaat</span>
+                                        </button>
+                                    </div>
                                 </td>
                                 
                                 <!-- 2. Blok SEMULA -->
@@ -1254,8 +1263,12 @@ function buildRkpdesPerubahanHtml() {
                                     ${menjadi.sdgs || '-'}<span class="no-print text-[9px] text-slate-400 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span>
                                 </td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.data_eksisting || '-'}</td>
-                                <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.lokasi || 'Desa Batetangnga'}</td>
-                                <td class="text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800 font-medium">${menjadi.volume_satuan || menjadi.volume || '-'}</td>
+                                <td class="cell-edit-perubahan align-top border border-slate-300 px-1.5 py-1.5 text-slate-700 cursor-pointer hover:bg-amber-50/70 transition"
+                                    data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}"
+                                    title="Klik untuk edit rincian data MENJADI">${menjadi.lokasi || 'Desa Batetangnga'}<span class="no-print text-[9px] text-slate-400 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span></td>
+                                <td class="cell-edit-perubahan text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800 font-medium cursor-pointer hover:bg-amber-50/70 transition"
+                                    data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}"
+                                    title="Klik untuk edit rincian data MENJADI">${menjadi.volume_satuan || menjadi.volume || '-'}<span class="no-print text-[9px] text-slate-400 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span></td>
                                 <td class="cell-edit-manfaat text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group"
                                     data-item-key="${itemKeyEscaped}"
                                     data-id="${itemId}"
@@ -1283,7 +1296,9 @@ function buildRkpdesPerubahanHtml() {
                                     <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''} pointer-events-none">${penerimaRtm || '-'}</span>
                                     <span class="no-print text-[9px] text-slate-400 hover:text-indigo-600 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span>
                                 </td>
-                                <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-bold text-slate-900 whitespace-nowrap">${formatRupiah(bMenjadi)}</td>
+                                <td class="cell-edit-perubahan text-right align-top border border-slate-300 px-1.5 py-1.5 font-bold text-slate-900 whitespace-nowrap cursor-pointer hover:bg-amber-50/70 transition"
+                                    data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}"
+                                    title="Klik untuk edit rincian data MENJADI">${formatRupiah(bMenjadi)}<span class="no-print text-[9px] text-slate-400 ml-0.5 pointer-events-none"><i class="fas fa-pen"></i></span></td>
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${menjadi.sumber_biaya || 'DDS'}</td>
                                 
                                 <!-- 4. Blok SELISIH -->
@@ -2013,4 +2028,302 @@ document.addEventListener('click', function(e) {
         }
         return;
     }
+
+    const editPerubahanBtn = e.target.closest('.btn-edit-perubahan');
+    if (editPerubahanBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const itemKey = editPerubahanBtn.getAttribute('data-item-key') ||
+                        editPerubahanBtn.dataset.itemKey ||
+                        editPerubahanBtn.getAttribute('data-kode') ||
+                        editPerubahanBtn.dataset.kode ||
+                        editPerubahanBtn.getAttribute('data-id') ||
+                        editPerubahanBtn.dataset.id;
+        if (itemKey) {
+            openEditRkpPerubahanModal(itemKey);
+        }
+        return;
+    }
+
+    const editPerubahanCell = e.target.closest('.cell-edit-perubahan');
+    if (editPerubahanCell) {
+        e.preventDefault();
+        e.stopPropagation();
+        const itemKey = editPerubahanCell.getAttribute('data-item-key') ||
+                        editPerubahanCell.dataset.itemKey ||
+                        editPerubahanCell.getAttribute('data-kode') ||
+                        editPerubahanCell.dataset.kode ||
+                        editPerubahanCell.getAttribute('data-id') ||
+                        editPerubahanCell.dataset.id;
+        if (itemKey) {
+            openEditRkpPerubahanModal(itemKey);
+        }
+        return;
+    }
 });
+
+// ==========================================
+// MODAL EDIT RINCIAN RKPDes / RAB PERUBAHAN
+// ==========================================
+function openEditRkpPerubahanModal(itemKey) {
+    if (!rkpdesPerubahanList || rkpdesPerubahanList.length === 0) return;
+    const item = findPerubahanItem(itemKey);
+    if (!item) {
+        console.warn('[RKPDes Perubahan] Kegiatan tidak ditemukan untuk key:', itemKey);
+        showToast('❌ Data kegiatan tidak ditemukan', 'error');
+        return;
+    }
+
+    const modal = document.getElementById('modalEditRkpPerubahan');
+    if (!modal) return;
+
+    const kode = item.kode_unik_full || item.kode_unik || '-';
+    const nama = item.nama_kegiatan || item.jenis_kegiatan || '-';
+    const bidangText = item.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa';
+
+    const elKey = document.getElementById('edit-perubahan-item-key');
+    const elId = document.getElementById('edit-perubahan-id');
+    const elKode = document.getElementById('edit-perubahan-kode');
+    const badgeKode = document.getElementById('edit-perubahan-badge-kode');
+    const badgeBidang = document.getElementById('edit-perubahan-badge-bidang');
+    const titleNama = document.getElementById('edit-perubahan-nama-kegiatan');
+
+    if (elKey) elKey.value = itemKey;
+    if (elId) elId.value = item.id || '';
+    if (elKode) elKode.value = kode;
+    if (badgeKode) badgeKode.textContent = kode;
+    if (badgeBidang) badgeBidang.textContent = bidangText;
+    if (titleNama) titleNama.textContent = nama;
+
+    const semula = item.semula || {};
+    const menjadi = item.menjadi || {};
+
+    // Hints data Semula
+    const hVol = document.getElementById('hint-semula-volume');
+    const hSat = document.getElementById('hint-semula-satuan');
+    const hBiaya = document.getElementById('hint-semula-biaya');
+    if (hVol) hVol.textContent = `Semula: ${semula.volume || '-'}`;
+    if (hSat) hSat.textContent = `Semula: ${semula.satuan || '-'}`;
+    if (hBiaya) hBiaya.textContent = `Semula: ${formatRupiah(Number(semula.biaya || 0))}`;
+
+    // Values Menjadi
+    const inVol = document.getElementById('edit-perubahan-volume');
+    const inSat = document.getElementById('edit-perubahan-satuan');
+    const inBiaya = document.getElementById('edit-perubahan-biaya');
+    const inLokasi = document.getElementById('edit-perubahan-lokasi');
+    const inWaktu = document.getElementById('edit-perubahan-waktu');
+    const inSumber = document.getElementById('edit-perubahan-sumber-biaya');
+    const inPola = document.getElementById('edit-perubahan-pola');
+    const inSdgs = document.getElementById('edit-perubahan-sdgs');
+    const inEksisting = document.getElementById('edit-perubahan-data-eksisting');
+    const inL = document.getElementById('edit-perubahan-manfaat-l');
+    const inP = document.getElementById('edit-perubahan-manfaat-p');
+    const inRtm = document.getElementById('edit-perubahan-manfaat-rtm');
+
+    if (inVol) inVol.value = menjadi.volume ?? semula.volume ?? '1';
+    if (inSat) inSat.value = menjadi.satuan ?? semula.satuan ?? 'Paket';
+    if (inBiaya) inBiaya.value = Number(menjadi.biaya != null ? menjadi.biaya : (semula.biaya || 0));
+    if (inLokasi) inLokasi.value = menjadi.lokasi || semula.lokasi || 'Desa Batetangnga';
+    const rawWaktu = menjadi.waktu_pelaksanaan || semula.waktu_pelaksanaan || '';
+    if (inWaktu) inWaktu.value = (rawWaktu && rawWaktu !== String(activeYear)) ? rawWaktu : '12 Bulan';
+
+    const curSumber = menjadi.sumber_biaya || semula.sumber_biaya || 'DDS';
+    if (inSumber) {
+        let matched = false;
+        for (let i = 0; i < inSumber.options.length; i++) {
+            if (inSumber.options[i].value.toLowerCase() === curSumber.toLowerCase()) {
+                inSumber.selectedIndex = i;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) {
+            for (let i = 0; i < inSumber.options.length; i++) {
+                if (curSumber.toLowerCase().includes(inSumber.options[i].value.toLowerCase())) {
+                    inSumber.selectedIndex = i;
+                    matched = true;
+                    break;
+                }
+            }
+        }
+        if (!matched) inSumber.value = 'DDS';
+    }
+
+    const curPola = menjadi.pola_pelaksanaan || semula.pola_pelaksanaan || 'Swakelola';
+    if (inPola) inPola.value = curPola;
+
+    const curSdgs = menjadi.sdgs || item.mendukung_sdgs || semula.sdgs || '';
+    if (inSdgs) inSdgs.value = cleanSdgsDisplay ? cleanSdgsDisplay(curSdgs) : curSdgs;
+
+    if (inEksisting) inEksisting.value = menjadi.data_eksisting || semula.data_eksisting || '';
+
+    const mL = (item.menjadi?.manfaat_l && item.menjadi.manfaat_l !== '-') ? item.menjadi.manfaat_l :
+               ((item.penerima_l_menjadi && item.penerima_l_menjadi !== '-') ? item.penerima_l_menjadi :
+               (item.semula?.manfaat_l !== '-' ? item.semula?.manfaat_l : ''));
+    const mP = (item.menjadi?.manfaat_p && item.menjadi.manfaat_p !== '-') ? item.menjadi.manfaat_p :
+               ((item.penerima_p_menjadi && item.penerima_p_menjadi !== '-') ? item.penerima_p_menjadi :
+               (item.semula?.manfaat_p !== '-' ? item.semula?.manfaat_p : ''));
+    const mRtm = (item.menjadi?.manfaat_rtm && item.menjadi.manfaat_rtm !== '-') ? item.menjadi.manfaat_rtm :
+                 ((item.penerima_rtm_menjadi && item.penerima_rtm_menjadi !== '-') ? item.penerima_rtm_menjadi :
+                 (item.semula?.manfaat_rtm !== '-' ? item.semula?.manfaat_rtm : ''));
+
+    if (inL) inL.value = mL || '';
+    if (inP) inP.value = mP || '';
+    if (inRtm) inRtm.value = mRtm || '';
+
+    modal.classList.remove('hidden');
+}
+window.openEditRkpPerubahanModal = openEditRkpPerubahanModal;
+
+function closeEditRkpPerubahanModal() {
+    const modal = document.getElementById('modalEditRkpPerubahan');
+    if (modal) modal.classList.add('hidden');
+}
+window.closeEditRkpPerubahanModal = closeEditRkpPerubahanModal;
+
+function copyAllFromSemulaToMenjadi() {
+    const itemKey = document.getElementById('edit-perubahan-item-key')?.value;
+    const item = findPerubahanItem(itemKey);
+    if (!item || !item.semula) {
+        showToast('❌ Data Semula tidak tersedia', 'error');
+        return;
+    }
+    const semula = item.semula;
+    const inVol = document.getElementById('edit-perubahan-volume');
+    const inSat = document.getElementById('edit-perubahan-satuan');
+    const inBiaya = document.getElementById('edit-perubahan-biaya');
+    const inLokasi = document.getElementById('edit-perubahan-lokasi');
+    const inWaktu = document.getElementById('edit-perubahan-waktu');
+    const inSumber = document.getElementById('edit-perubahan-sumber-biaya');
+    const inPola = document.getElementById('edit-perubahan-pola');
+    const inSdgs = document.getElementById('edit-perubahan-sdgs');
+    const inEksisting = document.getElementById('edit-perubahan-data-eksisting');
+    const inL = document.getElementById('edit-perubahan-manfaat-l');
+    const inP = document.getElementById('edit-perubahan-manfaat-p');
+    const inRtm = document.getElementById('edit-perubahan-manfaat-rtm');
+
+    if (inVol) inVol.value = semula.volume || '1';
+    if (inSat) inSat.value = semula.satuan || 'Paket';
+    if (inBiaya) inBiaya.value = Number(semula.biaya || 0);
+    if (inLokasi) inLokasi.value = semula.lokasi || 'Desa Batetangnga';
+    if (inWaktu) inWaktu.value = semula.waktu_pelaksanaan || '12 Bulan';
+    if (inSumber && semula.sumber_biaya) inSumber.value = semula.sumber_biaya;
+    if (inPola && semula.pola_pelaksanaan) inPola.value = semula.pola_pelaksanaan;
+    if (inSdgs) inSdgs.value = cleanSdgsDisplay ? cleanSdgsDisplay(semula.sdgs || '') : (semula.sdgs || '');
+    if (inEksisting) inEksisting.value = semula.data_eksisting || '-';
+    if (inL) inL.value = (semula.manfaat_l && semula.manfaat_l !== '-') ? semula.manfaat_l : '';
+    if (inP) inP.value = (semula.manfaat_p && semula.manfaat_p !== '-') ? semula.manfaat_p : '';
+    if (inRtm) inRtm.value = (semula.manfaat_rtm && semula.manfaat_rtm !== '-') ? semula.manfaat_rtm : '';
+
+    showToast('Data SEMULA disalin ke kolom MENJADI', 'success');
+}
+window.copyAllFromSemulaToMenjadi = copyAllFromSemulaToMenjadi;
+
+function editInRabPerubahanFromModal() {
+    const kode = document.getElementById('edit-perubahan-kode')?.value;
+    if (kode) {
+        window.location.href = `rab.html?kode=${encodeURIComponent(kode)}&tahun=${activeYear}&tipe=PERUBAHAN`;
+    } else {
+        window.location.href = `rab.html?tahun=${activeYear}&tipe=PERUBAHAN`;
+    }
+}
+window.editInRabPerubahanFromModal = editInRabPerubahanFromModal;
+
+async function saveEditRkpPerubahanItem(event) {
+    if (event) event.preventDefault();
+    const itemKey = document.getElementById('edit-perubahan-item-key')?.value;
+    const item = findPerubahanItem(itemKey);
+    if (!item) {
+        showToast('❌ Data kegiatan tidak ditemukan', 'error');
+        return;
+    }
+
+    const saveBtn = document.getElementById('btn-save-edit-perubahan');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-circle-notch animate-spin mr-1"></i> Menyimpan...';
+    }
+
+    const kode = item.kode_unik_full || item.kode_unik || document.getElementById('edit-perubahan-kode')?.value;
+    const volInput = document.getElementById('edit-perubahan-volume')?.value?.trim() || '1';
+    const satInput = document.getElementById('edit-perubahan-satuan')?.value?.trim() || 'Paket';
+    const biayaInput = Number(document.getElementById('edit-perubahan-biaya')?.value) || 0;
+    const lokasiInput = document.getElementById('edit-perubahan-lokasi')?.value?.trim() || 'Desa Batetangnga';
+    const waktuInput = document.getElementById('edit-perubahan-waktu')?.value?.trim() || '12 Bulan';
+    const sumberInput = document.getElementById('edit-perubahan-sumber-biaya')?.value || 'DDS';
+    const polaInput = document.getElementById('edit-perubahan-pola')?.value || 'Swakelola';
+    const sdgsInput = document.getElementById('edit-perubahan-sdgs')?.value?.trim() || '';
+    const eksistingInput = document.getElementById('edit-perubahan-data-eksisting')?.value?.trim() || '-';
+    const mL = document.getElementById('edit-perubahan-manfaat-l')?.value?.trim() || '-';
+    const mP = document.getElementById('edit-perubahan-manfaat-p')?.value?.trim() || '-';
+    const mRtm = document.getElementById('edit-perubahan-manfaat-rtm')?.value?.trim() || '-';
+
+    const payload = {
+        tahun: activeYear,
+        kode_unik_full: kode,
+        id: item.id || null,
+        nama_kegiatan: item.nama_kegiatan || item.jenis_kegiatan || '-',
+        volume: volInput,
+        satuan: satInput,
+        biaya: biayaInput,
+        lokasi: lokasiInput,
+        sumber_biaya: sumberInput,
+        waktu_pelaksanaan: waktuInput,
+        pola_pelaksanaan: polaInput,
+        sdgs: sdgsInput,
+        data_eksisting: eksistingInput,
+        manfaat_l: mL,
+        manfaat_p: mP,
+        manfaat_rtm: mRtm
+    };
+
+    try {
+        const res = await fetch('/api/rkpdes/perubahan', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (result.success) {
+            if (!item.menjadi) item.menjadi = {};
+            item.menjadi.volume = volInput;
+            item.menjadi.satuan = satInput;
+            item.menjadi.volume_satuan = (volInput.toLowerCase().includes(satInput.toLowerCase()) || !satInput) ? volInput : `${volInput} ${satInput}`;
+            item.menjadi.biaya = biayaInput;
+            item.menjadi.lokasi = lokasiInput;
+            item.menjadi.sumber_biaya = sumberInput;
+            item.menjadi.waktu_pelaksanaan = waktuInput;
+            item.menjadi.pola_pelaksanaan = polaInput;
+            item.menjadi.data_eksisting = eksistingInput;
+            if (sdgsInput) {
+                const cleanDisplay = cleanSdgsDisplay ? cleanSdgsDisplay(sdgsInput) : sdgsInput;
+                item.menjadi.sdgs = cleanDisplay ? `SDGs ${cleanDisplay}` : '-';
+            }
+            item.menjadi.manfaat_l = mL;
+            item.menjadi.manfaat_p = mP;
+            item.menjadi.manfaat_rtm = mRtm;
+            item.penerima_l_menjadi = mL;
+            item.penerima_p_menjadi = mP;
+            item.penerima_rtm_menjadi = mRtm;
+
+            const bSemula = Number(item.semula?.biaya || 0);
+            item.selisih = biayaInput - bSemula;
+            item.status_perubahan = item.selisih > 0 ? 'bertambah' : (item.selisih < 0 ? 'berkurang' : 'tetap');
+
+            closeEditRkpPerubahanModal();
+            renderRkpdesPerubahanPreview();
+            showToast('✅ Berhasil memperbarui data RKPDes / RAB Perubahan!', 'success');
+        } else {
+            showToast(`❌ Gagal menyimpan: ${result.error || 'Terjadi kesalahan'}`, 'error');
+        }
+    } catch (err) {
+        console.error('❌ Error saveEditRkpPerubahanItem:', err);
+        showToast('❌ Gagal menghubungi server', 'error');
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-save mr-1"></i> Simpan Perubahan';
+        }
+    }
+}
+window.saveEditRkpPerubahanItem = saveEditRkpPerubahanItem;

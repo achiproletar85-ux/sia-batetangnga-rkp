@@ -432,6 +432,142 @@
         </div>
     </div>
 
+    <!-- MODAL EDIT KEGIATAN RKPDES / RAB PERUBAHAN (SISI MENJADI) -->
+    <div id="modalEditRkpPerubahan" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden no-print">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border border-slate-200">
+            <div class="flex justify-between items-center pb-4 border-b border-slate-200 mb-4">
+                <div>
+                    <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fas fa-edit text-amber-500"></i> Edit RKPDes / RAB Perubahan
+                    </h3>
+                    <p class="text-xs text-slate-500">Penyesuaian data rincian kegiatan pada sisi <span class="font-bold text-amber-600">MENJADI</span></p>
+                </div>
+                <button type="button" onclick="closeEditRkpPerubahanModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer">&times;</button>
+            </div>
+            
+            <form id="formEditRkpPerubahan" onsubmit="saveEditRkpPerubahanItem(event)" class="space-y-4">
+                <input type="hidden" id="edit-perubahan-item-key" />
+                <input type="hidden" id="edit-perubahan-id" />
+                <input type="hidden" id="edit-perubahan-kode" />
+
+                <!-- Banner Informasi Kegiatan -->
+                <div class="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+                        <span id="edit-perubahan-badge-kode" class="font-mono text-[11px] font-bold px-2 py-0.5 bg-amber-200 text-amber-900 rounded">01.01.01.01</span>
+                        <span id="edit-perubahan-badge-bidang" class="text-[11px] font-semibold text-slate-600">Bidang 1</span>
+                    </div>
+                    <div id="edit-perubahan-nama-kegiatan" class="text-xs font-bold text-slate-800 leading-snug">Nama Kegiatan</div>
+                </div>
+
+                <div class="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <span class="text-xs font-medium text-slate-600">Butuh menyamakan dengan data Semula?</span>
+                    <button type="button" onclick="copyAllFromSemulaToMenjadi()" class="text-xs px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer">
+                        <i class="fas fa-copy text-amber-500"></i> Salin Semua Nilai Semula
+                    </button>
+                </div>
+
+                <!-- Anggaran & Volume Menjadi -->
+                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <div class="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                        <i class="fas fa-coins text-amber-500"></i> Anggaran & Volume (Sisi Menjadi)
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="md:col-span-1">
+                            <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Volume Menjadi:</label>
+                            <input type="text" id="edit-perubahan-volume" class="input-field" placeholder="1" required />
+                            <span id="hint-semula-volume" class="block text-[10px] text-slate-400 mt-0.5">Semula: -</span>
+                        </div>
+                        <div class="md:col-span-1">
+                            <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Satuan:</label>
+                            <input type="text" id="edit-perubahan-satuan" class="input-field" placeholder="Paket / Kegiatan / Orang" />
+                            <span id="hint-semula-satuan" class="block text-[10px] text-slate-400 mt-0.5">Semula: -</span>
+                        </div>
+                        <div class="md:col-span-1">
+                            <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Jumlah Biaya Menjadi (Rp):</label>
+                            <input type="number" id="edit-perubahan-biaya" class="input-field font-bold text-indigo-700" min="0" step="any" required />
+                            <span id="hint-semula-biaya" class="block text-[10px] text-slate-400 mt-0.5">Semula: Rp 0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lokasi, Waktu & Sumber Dana -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Lokasi:</label>
+                        <input type="text" id="edit-perubahan-lokasi" class="input-field" placeholder="Desa Batetangnga" />
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Waktu Pelaksanaan:</label>
+                        <input type="text" id="edit-perubahan-waktu" class="input-field" placeholder="12 Bulan" />
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Sumber Pembiayaan:</label>
+                        <select id="edit-perubahan-sumber-biaya" class="input-field">
+                            <option value="DDS" selected>DDS (Dana Desa)</option>
+                            <option value="ADD">ADD (Alokasi Dana Desa)</option>
+                            <option value="PBH">PBH (Bagi Hasil Pajak & Retribusi)</option>
+                            <option value="PAD">PAD (Pendapatan Asli Desa)</option>
+                            <option value="APBD Tk. I">APBD Tk. I (Provinsi)</option>
+                            <option value="APBD Tk. II">APBD Tk. II (Kabupaten)</option>
+                            <option value="DLL">DLL (Lain-lain Pendapatan Sah)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Pola, SDGs, Data Eksisting -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Pola Pelaksanaan:</label>
+                        <select id="edit-perubahan-pola" class="input-field">
+                            <option value="Swakelola" selected>Swakelola</option>
+                            <option value="Kerjasama">Kerjasama</option>
+                            <option value="Pihak Ketiga">Pihak Ketiga</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Mendukung SDGs Ke-:</label>
+                        <input type="text" id="edit-perubahan-sdgs" class="input-field" placeholder="cth: 3 / SDGs 3" />
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Data Eksisting:</label>
+                        <input type="text" id="edit-perubahan-data-eksisting" class="input-field" placeholder="Kegiatan operasional desa" />
+                    </div>
+                </div>
+
+                <!-- Penerima Manfaat Menjadi -->
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase mb-2">Penerima Manfaat Menjadi:</label>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Laki-laki (Org):</label>
+                            <input type="text" id="edit-perubahan-manfaat-l" class="input-field text-center font-bold" placeholder="cth: 10 Org" />
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Perempuan (Org):</label>
+                            <input type="text" id="edit-perubahan-manfaat-p" class="input-field text-center font-bold" placeholder="cth: 10 Org" />
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">RTM (KK):</label>
+                            <input type="text" id="edit-perubahan-manfaat-rtm" class="input-field text-center font-bold" placeholder="cth: 5 KK" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap justify-between items-center gap-3 pt-4 border-t border-slate-200">
+                    <button type="button" onclick="editInRabPerubahanFromModal()" id="btn-edit-perubahan-in-rab" class="btn-secondary text-xs cursor-pointer">
+                        <i class="fas fa-external-link-alt mr-1"></i> Buka di Modul RAB
+                    </button>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="closeEditRkpPerubahanModal()" class="btn-outline text-xs cursor-pointer">Batal</button>
+                        <button type="submit" id="btn-save-edit-perubahan" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                            <i class="fas fa-save mr-1"></i> Simpan Perubahan
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="rkpdes.js"></script>
     <script>
         fetch('/components/navbar.html')
