@@ -6218,47 +6218,43 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                 .eq('tahun', tahunInt));
             if (rkpErr) {
                 console.warn('⚠️ Query rkpdes error (fallback to rab):', rkpErr.message);
-            } else if (Array.isArray(rkpData)) {
+            } else if (Array.isArray(rkpData) && rkpData.length > 0) {
                 murniRows = rkpData;
             }
         } catch (rkpQueryErr) {
             console.warn('⚠️ Supabase rkpdes fetch failed:', rkpQueryErr.message);
         }
 
-        // 2. Fallback jika rkpdes kosong: ambil dari RAB Murni
+        // 2. Auto-Copy / Sinkronisasi Data Murni ke rkpdes jika rkpdes kosong
         if (murniRows.length === 0) {
             try {
-                const { data: rabMurni, error: rabMurniErr } = await supabase
-                    .from('rab')
-                    .select(RAB_SYNC_COLUMNS)
-                    .eq('tahun', tahunInt)
-                    .eq('tipe_anggaran', 'MURNI');
-                if (rabMurniErr) {
-                    console.warn('⚠️ Query rab murni fallback error:', rabMurniErr.message);
-                } else if (Array.isArray(rabMurni)) {
-                    murniRows = rabMurni.map(rb => ({
-                        id: rb.id,
-                        tahun: tahunInt,
-                        kode_unik_full: String(rb.kode_unik_full || rb.kode_unik || '').trim(),
-                        bidang: rb.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
-                        jenis_bidang: rb.jenis_bidang || '-',
-                        jenis_kegiatan: rb.nama_kegiatan || rb.uraian || rb.jenis_kegiatan || '-',
-                        nama_kegiatan: rb.nama_kegiatan || rb.uraian || '-',
-                        lokasi: rb.lokasi || rb.lokasi_kegiatan || 'Desa Batetangnga',
-                        volume: String(rb.volume || 1),
-                        satuan: rb.satuan || 'Paket',
-                        prakiraan_biaya: Number(rb.jumlah_anggaran || 0),
-                        sumber_pembiayaan: rb.sumber_dana || 'DDS',
-                        mendukung_sdgs: '-',
-                        data_eksisting: '-',
-                        penerima_manfaat: '-',
-                        total_manfaat: null,
-                        waktu_pelaksanaan: '12 Bulan',
-                        pola_pelaksanaan: 'Swakelola'
-                    }));
+                if (typeof mergeRkpFromRab === 'function') {
+                    await mergeRkpFromRab(tahunInt);
+                    const { data: syncedRkp } = await supabase
+                        .from('rkpdes')
+                        .select(RKPDES_COLUMNS)
+                        .eq('tahun', tahunInt);
+                    if (Array.isArray(syncedRkp) && syncedRkp.length > 0) {
+                        murniRows = syncedRkp;
+                    }
                 }
-            } catch (rabMurniQueryErr) {
-                console.warn('⚠️ Fallback rab murni fetch failed:', rabMurniQueryErr.message);
+            } catch (syncErr) {
+                console.warn('⚠️ Auto-merge rkpdes murni error:', syncErr.message);
+            }
+        }
+
+        // 2b. Fallback jika rkpdes masih kosong: bangun payload lengkap dari RAB Murni + Standar RPJMDes
+        if (murniRows.length === 0) {
+            try {
+                if (typeof buildRkpPayLoadFromRAB === 'function') {
+                    const { rows: rabGenerated } = await buildRkpPayLoadFromRAB(tahunInt, null);
+                    if (Array.isArray(rabGenerated) && rabGenerated.length > 0) {
+                        murniRows = rabGenerated;
+                    }
+                }
+            } catch (buildErr) {
+                console.warn('⚠️ buildRkpPayLoadFromRAB fallback error:', buildErr.message);
+                murniRows = [{ mendukung_sdgs: '-' }];
             }
         }
 

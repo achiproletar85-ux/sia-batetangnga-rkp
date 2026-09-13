@@ -1190,8 +1190,6 @@ function buildRkpdesPerubahanHtml() {
                             statusBadge = '<span class="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-bold no-print">Berkurang</span>';
                         } else if (item.status_perubahan === 'kegiatan_baru') {
                             statusBadge = '<span class="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold no-print">Baru</span>';
-                        } else {
-                            statusBadge = '<span class="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium no-print">Tetap</span>';
                         }
 
                         let selisihColor = 'text-slate-700';
@@ -1199,20 +1197,12 @@ function buildRkpdesPerubahanHtml() {
                         else if (diff < 0) selisihColor = 'text-rose-700 font-bold';
 
                         tableBodyHtml += `
-                            <tr class="hover:bg-slate-50/80 transition-colors" data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}">
+                            <tr class="hover:bg-slate-50/80 transition-colors cursor-pointer" data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}" title="Klik untuk edit rincian kegiatan perubahan">
                                 <!-- 1. Identifikasi Umum -->
                                 <td class="text-center align-top border border-slate-300 text-slate-500 py-1.5 px-1">${index + 1}</td>
-                                <td class="align-top border border-slate-300 px-2 py-1.5 text-slate-900 font-semibold pl-6">
+                                <td class="align-top border border-slate-300 px-3 py-1.5 text-slate-900 font-semibold pl-6">
                                     <span>${namaKegiatan}</span>
                                     ${statusBadge}
-                                    <button type="button"
-                                        class="btn-edit-perubahan no-print ml-2 text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1 shadow-xs transition cursor-pointer"
-                                        data-item-key="${itemKeyEscaped}"
-                                        data-id="${itemId}"
-                                        data-kode="${itemKodeAttr}"
-                                        title="Edit Rincian RKPDes / RAB Perubahan (Volume, Anggaran, Lokasi, Sumber Dana, Manfaat, dll)">
-                                        <i class="fas fa-edit text-amber-600 pointer-events-none"></i><span class="pointer-events-none">Edit</span>
-                                    </button>
                                 </td>
                                 
                                 <!-- 2. Blok SEMULA -->
@@ -2000,6 +1990,23 @@ document.addEventListener('click', function(e) {
             openEditRkpPerubahanModal(itemKey);
         }
         return;
+    }
+
+    // Klik pada baris kegiatan RKPDes Perubahan untuk membuka modal edit secara bersih
+    const trPerubahan = e.target.closest('tr[data-item-key]');
+    if (trPerubahan && activeRkpTab === 'perubahan') {
+        if (!['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) {
+            const itemKey = trPerubahan.getAttribute('data-item-key') ||
+                            trPerubahan.dataset.itemKey ||
+                            trPerubahan.getAttribute('data-kode') ||
+                            trPerubahan.dataset.kode ||
+                            trPerubahan.getAttribute('data-id') ||
+                            trPerubahan.dataset.id;
+            if (itemKey) {
+                openEditRkpPerubahanModal(itemKey);
+                return;
+            }
+        }
     }
 });
 

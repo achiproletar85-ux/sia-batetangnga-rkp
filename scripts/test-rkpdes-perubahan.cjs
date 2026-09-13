@@ -167,18 +167,19 @@ assert(!serverCode.includes(`from(RAB_TABLE).select('${star}')`), 'Zero-wildcard
 
 // 9. PEMBERSIHAN ELEMEN REDUNDAN & DUPLIKAT DI TABEL RKPDES PERUBAHAN
 console.log('\n--- PEMBERSIHAN ELEMEN REDUNDAN & DUPLIKAT ---\n');
+const buildPerubahanMatch = jsCode.match(/function buildRkpdesPerubahanHtml\(\) \{([\s\S]*?)\nfunction /);
+const buildPerubahanBody = buildPerubahanMatch ? buildPerubahanMatch[1] : '';
+
 assert(!jsCode.includes('btn-edit-manfaat text-slate-400'), 'Tombol redundan "Manfaat" telah disingkirkan dari baris tabel RKPDes Perubahan');
 assert(!jsCode.includes('pointer-events-none"><i class="fas fa-pen"></i></span>'), 'Seluruh ikon pensil duplikat telah dibersihkan dari sel tabel RKPDes Perubahan');
-assert(jsCode.includes('btn-edit-perubahan no-print'), 'Tombol edit utama terpadu hadir bersih tanpa sesak');
+assert(!buildPerubahanBody.includes('btn-edit-perubahan'), 'Tombol teks [✎ Edit] inline telah dibersihkan dari baris kegiatan');
+assert(!buildPerubahanBody.includes('Tetap</span>'), 'Label Tetap telah disingkirkan dari baris kegiatan');
 assert(!jsCode.includes('<td class="cell-edit-sdgs'), 'Sel SDGs bersih dari interaksi per-sel yang redundan');
 assert(!jsCode.includes('<td class="cell-edit-manfaat'), 'Sel Manfaat bersih dari interaksi per-sel yang redundan');
 assert(!jsCode.includes('<td class="cell-edit-perubahan'), 'Sel Perubahan bersih dari interaksi per-sel yang redundan');
-
-// Memastikan fungsi buildRkpdesPerubahanHtml tidak memiliki loop kelMap/fa-caret-right yang menduplikasi nama kegiatan
-const buildPerubahanMatch = jsCode.match(/function buildRkpdesPerubahanHtml\(\) \{([\s\S]*?)\nfunction /);
-const buildPerubahanBody = buildPerubahanMatch ? buildPerubahanMatch[1] : '';
 assert(!buildPerubahanBody.includes('kelMap'), 'Hierarki ganda kelMap telah dihilangkan dari buildRkpdesPerubahanHtml');
 assert(!buildPerubahanBody.includes('fa-caret-right'), 'Baris sub-header bergaris miring duplikat (fa-caret-right) telah disingkirkan');
+
 
 
 // 10. MODAL EDIT TERPADU SEMULA & MENJADI SERTA PERSISTENSI DATABASE
