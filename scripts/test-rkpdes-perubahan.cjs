@@ -102,12 +102,12 @@ assert(jsCode.includes('penerimaL =') && jsCode.includes('item.penerima_l_menjad
 assert(serverCode.includes('manfaat_l: matched ? matched.manfaat_l : null'), 'resolveRpjmStandar mengembalikan manfaat_l dari matchedStd di server.js');
 
 // 5. Cek Event Delegation & Dataset Attributes untuk Tahun 2026 & Dinamis
-assert(jsCode.includes('btn-edit-manfaat'), 'Class btn-edit-manfaat ada pada tombol render preview');
+assert(jsCode.includes('btn-edit-perubahan'), 'Class btn-edit-perubahan ada pada tombol render preview');
 assert(jsCode.includes('cell-edit-manfaat'), 'Class cell-edit-manfaat ada pada sel render preview');
 assert(jsCode.includes('data-item-key'), 'Atribut data-item-key ada pada elemen baris/tombol');
 assert(jsCode.includes('data-kode'), 'Atribut data-kode ada pada elemen baris/tombol');
 assert(jsCode.includes('data-id'), 'Atribut data-id ada pada elemen baris/tombol');
-assert(jsCode.includes("e.target.closest('.btn-edit-manfaat')"), 'Event delegation document listener mendengarkan .btn-edit-manfaat');
+assert(jsCode.includes("e.target.closest('.btn-edit-perubahan')"), 'Event delegation document listener mendengarkan .btn-edit-perubahan');
 assert(jsCode.includes("e.target.closest('.cell-edit-manfaat')"), 'Event delegation document listener mendengarkan .cell-edit-manfaat');
 // 6. Cek Defensive Error Handling & Fallback Tanpa 500
 assert(serverCode.includes('Query rkpdes error (fallback to rab)'), 'Query rkpdes memiliki fallback ramah tanpa throw 500 di server.js');
@@ -164,6 +164,12 @@ assert(jsCode.includes("e.target.closest('.cell-edit-perubahan')"), 'Event deleg
 assert(serverCode.includes("app.put(['/api/rkpdes/perubahan', '/api/perubahan']"), 'Endpoint PUT /api/rkpdes/perubahan terdaftar di server.js');
 assert(serverCode.includes("tipe_anggaran: 'PERUBAHAN'") || serverCode.includes('tipe_anggaran: RAB_TIPE_PERUBAHAN'), 'Persist RAB Perubahan disetel tipe_anggaran PERUBAHAN');
 assert(!serverCode.includes(`from(RAB_TABLE).select('${star}')`), 'Zero-wildcard query pada RAB_TABLE');
+
+// 9. PEMBERSIHAN ELEMEN REDUNDAN & DUPLIKAT DI TABEL RKPDES PERUBAHAN
+console.log('\n--- PEMBERSIHAN ELEMEN REDUNDAN & DUPLIKAT ---\n');
+assert(!jsCode.includes('btn-edit-manfaat text-slate-400'), 'Tombol redundan "Manfaat" telah disingkirkan dari baris tabel RKPDes Perubahan');
+assert(!jsCode.includes('pointer-events-none"><i class="fas fa-pen"></i></span>'), 'Seluruh ikon pensil duplikat telah dibersihkan dari sel tabel RKPDes Perubahan');
+assert(jsCode.includes('btn-edit-perubahan no-print'), 'Tombol edit utama terpadu hadir bersih tanpa sesak');
 
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
