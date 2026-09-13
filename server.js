@@ -1627,6 +1627,14 @@ const RAB_SYNC_COLUMNS = [
     'tipe_anggaran', 'id_referensi_murni', 'saved_at'
 ].join(', ');
 
+const RAB_PERUBAHAN_COLUMNS = [
+    'id', 'kode_unik', 'kode_unik_full', 'tahun', 'nama_kegiatan', 'uraian',
+    'bidang', 'status', 'group_nama', 'sub_group_nama', 'lokasi', 'lokasi_kegiatan',
+    'jenis_kegiatan', 'volume', 'satuan', 'harga_satuan',
+    'jumlah_anggaran', 'sumber_dana',
+    'tipe_anggaran', 'id_referensi_murni', 'saved_at', 'rpjm_data'
+].join(', ');
+
 const RAB_SYNC_COLUMNS_LEGACY = [
     'id', 'kode_unik', 'kode_unik_full', 'tahun', 'nama_kegiatan', 'uraian',
     'bidang', 'status', 'group_nama', 'sub_group_nama', 'lokasi', 'lokasi_kegiatan',
@@ -6259,7 +6267,7 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
         try {
             const { data: rabPerubahan, error: rabErr } = await supabase
                 .from('rab')
-                .select(RAB_SYNC_COLUMNS)
+                .select(RAB_PERUBAHAN_COLUMNS)
                 .eq('tahun', tahunInt)
                 .eq('tipe_anggaran', 'PERUBAHAN');
             if (rabErr) {
@@ -6378,6 +6386,19 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
 
             const lpRtmSemula = parseLPRTMDetails(m, resolved);
             let lpRtmMenjadi = p ? parseLPRTMDetails(p, resolved) : { ...lpRtmSemula };
+
+            // Cek jika p.rpjm_data memiliki data tersimpan dari edit manual
+            const pRpjm = (p && p.rpjm_data) || {};
+            if (pRpjm.manfaat_l && pRpjm.manfaat_l !== '-') {
+                lpRtmMenjadi.l = pRpjm.manfaat_l.includes('Org') ? pRpjm.manfaat_l : `${pRpjm.manfaat_l} Org`;
+            }
+            if (pRpjm.manfaat_p && pRpjm.manfaat_p !== '-') {
+                lpRtmMenjadi.p = pRpjm.manfaat_p.includes('Org') ? pRpjm.manfaat_p : `${pRpjm.manfaat_p} Org`;
+            }
+            if (pRpjm.manfaat_rtm && pRpjm.manfaat_rtm !== '-') {
+                lpRtmMenjadi.rtm = pRpjm.manfaat_rtm.includes('KK') ? pRpjm.manfaat_rtm : `${pRpjm.manfaat_rtm} KK`;
+            }
+
             // Fallback otomatis jika data Menjadi kosong: salin dari Semula
             if ((!lpRtmMenjadi.l || lpRtmMenjadi.l === '-') && lpRtmSemula.l && lpRtmSemula.l !== '-') {
                 lpRtmMenjadi.l = lpRtmSemula.l;
@@ -6388,6 +6409,11 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             if ((!lpRtmMenjadi.rtm || lpRtmMenjadi.rtm === '-') && lpRtmSemula.rtm && lpRtmSemula.rtm !== '-') {
                 lpRtmMenjadi.rtm = lpRtmSemula.rtm;
             }
+
+            const sdgsMenjadiSaved = pRpjm.sdgs ? formatSdgsLabel(cleanSdgsRaw(pRpjm.sdgs)) : null;
+            const dataEksistingMenjadi = pRpjm.data_eksisting || dataEksistingVal;
+            const waktuMenjadi = pRpjm.waktu_pelaksanaan || m.waktu_pelaksanaan || '12 Bulan';
+            const polaMenjadi = pRpjm.pola_pelaksanaan || m.pola_pelaksanaan || 'Swakelola';
 
             combinedMap.set(code, {
                 id: m.id,
@@ -6419,8 +6445,8 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                     pola_pelaksanaan: m.pola_pelaksanaan || 'Swakelola'
                 },
                 menjadi: {
-                    sdgs: sdgsMenjadiLabel,
-                    data_eksisting: dataEksistingVal,
+                    sdgs: sdgsMenjadiSaved || sdgsMenjadiLabel,
+                    data_eksisting: dataEksistingMenjadi,
                     lokasi: lokasiVal,
                     volume: volMenjadi,
                     satuan: satMenjadi,
@@ -6429,10 +6455,10 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                     manfaat_p: lpRtmMenjadi.p,
                     manfaat_rtm: lpRtmMenjadi.rtm,
                     penerima_manfaat: manfaatVal,
-                    waktu_pelaksanaan: m.waktu_pelaksanaan || '12 Bulan',
+                    waktu_pelaksanaan: waktuMenjadi,
                     sumber_biaya: sumberMenjadi,
                     biaya: biayaMenjadi,
-                    pola_pelaksanaan: m.pola_pelaksanaan || 'Swakelola'
+                    pola_pelaksanaan: polaMenjadi
                 },
                 selisih: selisih,
                 status_perubahan: selisih > 0 ? 'bertambah' : (selisih < 0 ? 'berkurang' : 'tetap')
@@ -6641,9 +6667,10 @@ app.put('/api/rkpdes/perubahan/sdgs', async (req, res) => {
 });
 
 // PUT /api/rkpdes/perubahan — update rincian kegiatan pada RKPDes / RAB Perubahan
-// Mendukung pembaruan volume, satuan, biaya/anggaran, lokasi, sumber dana, waktu,
-// pola pelaksanaan, sdgs, data eksisting, dan penerima manfaat.
-// Memperbarui tabel rab (tipe_anggaran: PERUBAHAN) dan tabel rkpdes secara terkoordinasi.
+// Mendukung pembaruan data Semula (Murni) dan Menjadi (Perubahan):
+// - volume, satuan, biaya/anggaran, lokasi, sumber dana, waktu, pola pelaksanaan,
+//   sdgs, data eksisting, dan penerima manfaat.
+// Memperbarui tabel rab (tipe_anggaran: MURNI & PERUBAHAN) dan tabel rkpdes secara terkoordinasi.
 app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
     try {
         const body = req.body || {};
@@ -6652,19 +6679,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             kode_unik_full,
             id,
             nama_kegiatan,
-            volume,
-            satuan,
-            biaya,
-            lokasi,
-            sumber_biaya,
-            waktu_pelaksanaan,
-            pola_pelaksanaan,
-            sdgs,
-            data_eksisting,
-            manfaat_l,
-            manfaat_p,
-            manfaat_rtm,
-            penerima_manfaat
+            bidang
         } = body;
 
         const parsedYear = parseInt(tahun, 10);
@@ -6675,22 +6690,140 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             return res.status(400).json({ success: false, error: 'Parameter kode_unik_full atau id wajib diisi.' });
         }
 
-        const volNum = Number(volume) || 1;
-        const satStr = String(satuan || 'Paket');
-        const biayaNum = Number(biaya) || 0;
-        const lokasiStr = String(lokasi || 'Desa Batetangnga');
-        const sumberStr = String(sumber_biaya || body.sumber_dana || 'DDS');
-        const waktuStr = String(waktu_pelaksanaan || '12 Bulan');
-        const polaStr = String(pola_pelaksanaan || 'Swakelola');
-        const eksistingStr = String(data_eksisting || '-');
         const nowIso = new Date().toISOString();
 
-        // 1. Koordinasi Penyimpanan ke Tabel RAB (tipe_anggaran: 'PERUBAHAN')
+        function parseManfaatNumber(v) {
+            if (v == null || v === '' || v === '-') return null;
+            const m = String(v).match(/\d+/);
+            return m ? Number(m[0]) : null;
+        }
+
+        // ==========================================
+        // 1. KOORDINASI DATA SISI SEMULA (Murni)
+        // ==========================================
+        if (body.semula && typeof body.semula === 'object') {
+            const sem = body.semula;
+            const volSemulaNum = Number(sem.volume) || 1;
+            const satSemulaStr = String(sem.satuan || 'Paket');
+            const biayaSemulaNum = Number(sem.biaya) || 0;
+            const lokasiSemulaStr = String(sem.lokasi || 'Desa Batetangnga');
+            const sumberSemulaStr = String(sem.sumber_biaya || sem.sumber_dana || 'DDS');
+            const waktuSemulaStr = String(sem.waktu_pelaksanaan || '12 Bulan');
+            const polaSemulaStr = String(sem.pola_pelaksanaan || 'Swakelola');
+            const eksistingSemulaStr = String(sem.data_eksisting || '-');
+            const cleanSdgsSem = cleanSdgsRaw(sem.sdgs);
+
+            const numLSemula = parseManfaatNumber(sem.manfaat_l);
+            const numPSemula = parseManfaatNumber(sem.manfaat_p);
+            const numRtmSemula = parseManfaatNumber(sem.manfaat_rtm);
+
+            // A. Update tabel rab (tipe_anggaran: 'MURNI')
+            try {
+                if (kode) {
+                    const { data: existingRabMurni } = await supabase
+                        .from(RAB_TABLE)
+                        .select('id, kode_unik_full, tahun, tipe_anggaran')
+                        .eq('tahun', tahunInt)
+                        .eq('tipe_anggaran', RAB_TIPE_MURNI)
+                        .eq('kode_unik_full', kode)
+                        .maybeSingle();
+
+                    if (existingRabMurni && existingRabMurni.id) {
+                        await supabase.from(RAB_TABLE).update({
+                            volume: volSemulaNum,
+                            satuan: satSemulaStr,
+                            jumlah_anggaran: biayaSemulaNum,
+                            harga_satuan: biayaSemulaNum,
+                            lokasi: lokasiSemulaStr,
+                            lokasi_kegiatan: lokasiSemulaStr,
+                            sumber_dana: sumberSemulaStr,
+                            updated_at: nowIso
+                        }).eq('id', existingRabMurni.id).select('id');
+                    }
+                }
+            } catch (semRabErr) {
+                console.warn('⚠️ Gagal update rab murni:', semRabErr.message);
+            }
+
+            // B. Update atau Insert tabel rkpdes (Semula/Murni)
+            try {
+                const rkpSemulaPayload = {
+                    volume: String(sem.volume || 1),
+                    satuan: satSemulaStr,
+                    prakiraan_biaya: biayaSemulaNum,
+                    lokasi: lokasiSemulaStr,
+                    sumber_pembiayaan: sumberSemulaStr,
+                    waktu_pelaksanaan: waktuSemulaStr,
+                    pola_pelaksanaan: polaSemulaStr,
+                    data_eksisting: eksistingSemulaStr,
+                    sdgs: cleanSdgsSem || '-',
+                    updated_at: nowIso
+                };
+
+                if (numLSemula !== null) rkpSemulaPayload.manfaat_l = numLSemula;
+                if (numPSemula !== null) rkpSemulaPayload.manfaat_p = numPSemula;
+                if (numRtmSemula !== null) rkpSemulaPayload.manfaat_rtm = numRtmSemula;
+                if (numLSemula !== null || numPSemula !== null || numRtmSemula !== null) {
+                    const totSemula = (numLSemula || 0) + (numPSemula || 0);
+                    rkpSemulaPayload.total_manfaat = totSemula;
+                    rkpSemulaPayload.sasaran_manfaat = `L: ${numLSemula || 0}, P: ${numPSemula || 0}, RTM: ${numRtmSemula || 0} (Total: ${totSemula} Orang)`;
+                }
+
+                let rkpCheck = supabase.from('rkpdes').select('id, kode_unik_full, tahun');
+                if (id && !isNaN(Number(id))) {
+                    rkpCheck = rkpCheck.eq('id', Number(id));
+                } else if (kode) {
+                    rkpCheck = rkpCheck.eq('kode_unik_full', kode).eq('tahun', tahunInt);
+                }
+                const { data: existingRkp } = await rkpCheck.maybeSingle();
+
+                if (existingRkp && existingRkp.id) {
+                    await supabase.from('rkpdes').update(rkpSemulaPayload).eq('id', existingRkp.id).select('id');
+                } else if (kode) {
+                    const { data: maxRkp } = await supabase.from('rkpdes').select('id').order('id', { ascending: false }).limit(1);
+                    const nextRkpId = (maxRkp && maxRkp[0] && Number(maxRkp[0].id)) ? Number(maxRkp[0].id) + 1 : Date.now();
+                    await supabase.from('rkpdes').insert({
+                        id: nextRkpId,
+                        tahun: tahunInt,
+                        kode_unik_full: kode,
+                        nama_kegiatan: nama_kegiatan || '-',
+                        jenis_kegiatan: nama_kegiatan || '-',
+                        bidang: bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
+                        ...rkpSemulaPayload,
+                        created_at: nowIso
+                    }).select('id');
+                }
+            } catch (semRkpErr) {
+                console.warn('⚠️ Gagal update rkpdes semula:', semRkpErr.message);
+            }
+        }
+
+        // ==========================================
+        // 2. KOORDINASI DATA SISI MENJADI (Perubahan)
+        // ==========================================
+        const men = (body.menjadi && typeof body.menjadi === 'object') ? body.menjadi : body;
+        const volNum = Number(men.volume ?? body.volume) || 1;
+        const satStr = String(men.satuan || body.satuan || 'Paket');
+        const biayaNum = Number(men.biaya != null ? men.biaya : body.biaya) || 0;
+        const lokasiStr = String(men.lokasi || body.lokasi || 'Desa Batetangnga');
+        const sumberStr = String(men.sumber_biaya || men.sumber_dana || body.sumber_biaya || body.sumber_dana || 'DDS');
+        const waktuStr = String(men.waktu_pelaksanaan || body.waktu_pelaksanaan || '12 Bulan');
+        const polaStr = String(men.pola_pelaksanaan || body.pola_pelaksanaan || 'Swakelola');
+        const eksistingStr = String(men.data_eksisting || body.data_eksisting || '-');
+        const rawSdgsMenjadi = men.sdgs !== undefined ? men.sdgs : body.sdgs;
+        const cleanSdgsMenjadi = cleanSdgsRaw(rawSdgsMenjadi);
+        const sdgsMenjadiLabel = cleanSdgsMenjadi ? formatSdgsLabel(cleanSdgsMenjadi) : '-';
+
+        const mLStr = String(men.manfaat_l || body.manfaat_l || '-');
+        const mPStr = String(men.manfaat_p || body.manfaat_p || '-');
+        const mRtmStr = String(men.manfaat_rtm || body.manfaat_rtm || '-');
+
+        // A. Koordinasi Penyimpanan ke Tabel RAB (tipe_anggaran: 'PERUBAHAN')
         let rabPerId = null;
         try {
             let findQ = supabase
                 .from(RAB_TABLE)
-                .select('id, kode_unik_full, tahun, tipe_anggaran, volume, satuan, jumlah_anggaran')
+                .select('id, kode_unik_full, tahun, tipe_anggaran, volume, satuan, jumlah_anggaran, rpjm_data')
                 .eq('tahun', tahunInt)
                 .eq('tipe_anggaran', RAB_TIPE_PERUBAHAN);
             if (kode) {
@@ -6699,6 +6832,17 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 findQ = findQ.eq('id', Number(id));
             }
             const { data: existingRabPer } = await findQ.maybeSingle();
+
+            const newRpjmData = {
+                ...((existingRabPer && existingRabPer.rpjm_data) || {}),
+                waktu_pelaksanaan: waktuStr,
+                pola_pelaksanaan: polaStr,
+                data_eksisting: eksistingStr,
+                sdgs: sdgsMenjadiLabel,
+                manfaat_l: (mLStr && mLStr !== '-') ? (mLStr.includes('Org') ? mLStr : `${mLStr} Org`) : '-',
+                manfaat_p: (mPStr && mPStr !== '-') ? (mPStr.includes('Org') ? mPStr : `${mPStr} Org`) : '-',
+                manfaat_rtm: (mRtmStr && mRtmStr !== '-') ? (mRtmStr.includes('KK') ? mRtmStr : `${mRtmStr} KK`) : '-'
+            };
 
             if (existingRabPer && existingRabPer.id) {
                 rabPerId = existingRabPer.id;
@@ -6710,6 +6854,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     lokasi: lokasiStr,
                     lokasi_kegiatan: lokasiStr,
                     sumber_dana: sumberStr,
+                    rpjm_data: newRpjmData,
                     updated_at: nowIso
                 }).eq('id', rabPerId).select('id');
             } else {
@@ -6739,7 +6884,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     tahun: tahunInt,
                     nama_kegiatan: murniRef?.nama_kegiatan || nama_kegiatan || '-',
                     uraian: murniRef?.uraian || nama_kegiatan || '-',
-                    bidang: murniRef?.bidang || '',
+                    bidang: murniRef?.bidang || bidang || '',
                     status: 'perubahan',
                     group_nama: murniRef?.group_nama || '',
                     sub_group_nama: murniRef?.sub_group_nama || '',
@@ -6752,7 +6897,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     jumlah_anggaran: biayaNum,
                     sumber_dana: sumberStr,
                     items: murniRef?.items || [],
-                    rpjm_data: murniRef?.rpjm_data || {},
+                    rpjm_data: newRpjmData,
                     tipe_anggaran: RAB_TIPE_PERUBAHAN,
                     id_referensi_murni: murniRef ? murniRef.id : null,
                     saved_at: nowIso,
@@ -6765,61 +6910,22 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             console.warn('⚠️ Gagal update tabel RAB perubahan (tetap lanjut ke rkpdes):', rabErr.message);
         }
 
-        // 2. Koordinasi Penyimpanan ke Tabel RKPDES
-        const rkpPayload = {
-            volume: String(volume || 1),
-            satuan: satStr,
-            prakiraan_biaya: biayaNum,
-            lokasi: lokasiStr,
-            sumber_pembiayaan: sumberStr,
-            waktu_pelaksanaan: waktuStr,
-            pola_pelaksanaan: polaStr,
-            data_eksisting: eksistingStr,
-            updated_at: nowIso
-        };
-
-        if (sdgs !== undefined && sdgs !== null) {
-            const cleanSdgs = cleanSdgsRaw(sdgs);
-            rkpPayload.mendukung_sdgs = cleanSdgs ? formatSdgsLabel(cleanSdgs) : '-';
-        }
-
-        function parseManfaatNumber(v) {
-            if (v == null || v === '' || v === '-') return null;
-            const m = String(v).match(/\d+/);
-            return m ? Number(m[0]) : null;
-        }
-
-        const numL = parseManfaatNumber(manfaat_l);
-        const numP = parseManfaatNumber(manfaat_p);
-        const numRtm = parseManfaatNumber(manfaat_rtm);
-
-        if (numL !== null) rkpPayload.manfaat_l = numL;
-        if (numP !== null) rkpPayload.manfaat_p = numP;
-        if (numRtm !== null) rkpPayload.manfaat_rtm = numRtm;
-        if (penerima_manfaat !== undefined && penerima_manfaat !== null) {
-            rkpPayload.penerima_manfaat = penerima_manfaat;
-        } else if (numL !== null || numP !== null || numRtm !== null) {
-            const totalM = (numL || 0) + (numP || 0);
-            rkpPayload.total_manfaat = totalM;
-            rkpPayload.sasaran_manfaat = `L: ${numL || 0}, P: ${numP || 0}, RTM: ${numRtm || 0} (Total: ${totalM} Orang)`;
-        }
-
-        let rkpUpdatedData = null;
-        try {
-            let rkpQ = supabase.from('rkpdes').update(rkpPayload);
-            if (id && !isNaN(Number(id))) {
-                rkpQ = rkpQ.eq('id', Number(id));
-            } else if (kode) {
-                rkpQ = rkpQ.eq('kode_unik_full', kode).eq('tahun', tahunInt);
+        // B. Koordinasi Penyimpanan ke Tabel RKPDES (mendukung_sdgs untuk Menjadi)
+        if (cleanSdgsMenjadi) {
+            try {
+                let rkpQ = supabase.from('rkpdes').update({
+                    mendukung_sdgs: sdgsMenjadiLabel,
+                    updated_at: nowIso
+                });
+                if (id && !isNaN(Number(id))) {
+                    rkpQ = rkpQ.eq('id', Number(id));
+                } else if (kode) {
+                    rkpQ = rkpQ.eq('kode_unik_full', kode).eq('tahun', tahunInt);
+                }
+                await rkpQ.select('id');
+            } catch (sdgsErr) {
+                console.warn('⚠️ Gagal update rkpdes mendukung_sdgs:', sdgsErr.message);
             }
-            const { data: rkpRes, error: rkpErr } = await rkpQ.select('id, kode_unik_full, tahun, volume, satuan, prakiraan_biaya, lokasi, sumber_pembiayaan');
-            if (rkpErr) {
-                console.warn('⚠️ Update rkpdes warning:', rkpErr.message);
-            } else if (rkpRes && rkpRes.length > 0) {
-                rkpUpdatedData = rkpRes[0];
-            }
-        } catch (rkpErr) {
-            console.warn('⚠️ Supabase rkpdes update failed:', rkpErr.message);
         }
 
         return res.json({
@@ -6828,7 +6934,22 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             data: {
                 tahun: tahunInt,
                 kode_unik_full: kode,
-                id: id || (rkpUpdatedData ? rkpUpdatedData.id : null) || rabPerId,
+                id: id || rabPerId,
+                semula: body.semula || null,
+                menjadi: {
+                    volume: volNum,
+                    satuan: satStr,
+                    biaya: biayaNum,
+                    lokasi: lokasiStr,
+                    sumber_biaya: sumberStr,
+                    waktu_pelaksanaan: waktuStr,
+                    pola_pelaksanaan: polaStr,
+                    data_eksisting: eksistingStr,
+                    sdgs: sdgsMenjadiLabel,
+                    manfaat_l: mLStr,
+                    manfaat_p: mPStr,
+                    manfaat_rtm: mRtmStr
+                },
                 volume: volNum,
                 satuan: satStr,
                 biaya: biayaNum,
@@ -6837,10 +6958,10 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 waktu_pelaksanaan: waktuStr,
                 pola_pelaksanaan: polaStr,
                 data_eksisting: eksistingStr,
-                sdgs: rkpPayload.mendukung_sdgs || '-',
-                manfaat_l: manfaat_l || '-',
-                manfaat_p: manfaat_p || '-',
-                manfaat_rtm: manfaat_rtm || '-'
+                sdgs: sdgsMenjadiLabel,
+                manfaat_l: mLStr,
+                manfaat_p: mPStr,
+                manfaat_rtm: mRtmStr
             }
         });
     } catch (error) {

@@ -2047,8 +2047,34 @@ document.addEventListener('click', function(e) {
 });
 
 // ==========================================
-// MODAL EDIT RINCIAN RKPDes / RAB PERUBAHAN
-// ==========================================
+// MODAL EDIT RINCIAN RKPDes / RAB PERUBAHAN (SEMULA & MENJADI)
+// ==============================================================
+function updateModalLiveDifference() {
+    const bSemula = Number(document.getElementById('edit-semula-biaya')?.value) || 0;
+    const bMenjadi = Number(document.getElementById('edit-perubahan-biaya')?.value) || 0;
+    const selisih = bMenjadi - bSemula;
+
+    const sumSemula = document.getElementById('summary-semula-biaya');
+    const sumMenjadi = document.getElementById('summary-menjadi-biaya');
+    const sumSelisih = document.getElementById('summary-selisih-biaya');
+
+    if (sumSemula) sumSemula.textContent = formatRupiah(bSemula);
+    if (sumMenjadi) sumMenjadi.textContent = formatRupiah(bMenjadi);
+    if (sumSelisih) {
+        if (selisih > 0) {
+            sumSelisih.className = 'font-bold text-xs px-2 py-0.5 rounded inline-block w-fit bg-emerald-100 text-emerald-800 border border-emerald-300';
+            sumSelisih.textContent = `+${formatRupiah(selisih)} (Bertambah)`;
+        } else if (selisih < 0) {
+            sumSelisih.className = 'font-bold text-xs px-2 py-0.5 rounded inline-block w-fit bg-rose-100 text-rose-800 border border-rose-300';
+            sumSelisih.textContent = `-${formatRupiah(Math.abs(selisih))} (Berkurang)`;
+        } else {
+            sumSelisih.className = 'font-bold text-xs px-2 py-0.5 rounded inline-block w-fit bg-slate-200 text-slate-700';
+            sumSelisih.textContent = `Rp 0 (Tetap)`;
+        }
+    }
+}
+window.updateModalLiveDifference = updateModalLiveDifference;
+
 function openEditRkpPerubahanModal(itemKey) {
     if (!rkpdesPerubahanList || rkpdesPerubahanList.length === 0) return;
     const item = findPerubahanItem(itemKey);
@@ -2082,6 +2108,46 @@ function openEditRkpPerubahanModal(itemKey) {
     const semula = item.semula || {};
     const menjadi = item.menjadi || {};
 
+    // 1. PRA-ISI NILAI SEMULA (Sebelum Perubahan)
+    const semVol = document.getElementById('edit-semula-volume');
+    const semSat = document.getElementById('edit-semula-satuan');
+    const semBiaya = document.getElementById('edit-semula-biaya');
+    const semLokasi = document.getElementById('edit-semula-lokasi');
+    const semWaktu = document.getElementById('edit-semula-waktu');
+    const semSumber = document.getElementById('edit-semula-sumber-biaya');
+    const semPola = document.getElementById('edit-semula-pola');
+    const semSdgs = document.getElementById('edit-semula-sdgs');
+    const semEksisting = document.getElementById('edit-semula-data-eksisting');
+    const semL = document.getElementById('edit-semula-manfaat-l');
+    const semP = document.getElementById('edit-semula-manfaat-p');
+    const semRtm = document.getElementById('edit-semula-manfaat-rtm');
+
+    if (semVol) semVol.value = semula.volume || '1';
+    if (semSat) semSat.value = semula.satuan || 'Paket';
+    if (semBiaya) semBiaya.value = Number(semula.biaya || 0);
+    if (semLokasi) semLokasi.value = semula.lokasi || 'Desa Batetangnga';
+    if (semWaktu) semWaktu.value = semula.waktu_pelaksanaan || '12 Bulan';
+
+    const sSumberVal = semula.sumber_biaya || 'DDS';
+    if (semSumber) {
+        let matched = false;
+        for (let i = 0; i < semSumber.options.length; i++) {
+            if (semSumber.options[i].value.toLowerCase() === sSumberVal.toLowerCase()) {
+                semSumber.selectedIndex = i;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) semSumber.value = 'DDS';
+    }
+
+    if (semPola) semPola.value = semula.pola_pelaksanaan || 'Swakelola';
+    if (semSdgs) semSdgs.value = cleanSdgsDisplay ? cleanSdgsDisplay(semula.sdgs || '') : (semula.sdgs || '');
+    if (semEksisting) semEksisting.value = (semula.data_eksisting && semula.data_eksisting !== '-') ? semula.data_eksisting : '';
+    if (semL) semL.value = (semula.manfaat_l && semula.manfaat_l !== '-') ? semula.manfaat_l : '';
+    if (semP) semP.value = (semula.manfaat_p && semula.manfaat_p !== '-') ? semula.manfaat_p : '';
+    if (semRtm) semRtm.value = (semula.manfaat_rtm && semula.manfaat_rtm !== '-') ? semula.manfaat_rtm : '';
+
     // Hints data Semula
     const hVol = document.getElementById('hint-semula-volume');
     const hSat = document.getElementById('hint-semula-satuan');
@@ -2090,7 +2156,7 @@ function openEditRkpPerubahanModal(itemKey) {
     if (hSat) hSat.textContent = `Semula: ${semula.satuan || '-'}`;
     if (hBiaya) hBiaya.textContent = `Semula: ${formatRupiah(Number(semula.biaya || 0))}`;
 
-    // Values Menjadi
+    // 2. PRA-ISI NILAI MENJADI (Setelah Perubahan)
     const inVol = document.getElementById('edit-perubahan-volume');
     const inSat = document.getElementById('edit-perubahan-satuan');
     const inBiaya = document.getElementById('edit-perubahan-biaya');
@@ -2139,7 +2205,7 @@ function openEditRkpPerubahanModal(itemKey) {
     const curSdgs = menjadi.sdgs || item.mendukung_sdgs || semula.sdgs || '';
     if (inSdgs) inSdgs.value = cleanSdgsDisplay ? cleanSdgsDisplay(curSdgs) : curSdgs;
 
-    if (inEksisting) inEksisting.value = menjadi.data_eksisting || semula.data_eksisting || '';
+    if (inEksisting) inEksisting.value = (menjadi.data_eksisting && menjadi.data_eksisting !== '-') ? menjadi.data_eksisting : (semula.data_eksisting || '');
 
     const mL = (item.menjadi?.manfaat_l && item.menjadi.manfaat_l !== '-') ? item.menjadi.manfaat_l :
                ((item.penerima_l_menjadi && item.penerima_l_menjadi !== '-') ? item.penerima_l_menjadi :
@@ -2155,6 +2221,7 @@ function openEditRkpPerubahanModal(itemKey) {
     if (inP) inP.value = mP || '';
     if (inRtm) inRtm.value = mRtm || '';
 
+    updateModalLiveDifference();
     modal.classList.remove('hidden');
 }
 window.openEditRkpPerubahanModal = openEditRkpPerubahanModal;
@@ -2166,13 +2233,19 @@ function closeEditRkpPerubahanModal() {
 window.closeEditRkpPerubahanModal = closeEditRkpPerubahanModal;
 
 function copyAllFromSemulaToMenjadi() {
-    const itemKey = document.getElementById('edit-perubahan-item-key')?.value;
-    const item = findPerubahanItem(itemKey);
-    if (!item || !item.semula) {
-        showToast('❌ Data Semula tidak tersedia', 'error');
-        return;
-    }
-    const semula = item.semula;
+    const semVol = document.getElementById('edit-semula-volume')?.value?.trim();
+    const semSat = document.getElementById('edit-semula-satuan')?.value?.trim();
+    const semBiaya = document.getElementById('edit-semula-biaya')?.value;
+    const semLokasi = document.getElementById('edit-semula-lokasi')?.value?.trim();
+    const semWaktu = document.getElementById('edit-semula-waktu')?.value?.trim();
+    const semSumber = document.getElementById('edit-semula-sumber-biaya')?.value;
+    const semPola = document.getElementById('edit-semula-pola')?.value;
+    const semSdgs = document.getElementById('edit-semula-sdgs')?.value?.trim();
+    const semEksisting = document.getElementById('edit-semula-data-eksisting')?.value?.trim();
+    const semL = document.getElementById('edit-semula-manfaat-l')?.value?.trim();
+    const semP = document.getElementById('edit-semula-manfaat-p')?.value?.trim();
+    const semRtm = document.getElementById('edit-semula-manfaat-rtm')?.value?.trim();
+
     const inVol = document.getElementById('edit-perubahan-volume');
     const inSat = document.getElementById('edit-perubahan-satuan');
     const inBiaya = document.getElementById('edit-perubahan-biaya');
@@ -2186,19 +2259,20 @@ function copyAllFromSemulaToMenjadi() {
     const inP = document.getElementById('edit-perubahan-manfaat-p');
     const inRtm = document.getElementById('edit-perubahan-manfaat-rtm');
 
-    if (inVol) inVol.value = semula.volume || '1';
-    if (inSat) inSat.value = semula.satuan || 'Paket';
-    if (inBiaya) inBiaya.value = Number(semula.biaya || 0);
-    if (inLokasi) inLokasi.value = semula.lokasi || 'Desa Batetangnga';
-    if (inWaktu) inWaktu.value = semula.waktu_pelaksanaan || '12 Bulan';
-    if (inSumber && semula.sumber_biaya) inSumber.value = semula.sumber_biaya;
-    if (inPola && semula.pola_pelaksanaan) inPola.value = semula.pola_pelaksanaan;
-    if (inSdgs) inSdgs.value = cleanSdgsDisplay ? cleanSdgsDisplay(semula.sdgs || '') : (semula.sdgs || '');
-    if (inEksisting) inEksisting.value = semula.data_eksisting || '-';
-    if (inL) inL.value = (semula.manfaat_l && semula.manfaat_l !== '-') ? semula.manfaat_l : '';
-    if (inP) inP.value = (semula.manfaat_p && semula.manfaat_p !== '-') ? semula.manfaat_p : '';
-    if (inRtm) inRtm.value = (semula.manfaat_rtm && semula.manfaat_rtm !== '-') ? semula.manfaat_rtm : '';
+    if (inVol && semVol !== undefined) inVol.value = semVol || '1';
+    if (inSat && semSat !== undefined) inSat.value = semSat || 'Paket';
+    if (inBiaya && semBiaya !== undefined) inBiaya.value = semBiaya || 0;
+    if (inLokasi && semLokasi !== undefined) inLokasi.value = semLokasi || 'Desa Batetangnga';
+    if (inWaktu && semWaktu !== undefined) inWaktu.value = semWaktu || '12 Bulan';
+    if (inSumber && semSumber !== undefined) inSumber.value = semSumber;
+    if (inPola && semPola !== undefined) inPola.value = semPola;
+    if (inSdgs && semSdgs !== undefined) inSdgs.value = semSdgs;
+    if (inEksisting && semEksisting !== undefined) inEksisting.value = semEksisting;
+    if (inL && semL !== undefined) inL.value = semL;
+    if (inP && semP !== undefined) inP.value = semP;
+    if (inRtm && semRtm !== undefined) inRtm.value = semRtm;
 
+    updateModalLiveDifference();
     showToast('Data SEMULA disalin ke kolom MENJADI', 'success');
 }
 window.copyAllFromSemulaToMenjadi = copyAllFromSemulaToMenjadi;
@@ -2229,36 +2303,84 @@ async function saveEditRkpPerubahanItem(event) {
     }
 
     const kode = item.kode_unik_full || item.kode_unik || document.getElementById('edit-perubahan-kode')?.value;
-    const volInput = document.getElementById('edit-perubahan-volume')?.value?.trim() || '1';
-    const satInput = document.getElementById('edit-perubahan-satuan')?.value?.trim() || 'Paket';
-    const biayaInput = Number(document.getElementById('edit-perubahan-biaya')?.value) || 0;
-    const lokasiInput = document.getElementById('edit-perubahan-lokasi')?.value?.trim() || 'Desa Batetangnga';
-    const waktuInput = document.getElementById('edit-perubahan-waktu')?.value?.trim() || '12 Bulan';
-    const sumberInput = document.getElementById('edit-perubahan-sumber-biaya')?.value || 'DDS';
-    const polaInput = document.getElementById('edit-perubahan-pola')?.value || 'Swakelola';
-    const sdgsInput = document.getElementById('edit-perubahan-sdgs')?.value?.trim() || '';
-    const eksistingInput = document.getElementById('edit-perubahan-data-eksisting')?.value?.trim() || '-';
-    const mL = document.getElementById('edit-perubahan-manfaat-l')?.value?.trim() || '-';
-    const mP = document.getElementById('edit-perubahan-manfaat-p')?.value?.trim() || '-';
-    const mRtm = document.getElementById('edit-perubahan-manfaat-rtm')?.value?.trim() || '-';
+
+    // Nilai Sisi SEMULA
+    const volSemula = document.getElementById('edit-semula-volume')?.value?.trim() || '1';
+    const satSemula = document.getElementById('edit-semula-satuan')?.value?.trim() || 'Paket';
+    const biayaSemula = Number(document.getElementById('edit-semula-biaya')?.value) || 0;
+    const lokasiSemula = document.getElementById('edit-semula-lokasi')?.value?.trim() || 'Desa Batetangnga';
+    const waktuSemula = document.getElementById('edit-semula-waktu')?.value?.trim() || '12 Bulan';
+    const sumberSemula = document.getElementById('edit-semula-sumber-biaya')?.value || 'DDS';
+    const polaSemula = document.getElementById('edit-semula-pola')?.value || 'Swakelola';
+    const sdgsSemula = document.getElementById('edit-semula-sdgs')?.value?.trim() || '';
+    const eksistingSemula = document.getElementById('edit-semula-data-eksisting')?.value?.trim() || '-';
+    const mLSemula = document.getElementById('edit-semula-manfaat-l')?.value?.trim() || '-';
+    const mPSemula = document.getElementById('edit-semula-manfaat-p')?.value?.trim() || '-';
+    const mRtmSemula = document.getElementById('edit-semula-manfaat-rtm')?.value?.trim() || '-';
+
+    // Nilai Sisi MENJADI
+    const volMenjadi = document.getElementById('edit-perubahan-volume')?.value?.trim() || '1';
+    const satMenjadi = document.getElementById('edit-perubahan-satuan')?.value?.trim() || 'Paket';
+    const biayaMenjadi = Number(document.getElementById('edit-perubahan-biaya')?.value) || 0;
+    const lokasiMenjadi = document.getElementById('edit-perubahan-lokasi')?.value?.trim() || 'Desa Batetangnga';
+    const waktuMenjadi = document.getElementById('edit-perubahan-waktu')?.value?.trim() || '12 Bulan';
+    const sumberMenjadi = document.getElementById('edit-perubahan-sumber-biaya')?.value || 'DDS';
+    const polaMenjadi = document.getElementById('edit-perubahan-pola')?.value || 'Swakelola';
+    const sdgsMenjadi = document.getElementById('edit-perubahan-sdgs')?.value?.trim() || '';
+    const eksistingMenjadi = document.getElementById('edit-perubahan-data-eksisting')?.value?.trim() || '-';
+    const mLMenjadi = document.getElementById('edit-perubahan-manfaat-l')?.value?.trim() || '-';
+    const mPMenjadi = document.getElementById('edit-perubahan-manfaat-p')?.value?.trim() || '-';
+    const mRtmMenjadi = document.getElementById('edit-perubahan-manfaat-rtm')?.value?.trim() || '-';
 
     const payload = {
         tahun: activeYear,
         kode_unik_full: kode,
         id: item.id || null,
         nama_kegiatan: item.nama_kegiatan || item.jenis_kegiatan || '-',
-        volume: volInput,
-        satuan: satInput,
-        biaya: biayaInput,
-        lokasi: lokasiInput,
-        sumber_biaya: sumberInput,
-        waktu_pelaksanaan: waktuInput,
-        pola_pelaksanaan: polaInput,
-        sdgs: sdgsInput,
-        data_eksisting: eksistingInput,
-        manfaat_l: mL,
-        manfaat_p: mP,
-        manfaat_rtm: mRtm
+        bidang: item.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
+        // Struktur data Semula
+        semula: {
+            volume: volSemula,
+            satuan: satSemula,
+            biaya: biayaSemula,
+            lokasi: lokasiSemula,
+            sumber_biaya: sumberSemula,
+            waktu_pelaksanaan: waktuSemula,
+            pola_pelaksanaan: polaSemula,
+            sdgs: sdgsSemula,
+            data_eksisting: eksistingSemula,
+            manfaat_l: mLSemula,
+            manfaat_p: mPSemula,
+            manfaat_rtm: mRtmSemula
+        },
+        // Struktur data Menjadi
+        menjadi: {
+            volume: volMenjadi,
+            satuan: satMenjadi,
+            biaya: biayaMenjadi,
+            lokasi: lokasiMenjadi,
+            sumber_biaya: sumberMenjadi,
+            waktu_pelaksanaan: waktuMenjadi,
+            pola_pelaksanaan: polaMenjadi,
+            sdgs: sdgsMenjadi,
+            data_eksisting: eksistingMenjadi,
+            manfaat_l: mLMenjadi,
+            manfaat_p: mPMenjadi,
+            manfaat_rtm: mRtmMenjadi
+        },
+        // Fallback properti flat untuk kompatibilitas
+        volume: volMenjadi,
+        satuan: satMenjadi,
+        biaya: biayaMenjadi,
+        lokasi: lokasiMenjadi,
+        sumber_biaya: sumberMenjadi,
+        waktu_pelaksanaan: waktuMenjadi,
+        pola_pelaksanaan: polaMenjadi,
+        sdgs: sdgsMenjadi,
+        data_eksisting: eksistingMenjadi,
+        manfaat_l: mLMenjadi,
+        manfaat_p: mPMenjadi,
+        manfaat_rtm: mRtmMenjadi
     };
 
     try {
@@ -2269,34 +2391,56 @@ async function saveEditRkpPerubahanItem(event) {
         });
         const result = await res.json();
         if (result.success) {
-            if (!item.menjadi) item.menjadi = {};
-            item.menjadi.volume = volInput;
-            item.menjadi.satuan = satInput;
-            item.menjadi.volume_satuan = (volInput.toLowerCase().includes(satInput.toLowerCase()) || !satInput) ? volInput : `${volInput} ${satInput}`;
-            item.menjadi.biaya = biayaInput;
-            item.menjadi.lokasi = lokasiInput;
-            item.menjadi.sumber_biaya = sumberInput;
-            item.menjadi.waktu_pelaksanaan = waktuInput;
-            item.menjadi.pola_pelaksanaan = polaInput;
-            item.menjadi.data_eksisting = eksistingInput;
-            if (sdgsInput) {
-                const cleanDisplay = cleanSdgsDisplay ? cleanSdgsDisplay(sdgsInput) : sdgsInput;
-                item.menjadi.sdgs = cleanDisplay ? `SDGs ${cleanDisplay}` : '-';
+            // Update objek SEMULA lokal
+            if (!item.semula) item.semula = {};
+            item.semula.volume = volSemula;
+            item.semula.satuan = satSemula;
+            item.semula.volume_satuan = (volSemula.toLowerCase().includes(satSemula.toLowerCase()) || !satSemula) ? volSemula : `${volSemula} ${satSemula}`;
+            item.semula.biaya = biayaSemula;
+            item.semula.lokasi = lokasiSemula;
+            item.semula.sumber_biaya = sumberSemula;
+            item.semula.waktu_pelaksanaan = waktuSemula;
+            item.semula.pola_pelaksanaan = polaSemula;
+            item.semula.data_eksisting = eksistingSemula;
+            if (sdgsSemula) {
+                const cleanSem = cleanSdgsDisplay ? cleanSdgsDisplay(sdgsSemula) : sdgsSemula;
+                item.semula.sdgs = cleanSem ? `SDGs ${cleanSem}` : '-';
             }
-            item.menjadi.manfaat_l = mL;
-            item.menjadi.manfaat_p = mP;
-            item.menjadi.manfaat_rtm = mRtm;
-            item.penerima_l_menjadi = mL;
-            item.penerima_p_menjadi = mP;
-            item.penerima_rtm_menjadi = mRtm;
+            item.semula.manfaat_l = mLSemula;
+            item.semula.manfaat_p = mPSemula;
+            item.semula.manfaat_rtm = mRtmSemula;
+            item.penerima_l_semula = mLSemula;
+            item.penerima_p_semula = mPSemula;
+            item.penerima_rtm_semula = mRtmSemula;
 
-            const bSemula = Number(item.semula?.biaya || 0);
-            item.selisih = biayaInput - bSemula;
+            // Update objek MENJADI lokal
+            if (!item.menjadi) item.menjadi = {};
+            item.menjadi.volume = volMenjadi;
+            item.menjadi.satuan = satMenjadi;
+            item.menjadi.volume_satuan = (volMenjadi.toLowerCase().includes(satMenjadi.toLowerCase()) || !satMenjadi) ? volMenjadi : `${volMenjadi} ${satMenjadi}`;
+            item.menjadi.biaya = biayaMenjadi;
+            item.menjadi.lokasi = lokasiMenjadi;
+            item.menjadi.sumber_biaya = sumberMenjadi;
+            item.menjadi.waktu_pelaksanaan = waktuMenjadi;
+            item.menjadi.pola_pelaksanaan = polaMenjadi;
+            item.menjadi.data_eksisting = eksistingMenjadi;
+            if (sdgsMenjadi) {
+                const cleanMen = cleanSdgsDisplay ? cleanSdgsDisplay(sdgsMenjadi) : sdgsMenjadi;
+                item.menjadi.sdgs = cleanMen ? `SDGs ${cleanMen}` : '-';
+            }
+            item.menjadi.manfaat_l = mLMenjadi;
+            item.menjadi.manfaat_p = mPMenjadi;
+            item.menjadi.manfaat_rtm = mRtmMenjadi;
+            item.penerima_l_menjadi = mLMenjadi;
+            item.penerima_p_menjadi = mPMenjadi;
+            item.penerima_rtm_menjadi = mRtmMenjadi;
+
+            item.selisih = biayaMenjadi - biayaSemula;
             item.status_perubahan = item.selisih > 0 ? 'bertambah' : (item.selisih < 0 ? 'berkurang' : 'tetap');
 
             closeEditRkpPerubahanModal();
             renderRkpdesPerubahanPreview();
-            showToast('✅ Berhasil memperbarui data RKPDes / RAB Perubahan!', 'success');
+            showToast('✅ Berhasil memperbarui data RKPDes / RAB Perubahan (Semula & Menjadi)!', 'success');
         } else {
             showToast(`❌ Gagal menyimpan: ${result.error || 'Terjadi kesalahan'}`, 'error');
         }

@@ -171,6 +171,20 @@ assert(!jsCode.includes('btn-edit-manfaat text-slate-400'), 'Tombol redundan "Ma
 assert(!jsCode.includes('pointer-events-none"><i class="fas fa-pen"></i></span>'), 'Seluruh ikon pensil duplikat telah dibersihkan dari sel tabel RKPDes Perubahan');
 assert(jsCode.includes('btn-edit-perubahan no-print'), 'Tombol edit utama terpadu hadir bersih tanpa sesak');
 
+// 10. MODAL EDIT TERPADU SEMULA & MENJADI SERTA PERSISTENSI DATABASE
+console.log('\n--- MODAL EDIT TERPADU SEMULA & MENJADI SERTA PERSISTENSI DATABASE ---\n');
+assert(htmlCode.includes('id="edit-semula-volume"'), 'Input Volume Semula ada di modal rkpdes.html');
+assert(htmlCode.includes('id="edit-semula-biaya"'), 'Input Biaya Semula ada di modal rkpdes.html');
+assert(htmlCode.includes('id="edit-semula-lokasi"'), 'Input Lokasi Semula ada di modal rkpdes.html');
+assert(htmlCode.includes('id="edit-semula-sumber-biaya"'), 'Dropdown Sumber Biaya Semula ada di modal rkpdes.html');
+assert(htmlCode.includes('id="edit-semula-sdgs"'), 'Input SDGs Semula ada di modal rkpdes.html');
+assert(htmlCode.includes('id="edit-semula-manfaat-l"'), 'Input Manfaat L Semula ada di modal rkpdes.html');
+assert(htmlCode.includes('id="summary-semula-biaya"') && htmlCode.includes('id="summary-menjadi-biaya"'), 'Live summary badge Semula & Menjadi ada di modal');
+assert(jsCode.includes('function updateModalLiveDifference'), 'Helper updateModalLiveDifference terdefinisi di rkpdes.js');
+assert(jsCode.includes('edit-semula-volume') && jsCode.includes('edit-semula-biaya'), 'Pra-isi nilai Semula terpasang pada openEditRkpPerubahanModal');
+assert(serverCode.includes('body.semula') && serverCode.includes('RAB_TIPE_MURNI'), 'Persistensi sisi Semula ke rab murni & rkpdes terdaftar di server.js');
+assert(serverCode.includes('const RAB_PERUBAHAN_COLUMNS'), 'Konstanta RAB_PERUBAHAN_COLUMNS dengan kolom eksplisit terdaftar di server.js');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
