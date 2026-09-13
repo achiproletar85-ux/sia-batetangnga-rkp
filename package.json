@@ -15,8 +15,9 @@
     "test:rab-perubahan": "node scripts/test-rab-perubahan.cjs",
     "test:rkpdes-perubahan": "node scripts/test-rkpdes-perubahan.cjs",
     "test:rktl-perubahan": "node scripts/test-rktl-perubahan.cjs",
-    "check:all": "npm run audit:egress && node --check server.js && node --check frontend/rkpdes.js && node --check frontend/rktl.js && node --check frontend/rab.js && node --check frontend/rpjmdesModule.js && node --check backend/services/rpjmdesService.js && node --check scripts/import-csv.js && npm run test:rab-perubahan && npm run test:rkpdes-perubahan && npm run test:rktl-perubahan",
-    "test": "node scripts/test-rab-perubahan.cjs && node scripts/test-rkpdes-perubahan.cjs && node scripts/test-rktl-perubahan.cjs"
+    "test:pagu-indikatif-perubahan": "node scripts/test-pagu-indikatif-perubahan.cjs",
+    "check:all": "npm run audit:egress && node --check server.js && node --check frontend/rkpdes.js && node --check frontend/rktl.js && node --check frontend/rab.js && node --check frontend/pagu-indikatif.js && node --check frontend/rpjmdesModule.js && node --check backend/services/rpjmdesService.js && node --check scripts/import-csv.js && npm run test:rab-perubahan && npm run test:rkpdes-perubahan && npm run test:rktl-perubahan && npm run test:pagu-indikatif-perubahan",
+    "test": "node scripts/test-rab-perubahan.cjs && node scripts/test-rkpdes-perubahan.cjs && node scripts/test-rktl-perubahan.cjs && node scripts/test-pagu-indikatif-perubahan.cjs"
   },
   "keywords": [
     "electron",

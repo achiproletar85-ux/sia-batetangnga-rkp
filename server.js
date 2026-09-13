@@ -7981,6 +7981,172 @@ app.post('/api/pagu-indikatif', async (req, res) => {
 });
 
 // ============================================================
+// PAGU INDIKATIF PERUBAHAN (PAK) API
+// Agregasi otomatis dari rincian belanja RAB Perubahan
+// ============================================================
+app.get('/api/pagu-indikatif/perubahan', async (req, res) => {
+    try {
+        const { tahun } = req.query;
+        const tahunInt = parseInt(tahun, 10) || 2027;
+
+        // OPSI A: Coba panggil RPC PostgreSQL get_pagu_indikatif_perubahan (paling hemat egress)
+        try {
+            const { data: rpcData, error: rpcErr } = await supabase.rpc('get_pagu_indikatif_perubahan', { p_tahun: tahunInt });
+            if (!rpcErr && rpcData && typeof rpcData === 'object') {
+                return res.json({ success: true, source: 'rpc', data: rpcData });
+            }
+            if (rpcErr) {
+                console.warn('⚠️ Supabase RPC get_pagu_indikatif_perubahan warning:', rpcErr.message);
+            }
+        } catch (rpcExc) {
+            console.warn('⚠️ Exception calling get_pagu_indikatif_perubahan RPC:', rpcExc.message);
+        }
+
+        // OPSI B (Fallback server-side aggregation dengan kolom zero-wildcard eksplisit)
+        console.log(`ℹ️ Menjalankan fallback server-side aggregation untuk Pagu Indikatif Perubahan tahun ${tahunInt}`);
+
+        const PAGU_MIN_COLUMNS = 'id, tahun, sumber_dana, pagu';
+        const RAB_SUM_COLUMNS = 'id, tahun, tipe_anggaran, bidang, sumber_dana, jumlah_anggaran';
+
+        const { data: plafonRows } = await supabase
+            .from('pagu_anggaran')
+            .select(PAGU_MIN_COLUMNS)
+            .eq('tahun', tahunInt);
+
+        const { data: rabMurniRows } = await supabase
+            .from('rab')
+            .select(RAB_SUM_COLUMNS)
+            .eq('tahun', tahunInt)
+            .or('tipe_anggaran.eq.MURNI,tipe_anggaran.is.null');
+
+        const { data: rabPerubahanRows } = await supabase
+            .from('rab')
+            .select(RAB_SUM_COLUMNS)
+            .eq('tahun', tahunInt)
+            .eq('tipe_anggaran', 'PERUBAHAN');
+
+        // Helper membersihkan nama sumber dana
+        const cleanSumber = (s) => {
+            const str = String(s || '').toUpperCase();
+            if (str.includes('ADD') || str.includes('ALOKASI DANA')) return 'ADD';
+            if (str.includes('DDS') || str.includes('DANA DESA') || str.includes('APBN')) return 'DDS';
+            if (str.includes('BAGI HASIL') || str.includes('PAJAK') || str.includes('RETRIBUSI') || str.includes('PBH')) return 'PBH';
+            if (str.includes('PROV') || str.includes('BKK') || str.includes('TK. I') || str.includes('TK I')) return 'APBD Tk. I';
+            if (str.includes('KAB') || str.includes('KOTA') || str.includes('TK. II') || str.includes('TK II')) return 'APBD Tk. II';
+            if (str.includes('PAD') || str.includes('ASLI')) return 'PAD';
+            return 'LAINNYA';
+        };
+
+        const cleanBidang = (b) => {
+            const str = String(b || '').toLowerCase();
+            if (str.includes('pembangunan')) return 'Bidang Pelaksanaan Pembangunan Desa';
+            if (str.includes('pembinaan')) return 'Bidang Pembinaan Kemasyarakatan';
+            if (str.includes('pemberdayaan')) return 'Bidang Pemberdayaan Masyarakat';
+            if (str.includes('penanggulangan') || str.includes('darurat') || str.includes('bencana')) {
+                return 'Bidang Penanggulangan Bencana, Keadaan Darurat dan Mendesak Desa';
+            }
+            return 'Bidang Penyelenggaraan Pemerintahan Desa';
+        };
+
+        const sumberList = ['ADD', 'DDS', 'PBH', 'APBD Tk. I', 'APBD Tk. II', 'PAD'];
+        const bidangList = [
+            'Bidang Penyelenggaraan Pemerintahan Desa',
+            'Bidang Pelaksanaan Pembangunan Desa',
+            'Bidang Pembinaan Kemasyarakatan',
+            'Bidang Pemberdayaan Masyarakat',
+            'Bidang Penanggulangan Bencana, Keadaan Darurat dan Mendesak Desa'
+        ];
+
+        const plafonMap = {};
+        (plafonRows || []).forEach(r => {
+            plafonMap[r.sumber_dana] = Number(r.pagu || 0);
+        });
+
+        const murniSdMap = {};
+        const murniBidMap = {};
+        (rabMurniRows || []).forEach(r => {
+            const s = cleanSumber(r.sumber_dana);
+            const b = cleanBidang(r.bidang);
+            const jml = Number(r.jumlah_anggaran || 0);
+            murniSdMap[s] = (murniSdMap[s] || 0) + jml;
+            murniBidMap[b] = (murniBidMap[b] || 0) + jml;
+        });
+
+        const perubSdMap = {};
+        const perubBidMap = {};
+        (rabPerubahanRows || []).forEach(r => {
+            const s = cleanSumber(r.sumber_dana);
+            const b = cleanBidang(r.bidang);
+            const jml = Number(r.jumlah_anggaran || 0);
+            perubSdMap[s] = (perubSdMap[s] || 0) + jml;
+            perubBidMap[b] = (perubBidMap[b] || 0) + jml;
+        });
+
+        const rekapSd = sumberList.map(s => {
+            const paguMurni = plafonMap[s] || 0;
+            const belanjaMurni = murniSdMap[s] || 0;
+            const paguPerubahan = perubSdMap[s] || 0;
+            const selisihMurni = paguPerubahan - belanjaMurni;
+            const persentaseMurni = belanjaMurni > 0 ? Number(((selisihMurni / belanjaMurni) * 100).toFixed(2)) : 0;
+            const sisaPlafon = paguMurni - paguPerubahan;
+
+            let statusKeseimbangan = 'Sesuai Pagu';
+            if (paguMurni === 0 && paguPerubahan === 0) {
+                statusKeseimbangan = 'Seimbang';
+            } else if (paguMurni > 0 && paguPerubahan > paguMurni) {
+                statusKeseimbangan = 'Melampaui Pagu';
+            } else if (paguMurni > 0 && paguPerubahan <= paguMurni) {
+                statusKeseimbangan = 'Sesuai Pagu';
+            }
+
+            return {
+                sumber_dana: s,
+                pagu_murni: paguMurni,
+                belanja_murni: belanjaMurni,
+                pagu_perubahan: paguPerubahan,
+                selisih_murni: selisihMurni,
+                persentase_murni: persentaseMurni,
+                sisa_plafon: sisaPlafon,
+                status_keseimbangan: statusKeseimbangan
+            };
+        });
+
+        const rekapBidang = bidangList.map(b => {
+            const belanjaMurni = murniBidMap[b] || 0;
+            const belanjaPerubahan = perubBidMap[b] || 0;
+            const selisih = belanjaPerubahan - belanjaMurni;
+            const persentase = belanjaMurni > 0 ? Number(((selisih / belanjaMurni) * 100).toFixed(2)) : 0;
+
+            return {
+                bidang: b,
+                belanja_murni: belanjaMurni,
+                belanja_perubahan: belanjaPerubahan,
+                selisih: selisih,
+                persentase: persentase
+            };
+        });
+
+        const totalPlafonMurni = rekapSd.reduce((acc, c) => acc + c.pagu_murni, 0);
+        const totalBelanjaMurni = rekapSd.reduce((acc, c) => acc + c.belanja_murni, 0);
+        const totalPaguPerubahan = rekapSd.reduce((acc, c) => acc + c.pagu_perubahan, 0);
+        const totalSelisih = totalPaguPerubahan - totalBelanjaMurni;
+
+        const payload = {
+            tahun: tahunInt,
+            sumber_dana: rekapSd,
+            bidang: rekapBidang,
+            total_plafon_murni: totalPlafonMurni,
+            total_belanja_murni: totalBelanjaMurni,
+            total_pagu_perubahan: totalPaguPerubahan,
+            total_selisih: totalSelisih
+        };
+
+        return res.json({ success: true, source: 'fallback', data: payload });
+    } catch (error) {
+        console.error('❌ Error GET /api/pagu-indikatif/perubahan:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // PAGU ANGGARAN API (pagu_anggaran) / PEMBIAYAAN
 // ============================================================
 app.get('/api/pagu-anggaran', async (req, res) => {

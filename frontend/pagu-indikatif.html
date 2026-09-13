@@ -96,16 +96,39 @@
             </div>
         </div>
 
+        <!-- TAB CONTROL: Pagu Indikatif Asli (Murni) vs Pagu Indikatif Perubahan (PAK) -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
+            <div class="inline-flex p-1 bg-slate-200/90 rounded-2xl border border-slate-300 shadow-inner">
+                <button type="button" id="tab-btn-pagu-murni" onclick="switchPaguMode('MURNI')" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm cursor-pointer">
+                    <i class="fas fa-coins"></i> Pagu Indikatif Asli (Murni)
+                </button>
+                <button type="button" id="tab-btn-pagu-perubahan" onclick="switchPaguMode('PERUBAHAN')" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer">
+                    <i class="fas fa-calculator text-amber-600"></i> Pagu Indikatif Perubahan (PAK)
+                </button>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="pagu-mode-badge" class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                    <i class="fas fa-info-circle text-indigo-500"></i> Mode: Pagu Indikatif Asli (Murni)
+                </span>
+                <button type="button" id="btn-sync-rab-perubahan" onclick="refreshPaguPerubahan()" class="hidden bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-md shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer" title="Sinkronkan dan muat ulang agregasi terbaru dari RAB Perubahan">
+                    <i class="fas fa-rotate"></i> Sinkronkan / Refresh dari RAB Perubahan
+                </button>
+            </div>
+        </div>
+
         <!-- TABLE DATA LIVE MATRIKS PAGU INDIKATIF -->
         <div class="glass rounded-2xl shadow-lg p-6 mb-8 overflow-hidden">
             <div id="livePreviewContainer" class="overflow-x-auto">
                 <div class="w-full bg-white p-6 shadow-sm border rounded-lg font-serif text-slate-900">
-                    <div class="text-center font-bold text-base mb-1 tracking-wide uppercase">
+                    <div id="pagu-doc-title" class="text-center font-bold text-base mb-1 tracking-wide uppercase">
                         PAGU INDIKATIF DESA
                     </div>
                     <div class="text-center font-bold text-sm mb-6" id="tahun-header">
                         TAHUN ANGGARAN 2027
                     </div>
+
+                    <!-- CONTAINER MATRIKS KOMPARASI (KHUSUS MODE PERUBAHAN) -->
+                    <div id="komparasi-container" class="hidden mb-8"></div>
 
                     <!-- IDENTITAS DESA -->
                     <div class="mb-6 text-xs font-bold leading-relaxed flex justify-between border-none">
@@ -177,90 +200,6 @@
                 window.location.href = tab + '.html';
             }
         }
-
-        async function loadPaguIndikatifData() {
-            const activeYear = Number(document.getElementById('select-year')?.value) || 2027;
-            const tahunHeader = document.getElementById('tahun-header');
-            if (tahunHeader) tahunHeader.textContent = `TAHUN ANGGARAN ${activeYear}`;
-
-            const tbody = document.getElementById('tabel-pagu-body');
-            if (!tbody) return;
-
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="7" class="text-center py-12 text-slate-400">
-                        <i class="fas fa-circle-notch animate-spin text-3xl mb-4"></i>
-                        <p>Mengambil Data Pagu Indikatif Tahun ${activeYear}...</p>
-                    </td>
-                </tr>
-            `;
-
-            try {
-                // SUMBER DATA: tabel `rab` (sumber kebenaran anggaran) dengan fallback RKPDes
-                let rawData = [];
-                let isFromRab = false;
-                try {
-                    const res = await fetch(`/api/rab?tahun=${activeYear}&tipe=MURNI`, { cache: 'no-store' });
-                    if (res.ok) {
-                        const raw = await res.json();
-                        const rabList = Array.isArray(raw) ? raw : (raw.data || []);
-                        if (Array.isArray(rabList) && rabList.length > 0) {
-                            rawData = rabList;
-                            isFromRab = true;
-                        }
-                    }
-                } catch (e) {
-                    console.warn('Error fetching RAB data:', e);
-                }
-
-                if (!isFromRab || rawData.length === 0) {
-                    try {
-                        const resFallback = await fetch(`/api/rkpdes?tahun=${activeYear}`, { cache: 'no-store' });
-                        if (resFallback.ok) {
-                            const rawFallback = await resFallback.json();
-                            const fallbackList = Array.isArray(rawFallback) ? rawFallback : (rawFallback.data || []);
-                            if (Array.isArray(fallbackList) && fallbackList.length > 0) {
-                                rawData = fallbackList;
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('Error fetching fallback RKPDes data:', e);
-                    }
-                }
-
-                // NORMALISASI data:
-                // Jika data berasal dari RKPDes fallback, lakukan normalisasi via normalisasiRkpdesRows.
-                // Jika berasal langsung dari tabel `rab`, struktur skalar sudah siap dirender.
-                if (!isFromRab && typeof window.normalisasiRkpdesRows === 'function' && rawData.length > 0) {
-                    rawData = window.normalisasiRkpdesRows(rawData);
-                }
-
-                const htmlHasil = renderTabelPaguIndikatif(rawData);
-                if (htmlHasil && htmlHasil.trim()) {
-                    tbody.innerHTML = htmlHasil;
-                } else {
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="7" class="text-center py-8 text-slate-400">
-                                Tidak ada data Pagu Indikatif untuk tahun ${activeYear}.
-                            </td>
-                        </tr>
-                    `;
-                }
-            } catch (err) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="7" class="text-center py-8 text-red-500 font-bold">
-                            ❌ Gagal memuat data: ${err.message}
-                        </td>
-                    </tr>
-                `;
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            loadPaguIndikatifData();
-        });
     </script>
     <script>
         fetch('/components/navbar.html')
