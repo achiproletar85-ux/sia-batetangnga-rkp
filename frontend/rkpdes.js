@@ -618,12 +618,12 @@ function buildRkpdesMurniHtml() {
                     ${tableBodyHtml}
                 </tbody>
                 <tfoot>
-                    <tr class="font-extrabold bg-slate-800 text-white text-sm">
-                        <td colspan="10" class="text-center uppercase border border-slate-900 py-3">JUMLAH TOTAL</td>
-                        <td class="border border-slate-900 py-3 px-2"></td>
-                        <td class="text-right border border-slate-900 py-3 px-2 whitespace-nowrap text-amber-300 font-extrabold">${formatRupiah(grandTotalBiaya)}</td>
-                        <td class="border border-slate-900"></td>
-                        <td class="border border-slate-900 no-print"></td>
+                    <tr class="font-extrabold bg-white text-slate-900 text-xs">
+                        <td colspan="10" class="text-center uppercase border border-slate-400 py-2.5 font-extrabold tracking-wider bg-white text-slate-900">JUMLAH TOTAL</td>
+                        <td class="border border-slate-400 py-2.5 px-2 bg-white"></td>
+                        <td class="text-right border border-slate-400 py-2.5 px-2 whitespace-nowrap text-slate-900 font-extrabold bg-white">${formatRupiah(grandTotalBiaya)}</td>
+                        <td class="border border-slate-400 bg-white"></td>
+                        <td class="border border-slate-400 no-print bg-white"></td>
                     </tr>
                 </tfoot>
             </table>
@@ -1453,15 +1453,15 @@ function buildRkpdesPerubahanHtml() {
                 </tbody>
                 <!-- C. BARIS JUMLAH TOTAL (2 + 7 + 1 + 1 + 7 + 1 + 1 + 1 = 21 kolom) -->
                 <tfoot>
-                    <tr class="font-extrabold bg-slate-800 text-white text-xs">
-                        <td colspan="2" class="text-center uppercase border border-slate-900 py-2.5 font-bold tracking-wider">JUMLAH TOTAL</td>
-                        <td colspan="7" class="border border-slate-900 bg-slate-800"></td>
-                        <td class="text-right border border-slate-900 py-2.5 px-2 whitespace-nowrap text-white font-extrabold">${formatRupiah(grandTotalSemula)}</td>
-                        <td class="border border-slate-900 bg-slate-800"></td>
-                        <td colspan="7" class="border border-slate-900 bg-slate-800"></td>
-                        <td class="text-right border border-slate-900 py-2.5 px-2 whitespace-nowrap text-amber-300 font-extrabold">${formatRupiah(grandTotalMenjadi)}</td>
-                        <td class="border border-slate-900 bg-slate-800"></td>
-                        <td class="text-right border border-slate-900 py-2.5 px-2 whitespace-nowrap ${grandTotalSelisih > 0 ? 'text-emerald-300' : (grandTotalSelisih < 0 ? 'text-rose-300' : 'text-white')} font-extrabold">${formatSelisihRupiah(grandTotalSelisih)}</td>
+                    <tr class="font-extrabold bg-white text-slate-900 text-xs">
+                        <td colspan="2" class="text-center uppercase border border-slate-400 py-2 font-bold tracking-wider bg-white text-slate-900">JUMLAH TOTAL</td>
+                        <td colspan="7" class="border border-slate-400 bg-white"></td>
+                        <td class="text-right border border-slate-400 py-2 px-1.5 whitespace-nowrap text-slate-900 font-extrabold bg-white">${formatRupiah(grandTotalSemula)}</td>
+                        <td class="border border-slate-400 bg-white"></td>
+                        <td colspan="7" class="border border-slate-400 bg-white"></td>
+                        <td class="text-right border border-slate-400 py-2 px-1.5 whitespace-nowrap text-slate-900 font-extrabold bg-white">${formatRupiah(grandTotalMenjadi)}</td>
+                        <td class="border border-slate-400 bg-white"></td>
+                        <td class="text-right border border-slate-400 py-2 px-1.5 whitespace-nowrap text-slate-900 font-extrabold bg-white">${formatSelisihRupiah(grandTotalSelisih)}</td>
                     </tr>
                 </tfoot>
             </table>
