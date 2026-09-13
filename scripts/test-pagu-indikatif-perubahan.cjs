@@ -59,7 +59,7 @@ check('Endpoint /api/pagu-indikatif/perubahan terdefinisi di server.js', !!endpo
 check('Endpoint tidak memakai wildcard select', !hasWildcardSelect);
 check('Endpoint tidak memakai empty select', !hasEmptySelect);
 check('PAGU_MIN_COLUMNS terdaftar dengan kolom eksplisit', serverContent.includes("PAGU_MIN_COLUMNS = 'id, tahun, sumber_dana, pagu'"));
-check('RAB_SUM_COLUMNS terdaftar dengan kolom eksplisit', serverContent.includes("RAB_SUM_COLUMNS = 'id, tahun, tipe_anggaran, bidang, sumber_dana, jumlah_anggaran'"));
+check('RAB_SUM_COLUMNS terdaftar dengan kolom eksplisit', serverContent.includes("RAB_SUM_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, tipe_anggaran, id_referensi_murni, nama_kegiatan, uraian, bidang, sub_group_nama, sumber_dana, volume, satuan, harga_satuan, jumlah_anggaran'"));
 
 // -------------------------------------------------------------
 // 2. Arsitektur Agregasi Otomatis (RPC & Fallback)
@@ -85,6 +85,15 @@ check('Badge Status Mode ada di HTML', paguHtmlContent.includes('id="pagu-mode-b
 check('Tombol Sinkronkan / Refresh dari RAB Perubahan ada di HTML', paguHtmlContent.includes('id="btn-sync-rab-perubahan"'));
 check('Container Matriks Komparasi ada di HTML', paguHtmlContent.includes('id="komparasi-container"'));
 check('Judul Dokumen Dinamis Kop ada di HTML', paguHtmlContent.includes('id="pagu-doc-title"'));
+check('Format tabel memuat 9 kolom kedinasan resmi (6 sumber dana + Jumlah)', 
+    paguHtmlContent.includes('Dana Desa (APBN / DDS)') &&
+    paguHtmlContent.includes('Alokasi Dana Desa (ADD)') &&
+    paguHtmlContent.includes('Bagi Hasil Pajak & Retribusi (PBH)') &&
+    paguHtmlContent.includes('APBD Prov') &&
+    paguHtmlContent.includes('APBD Kab/Kota') &&
+    paguHtmlContent.includes('PAD / Lain-lain') &&
+    paguHtmlContent.includes('Jumlah (Rp)')
+);
 check('Script inline terpusat dan tidak menimpa loadPaguIndikatifData', !paguHtmlContent.includes('async function loadPaguIndikatifData()'));
 
 // -------------------------------------------------------------
@@ -196,6 +205,15 @@ const mockRabPerubahanRows = [
         nama_kegiatan: 'Penyediaan Penghasilan Tetap Kepala Desa',
         jumlah_anggaran: 45000000,
         sumber_dana: 'ADD'
+    },
+    {
+        kode_unik_full: '01.02.01.001',
+        bidang: 'Bidang Penyelenggaraan Pemerintahan Desa',
+        sub_bidang: 'Operasional Pemerintah Desa',
+        jenis_kegiatan: 'Penyediaan Operasional BPD',
+        nama_kegiatan: 'Operasional Perkantoran BPD',
+        jumlah_anggaran: 10000000,
+        sumber_dana: 'DLL'
     }
 ];
 
@@ -206,7 +224,38 @@ check('Bidang I dan II terender sesuai hierarki Romawi', htmlTabelPagu.includes(
 check('Nama kegiatan riil desa terender di kolom kegiatan', htmlTabelPagu.includes('Pembangunan Gedung PAUD Kasih Ibu'));
 check('Nilai anggaran terpetakan ke kolom DDS', htmlTabelPagu.includes('Rp 85.000.000'));
 check('Nilai anggaran terpetakan ke kolom ADD', htmlTabelPagu.includes('Rp 45.000.000'));
-check('Baris JUMLAH TOTAL PAGU INDIKATIF terbentuk', htmlTabelPagu.includes('JUMLAH TOTAL PAGU INDIKATIF'));
+check('Nilai anggaran DLL/PAD terpetakan ke kolom PAD / Lain-lain', htmlTabelPagu.includes('Rp 10.000.000'));
+check('Baris JUMLAH TOTAL PAGU INDIKATIF terbentuk dengan total horizontal 9 kolom', htmlTabelPagu.includes('JUMLAH TOTAL PAGU INDIKATIF') && htmlTabelPagu.includes('Rp 140.000.000'));
+
+// -------------------------------------------------------------
+// 7. Uji Logika Penggabungan Murni & PAK (Total ~2 Miliar vs 35 Juta)
+// -------------------------------------------------------------
+console.log('\n--- 7. Uji Logika Penggabungan Murni & PAK (Total ~2 Miliar vs 35 Juta) ---');
+
+const murniList = [
+    { id: 1, kode_unik_full: '01.01.01.001', nama_kegiatan: 'Siltap Kades', jumlah_anggaran: 29124000 },
+    { id: 2, kode_unik_full: '01.01.01.002', nama_kegiatan: 'Tunjangan Kades', jumlah_anggaran: 6480000 },
+    { id: 3, kode_unik_full: '02.01.01.001', nama_kegiatan: 'Pembangunan Jalan Tani', jumlah_anggaran: 2063052041 }
+];
+const pakList = [
+    { id: 101, id_referensi_murni: 1, kode_unik_full: '01.01.01.001', nama_kegiatan: 'Siltap Kades (PAK)', jumlah_anggaran: 29124000 },
+    { id: 102, id_referensi_murni: 2, kode_unik_full: '01.01.01.002', nama_kegiatan: 'Tunjangan Kades (PAK)', jumlah_anggaran: 6480000 }
+];
+
+const perubMap = new Map();
+pakList.forEach(p => perubMap.set(String(p.id_referensi_murni), p));
+
+const mergedSimulation = murniList.map(m => {
+    const match = perubMap.get(String(m.id));
+    return match ? { ...match, anggaran_final: match.jumlah_anggaran } : { ...m, anggaran_final: m.jumlah_anggaran };
+});
+
+const totalCalculated = mergedSimulation.reduce((acc, row) => acc + row.anggaran_final, 0);
+
+check('Simulasi merge mempertahankan 100% kegiatan (3 dari 3 kegiatan)', mergedSimulation.length === 3);
+check('Total anggaran PAK tidak anjlok ke 35.604.000 melainkan mencakup ~2 Miliar (Rp 2.098.656.041)', totalCalculated === 2098656041);
+check('Kegiatan yang tidak berubah di PAK tetap menggunakan nilai Murni', 
+    mergedSimulation.find(r => r.id === 3).anggaran_final === 2063052041);
 
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);

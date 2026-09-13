@@ -1,6 +1,7 @@
 // ==========================================
 // FILE: frontend/pagu-indikatif.js
 // Logika Pagu Indikatif Desa: Murni & Perubahan (PAK)
+// Standar Format Baku Kedinasan & Zero-Wildcard
 // ==========================================
 
 let currentPaguMode = 'MURNI';
@@ -223,7 +224,7 @@ function renderMatriksKomparasiPagu(compData, activeYear) {
                             Matriks Komparasi Pagu Indikatif Perubahan (Otomatis dari RAB Perubahan)
                         </div>
                         <p class="text-slate-600 leading-relaxed">
-                            Pagu Indikatif Perubahan ini <strong>terakumulasi otomatis</strong> dari seluruh rincian belanja pada tabel <code>rab</code> bertipe <code>PERUBAHAN</code>. Deviasi dihitung terhadap realisasi belanja penetapan Murni serta plafon awal sumber dana.
+                            Pagu Indikatif Perubahan ini <strong>terakumulasi otomatis</strong> dari seluruh rincian belanja pada tabel <code>rab</code> bertipe <code>PERUBAHAN</code>. Kegiatan yang tidak bergeser anggaran di PAK tetap mempertahankan alokasi aslinya dari penetapan Murni.
                         </p>
                     </div>
                 </div>
@@ -320,7 +321,7 @@ async function loadPaguIndikatifData() {
     if (tbody) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center py-12 text-slate-400">
+                <td colspan="9" class="text-center py-12 text-slate-400">
                     <i class="fas fa-circle-notch animate-spin text-3xl mb-4 text-indigo-600"></i>
                     <p>Mengambil Data Pagu Indikatif ${isPerubahan ? 'Perubahan (PAK)' : 'Asli (Murni)'} Tahun ${activeYear}...</p>
                 </td>
@@ -332,6 +333,7 @@ async function loadPaguIndikatifData() {
         if (isPerubahan) {
             // MODE PERUBAHAN
             // 1. Muat data agregasi komparasi
+            let rincianKegiatan = [];
             if (komparasiContainer) {
                 komparasiContainer.classList.remove('hidden');
                 komparasiContainer.innerHTML = `
@@ -345,6 +347,9 @@ async function loadPaguIndikatifData() {
                         const jsonComp = await resComp.json();
                         if (jsonComp.success && jsonComp.data) {
                             komparasiContainer.innerHTML = renderMatriksKomparasiPagu(jsonComp.data, activeYear);
+                            if (Array.isArray(jsonComp.data.rincian) && jsonComp.data.rincian.length > 0) {
+                                rincianKegiatan = jsonComp.data.rincian;
+                            }
                         } else {
                             komparasiContainer.innerHTML = `<div class="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs">Peringatan: Data agregasi pagu perubahan tidak tersedia.</div>`;
                         }
@@ -355,29 +360,30 @@ async function loadPaguIndikatifData() {
                 }
             }
 
-            // 2. Muat rincian kegiatan belanja RAB PERUBAHAN
-            let rawData = [];
-            try {
-                const resRab = await fetch(`/api/rab?tahun=${activeYear}&tipe=PERUBAHAN`, { cache: 'no-store' });
-                if (resRab.ok) {
-                    const raw = await resRab.json();
-                    const list = Array.isArray(raw) ? raw : (raw.data || []);
-                    if (Array.isArray(list) && list.length > 0) {
-                        rawData = list;
+            // 2. Jika rincian belum didapat dari endpoint komparasi, muat via /api/rab dengan merge_murni=true
+            if (!rincianKegiatan || rincianKegiatan.length === 0) {
+                try {
+                    const resRab = await fetch(`/api/rab?tahun=${activeYear}&tipe=PERUBAHAN&merge_murni=true`, { cache: 'no-store' });
+                    if (resRab.ok) {
+                        const raw = await resRab.json();
+                        const list = Array.isArray(raw) ? raw : (raw.data || []);
+                        if (Array.isArray(list) && list.length > 0) {
+                            rincianKegiatan = list;
+                        }
                     }
+                } catch (eRab) {
+                    console.warn('Error fetching RAB Perubahan data:', eRab);
                 }
-            } catch (eRab) {
-                console.warn('Error fetching RAB Perubahan data:', eRab);
             }
 
             if (tbody) {
-                const htmlHasil = renderTabelPaguIndikatif(rawData);
+                const htmlHasil = renderTabelPaguIndikatif(rincianKegiatan);
                 if (htmlHasil && htmlHasil.trim()) {
                     tbody.innerHTML = htmlHasil;
                 } else {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="7" class="text-center py-10 text-slate-500">
+                            <td colspan="9" class="text-center py-10 text-slate-500">
                                 <div class="max-w-md mx-auto p-4 bg-amber-50/80 border border-amber-200 rounded-xl">
                                     <i class="fas fa-clipboard-question text-amber-500 text-3xl mb-2"></i>
                                     <p class="font-bold text-slate-700">Belum Ada Rincian Kegiatan RAB Perubahan Tahun ${activeYear}</p>
@@ -439,7 +445,7 @@ async function loadPaguIndikatifData() {
                 } else {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="7" class="text-center py-8 text-slate-400">
+                            <td colspan="9" class="text-center py-8 text-slate-400">
                                 Tidak ada data Pagu Indikatif untuk tahun ${activeYear}.
                             </td>
                         </tr>
@@ -451,7 +457,7 @@ async function loadPaguIndikatifData() {
         if (tbody) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="text-center py-8 text-red-500 font-bold">
+                    <td colspan="9" class="text-center py-8 text-red-500 font-bold">
                         ❌ Gagal memuat data: ${err.message}
                     </td>
                 </tr>
@@ -577,7 +583,7 @@ function renderTabelPaguIndikatif(rawData) {
 
         let itemsArr = (row.items && Array.isArray(row.items) && row.items.length > 0) ? row.items : [];
         if (itemsArr.length === 0) {
-            const budgetVal = Number(row.jumlah_anggaran || row.total_anggaran || row.anggaran || row.prakiraan_biaya || row.anggaran_rab || row.pagu_rpjm || 0);
+            const budgetVal = Number(row.jumlah_anggaran || row.belanja_perubahan || row.total_anggaran || row.anggaran || row.prakiraan_biaya || row.anggaran_rab || row.pagu_rpjm || 0);
             const sumberVal = row.sumber_dana || row.sumber_pembiayaan || row.sumber_dana_rab || 'DDS';
             if (budgetVal > 0) {
                 itemsArr = [{ jumlah: budgetVal, sumber: sumberVal }];
@@ -587,10 +593,10 @@ function renderTabelPaguIndikatif(rawData) {
         }
 
         if (!groupedData[targetBidangKey][jBidang][jKegiatan][nKegiatan]) {
-            groupedData[targetBidangKey][jBidang][jKegiatan][nKegiatan] = { dds: 0, add: 0, bagi_hasil: 0, apbd_prov: 0, apbd_kab: 0, total: 0 };
+            groupedData[targetBidangKey][jBidang][jKegiatan][nKegiatan] = { dds: 0, add: 0, bagi_hasil: 0, apbd_prov: 0, apbd_kab: 0, pad: 0, total: 0 };
         }
         itemsArr.forEach(item => {
-            const jml = Number(item.jumlah || item.jumlah_anggaran || item.total_anggaran || item.anggaran || row.jumlah_anggaran || row.total_anggaran || row.anggaran || row.prakiraan_biaya || row.pagu_rab || 0);
+            const jml = Number(item.jumlah || item.jumlah_anggaran || item.total_anggaran || item.anggaran || row.jumlah_anggaran || row.belanja_perubahan || 0);
             if (!jml || jml <= 0) return;
             const s = (item.sumber || item.sumber_dana || row.sumber_dana || row.sumber_pembiayaan || row.sumber_dana_rab || '').toUpperCase();
 
@@ -604,8 +610,10 @@ function renderTabelPaguIndikatif(rawData) {
                 groupedData[targetBidangKey][jBidang][jKegiatan][nKegiatan].apbd_prov += jml;
             } else if (s.includes('KABUPATEN') || s.includes('KOTA') || s.includes('KAB') || s.includes('TK. II') || s.includes('TK II') || s.includes('TINGKAT II')) {
                 groupedData[targetBidangKey][jBidang][jKegiatan][nKegiatan].apbd_kab += jml;
+            } else if (s.includes('PAD') || s.includes('ASLI') || s.includes('SWADAYA') || s.includes('DLL') || s.includes('LAIN')) {
+                groupedData[targetBidangKey][jBidang][jKegiatan][nKegiatan].pad += jml;
             } else {
-                groupedData[targetBidangKey][jBidang][jKegiatan][nKegiatan].add += jml;
+                groupedData[targetBidangKey][jBidang][jKegiatan][nKegiatan].pad += jml;
             }
             groupedData[targetBidangKey][jBidang][jKegiatan][nKegiatan].total += jml;
         });
@@ -615,9 +623,9 @@ function renderTabelPaguIndikatif(rawData) {
     let noUrut = 0;
     const fmt = (num) => num > 0 ? 'Rp ' + num.toLocaleString('id-ID') : '';
     const cell = (b, k) => fmt(b[k]);
-    const empty = () => ({ dds:0, add:0, bagi_hasil:0, apbd_prov:0, apbd_kab:0 });
-    const acc = (target, src) => { ['dds','add','bagi_hasil','apbd_prov','apbd_kab'].forEach(k => target[k] += (src[k]||0)); };
-    const hasAny = (o) => ['dds','add','bagi_hasil','apbd_prov','apbd_kab'].some(k => Number(o[k]||0) > 0);
+    const empty = () => ({ dds:0, add:0, bagi_hasil:0, apbd_prov:0, apbd_kab:0, pad:0, total:0 });
+    const acc = (target, src) => { ['dds','add','bagi_hasil','apbd_prov','apbd_kab','pad','total'].forEach(k => target[k] += (src[k]||0)); };
+    const hasAny = (o) => ['dds','add','bagi_hasil','apbd_prov','apbd_kab','pad'].some(k => Number(o[k]||0) > 0);
 
     const BIDANG_ORDER = [
         { romawi: 'I',   label: 'Bidang Penyelenggaraan Pemerintahan Desa' },
@@ -636,17 +644,21 @@ function renderTabelPaguIndikatif(rawData) {
             <td class="border border-slate-400 text-center"></td>
             <td class="border border-slate-400 text-center"></td>
             <td class="border border-slate-400 text-center"></td>
+            <td class="border border-slate-400 text-center"></td>
+            <td class="border border-slate-400 text-center"></td>
         </tr>`;
 
     const totalRow = (labelTd, sum, cls) => `
         <tr class="${cls} border border-slate-400">
             <td class="border border-slate-400 text-center py-2"></td>
             <td class="border border-slate-400 px-2 font-black">${labelTd}</td>
-            <td class="border border-slate-400 text-right px-2">${cell(sum,'dds')}</td>
-            <td class="border border-slate-400 text-right px-2">${cell(sum,'add')}</td>
-            <td class="border border-slate-400 text-right px-2">${cell(sum,'bagi_hasil')}</td>
-            <td class="border border-slate-400 text-right px-2">${cell(sum,'apbd_prov')}</td>
-            <td class="border border-slate-400 text-right px-2">${cell(sum,'apbd_kab')}</td>
+            <td class="border border-slate-400 text-right px-2 font-bold">${cell(sum,'dds')}</td>
+            <td class="border border-slate-400 text-right px-2 font-bold">${cell(sum,'add')}</td>
+            <td class="border border-slate-400 text-right px-2 font-bold">${cell(sum,'bagi_hasil')}</td>
+            <td class="border border-slate-400 text-right px-2 font-bold">${cell(sum,'apbd_prov')}</td>
+            <td class="border border-slate-400 text-right px-2 font-bold">${cell(sum,'apbd_kab')}</td>
+            <td class="border border-slate-400 text-right px-2 font-bold">${cell(sum,'pad')}</td>
+            <td class="border border-slate-400 text-right px-2 font-black">${fmt(sum.total)}</td>
         </tr>`;
 
     let grand = empty();
@@ -681,6 +693,8 @@ function renderTabelPaguIndikatif(rawData) {
                             <td class="border border-slate-400 text-right px-2">${cell(d,'bagi_hasil')}</td>
                             <td class="border border-slate-400 text-right px-2">${cell(d,'apbd_prov')}</td>
                             <td class="border border-slate-400 text-right px-2">${cell(d,'apbd_kab')}</td>
+                            <td class="border border-slate-400 text-right px-2">${cell(d,'pad')}</td>
+                            <td class="border border-slate-400 text-right px-2 font-bold">${fmt(d.total)}</td>
                         </tr>
                     `;
                 });
@@ -691,6 +705,8 @@ function renderTabelPaguIndikatif(rawData) {
                     <tr class="border border-slate-400">
                         <td class="border border-slate-400"></td>
                         <td class="border border-slate-400 px-6 font-bold italic text-slate-800">${jKegiatanKey}</td>
+                        <td class="border border-slate-400 text-center"></td>
+                        <td class="border border-slate-400 text-center"></td>
                         <td class="border border-slate-400 text-center"></td>
                         <td class="border border-slate-400 text-center"></td>
                         <td class="border border-slate-400 text-center"></td>
@@ -715,13 +731,16 @@ function renderTabelPaguIndikatif(rawData) {
                     <td class="border border-slate-400 text-center"></td>
                     <td class="border border-slate-400 text-center"></td>
                     <td class="border border-slate-400 text-center"></td>
+                    <td class="border border-slate-400 text-center"></td>
+                    <td class="border border-slate-400 text-center"></td>
                 </tr>
             `;
+            html += totalRow(`Jumlah ${jBidangKey}`, jbSum, 'font-bold bg-slate-100/70');
         });
 
         if (hasAny(bdSum)) {
             acc(grand, bdSum);
-            html += totalRow(`Jumlah ${bd.label}`, bdSum, 'font-bold bg-slate-50');
+            html += totalRow(`Jumlah ${bd.label}`, bdSum, 'font-bold bg-slate-100');
         }
     });
 
@@ -754,24 +773,23 @@ function injectPaguIndikatifToDOM(htmlHasil) {
                 <div class="flex"><span class="w-28">PROVINSI</span><span>: SULAWESI BARAT</span></div>
             </div>
 
-            <!-- 3. TABEL MATRIKS PAGU INDIKATIF -->
+            <!-- 3. TABEL MATRIKS PAGU INDIKATIF RESMI BERJENJANG -->
             <div class="overflow-x-auto mb-8">
                 <table class="min-w-full border-collapse border border-slate-400 text-xs text-slate-800">
                     <thead>
-                        <tr class="bg-slate-50 font-bold text-center border border-slate-400">
-                            <th rowspan="3" class="border border-slate-400 px-2 py-2 w-10">No</th>
-                            <th rowspan="3" class="border border-slate-400 px-2 py-2 w-72">Indikatif Program/ Kegiatan Desa</th>
-                            <th colspan="5" class="border border-slate-400 px-2 py-1">Sumber Dana Indikatif</th>
-                        </tr>
-                        <tr class="bg-slate-50 text-[11px] text-center border border-slate-400 font-bold">
-                            <th rowspan="2" class="border border-slate-400 px-2 py-1.5 w-32">Dana Desa (APBN)</th>
-                            <th rowspan="2" class="border border-slate-400 px-2 py-1.5 w-40">Alokasi Dana Desa (bagian dana perimbangan kab./ kota)</th>
-                            <th rowspan="2" class="border border-slate-400 px-2 py-1.5 w-36">Dana bagian dari hasil pajak dan retribusi</th>
-                            <th colspan="2" class="border border-slate-400 px-2 py-1">Bantuan keuangan</th>
+                        <tr class="bg-slate-100 font-bold text-center border border-slate-400">
+                            <th rowspan="2" class="border border-slate-400 px-2 py-2 w-10">No</th>
+                            <th rowspan="2" class="border border-slate-400 px-2 py-2 w-72">Indikatif Program / Kegiatan Desa</th>
+                            <th colspan="6" class="border border-slate-400 px-2 py-1">Pagu Indikatif (Rp)</th>
+                            <th rowspan="2" class="border border-slate-400 px-2 py-2 w-32">Jumlah (Rp)</th>
                         </tr>
                         <tr class="bg-slate-50 text-[10px] text-center border border-slate-400 font-bold">
-                            <th class="border border-slate-400 px-2 py-1 w-28">APBD Provinsi</th>
-                            <th class="border border-slate-400 px-2 py-1 w-32">APBD Kabupaten/ Kota</th>
+                            <th class="border border-slate-400 px-2 py-1.5 w-28">Dana Desa (APBN / DDS)</th>
+                            <th class="border border-slate-400 px-2 py-1.5 w-28">Alokasi Dana Desa (ADD)</th>
+                            <th class="border border-slate-400 px-2 py-1.5 w-28">Bagi Hasil Pajak & Retribusi (PBH)</th>
+                            <th class="border border-slate-400 px-2 py-1 w-24">APBD Provinsi</th>
+                            <th class="border border-slate-400 px-2 py-1 w-24">APBD Kabupaten/ Kota</th>
+                            <th class="border border-slate-400 px-2 py-1 w-28">PAD / Lain-lain</th>
                         </tr>
                     </thead>
                     <tbody id="tabel-pagu-body">
@@ -780,11 +798,19 @@ function injectPaguIndikatifToDOM(htmlHasil) {
                 </table>
             </div>
 
-            <!-- 4. FOOTER TANDA TANGAN RESMI (HANYA KANAN BAWAH) -->
-            <div class="flex justify-end text-xs mt-8 pr-6 font-sans">
-                <div class="text-center w-80">
-                    <p id="footer-pagu-tgl" class="mb-1">Desa Batetangnga, ....................</p>
-                    <p class="font-bold mb-16">Ketua Tim Penyusun RKPDesa</p>
+            <!-- 4. FOOTER TANDA TANGAN RESMI -->
+            <div class="flex justify-between items-start text-xs mt-8 px-4 font-sans">
+                <div class="text-center w-72">
+                    <p class="mb-1 font-bold">Mengetahui,</p>
+                    <p class="font-bold">Kepala Desa Batetangnga</p>
+                    <div class="h-16"></div>
+                    <p class="font-bold underline uppercase">SUMAILA DAMANG</p>
+                </div>
+                <div class="text-center w-72">
+                    <p id="footer-pagu-tgl" class="mb-1">Batetangnga, ....................</p>
+                    <p class="font-bold">Disusun oleh,</p>
+                    <p class="font-bold">Ketua Tim Penyusun RKPDesa</p>
+                    <div class="h-16"></div>
                     <p id="footer-pagu-tim" class="font-bold underline uppercase">( ABDUL AZIS, S. Pd )</p>
                 </div>
             </div>

@@ -4274,6 +4274,45 @@ app.get('/api/rab', async (req, res) => {
             let data = [];
             try {
                 data = await listRabsFromDb(tahunInt, tipeAnggaran, withItems) || [];
+
+                // Jika diminta merge_murni untuk tipe PERUBAHAN: kegiatan yang tidak berubah tetap dimuat dari Murni
+                if (tipeAnggaran === RAB_TIPE_PERUBAHAN && (req.query.merge_murni === 'true' || req.query.merge_unmodified === 'true')) {
+                    const murniRows = await listRabsFromDb(tahunInt, RAB_TIPE_MURNI, withItems) || [];
+                    const perubByRef = new Map();
+                    const perubByKode = new Map();
+                    const perubByName = new Map();
+
+                    data.forEach(p => {
+                        if (p.id_referensi_murni) perubByRef.set(String(p.id_referensi_murni), p);
+                        if (p.kode_unik_full) perubByKode.set(String(p.kode_unik_full).trim(), p);
+                        if (p.nama_kegiatan) perubByName.set(String(p.nama_kegiatan).trim().toLowerCase(), p);
+                    });
+
+                    const usedPerubIds = new Set();
+                    const merged = [];
+
+                    murniRows.forEach(m => {
+                        let match = perubByRef.get(String(m.id));
+                        if (!match && m.kode_unik_full) match = perubByKode.get(String(m.kode_unik_full).trim());
+                        if (!match && m.nama_kegiatan) match = perubByName.get(String(m.nama_kegiatan).trim().toLowerCase());
+
+                        if (match) {
+                            usedPerubIds.add(String(match.id));
+                            merged.push(match);
+                        } else {
+                            merged.push(m);
+                        }
+                    });
+
+                    data.forEach(p => {
+                        if (!usedPerubIds.has(String(p.id))) {
+                            merged.push(p);
+                        }
+                    });
+
+                    sortHierarchical(merged);
+                    data = merged;
+                }
             } catch (listErr) {
                 console.warn('⚠️ Gagal daftar RAB:', listErr.message);
                 data = [];
@@ -8006,24 +8045,27 @@ app.get('/api/pagu-indikatif/perubahan', async (req, res) => {
         console.log(`ℹ️ Menjalankan fallback server-side aggregation untuk Pagu Indikatif Perubahan tahun ${tahunInt}`);
 
         const PAGU_MIN_COLUMNS = 'id, tahun, sumber_dana, pagu';
-        const RAB_SUM_COLUMNS = 'id, tahun, tipe_anggaran, bidang, sumber_dana, jumlah_anggaran';
+        const RAB_SUM_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, tipe_anggaran, id_referensi_murni, nama_kegiatan, uraian, bidang, sub_group_nama, sumber_dana, volume, satuan, harga_satuan, jumlah_anggaran';
 
         const { data: plafonRows } = await supabase
             .from('pagu_anggaran')
             .select(PAGU_MIN_COLUMNS)
-            .eq('tahun', tahunInt);
+            .eq('tahun', tahunInt)
+            .limit(1000);
 
         const { data: rabMurniRows } = await supabase
             .from('rab')
             .select(RAB_SUM_COLUMNS)
             .eq('tahun', tahunInt)
-            .or('tipe_anggaran.eq.MURNI,tipe_anggaran.is.null');
+            .or('tipe_anggaran.eq.MURNI,tipe_anggaran.is.null')
+            .limit(1000);
 
         const { data: rabPerubahanRows } = await supabase
             .from('rab')
             .select(RAB_SUM_COLUMNS)
             .eq('tahun', tahunInt)
-            .eq('tipe_anggaran', 'PERUBAHAN');
+            .eq('tipe_anggaran', 'PERUBAHAN')
+            .limit(1000);
 
         // Helper membersihkan nama sumber dana
         const cleanSumber = (s) => {
@@ -8033,8 +8075,8 @@ app.get('/api/pagu-indikatif/perubahan', async (req, res) => {
             if (str.includes('BAGI HASIL') || str.includes('PAJAK') || str.includes('RETRIBUSI') || str.includes('PBH')) return 'PBH';
             if (str.includes('PROV') || str.includes('BKK') || str.includes('TK. I') || str.includes('TK I')) return 'APBD Tk. I';
             if (str.includes('KAB') || str.includes('KOTA') || str.includes('TK. II') || str.includes('TK II')) return 'APBD Tk. II';
-            if (str.includes('PAD') || str.includes('ASLI')) return 'PAD';
-            return 'LAINNYA';
+            if (str.includes('PAD') || str.includes('ASLI') || str.includes('DLL')) return 'PAD';
+            return 'PAD';
         };
 
         const cleanBidang = (b) => {
@@ -8062,24 +8104,66 @@ app.get('/api/pagu-indikatif/perubahan', async (req, res) => {
             plafonMap[r.sumber_dana] = Number(r.pagu || 0);
         });
 
-        const murniSdMap = {};
-        const murniBidMap = {};
-        (rabMurniRows || []).forEach(r => {
-            const s = cleanSumber(r.sumber_dana);
-            const b = cleanBidang(r.bidang);
-            const jml = Number(r.jumlah_anggaran || 0);
-            murniSdMap[s] = (murniSdMap[s] || 0) + jml;
-            murniBidMap[b] = (murniBidMap[b] || 0) + jml;
+        // Gabungkan Murni dan Perubahan: jika kegiatan tidak berubah di PAK, pertahankan anggaran Murni
+        const perubByRef = new Map();
+        const perubByKode = new Map();
+        const perubByName = new Map();
+
+        (rabPerubahanRows || []).forEach(p => {
+            if (p.id_referensi_murni) perubByRef.set(String(p.id_referensi_murni), p);
+            if (p.kode_unik_full) perubByKode.set(String(p.kode_unik_full).trim(), p);
+            if (p.nama_kegiatan) perubByName.set(String(p.nama_kegiatan).trim().toLowerCase(), p);
         });
 
+        const usedPerubIds = new Set();
+        const mergedRows = [];
+
+        (rabMurniRows || []).forEach(m => {
+            let match = perubByRef.get(String(m.id));
+            if (!match && m.kode_unik_full) match = perubByKode.get(String(m.kode_unik_full).trim());
+            if (!match && m.nama_kegiatan) match = perubByName.get(String(m.nama_kegiatan).trim().toLowerCase());
+
+            if (match) {
+                usedPerubIds.add(String(match.id));
+                mergedRows.push({
+                    ...match,
+                    belanja_murni: Number(m.jumlah_anggaran || 0),
+                    belanja_perubahan: Number(match.jumlah_anggaran || 0)
+                });
+            } else {
+                mergedRows.push({
+                    ...m,
+                    belanja_murni: Number(m.jumlah_anggaran || 0),
+                    belanja_perubahan: Number(m.jumlah_anggaran || 0)
+                });
+            }
+        });
+
+        (rabPerubahanRows || []).forEach(p => {
+            if (!usedPerubIds.has(String(p.id))) {
+                mergedRows.push({
+                    ...p,
+                    belanja_murni: 0,
+                    belanja_perubahan: Number(p.jumlah_anggaran || 0)
+                });
+            }
+        });
+
+        const murniSdMap = {};
+        const murniBidMap = {};
         const perubSdMap = {};
         const perubBidMap = {};
-        (rabPerubahanRows || []).forEach(r => {
+
+        mergedRows.forEach(r => {
             const s = cleanSumber(r.sumber_dana);
             const b = cleanBidang(r.bidang);
-            const jml = Number(r.jumlah_anggaran || 0);
-            perubSdMap[s] = (perubSdMap[s] || 0) + jml;
-            perubBidMap[b] = (perubBidMap[b] || 0) + jml;
+            const jMurni = Number(r.belanja_murni || 0);
+            const jPerub = Number(r.belanja_perubahan || 0);
+
+            murniSdMap[s] = (murniSdMap[s] || 0) + jMurni;
+            murniBidMap[b] = (murniBidMap[b] || 0) + jMurni;
+            perubSdMap[s] = (perubSdMap[s] || 0) + jPerub;
+            perubBidMap[b] = (perubBidMap[b] || 0) + jPerub;
         });
 
         const rekapSd = sumberList.map(s => {
@@ -8138,7 +8222,8 @@ app.get('/api/pagu-indikatif/perubahan', async (req, res) => {
             total_plafon_murni: totalPlafonMurni,
             total_belanja_murni: totalBelanjaMurni,
             total_pagu_perubahan: totalPaguPerubahan,
-            total_selisih: totalSelisih
+            total_selisih: totalSelisih,
+            rincian: mergedRows
         };
 
         return res.json({ success: true, source: 'fallback', data: payload });
