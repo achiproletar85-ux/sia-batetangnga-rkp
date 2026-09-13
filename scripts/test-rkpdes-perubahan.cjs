@@ -174,6 +174,13 @@ assert(!jsCode.includes('<td class="cell-edit-sdgs'), 'Sel SDGs bersih dari inte
 assert(!jsCode.includes('<td class="cell-edit-manfaat'), 'Sel Manfaat bersih dari interaksi per-sel yang redundan');
 assert(!jsCode.includes('<td class="cell-edit-perubahan'), 'Sel Perubahan bersih dari interaksi per-sel yang redundan');
 
+// Memastikan fungsi buildRkpdesPerubahanHtml tidak memiliki loop kelMap/fa-caret-right yang menduplikasi nama kegiatan
+const buildPerubahanMatch = jsCode.match(/function buildRkpdesPerubahanHtml\(\) \{([\s\S]*?)\nfunction /);
+const buildPerubahanBody = buildPerubahanMatch ? buildPerubahanMatch[1] : '';
+assert(!buildPerubahanBody.includes('kelMap'), 'Hierarki ganda kelMap telah dihilangkan dari buildRkpdesPerubahanHtml');
+assert(!buildPerubahanBody.includes('fa-caret-right'), 'Baris sub-header bergaris miring duplikat (fa-caret-right) telah disingkirkan');
+
+
 // 10. MODAL EDIT TERPADU SEMULA & MENJADI SERTA PERSISTENSI DATABASE
 console.log('\n--- MODAL EDIT TERPADU SEMULA & MENJADI SERTA PERSISTENSI DATABASE ---\n');
 assert(htmlCode.includes('id="edit-semula-volume"'), 'Input Volume Semula ada di modal rkpdes.html');

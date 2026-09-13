@@ -1086,16 +1086,12 @@ function buildRkpdesPerubahanHtml() {
         if (rawItems.length > 0) {
             const currentNo = globalNo++;
 
-            // Grouping Sub-bidang -> Kelompok Kegiatan -> Kegiatan
+            // Grouping Sub-bidang -> Kegiatan (Format Baku Resmi: Bidang -> Sub-Bidang -> Kegiatan)
             const subMap = new Map();
             rawItems.forEach(item => {
                 const subName = item.jenis_bidang || resolveJenisBidangFallback(item) || 'Penyelenggaran Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa';
-                const kelName = resolveJenisKegiatanKelompokFallback(item) || 'Kelompok Kegiatan Utama';
-
-                if (!subMap.has(subName)) subMap.set(subName, new Map());
-                const kelMap = subMap.get(subName);
-                if (!kelMap.has(kelName)) kelMap.set(kelName, []);
-                kelMap.get(kelName).push(item);
+                if (!subMap.has(subName)) subMap.set(subName, []);
+                subMap.get(subName).push(item);
             });
 
             // Bidang Header (1 + 20 = 21 kolom)
@@ -1108,7 +1104,7 @@ function buildRkpdesPerubahanHtml() {
                 </tr>
             `;
 
-            subMap.forEach((kelMap, subName) => {
+            subMap.forEach((items, subName) => {
                 if (subName) {
                     tableBodyHtml += `
                         <tr class="bg-indigo-50/90 font-bold text-indigo-950 border border-slate-400">
@@ -1120,19 +1116,7 @@ function buildRkpdesPerubahanHtml() {
                     `;
                 }
 
-                kelMap.forEach((items, kelName) => {
-                    if (kelName && kelName !== subName) {
-                        tableBodyHtml += `
-                            <tr class="bg-slate-100/90 font-semibold text-slate-800 border border-slate-400">
-                                <td class="border border-slate-400 bg-slate-100/90"></td>
-                                <td colspan="20" class="align-top border border-slate-400 px-6 py-1 text-[11px] text-slate-800 font-bold italic bg-slate-100/90">
-                                    <i class="fas fa-caret-right text-slate-500 mr-1.5"></i> ${kelName}
-                                </td>
-                            </tr>
-                        `;
-                    }
-
-                    items.forEach((item, index) => {
+                items.forEach((item, index) => {
                         const semula = item.semula || {};
                         if (!item.menjadi) item.menjadi = {};
                         const menjadi = item.menjadi;
@@ -1264,7 +1248,6 @@ function buildRkpdesPerubahanHtml() {
                             </tr>
                         `;
                     });
-                });
             });
 
             // Subtotal per Bidang (2 + 7 + 1 + 1 + 7 + 1 + 1 + 1 = 21 kolom)
