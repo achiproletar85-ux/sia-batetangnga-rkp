@@ -170,6 +170,9 @@ console.log('\n--- PEMBERSIHAN ELEMEN REDUNDAN & DUPLIKAT ---\n');
 assert(!jsCode.includes('btn-edit-manfaat text-slate-400'), 'Tombol redundan "Manfaat" telah disingkirkan dari baris tabel RKPDes Perubahan');
 assert(!jsCode.includes('pointer-events-none"><i class="fas fa-pen"></i></span>'), 'Seluruh ikon pensil duplikat telah dibersihkan dari sel tabel RKPDes Perubahan');
 assert(jsCode.includes('btn-edit-perubahan no-print'), 'Tombol edit utama terpadu hadir bersih tanpa sesak');
+assert(!jsCode.includes('<td class="cell-edit-sdgs'), 'Sel SDGs bersih dari interaksi per-sel yang redundan');
+assert(!jsCode.includes('<td class="cell-edit-manfaat'), 'Sel Manfaat bersih dari interaksi per-sel yang redundan');
+assert(!jsCode.includes('<td class="cell-edit-perubahan'), 'Sel Perubahan bersih dari interaksi per-sel yang redundan');
 
 // 10. MODAL EDIT TERPADU SEMULA & MENJADI SERTA PERSISTENSI DATABASE
 console.log('\n--- MODAL EDIT TERPADU SEMULA & MENJADI SERTA PERSISTENSI DATABASE ---\n');

@@ -1232,11 +1232,7 @@ function buildRkpdesPerubahanHtml() {
                                 </td>
                                 
                                 <!-- 2. Blok SEMULA -->
-                                <td class="cell-edit-sdgs text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap cursor-pointer hover:bg-amber-50/70 transition"
-                                    data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}" data-sdgs-side="semula"
-                                    title="Klik untuk edit SDGs SEMULA">
-                                    ${semula.sdgs || '-'}
-                                </td>
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap">${semula.sdgs || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${semula.data_eksisting || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${semula.lokasi || 'Desa Batetangnga'}</td>
                                 <td class="text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800">${semula.volume_satuan || semula.volume || '-'}</td>
@@ -1247,42 +1243,20 @@ function buildRkpdesPerubahanHtml() {
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${semula.sumber_biaya || 'DDS'}</td>
                                 
                                 <!-- 3. Blok MENJADI -->
-                                <td class="cell-edit-sdgs text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap cursor-pointer hover:bg-indigo-50/70 transition"
-                                    data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}" data-sdgs-side="menjadi"
-                                    title="Klik untuk edit SDGs MENJADI">
-                                    ${menjadi.sdgs || '-'}
-                                </td>
+                                <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap">${menjadi.sdgs || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.data_eksisting || '-'}</td>
-                                <td class="cell-edit-perubahan align-top border border-slate-300 px-1.5 py-1.5 text-slate-700 cursor-pointer hover:bg-amber-50/70 transition"
-                                    data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}"
-                                    title="Klik untuk edit rincian data MENJADI">${menjadi.lokasi || 'Desa Batetangnga'}</td>
-                                <td class="cell-edit-perubahan text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800 font-medium cursor-pointer hover:bg-amber-50/70 transition"
-                                    data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}"
-                                    title="Klik untuk edit rincian data MENJADI">${menjadi.volume_satuan || menjadi.volume || '-'}</td>
-                                <td class="cell-edit-manfaat text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group"
-                                    data-item-key="${itemKeyEscaped}"
-                                    data-id="${itemId}"
-                                    data-kode="${itemKodeAttr}"
-                                    title="Klik untuk edit penerima manfaat MENJADI">
+                                <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.lokasi || 'Desa Batetangnga'}</td>
+                                <td class="text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800 font-medium">${menjadi.volume_satuan || menjadi.volume || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">
                                     <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${penerimaL || '-'}</span>
                                 </td>
-                                <td class="cell-edit-manfaat text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group"
-                                    data-item-key="${itemKeyEscaped}"
-                                    data-id="${itemId}"
-                                    data-kode="${itemKodeAttr}"
-                                    title="Klik untuk edit penerima manfaat MENJADI">
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">
                                     <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${penerimaP || '-'}</span>
                                 </td>
-                                <td class="cell-edit-manfaat text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800 cursor-pointer hover:bg-indigo-50/60 transition group"
-                                    data-item-key="${itemKeyEscaped}"
-                                    data-id="${itemId}"
-                                    data-kode="${itemKodeAttr}"
-                                    title="Klik untuk edit penerima manfaat MENJADI">
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">
                                     <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${penerimaRtm || '-'}</span>
                                 </td>
-                                <td class="cell-edit-perubahan text-right align-top border border-slate-300 px-1.5 py-1.5 font-bold text-slate-900 whitespace-nowrap cursor-pointer hover:bg-amber-50/70 transition"
-                                    data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}"
-                                    title="Klik untuk edit rincian data MENJADI">${formatRupiah(bMenjadi)}</td>
+                                <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-bold text-slate-900 whitespace-nowrap">${formatRupiah(bMenjadi)}</td>
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${menjadi.sumber_biaya || 'DDS'}</td>
                                 
                                 <!-- 4. Blok SELISIH -->
