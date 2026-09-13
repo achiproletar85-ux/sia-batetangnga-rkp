@@ -1659,7 +1659,7 @@ const EVALUASI_COLUMNS = [
 ].join(', ');
 
 const RKPDES_COLUMNS = [
-    'id', 'tahun', 'kode_unik_full', 'bidang', 'jenis_kegiatan', 'lokasi',
+    'id', 'tahun', 'kode_unik_full', 'bidang', 'jenis_kegiatan', 'nama_kegiatan', 'lokasi',
     'volume', 'satuan', 'sasaran_manfaat', 'penerima_manfaat', 'total_manfaat',
     'manfaat_l', 'manfaat_p', 'manfaat_rtm',
     'prakiraan_biaya', 'sumber_pembiayaan', 'pola_pelaksanaan', 'target_capaian',
@@ -1824,9 +1824,10 @@ function resolveRpjmStandar(kode, currentBidang, currentJenisBidang, currentNama
 
     // 4. Nama Kegiatan (Level 4)
     // Pertahankan nama spesifik dari item/input user, jangan ditimpa jenis kegiatan jika ada nama spesifik
-    const nama_kegiatan = (currentNamaKegiatan && String(currentNamaKegiatan).trim() !== '' && String(currentNamaKegiatan).trim() !== '-')
+    const isGenericCurrent = !currentNamaKegiatan || String(currentNamaKegiatan).trim() === '' || String(currentNamaKegiatan).trim() === '-' || String(currentNamaKegiatan).trim().toLowerCase() === String(jenis_kegiatan).trim().toLowerCase();
+    const nama_kegiatan = !isGenericCurrent
         ? String(currentNamaKegiatan).trim()
-        : ((matched && matched.nama_kegiatan) || jenis_kegiatan);
+        : ((matched && matched.nama_kegiatan) || (matchedKeg && matchedKeg.nama_kegiatan) || (currentNamaKegiatan && String(currentNamaKegiatan).trim() !== '' && String(currentNamaKegiatan).trim() !== '-' ? String(currentNamaKegiatan).trim() : jenis_kegiatan));
 
     const refStd = matched || matchedKeg || matchedSub || null;
     matched = refStd;
@@ -6147,14 +6148,19 @@ app.get('/api/rkpdes', async (req, res) => {
             data.forEach(row => {
                 const baseKode = String(row.kode_unik_full || row.kode_unik || '').trim();
                 const cleanPrefix = baseKode.split('..')[0].trim();
-                const resolved = resolveRpjmStandar(baseKode, row.bidang, row.jenis_bidang, row.nama_kegiatan || row.jenis_kegiatan, rpjmLookup);
-                const std = resolved.matchedStd;
                 
                 let rab = rabMap.get(baseKode) || rabMap.get(cleanPrefix);
                 if (!rab && (row.nama_kegiatan || row.jenis_kegiatan)) {
                     const rNameKey = String(row.nama_kegiatan || row.jenis_kegiatan).trim().toLowerCase();
                     rab = rabNameMap.get(rNameKey);
                 }
+
+                const rawNamaKegiatan = (row.nama_kegiatan && String(row.nama_kegiatan).trim() !== '' && String(row.nama_kegiatan).trim() !== '-')
+                    ? String(row.nama_kegiatan).trim()
+                    : ((rab && (rab.nama_kegiatan || rab.uraian)) || row.jenis_kegiatan);
+
+                const resolved = resolveRpjmStandar(baseKode, row.bidang, row.jenis_bidang, rawNamaKegiatan, rpjmLookup);
+                const std = resolved.matchedStd;
 
                 if (rab) {
                     const items = Array.isArray(rab.items) ? rab.items : [];
@@ -6201,7 +6207,9 @@ app.get('/api/rkpdes', async (req, res) => {
                 row.jenis_bidang = resolved.jenis_bidang;
                 row.jenis_kegiatan = resolved.jenis_kegiatan;
                 row.jenis_kegiatan_kelompok = resolved.jenis_kegiatan;
-                row.nama_kegiatan = row.nama_kegiatan || resolved.nama_kegiatan;
+                row.nama_kegiatan = (row.nama_kegiatan && String(row.nama_kegiatan).trim() !== '' && String(row.nama_kegiatan).trim() !== '-' && String(row.nama_kegiatan).trim().toLowerCase() !== String(resolved.jenis_kegiatan).trim().toLowerCase())
+                    ? String(row.nama_kegiatan).trim()
+                    : ((rab && (rab.nama_kegiatan || rab.uraian)) || resolved.nama_kegiatan || row.nama_kegiatan || row.jenis_kegiatan || '-');
                 row.kode_bidang = resolved.kode_bidang;
                 row.kode_sub = resolved.kode_sub;
                 row.kode_kegiatan = resolved.kode_kegiatan;
@@ -6325,7 +6333,10 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             if (!code) return;
             const p = perMap.get(code);
 
-            const resolved = resolveRpjmStandar(code, m.bidang, m.jenis_bidang, m.nama_kegiatan, rpjmLookup);
+            const rawNamaMurni = (m.nama_kegiatan && String(m.nama_kegiatan).trim() !== '' && String(m.nama_kegiatan).trim() !== '-')
+                ? String(m.nama_kegiatan).trim()
+                : ((p && (p.nama_kegiatan || p.uraian)) || m.jenis_kegiatan);
+            const resolved = resolveRpjmStandar(code, m.bidang, m.jenis_bidang, rawNamaMurni, rpjmLookup);
 
             const biayaSemula = Number(m.prakiraan_biaya || 0);
             const biayaMenjadi = p ? Number(p.jumlah_anggaran || 0) : biayaSemula;
@@ -6447,7 +6458,9 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                 bidang: resolved.bidang,
                 jenis_bidang: resolved.jenis_bidang,
                 jenis_kegiatan: resolved.jenis_kegiatan,
-                nama_kegiatan: m.nama_kegiatan || resolved.nama_kegiatan,
+                nama_kegiatan: (m.nama_kegiatan && String(m.nama_kegiatan).trim() !== '' && String(m.nama_kegiatan).trim() !== '-' && String(m.nama_kegiatan).trim().toLowerCase() !== String(resolved.jenis_kegiatan).trim().toLowerCase())
+                    ? String(m.nama_kegiatan).trim()
+                    : ((p && (p.nama_kegiatan || p.uraian)) || resolved.nama_kegiatan || m.nama_kegiatan || m.jenis_kegiatan || '-'),
                 penerima_l_semula: lpRtmSemula.l,
                 penerima_p_semula: lpRtmSemula.p,
                 penerima_rtm_semula: lpRtmSemula.rtm,
@@ -6510,8 +6523,10 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                     kode_unik_full: code,
                     bidang: p.bidang || resolved.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
                     jenis_bidang: resolved.jenis_bidang || '-',
-                    jenis_kegiatan: p.nama_kegiatan || p.uraian || resolved.nama_kegiatan || '-',
-                    nama_kegiatan: p.nama_kegiatan || p.uraian || resolved.nama_kegiatan || '-',
+                    jenis_kegiatan: resolved.jenis_kegiatan || 'Kelompok Kegiatan Utama',
+                    nama_kegiatan: (p.nama_kegiatan && String(p.nama_kegiatan).trim() !== '' && String(p.nama_kegiatan).trim() !== '-')
+                        ? String(p.nama_kegiatan).trim()
+                        : (p.uraian || resolved.nama_kegiatan || resolved.jenis_kegiatan || '-'),
                     penerima_l_semula: '-',
                     penerima_p_semula: '-',
                     penerima_rtm_semula: '-',
@@ -6606,6 +6621,7 @@ app.put('/api/rkpdes', async (req, res) => {
             waktu_pelaksanaan: item.waktu_pelaksanaan || '12 Bulan',
             sumber_pembiayaan: item.sumber_pembiayaan || 'DDS',
             pola_pelaksanaan: item.pola_pelaksanaan || 'Swakelola',
+            ...(item.nama_kegiatan && String(item.nama_kegiatan).trim() !== '' ? { nama_kegiatan: String(item.nama_kegiatan).trim() } : {}),
             updated_at: new Date().toISOString()
         };
 
@@ -6804,6 +6820,9 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 const { data: existingRkp } = await rkpCheck.maybeSingle();
 
                 if (existingRkp && existingRkp.id) {
+                    if (nama_kegiatan && String(nama_kegiatan).trim() !== '') {
+                        rkpSemulaPayload.nama_kegiatan = String(nama_kegiatan).trim();
+                    }
                     await supabase.from('rkpdes').update(rkpSemulaPayload).eq('id', existingRkp.id).select('id');
                 } else if (kode) {
                     const { data: maxRkp } = await supabase.from('rkpdes').select('id').order('id', { ascending: false }).limit(1);
@@ -7059,7 +7078,8 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
             }
         }
 
-        const resolved = resolveRpjmStandar(code, rb.bidang, rb.jenis_bidang || rb.sub_bidang, rb.nama_kegiatan, rpjmLookup);
+        const rawNamaRab = rb.nama_kegiatan || rb.uraian;
+        const resolved = resolveRpjmStandar(code, rb.bidang, rb.jenis_bidang || rb.sub_bidang, rawNamaRab, rpjmLookup);
         const std = resolved.matchedStd;
         const items = Array.isArray(rb.items) ? rb.items : [];
         const totalBiaya = Number(rb.jumlah_anggaran || rb.total_biaya || 0) || items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
@@ -7090,7 +7110,9 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
             bidang: resolved.bidang,
             jenis_bidang: resolved.jenis_bidang,
             jenis_kegiatan: resolved.jenis_kegiatan,
-            nama_kegiatan: rb.nama_kegiatan || resolved.nama_kegiatan,
+            nama_kegiatan: (rb.nama_kegiatan && String(rb.nama_kegiatan).trim() !== '' && String(rb.nama_kegiatan).trim() !== '-')
+                ? String(rb.nama_kegiatan).trim()
+                : (rb.uraian || resolved.nama_kegiatan || resolved.jenis_kegiatan || '-'),
             lokasi: rb.lokasi || rb.lokasi_kegiatan || resolved.lokasi,
             lokasi_kegiatan: rb.lokasi || rb.lokasi_kegiatan || resolved.lokasi,
             volume: String(rb.volume || items[0]?.volume || resolved.volume || 1),

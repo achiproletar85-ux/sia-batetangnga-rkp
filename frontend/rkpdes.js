@@ -484,7 +484,10 @@ function buildRkpdesMurniHtml() {
                         const rawWaktu = item.waktu_pelaksanaan || rpjmObj.waktu_pelaksanaan || '';
                         const waktuPelaksanaanVal = (rawWaktu && rawWaktu !== String(activeYear)) ? rawWaktu : '12 Bulan';
                         const itemKey = String(item.kode_unik_full || item.kode_unik || item.id || index);
-                        const namaKegiatan = item.nama_kegiatan || item._namaKegiatan || item.jenis_kegiatan || rpjmObj.nama_kegiatan || '-';
+                        const rawNama = item.nama_kegiatan || item.uraian || item._namaKegiatan;
+                        const namaKegiatan = (rawNama && rawNama !== '-' && rawNama !== item.jenis_kegiatan)
+                            ? rawNama
+                            : (rpjmObj.nama_kegiatan || rawNama || item.jenis_kegiatan || '-');
                         const dataEksistingVal = item.data_eksisting || item.data_existing || rpjmObj.data_eksisting || rpjmObj.data_existing || '-';
 
                         // ZERO-DEFAULT: jangan pernah mengarang nomor SDGs; tanpa data => '-'
@@ -674,6 +677,10 @@ function openEditRkpModal(key) {
     document.getElementById('edit-rkp-kode-display').value = item.kode_unik_full || item.kode_unik || key;
     document.getElementById('edit-rkp-bidang').value = getBidangKey(item);
     document.getElementById('edit-rkp-jenis-kegiatan').value = item.jenis_kegiatan || '';
+    const inputNamaKeg = document.getElementById('edit-rkp-nama-kegiatan');
+    if (inputNamaKeg) {
+        inputNamaKeg.value = item.nama_kegiatan || item.uraian || '';
+    }
     document.getElementById('edit-rkp-sdgs').value = item.mendukung_sdgs || item.sdgs || '';
     document.getElementById('edit-rkp-verifikasi-proposal').value = item.verifikasi_proposal || 'Belum';
     document.getElementById('edit-rkp-stunting').value = item.stunting || 'Tidak';
@@ -742,6 +749,10 @@ function saveEditRkpItem(event) {
         return;
     }
 
+    const inputNamaKeg = document.getElementById('edit-rkp-nama-kegiatan')?.value?.trim();
+    if (inputNamaKeg) {
+        item.nama_kegiatan = inputNamaKeg;
+    }
     item.data_eksisting = document.getElementById('edit-rkp-data-eksisting').value;
     item.target_capaian = document.getElementById('edit-rkp-target-capaian').value;
     item.sdgs = document.getElementById('edit-rkp-sdgs').value;
@@ -1229,7 +1240,10 @@ function buildRkpdesPerubahanHtml() {
                         const itemKode = String(item.kode_unik_full || item.kode_unik || '').trim();
                         const itemKodeAttr = itemKode.replace(/"/g, '&quot;');
 
-                        const namaKegiatan = item.nama_kegiatan || item.jenis_kegiatan || '-';
+                        const rawNamaPerubahan = item.nama_kegiatan || item.uraian || (item.semula && item.semula.nama_kegiatan) || (item.menjadi && item.menjadi.nama_kegiatan);
+                        const namaKegiatan = (rawNamaPerubahan && rawNamaPerubahan !== '-' && rawNamaPerubahan !== item.jenis_kegiatan)
+                            ? rawNamaPerubahan
+                            : (rawNamaPerubahan || item.jenis_kegiatan || '-');
                         let statusBadge = '';
                         if (item.status_perubahan === 'bertambah') {
                             statusBadge = '<span class="ml-1.5 text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold no-print">Bertambah</span>';
