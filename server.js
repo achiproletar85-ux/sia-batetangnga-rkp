@@ -1890,7 +1890,7 @@ const ANGGARAN_COLUMNS = 'id, kode_unik, sumber, created_at';
 
 const TEMPLATES_COLUMNS = 'id, code, name, stage, documentid, is_real, fields, table_headers, updated_at';
 
-const RKTL_COLUMNS = 'id, tahun, rktl_items, ketua_tim, tim_penyusun, fasilitator, tanggal_ttd, updated_at';
+const RKTL_COLUMNS = 'id, tahun, tipe, rktl_items, ketua_tim, tim_penyusun, fasilitator, tanggal_ttd, updated_at';
 
 // In-memory cache untuk GET /api/rpjmdes-standar (TTL 5 menit)
 const rpjmdesStandarCache = new Map();
@@ -8583,29 +8583,39 @@ app.delete('/api/program-masuk-desa', async (req, res) => {
 // RKTL (RENCANA KERJA DAN TINDAK LANJUT) API
 // ============================================================
 
-// GET /api/rktl?tahun=XXXX -> ambil semua baris RKTL utk tahun tsb
-app.get('/api/rktl', async (req, res) => {
+// Helper untuk handle GET RKTL (Murni atau Perubahan)
+async function handleGetRktl(req, res, forceTipe = null) {
     try {
-        const { tahun } = req.query;
+        const { tahun, tipe } = req.query;
         const tahunInt = parseInt(tahun, 10);
         if (!tahunInt) {
             return res.json({ success: true, data: [], message: 'Data belum tersedia' });
         }
 
-        const { data, error } = await supabase
+        const effectiveTipe = forceTipe || (tipe && String(tipe).toUpperCase().includes('PERUBAHAN') ? 'PERUBAHAN' : 'MURNI');
+
+        let query = supabase
             .from('rktl')
             .select(RKTL_COLUMNS)
-            .eq('tahun', tahunInt)
+            .eq('tahun', tahunInt);
+
+        if (effectiveTipe === 'PERUBAHAN') {
+            query = query.eq('tipe', 'PERUBAHAN');
+        } else {
+            query = query.or('tipe.eq.MURNI,tipe.is.null');
+        }
+
+        const { data, error } = await query
             .order('updated_at', { ascending: false })
             .limit(1);
 
         if (error) {
-            console.error('❌ Error GET /api/rktl:', error.message);
+            console.error(`❌ Error GET /api/rktl (${effectiveTipe}):`, error.message);
             return res.json({ success: true, data: [], message: 'Data belum tersedia' });
         }
 
         if (!data || data.length === 0) {
-            return res.json({ success: true, data: [], message: 'Data belum tersedia' });
+            return res.json({ success: true, data: [], message: 'Data belum tersedia', tipe: effectiveTipe });
         }
 
         const record = data[0];
@@ -8616,17 +8626,17 @@ app.get('/api/rktl', async (req, res) => {
             if (!items[0].fasilitator && record.fasilitator) items[0].fasilitator = record.fasilitator;
         }
 
-        return res.json({ success: true, data: items });
+        return res.json({ success: true, data: items, tipe: effectiveTipe, record_id: record.id });
     } catch (error) {
-        console.error('❌ Error GET /api/rktl:', error.message);
+        console.error('❌ Error GET RKTL handler:', error.message);
         return res.json({ success: true, data: [], message: 'Data belum tersedia' });
     }
-});
+}
 
-// POST /api/rktl/sync -> replace-all utk tahun tsb (idempoten)
-app.post('/api/rktl/sync', async (req, res) => {
+// Helper untuk handle POST/sync RKTL (Murni atau Perubahan)
+async function handleSyncRktl(req, res, forceTipe = null) {
     try {
-        const { tahun, data: rows } = req.body || {};
+        const { tahun, tipe, data: rows } = req.body || {};
         const tahunInt = parseInt(tahun, 10);
         if (!tahunInt) {
             return res.status(400).json({ success: false, error: 'Parameter tahun diperlukan.' });
@@ -8634,6 +8644,8 @@ app.post('/api/rktl/sync', async (req, res) => {
         if (!Array.isArray(rows)) {
             return res.status(400).json({ success: false, error: 'Data harus berupa array.' });
         }
+
+        const effectiveTipe = forceTipe || (tipe && String(tipe).toUpperCase().includes('PERUBAHAN') ? 'PERUBAHAN' : 'MURNI');
 
         const itemsData = rows.map((r, idx) => ({
             no_urut: r.no_urut || idx + 1,
@@ -8653,15 +8665,24 @@ app.post('/api/rktl/sync', async (req, res) => {
             ? first.tim_penyusun
             : rows.map(r => r.tim_penyusun).find(Array.isArray) || [];
 
-        // Hapus baris lama untuk tahun tsb (jika ada), lalu simpan 1 baris baru
-        const { error: delErr } = await supabase
+        // Hapus baris lama untuk tahun dan tipe tsb, lalu simpan 1 baris baru
+        let delQuery = supabase
             .from('rktl')
             .delete()
             .eq('tahun', tahunInt);
+
+        if (effectiveTipe === 'PERUBAHAN') {
+            delQuery = delQuery.eq('tipe', 'PERUBAHAN');
+        } else {
+            delQuery = delQuery.or('tipe.eq.MURNI,tipe.is.null');
+        }
+
+        const { error: delErr } = await delQuery;
         if (delErr) throw delErr;
 
         const payload = {
             tahun: tahunInt,
+            tipe: effectiveTipe,
             rktl_items: itemsData,
             tim_penyusun: timPenyusun,
             tanggal_ttd: first.tanggal_ttd || null,
@@ -8674,11 +8695,36 @@ app.post('/api/rktl/sync', async (req, res) => {
             if (insErr) throw insErr;
         }
 
-        res.json({ success: true, message: `Berhasil menyimpan ${itemsData.length} baris RKTL tahun ${tahunInt}.`, count: itemsData.length });
+        res.json({
+            success: true,
+            message: `Berhasil menyimpan ${itemsData.length} baris RKTL ${effectiveTipe} tahun ${tahunInt}.`,
+            count: itemsData.length,
+            tipe: effectiveTipe
+        });
     } catch (error) {
         console.error('❌ Error POST /api/rktl/sync:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
+}
+
+// GET /api/rktl?tahun=XXXX&tipe=MURNI|PERUBAHAN
+app.get('/api/rktl', async (req, res) => {
+    return handleGetRktl(req, res);
+});
+
+// GET /api/rktl/perubahan?tahun=XXXX (Alias khusus RKTL Perubahan)
+app.get('/api/rktl/perubahan', async (req, res) => {
+    return handleGetRktl(req, res, 'PERUBAHAN');
+});
+
+// POST /api/rktl/sync -> replace-all utk tahun & tipe tsb (idempoten)
+app.post('/api/rktl/sync', async (req, res) => {
+    return handleSyncRktl(req, res);
+});
+
+// POST /api/rktl/perubahan/sync (Alias khusus simpan RKTL Perubahan)
+app.post('/api/rktl/perubahan/sync', async (req, res) => {
+    return handleSyncRktl(req, res, 'PERUBAHAN');
 });
 
 

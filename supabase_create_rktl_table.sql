@@ -15,7 +15,8 @@
 
 CREATE TABLE IF NOT EXISTS public.rktl (
     id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    tahun         integer NOT NULL UNIQUE,
+    tahun         integer NOT NULL,
+    tipe          varchar(50) NOT NULL DEFAULT 'MURNI',
     rktl_items    jsonb NOT NULL DEFAULT '[]'::jsonb,
     tanggal_ttd   date,
     ketua_tim     text,
@@ -25,7 +26,11 @@ CREATE TABLE IF NOT EXISTS public.rktl (
     updated_at    timestamp with time zone DEFAULT now()
 );
 
+-- Pastikan kolom tipe ada jika tabel rktl lama sudah ada
+ALTER TABLE public.rktl ADD COLUMN IF NOT EXISTS tipe varchar(50) NOT NULL DEFAULT 'MURNI';
+
 CREATE INDEX IF NOT EXISTS idx_rktl_tahun ON public.rktl (tahun);
+CREATE INDEX IF NOT EXISTS idx_rktl_tahun_tipe ON public.rktl (tahun, tipe);
 
 ALTER TABLE public.rktl ENABLE ROW LEVEL SECURITY;
 

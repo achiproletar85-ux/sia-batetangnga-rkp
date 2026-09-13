@@ -33,6 +33,33 @@ const DEFAULT_RKTL_STEPS = [
     }
 ];
 
+const DEFAULT_RKTL_PERUBAHAN_STEPS = [
+    {
+        uraian: "Musyawarah Desa Pembahasan Keadaan Luar Biasa / Perubahan RKP Desa",
+        keterangan: "BA Musdes Pembahasan Alasan Perubahan RKP Desa dan Penelaahan Kebutuhan Mendesak / Pergeseran Anggaran."
+    },
+    {
+        uraian: "Pembentukan / Penugasan Tim Penyusun Dokumen Perubahan RKP Desa",
+        keterangan: "Surat Keputusan Kepala Desa tentang Penugasan Tim Penyusun Perubahan RKP Desa."
+    },
+    {
+        uraian: "Pencermatan dan Penyelarasan Rancangan Kegiatan serta Sumber Pembiayaan Perubahan",
+        keterangan: "Mencermati perubahan pagu indikatif, pergeseran belanja program prioritas, serta hasil realisasi semester berjalan."
+    },
+    {
+        uraian: "Penyusunan Rancangan Dokumen Perubahan RKP Desa",
+        keterangan: "Menyusun matriks perbandingan program kegiatan (Semula - Menjadi) beserta rincian perubahan anggaran."
+    },
+    {
+        uraian: "Musrenbang Desa Pembahasan Rancangan Perubahan RKP Desa",
+        keterangan: "Membahas dan menyepakati prioritas kegiatan perubahan bersama BPD, LPMD, tokoh masyarakat, dan unsur perempuan."
+    },
+    {
+        uraian: "Musyawarah Desa tentang Pembahasan dan Pengesahan Peraturan Desa tentang Perubahan RKP Desa",
+        keterangan: "Pengesahan PERDES Perubahan RKP Desa oleh Kepala Desa dan Ketua BPD."
+    }
+];
+
 const DEFAULT_TIM_PENYUSUN = [
     { nama: "SUMAILA DAMANG", jabatan_tim: "Pembina" },
     { nama: "SYARIFUDDIN", jabatan_tim: "Ketua" },
@@ -40,10 +67,18 @@ const DEFAULT_TIM_PENYUSUN = [
     { nama: "MISBAHUDDIN", jabatan_tim: "Anggota" }
 ];
 
+let currentRktlMode = 'MURNI'; // 'MURNI' | 'PERUBAHAN'
 let rktlRowsData = [];
 let timPenyusunData = [];
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Deteksi mode dari query URL: ?tipe=perubahan
+    const urlParams = new URLSearchParams(window.location.search);
+    const tipeParam = urlParams.get('tipe');
+    if (tipeParam && String(tipeParam).toLowerCase() === 'perubahan') {
+        currentRktlMode = 'PERUBAHAN';
+    }
+    updateRktlModeUI();
     loadRKTLData();
     setupEventListeners();
 });
@@ -57,13 +92,83 @@ function setupEventListeners() {
     });
 }
 
-// 1. Load Data RKTL dari Database per Tahun
+// Ganti Mode RKTL: Murni vs Perubahan
+function switchRktlMode(mode) {
+    currentRktlMode = (mode && String(mode).toUpperCase() === 'PERUBAHAN') ? 'PERUBAHAN' : 'MURNI';
+    updateRktlModeUI();
+    loadRKTLData();
+}
+
+function updateRktlModeUI() {
+    const isPerubahan = currentRktlMode === 'PERUBAHAN';
+    const btnMurni = document.getElementById('tab-btn-rktl-murni');
+    const btnPerubahan = document.getElementById('tab-btn-rktl-perubahan');
+    const badgeInfo = document.getElementById('tab-badge-info');
+    const modeTitle = document.getElementById('rktl-mode-title');
+    const modeSubtitle = document.getElementById('rktl-mode-subtitle');
+    const modeIcon = document.getElementById('rktl-mode-icon');
+    const docPrefix = document.getElementById('judul-dokumen-prefix');
+    const docSub = document.getElementById('judul-dokumen-sub');
+    const btnCopyMurni = document.getElementById('btn-copy-murni');
+
+    if (btnMurni && btnPerubahan) {
+        if (isPerubahan) {
+            btnPerubahan.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-sm cursor-pointer";
+            btnMurni.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer";
+        } else {
+            btnMurni.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm cursor-pointer";
+            btnPerubahan.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer";
+        }
+    }
+
+    if (badgeInfo) {
+        if (isPerubahan) {
+            badgeInfo.className = "bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1 rounded-lg font-bold flex items-center gap-1.5";
+            badgeInfo.innerHTML = '<i class="fas fa-file-signature text-amber-600"></i> Mode: RKTL Perubahan';
+        } else {
+            badgeInfo.className = "bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1 rounded-lg font-bold flex items-center gap-1.5";
+            badgeInfo.innerHTML = '<i class="fas fa-tasks text-indigo-600"></i> Mode: RKTL Murni';
+        }
+    }
+
+    if (modeTitle) {
+        modeTitle.innerText = isPerubahan ? 'RKTL (RENCANA KERJA DAN TINDAK LANJUT) - PERUBAHAN' : 'RKTL (RENCANA KERJA DAN TINDAK LANJUT)';
+    }
+
+    if (modeSubtitle) {
+        modeSubtitle.innerText = isPerubahan
+            ? 'Perubahan Penyusunan Dokumen RKP Desa Tahun 2026/2027 (Format Baku Kementerian)'
+            : 'Penyusunan Dokumen RKP Desa Tahun 2026/2027 (Format Baku Kementerian)';
+    }
+
+    if (modeIcon) {
+        modeIcon.className = isPerubahan ? 'fas fa-file-signature text-amber-600' : 'fas fa-tasks text-indigo-600';
+    }
+
+    if (docPrefix) {
+        docPrefix.innerText = isPerubahan ? 'RENCANA KERJA DAN TINDAK LANJUT (RKTL) PERUBAHAN' : 'RENCANA KERJA DAN TINDAK LANJUT (RKTL)';
+    }
+
+    if (docSub) {
+        docSub.innerText = isPerubahan ? 'PERUBAHAN PENYUSUNAN DOKUMEN RKP DESA TAHUN' : 'PENYUSUNAN DOKUMEN RKP DESA TAHUN';
+    }
+
+    if (btnCopyMurni) {
+        if (isPerubahan) {
+            btnCopyMurni.classList.remove('hidden');
+        } else {
+            btnCopyMurni.classList.add('hidden');
+        }
+    }
+}
+
+// 1. Load Data RKTL dari Database per Tahun & Tipe (Murni vs Perubahan)
 async function loadRKTLData() {
     const tahun = document.getElementById('select-tahun')?.value || '2027';
     if (document.getElementById('judul-tahun-doc')) {
         document.getElementById('judul-tahun-doc').innerText = tahun;
     }
-    console.log(`📥 Loading RKTL & Master Tim data for tahun ${tahun}...`);
+    console.log(`📥 Loading RKTL (${currentRktlMode}) & Master Tim data for tahun ${tahun}...`);
 
     try {
         // Fetch Master Tim Penyusun first
@@ -81,8 +186,8 @@ async function loadRKTLData() {
             timPenyusunData = JSON.parse(JSON.stringify(DEFAULT_TIM_PENYUSUN));
         }
 
-        // Fetch RKTL data
-        const rktlRes = await fetch(`/api/rktl?tahun=${tahun}`);
+        // Fetch RKTL data with explicit tipe
+        const rktlRes = await fetch(`/api/rktl?tahun=${tahun}&tipe=${currentRktlMode}`);
         const rktlJson = rktlRes.ok ? await rktlRes.json() : { success: true, data: [] };
 
         if (rktlJson.success && Array.isArray(rktlJson.data) && rktlJson.data.length > 0) {
@@ -104,14 +209,17 @@ async function loadRKTLData() {
                 document.getElementById('input-fasilitator-jabatan').value = first.fasilitator_jabatan || 'Pendamping Desa';
             }
         } else {
-            rktlRowsData = JSON.parse(JSON.stringify(DEFAULT_RKTL_STEPS));
+            // Gunakan default list sesuai mode
+            const defaultSteps = currentRktlMode === 'PERUBAHAN' ? DEFAULT_RKTL_PERUBAHAN_STEPS : DEFAULT_RKTL_STEPS;
+            rktlRowsData = JSON.parse(JSON.stringify(defaultSteps));
         }
 
         renderRKTLTable();
         renderTimPenyusunTable();
     } catch (err) {
         console.error('❌ Error loading RKTL data:', err);
-        rktlRowsData = JSON.parse(JSON.stringify(DEFAULT_RKTL_STEPS));
+        const defaultSteps = currentRktlMode === 'PERUBAHAN' ? DEFAULT_RKTL_PERUBAHAN_STEPS : DEFAULT_RKTL_STEPS;
+        rktlRowsData = JSON.parse(JSON.stringify(defaultSteps));
         timPenyusunData = JSON.parse(JSON.stringify(DEFAULT_TIM_PENYUSUN));
         renderRKTLTable();
         renderTimPenyusunTable();
@@ -272,10 +380,12 @@ function hapusAnggotaTim(index) {
     }
 }
 
-// 4. Reset Default RKTL
+// 4. Reset Default RKTL Sesuai Mode Aktif
 function resetDefaultRKTL() {
-    if (!confirm('Kembalikan semua isian RKTL, Keterangan, dan Tim Penyusun ke format default?')) return;
-    rktlRowsData = JSON.parse(JSON.stringify(DEFAULT_RKTL_STEPS));
+    const modeLabel = currentRktlMode === 'PERUBAHAN' ? 'RKTL Perubahan' : 'RKTL Murni';
+    if (!confirm(`Kembalikan semua isian ${modeLabel}, Keterangan, dan Tim Penyusun ke format default?`)) return;
+    const defaultSteps = currentRktlMode === 'PERUBAHAN' ? DEFAULT_RKTL_PERUBAHAN_STEPS : DEFAULT_RKTL_STEPS;
+    rktlRowsData = JSON.parse(JSON.stringify(defaultSteps));
     timPenyusunData = JSON.parse(JSON.stringify(DEFAULT_TIM_PENYUSUN));
     document.getElementById('input-kepala-desa').value = 'SUMAILA DAMANG';
     document.getElementById('input-ketua-tim').value = 'AHMAD';
@@ -286,7 +396,46 @@ function resetDefaultRKTL() {
     renderTimPenyusunTable();
 }
 
-// 5. Simpan Ke Database
+// 4b. Salin Agenda dari RKTL Murni ke RKTL Perubahan
+async function salinDariRktlMurni() {
+    const tahun = document.getElementById('select-tahun')?.value || '2027';
+    if (!confirm(`Salin seluruh agenda kegiatan dan susunan tim dari RKTL Murni tahun ${tahun} ke RKTL Perubahan?`)) return;
+
+    try {
+        const res = await fetch(`/api/rktl?tahun=${tahun}&tipe=MURNI`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            rktlRowsData = JSON.parse(JSON.stringify(json.data));
+            const first = json.data[0];
+            if (first.tanggal_ttd && document.getElementById('input-tanggal-ttd')) {
+                document.getElementById('input-tanggal-ttd').value = first.tanggal_ttd.split('T')[0];
+            }
+            if (first.ketua_tim && document.getElementById('input-ketua-tim')) {
+                document.getElementById('input-ketua-tim').value = first.ketua_tim;
+            }
+            if (first.kepala_desa && document.getElementById('input-kepala-desa')) {
+                document.getElementById('input-kepala-desa').value = first.kepala_desa;
+            }
+            if (document.getElementById('input-fasilitator-nama')) {
+                document.getElementById('input-fasilitator-nama').value = first.fasilitator_nama || 'RAHMAN, ST';
+            }
+            if (document.getElementById('input-fasilitator-jabatan')) {
+                document.getElementById('input-fasilitator-jabatan').value = first.fasilitator_jabatan || 'Pendamping Desa';
+            }
+            renderRKTLTable();
+            alert(`✅ Berhasil menyalin ${rktlRowsData.length} kegiatan dari RKTL Murni! Silakan sesuaikan agenda jika diperlukan, lalu klik "Simpan DB".`);
+        } else {
+            alert(`⚠️ Data RKTL Murni untuk tahun ${tahun} belum tersimpan di database. Memuat susunan default kegiatan perubahan.`);
+            rktlRowsData = JSON.parse(JSON.stringify(DEFAULT_RKTL_PERUBAHAN_STEPS));
+            renderRKTLTable();
+        }
+    } catch (err) {
+        console.error('❌ Error salinDariRktlMurni:', err);
+        alert('❌ Terjadi kesalahan saat menyalin data dari server.');
+    }
+}
+
+// 5. Simpan Ke Database (Mempertahankan Tipe Murni / Perubahan)
 async function simpanRKTL() {
     const tahun = parseInt(document.getElementById('select-tahun')?.value || '2027');
     const tglTTD = document.getElementById('input-tanggal-ttd')?.value || '2026-08-02';
@@ -317,7 +466,8 @@ async function simpanRKTL() {
         tim_penyusun: timPenyusunData
     }));
 
-    console.log(`💾 Syncing ${itemsData.length} RKTL rows & ${timPenyusunData.length} team members to Supabase for tahun ${tahun}...`);
+    const modeLabel = currentRktlMode === 'PERUBAHAN' ? 'RKTL Perubahan' : 'RKTL Murni';
+    console.log(`💾 Syncing ${itemsData.length} baris ${modeLabel} & ${timPenyusunData.length} team members to Supabase for tahun ${tahun}...`);
 
     try {
         // Sync Master Data Tim Penyusun
@@ -327,19 +477,19 @@ async function simpanRKTL() {
             body: JSON.stringify({ tahun: tahun, data: timPenyusunData })
         });
 
-        // Sync RKTL rows
+        // Sync RKTL rows dengan payload eksplisit tipe
         const res = await fetch('/api/rktl/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tahun: tahun, data: itemsData })
+            body: JSON.stringify({ tahun: tahun, tipe: currentRktlMode, data: itemsData })
         });
         const json = await res.json();
 
         if (json.success) {
-            alert('✅ Data RKTL & Master Tim Penyusun berhasil disimpan ke database!');
+            alert(`✅ Data ${modeLabel} & Master Tim Penyusun berhasil disimpan ke database!`);
             loadRKTLData();
         } else {
-            alert('❌ Gagal menyimpan data RKTL: ' + json.error);
+            alert(`❌ Gagal menyimpan data ${modeLabel}: ` + json.error);
         }
     } catch (err) {
         console.error('❌ Error simpanRKTL:', err);
@@ -358,7 +508,8 @@ async function copyKeTahunLain() {
     }
 
     const activeTahun = document.getElementById('select-tahun')?.value || '2027';
-    const targetTahunStr = prompt(`Masukkan TAHUN tujuan untuk menyalin RKTL dari tahun ${activeTahun} (contoh: 2028):`, '2028');
+    const modeLabel = currentRktlMode === 'PERUBAHAN' ? 'RKTL Perubahan' : 'RKTL Murni';
+    const targetTahunStr = prompt(`Masukkan TAHUN tujuan untuk menyalin ${modeLabel} dari tahun ${activeTahun} (contoh: 2028):`, '2028');
     if (!targetTahunStr) return;
 
     const targetTahunInt = parseInt(targetTahunStr.trim());
@@ -372,7 +523,7 @@ async function copyKeTahunLain() {
         return;
     }
 
-    if (!confirm(`Salin ${rktlRowsData.length} kegiatan RKTL & ${timPenyusunData.length} anggota tim dari tahun ${activeTahun} ke tahun ${targetTahunInt}?`)) return;
+    if (!confirm(`Salin ${rktlRowsData.length} kegiatan ${modeLabel} & ${timPenyusunData.length} anggota tim dari tahun ${activeTahun} ke tahun ${targetTahunInt}?`)) return;
 
     const tglTTD = document.getElementById('input-tanggal-ttd')?.value || '2026-08-02';
     const ketuaTim = document.getElementById('input-ketua-tim')?.value || 'AHMAD';
@@ -398,11 +549,11 @@ async function copyKeTahunLain() {
         const res = await fetch('/api/rktl/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tahun: targetTahunInt, data: copiedPayload })
+            body: JSON.stringify({ tahun: targetTahunInt, tipe: currentRktlMode, data: copiedPayload })
         });
         const json = await res.json();
         if (json.success) {
-            alert(`✅ Berhasil menyalin data RKTL ke tahun ${targetTahunInt}!`);
+            alert(`✅ Berhasil menyalin data ${modeLabel} ke tahun ${targetTahunInt}!`);
             document.getElementById('select-tahun').value = targetTahunInt.toString();
             loadRKTLData();
         } else {
@@ -414,7 +565,7 @@ async function copyKeTahunLain() {
     }
 }
 
-// 7. Cetak PDF / Print Window (Format Word Kementrian)
+// 7. Cetak PDF / Print Window (Format Resmi Kementerian dengan Judul Adaptif)
 function printPDF() {
     const tahun = document.getElementById('select-tahun')?.value || '2027';
     const kepalaDesa = document.getElementById('input-kepala-desa')?.value || 'SUMAILA DAMANG';
@@ -422,6 +573,10 @@ function printPDF() {
     const tgl = document.getElementById('input-tanggal-ttd')?.value || '2026-08-02';
     const fasNama = document.getElementById('input-fasilitator-nama')?.value || 'RAHMAN, ST';
     const fasJabatan = document.getElementById('input-fasilitator-jabatan')?.value || 'Pendamping Desa';
+
+    const isPerubahan = currentRktlMode === 'PERUBAHAN';
+    const docJudulPrefix = isPerubahan ? 'RENCANA KERJA DAN TINDAK LANJUT (RKTL) PERUBAHAN' : 'RENCANA KERJA DAN TINDAK LANJUT (RKTL)';
+    const docJudulSub = isPerubahan ? `PERUBAHAN PENYUSUNAN DOKUMEN RKP DESA TAHUN ${tahun}` : `PENYUSUNAN DOKUMEN RKP DESA TAHUN ${tahun}`;
 
     let formattedDate = tgl;
     const parts = tgl.split('-');
@@ -473,7 +628,7 @@ function printPDF() {
         <!DOCTYPE html>
         <html>
         <head>
-            <title>RKTL PENYUSUNAN DOKUMEN RKP DESA TAHUN ${tahun}</title>
+            <title>${docJudulSub} / DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR PROVINSI SULAWESI BARAT</title>
             <style>
                 @page { size: portrait; margin: 12mm; }
                 body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; color: #000; margin: 0; padding: 10px; }
@@ -493,8 +648,8 @@ function printPDF() {
         <body>
             <div class="text-center">
                 <h3 style="margin: 0; font-size: 13px;" class="font-bold uppercase">
-                    RENCANA KERJA DAN TINDAK LANJUT (RKTL)<br>
-                    PENYUSUNAN DOKUMEN RKP DESA TAHUN ${tahun}
+                    ${docJudulPrefix}<br>
+                    ${docJudulSub}
                 </h3>
                 <p style="margin: 3px 0;" class="font-bold uppercase">DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR</p>
                 <p style="margin: 2px 0;" class="font-bold uppercase">PROVINSI SULAWESI BARAT</p>
