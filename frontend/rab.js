@@ -2703,8 +2703,9 @@ async function cetakRabPerubahan() {
         let json = null;
         try { json = await res.json(); } catch (_) {}
         if (res.ok && json && json.success && Array.isArray(json.data)) {
+            // ZERO-SORT FRONTEND: Jangan lakukan .sort() di frontend.
+            // Gunakan urutan data apa adanya (sequential order) persis dari backend /api/rab/perbandingan.
             comparisons = json.data;
-            comparisons.sort((a, b) => compareKodeUnikFull(getKode(a), getKode(b)));
             grandTotal = json.total || grandTotal;
         } else {
             const msg = (json && json.error) || `Gagal memuat perbandingan RAB (HTTP ${res.status})`;

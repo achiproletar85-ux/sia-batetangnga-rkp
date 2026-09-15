@@ -5026,7 +5026,11 @@ app.get('/api/rab/perbandingan', async (req, res) => {
             }
             if (p) matchedPerIds.add(Number(p.id));
 
-            const mItems = parseRabItemsSafely(m.items);
+            let mItems = parseRabItemsSafely(m.items);
+            const hasExplicitOrder = mItems.some(it => Number(it.urutan || it.no || 0) > 0);
+            if (!hasExplicitOrder) {
+                mItems = sortRabItems(mItems);
+            }
             const pItems = p ? parseRabItemsSafely(p.items) : [];
             const belumAdaPerubahan = !p;
             const items = belumAdaPerubahan
