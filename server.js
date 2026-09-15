@@ -390,7 +390,9 @@ function compareKodeUnikFull(aKode, bKode) {
         const valB = partsB[i] !== undefined ? partsB[i] : 0;
         if (valA !== valB) return valA - valB;
     }
-    return cleanA.localeCompare(cleanB, undefined, { numeric: true, sensitivity: 'base' });
+    const normA = cleanA.replace(/\.+$/, '');
+    const normB = cleanB.replace(/\.+$/, '');
+    return normA.localeCompare(normB, undefined, { numeric: true, sensitivity: 'base' });
 }
 
 function sortHierarchical(dataArray) {
@@ -1178,10 +1180,15 @@ function getRabSubgroupCode(subgroupName, groupName) {
 
 function getRabItemRekening(it) {
     if (!it || typeof it !== 'object') return '9.9.9.99';
-    if (it.kode_rekening) return String(it.kode_rekening).trim();
-    const sub = String(it.subgroup || it.sub_kelompok || '').trim();
-    const grp = String(it.group || it.group_belanja || it.kelompok_belanja || '').trim();
-    return getRabSubgroupCode(sub, grp);
+    let code = '';
+    if (it.kode_rekening) {
+        code = String(it.kode_rekening).trim();
+    } else {
+        const sub = String(it.subgroup || it.sub_kelompok || '').trim();
+        const grp = String(it.group || it.group_belanja || it.kelompok_belanja || '').trim();
+        code = getRabSubgroupCode(sub, grp);
+    }
+    return code.replace(/\.+$/, '');
 }
 
 function sortRabItems(items) {
@@ -1191,9 +1198,6 @@ function sortRabItems(items) {
         const rekB = getRabItemRekening(b);
         const cmp = compareKodeUnikFull(rekA, rekB);
         if (cmp !== 0) return cmp;
-        const noA = Number(a.no || a.urutan || 0);
-        const noB = Number(b.no || b.urutan || 0);
-        if (noA && noB && noA !== noB) return noA - noB;
         return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
     });
     return sorted.map((it, idx) => ({
@@ -1234,15 +1238,15 @@ function alignRabItems(murniItems, perubahanItems) {
         const mGroup = norm(m && (m.group || m.group_belanja || m.kelompok_belanja));
         const mSub = norm(m && (m.subgroup || m.sub_kelompok));
 
-        // Prioritas 1: Cocokkan via urutan_murni HANYA bila uraian cocok atau grup cocok
+        // Prioritas 1: Cocokkan via urutan_murni HANYA bila uraian cocok
         // (mencegah salah pasang printer vs kertas f4 bila grup & uraian berbeda total)
         pIdx = perArr.findIndex((p, idx) => {
             if (usedPer.has(idx)) return false;
             const urut = Number(p && p.urutan_murni);
             if (!Number.isInteger(urut) || urut !== mIdx) return false;
             const pUraian = norm(p.uraian);
-            const pGroup = norm(p.group || p.group_belanja || p.kelompok_belanja);
             const pUraianMurni = norm(p.uraian_murni);
+            const pGroup = norm(p.group || p.group_belanja || p.kelompok_belanja);
             return (pUraian && (pUraian === mUraian || pUraianMurni === mUraian)) || (pGroup && pGroup === mGroup);
         });
 
