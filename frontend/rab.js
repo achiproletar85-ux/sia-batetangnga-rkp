@@ -2118,16 +2118,6 @@ async function cetakPdfByGroup() {
             let parsedItems = typeof row.items === 'string' ? JSON.parse(row.items || '[]') : (row.items || []);
             
             if (Array.isArray(parsedItems) && parsedItems.length > 0) {
-                parsedItems.sort((a, b) => {
-                    const codeA = getRabSubgroupCode(a.subgroup, a.group);
-                    const codeB = getRabSubgroupCode(b.subgroup, b.group);
-                    const cmp = compareKodeRAB(codeA, codeB);
-                    if (cmp !== 0) return cmp;
-                    const uA = Number(a.urutan ?? a.no ?? 999999);
-                    const uB = Number(b.urutan ?? b.no ?? 999999);
-                    if (uA !== uB) return uA - uB;
-                    return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
-                });
                 parsedItems.forEach(it => {
                     const vol = Number(it.volume) || 12;
                     const hrg = Number(it.harga || it.harga_satuan || 0);
@@ -2404,12 +2394,6 @@ function getGroupKey(row, item) {
 
             subKeys.forEach(sgKey => {
                 const groupSubData = groupedData[gKey][namaKeg][sgKey];
-                groupSubData.items.sort((a, b) => {
-                    const uA = Number(a.urutan ?? a.no ?? 999999);
-                    const uB = Number(b.urutan ?? b.no ?? 999999);
-                    if (uA !== uB) return uA - uB;
-                    return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
-                });
 
                 // 3. TAMPILKAN SUBGROUP (Level 3 - Bawah) -> Tebal, Normal Case (Bukan Uppercase) + Subtotal di Kolom f
                 tbodyRows += `

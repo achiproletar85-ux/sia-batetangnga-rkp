@@ -4,7 +4,7 @@ const app = require('../server.js');
 const { getRabItemRekening, sortRabItems, compareKodeUnikFull } = app.rabPerubahan;
 
 async function main() {
-  console.log('=== MEMULAI SINKRONISASI MUTLAK URUTAN RAB SUPABASE (KERTAS F4 DI NOMOR 1) ===');
+  console.log('=== MEMULAI SINKRONISASI MUTLAK URUTAN RAB SUPABASE (MASTER SKELETON DIAWALI AMPLOP) ===');
 
   if (!supabase) {
     console.error('Koneksi Supabase tidak tersedia!');
@@ -24,7 +24,7 @@ async function main() {
 
   console.log(`Ditemukan ${murniList.length} baris RAB Murni.`);
 
-  // Standarisasi dan update MURNI agar Kertas f4 terkunci di nomor 1
+  // Standarisasi dan update MURNI agar urutan item diawali Amplop (#1)
   const murniMap = new Map();
 
   for (const m of murniList) {
@@ -163,8 +163,8 @@ async function main() {
           urutan_murni: mIdx + 1,
           kode_rekening: targetP.kode_rekening || mItem.kode_rekening || (mRekening ? mRekening + '.' : undefined)
         });
-      } else if (mName.includes('kertas f4')) {
-        // Jika Kertas f4 ada di Murni tapi belum ada di Perubahan, masukkan Kertas f4 dari Murni
+      } else {
+        // Item ada di Murni tapi belum ada di Perubahan
         matchedPItems.push({
           ...mItem,
           id_referensi_murni: mItem.id || null,
@@ -209,7 +209,7 @@ async function main() {
     }
   }
 
-  console.log(`=== SINKRONISASI SELESAI: ${totalUpdatedPerubahan} RAB Perubahan diperbarui dengan Kertas f4 di nomor 1. ===`);
+  console.log(`=== SINKRONISASI SELESAI: ${totalUpdatedPerubahan} RAB Perubahan diperbarui dengan Amplop di nomor 1. ===`);
 }
 
 main().catch((err) => {
