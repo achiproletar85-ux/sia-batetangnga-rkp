@@ -269,8 +269,8 @@ console.log('\n11) Pengurutan Sub-Item Belanja SisKeuDes (sortRabItems)');
     const sortedItems = sortRabItems(rawItems);
     check('item 1 adalah 5.1 (Siltap Kades)', sortedItems[0].uraian, 'Siltap Kades');
     check('item 1 memiliki no = 1', sortedItems[0].no, 1);
-    check('item 2 adalah Amplop (alfabetis dalam 5.2.1)', sortedItems[1].uraian, 'Amplop');
-    check('item 3 adalah Kertas A4 (dalam 5.2.1)', sortedItems[2].uraian, 'Kertas A4');
+    check('item 2 adalah Kertas A4 (SisKeuDes dalam 5.2.1)', sortedItems[1].uraian, 'Kertas A4');
+    check('item 3 adalah Amplop (dalam 5.2.1)', sortedItems[2].uraian, 'Amplop');
     check('item 4 adalah 5.3 (Bibit Pohon)', sortedItems[3].uraian, 'Bibit Pohon');
     check('item 4 memiliki no = 4', sortedItems[3].no, 4);
 }
@@ -444,12 +444,12 @@ console.log('\n16) Standardisasi Urutan Raw Database: Master Skeleton Diawali Am
     ];
 
     const sortedMurni = sortRabItems(rawMurni);
-    check('Amplop di urutan 1 (alfabetis dalam 5.2.1.01)', sortedMurni[0].uraian, 'Amplop');
-    check('Amplop mendapat no = 1', sortedMurni[0].no, 1);
+    check('Kertas f4 di urutan 1 (SisKeuDes dalam 5.2.1.01)', sortedMurni[0].uraian, 'Kertas f4');
+    check('Kertas f4 mendapat no = 1', sortedMurni[0].no, 1);
     check('Buku Polio di urutan 2', sortedMurni[1].uraian, 'Buku Polio');
     check('Buku Polio mendapat no = 2', sortedMurni[1].no, 2);
-    check('Kertas f4 di urutan 3', sortedMurni[2].uraian, 'Kertas f4');
-    check('Kertas f4 mendapat no = 3', sortedMurni[2].no, 3);
+    check('Amplop di urutan 3', sortedMurni[2].uraian, 'Amplop');
+    check('Amplop mendapat no = 3', sortedMurni[2].no, 3);
 
     // Di draf perubahan, urutan master murni tetap dikunci
     const per = [
@@ -459,10 +459,10 @@ console.log('\n16) Standardisasi Urutan Raw Database: Master Skeleton Diawali Am
     ];
 
     const aligned = alignRabItems(sortedMurni, per);
-    check('Row 0 terlock pada Amplop di nomor 1', aligned[0].uraian, 'Amplop');
-    check('Row 0 MENJADI volume Amplop = 6', aligned[0].menjadi.volume, 6);
+    check('Row 0 terlock pada Kertas f4 di nomor 1', aligned[0].uraian, 'Kertas f4');
     check('Row 1 terlock pada Buku Polio di nomor 2', aligned[1].uraian, 'Buku Polio');
-    check('Row 2 terlock pada Kertas f4 di nomor 3', aligned[2].uraian, 'Kertas f4');
+    check('Row 2 terlock pada Amplop di nomor 3', aligned[2].uraian, 'Amplop');
+    check('Row 2 MENJADI volume Amplop = 6', aligned[2].menjadi.volume, 6);
     check('Nomor urut baris 1 s/d 3', aligned.map(r => r.no), [1, 2, 3]);
 }
 

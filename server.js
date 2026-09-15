@@ -1197,6 +1197,62 @@ function getRabItemRekening(it) {
     return code.replace(/\.+$/, '');
 }
 
+const SISKEUDES_ITEM_ORDER = [
+    'kertas f4',
+    'kertas a4',
+    'bundel besar',
+    'bundel kecil',
+    'polpen tanda tangan',
+    'tinta black',
+    'tinta warna',
+    'buku polio',
+    'pulpen',
+    'lem',
+    'map lubang plastik',
+    'map plastik lubang',
+    'map biasa',
+    'peluru hekter',
+    'amplop',
+    'gunting',
+    'lakban',
+    'lampu',
+    'sapu',
+    'sapu ijuk',
+    'isi ulang tabung gas',
+    'fhhotocopy',
+    'fhoto copy',
+    'photocopy',
+    'fotocopy',
+    'jilid',
+    'air gelas',
+    'air minum gelas',
+    'gula',
+    'indomie',
+    'kopi',
+    'teh',
+    'nasi kotak',
+    'baleho 2x3',
+    'baleho kegiatan 2x1',
+    'baju keki',
+    'baju seragam',
+    'insentif petugas kebersihan',
+    'token listrik',
+    'majalah central news',
+    'wifi/internet',
+    'ganti oli',
+    'service',
+    'pajak motor',
+    'perbaikan motor',
+    'perbaikan printer',
+    'perbaikan standinfografis'
+];
+
+function getSiskeudesItemIndex(uraian) {
+    if (!uraian) return -1;
+    const norm = String(uraian).trim().toLowerCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ');
+    return SISKEUDES_ITEM_ORDER.findIndex(key => norm === key || norm.startsWith(key));
+}
+
 function sortRabItems(items) {
     if (!Array.isArray(items)) return [];
     const sorted = [...items].sort((a, b) => {
@@ -1204,6 +1260,21 @@ function sortRabItems(items) {
         const rekB = getRabItemRekening(b);
         const cmp = compareKodeUnikFull(rekA, rekB);
         if (cmp !== 0) return cmp;
+
+        // Prioritas Urutan Standar SisKeuDes (Kertas f4 di #1, Kertas A4 di #2, Bundel Besar di #3, ..., Amplop di #14, dst)
+        const idxA = getSiskeudesItemIndex(a.uraian || a.nama_barang || a.nama);
+        const idxB = getSiskeudesItemIndex(b.uraian || b.nama_barang || b.nama);
+        if (idxA !== -1 && idxB !== -1) {
+            if (idxA !== idxB) return idxA - idxB;
+        } else if (idxA !== -1) {
+            return -1;
+        } else if (idxB !== -1) {
+            return 1;
+        }
+
+        const noA = Number(a.no || a.urutan || 0);
+        const noB = Number(b.no || b.urutan || 0);
+        if (noA && noB && noA !== noB) return noA - noB;
 
         return String(a.uraian || a.nama_barang || '').localeCompare(String(b.uraian || b.nama_barang || ''), undefined, { numeric: true, sensitivity: 'base' });
     });
