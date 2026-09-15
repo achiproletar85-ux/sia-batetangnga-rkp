@@ -368,9 +368,35 @@ async function rabQueryWithTipeFallback(buildQuery, primaryCols, legacyCols) {
     return res;
 }
 
+function compareKodeUnikFull(aKode, bKode) {
+    const strA = String(aKode || '').trim();
+    const strB = String(bKode || '').trim();
+    if (!strA && !strB) return 0;
+    if (!strA) return 1;
+    if (!strB) return -1;
+    const cleanA = strA.replace(/^PEM\./i, '');
+    const cleanB = strB.replace(/^PEM\./i, '');
+    const partsA = cleanA.split(/[\.\-\s]+/).filter(Boolean).map(p => parseInt(p, 10) || 0);
+    const partsB = cleanB.split(/[\.\-\s]+/).filter(Boolean).map(p => parseInt(p, 10) || 0);
+    const maxLen = Math.max(partsA.length, partsB.length);
+    for (let i = 0; i < maxLen; i++) {
+        const valA = partsA[i] !== undefined ? partsA[i] : 0;
+        const valB = partsB[i] !== undefined ? partsB[i] : 0;
+        if (valA !== valB) return valA - valB;
+    }
+    return cleanA.localeCompare(cleanB, undefined, { numeric: true, sensitivity: 'base' });
+}
+
 function sortHierarchical(dataArray) {
     if (!Array.isArray(dataArray)) return dataArray;
     return dataArray.sort((a, b) => {
+        const kUnikA = String(a.kode_unik_full || a.kode_unik || a.kode_klasifikasi || a.kode || '').trim();
+        const kUnikB = String(b.kode_unik_full || b.kode_unik || b.kode_klasifikasi || b.kode || '').trim();
+        if (kUnikA && kUnikB) {
+            const cmp = compareKodeUnikFull(kUnikA, kUnikB);
+            if (cmp !== 0) return cmp;
+        }
+
         const kBidA = String(a.kode_bidang || '').trim();
         const kBidB = String(b.kode_bidang || '').trim();
         if (kBidA !== kBidB && kBidA && kBidB) return kBidA.localeCompare(kBidB, undefined, { numeric: true, sensitivity: 'base' });
@@ -383,9 +409,7 @@ function sortHierarchical(dataArray) {
         const kKegB = String(b.kode_kegiatan || '').trim();
         if (kKegA !== kKegB && kKegA && kKegB) return kKegA.localeCompare(kKegB, undefined, { numeric: true, sensitivity: 'base' });
 
-        const kUnikA = String(a.kode_unik_full || a.kode_unik || a.kode_klasifikasi || a.kode || '').trim();
-        const kUnikB = String(b.kode_unik_full || b.kode_unik || b.kode_klasifikasi || b.kode || '').trim();
-        return kUnikA.localeCompare(kUnikB, undefined, { numeric: true, sensitivity: 'base' });
+        return compareKodeUnikFull(kUnikA, kUnikB);
     });
 }
 
@@ -981,42 +1005,173 @@ function buildRabCompareRow(murniItem, perubahanItem, urutan) {
     };
 }
 
-// Penjajaran item MURNI (SEMULA) dengan item PERUBAHAN (MENJADI).        // Prioritas: `urutan_murni` pada item PERUBAHAN (jejak clone) — tetap berpasangan
-        // walau uraian/volume/harga diubah, karena posisi asal MURNI-nya tersimpan eksplisit.
-        // Fallback: kunci komposit (group+subgroup+uraian+satuan) untuk data lama tanpa jejak.
-// Item yang hanya ada di MURNI -> MENJADI = 0. Yang hanya ada di PERUBAHAN -> SEMULA = 0.
+// Peta standar kode rekening belanja desa (SisKeuDes) untuk sorting rapi sub-item
+const RAB_GROUP_CODE_MAP = {
+    'Penghasilan Tetap dan Tunjangan Kepala Desa': '5.1.1',
+    'Penghasilan Tetap dan Tunjangan Perangkat Desa': '5.1.2',
+    'Jaminan Sosial Kepala Desa dan Perangkat Desa': '5.1.3',
+    'Tunjangan BPD': '5.1.4',
+    'Belanja Pegawai': '5.1',
+    'Belanja Barang Perlengkapan': '5.2.1',
+    'Belanja Jasa Honorarium': '5.2.2',
+    'Belanja Operasional Perkantoran': '5.2.3',
+    'Belanja Pemeliharaan': '5.2.6',
+    'Belanja Barang dan Jasa': '5.2',
+    'Belanja Modal Pengadaan Tanah': '5.3.1',
+    'Belanja Modal Pengadaan Peralatan, Mesin dan Alat Berat': '5.3.2',
+    'Belanja Modal Gedung, Bangunan dan Taman': '5.3.3',
+    'Belanja Modal Jalan, Jaringan dan Irigasi': '5.3.4',
+    'Belanja Modal lainnya': '5.3.9',
+    'Belanja Modal': '5.3',
+    'Belanja Tak Terduga': '5.4.1'
+};
+
+const RAB_SUBGROUP_CODE_MAP = {
+    'Penghasilan Tetap Kepala Desa': '5.1.1.01',
+    'Tunjangan Kepala Desa': '5.1.1.02',
+    'Penghasilan Tetap Perangkat Desa': '5.1.2.01',
+    'Tunjangan Perangkat Desa': '5.1.2.02',
+    'Jaminan Kesehatan Kepala Desa': '5.1.3.01',
+    'Jaminan Kesehatan Perangkat Desa': '5.1.3.02',
+    'Jaminan Ketenagakerjaan Kepala Desa': '5.1.3.03',
+    'Jaminan Ketenagakerjaan Perangkat Desa': '5.1.3.04',
+    'Tunjangan Kedudukan BPD': '5.1.4.01',
+    'Tunjangan Kinerja BPD': '5.1.4.02',
+    'Belanja Perlengkapan Alat Tulis Kantor dan Benda Pos': '5.2.1.01',
+    'Belanja Alat Tulis Kantor dan Benda Pos': '5.2.1.01',
+    'Belanja Perlengkapan Alat-alat Listrik': '5.2.1.02',
+    'Belanja Perlengkapan Alat-alat Rumah Tangga/Peralatan dan Bahan Kebersihan': '5.2.1.03',
+    'Belanja Bahan Bakar Minyak/Gas/Isi Ulang Tabung Pemadam Kebakaran': '5.2.1.04',
+    'Belanja Perlengkapan Cetak/Penggandaan - Belanja Barang Cetak dan Penggandaan': '5.2.1.05',
+    'Belanja Pemeliharaan Mesin dan Peralatan Berat': '5.2.6.01',
+    'Belanja Pemeliharaan Peralatan': '5.2.6.01',
+    'Belanja Pemeliharaan Kendaraan Bermotor': '5.2.6.02',
+    'Belanja Modal Peralatan Komputer': '5.3.2.03'
+};
+
+function getRabItemRekening(it) {
+    if (!it || typeof it !== 'object') return '9.9.9';
+    if (it.kode_rekening) return String(it.kode_rekening).trim();
+    const sub = String(it.subgroup || it.sub_kelompok || '').trim();
+    if (RAB_SUBGROUP_CODE_MAP[sub]) return RAB_SUBGROUP_CODE_MAP[sub];
+    const grp = String(it.group || it.kelompok_belanja || '').trim();
+    if (RAB_GROUP_CODE_MAP[grp]) return RAB_GROUP_CODE_MAP[grp];
+    return '9.9.9';
+}
+
+function sortRabItems(items) {
+    if (!Array.isArray(items)) return [];
+    const sorted = [...items].sort((a, b) => {
+        const rekA = getRabItemRekening(a);
+        const rekB = getRabItemRekening(b);
+        const cmp = compareKodeUnikFull(rekA, rekB);
+        if (cmp !== 0) return cmp;
+        const noA = Number(a.no || a.urutan || 0);
+        const noB = Number(b.no || b.urutan || 0);
+        if (noA && noB && noA !== noB) return noA - noB;
+        return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
+    });
+    return sorted.map((it, idx) => ({
+        ...it,
+        no: idx + 1,
+        urutan: idx + 1
+    }));
+}
+
+// Penjajaran item MURNI (SEMULA) dengan item PERUBAHAN (MENJADI).
+// - Item Murni yang terhubung via id_referensi_murni diambil snapshot aslinya.
+// - Pasangan dicocokkan berdasarkan uraian/grup atau uraian_murni.
+// - Item baru pada PERUBAHAN (tidak ada di Murni) menghasilkan SEMULA = 0 bersih.
+// - Item yang hanya ada di MURNI menghasilkan MENJADI = 0.
 function alignRabItems(murniItems, perubahanItems) {
     const murniArr = Array.isArray(murniItems) ? murniItems : [];
     const perArr = Array.isArray(perubahanItems) ? perubahanItems : [];
     const usedMurni = new Set();
-    const keyIndex = new Map();
-    murniArr.forEach((it, idx) => {
-        const k = rabItemKey(it);
-        if (!keyIndex.has(k)) keyIndex.set(k, []);
-        keyIndex.get(k).push(idx);
-    });
+    const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
 
     const rows = [];
     perArr.forEach((it, pIdx) => {
         let mIdx = -1;
+        const pUraian = norm(it && it.uraian);
+        const pGroup = norm(it && (it.group || it.group_belanja || it.kelompok_belanja));
+        const pSub = norm(it && (it.subgroup || it.sub_kelompok));
+        const pUraianMurni = norm(it && it.uraian_murni);
         const urut = Number(it && it.urutan_murni);
+
+        // 1. Prioritas: Cocokkan via urutan_murni HANYA bila uraian cocok atau grup cocok
+        // (mencegah salah pasang printer vs kertas f4 bila grup & uraian berbeda total)
         if (Number.isInteger(urut) && urut >= 0 && urut < murniArr.length && !usedMurni.has(urut)) {
-            // Jejak eksplisit dari proses salin MURNI -> PERUBAHAN.
-            mIdx = urut;
-        } else {
-            const candidates = keyIndex.get(rabItemKey(it)) || [];
-            const free = candidates.find(c => !usedMurni.has(c));
-            if (free !== undefined) mIdx = free;
+            const cand = murniArr[urut];
+            const candUraian = norm(cand && cand.uraian);
+            const candGroup = norm(cand && (cand.group || cand.group_belanja || cand.kelompok_belanja));
+            const uraianMatch = candUraian && (candUraian === pUraian || (pUraianMurni && candUraian === pUraianMurni));
+            const groupMatch = candGroup && pGroup && (candGroup === pGroup);
+            if (uraianMatch || groupMatch) {
+                mIdx = urut;
+            }
         }
-        if (mIdx >= 0) usedMurni.add(mIdx);
-        rows.push(buildRabCompareRow(mIdx >= 0 ? murniArr[mIdx] : null, it, pIdx));
+
+        // 2. Exact match: uraian + group + subgroup
+        if (mIdx < 0 && pUraian) {
+            mIdx = murniArr.findIndex((m, idx) =>
+                !usedMurni.has(idx) &&
+                norm(m.uraian) === pUraian &&
+                norm(m.group || m.group_belanja || m.kelompok_belanja) === pGroup &&
+                (!pSub || norm(m.subgroup || m.sub_kelompok) === pSub)
+            );
+        }
+
+        // 3. Match: uraian + group
+        if (mIdx < 0 && pUraian) {
+            mIdx = murniArr.findIndex((m, idx) =>
+                !usedMurni.has(idx) &&
+                norm(m.uraian) === pUraian &&
+                norm(m.group || m.group_belanja || m.kelompok_belanja) === pGroup
+            );
+        }
+
+        // 4. Match: uraian saja
+        if (mIdx < 0 && pUraian) {
+            mIdx = murniArr.findIndex((m, idx) =>
+                !usedMurni.has(idx) &&
+                norm(m.uraian) === pUraian
+            );
+        }
+
+        // 5. Match via uraian_murni (nama asli di murni sebelum direvisi)
+        if (mIdx < 0 && pUraianMurni) {
+            mIdx = murniArr.findIndex((m, idx) =>
+                !usedMurni.has(idx) &&
+                norm(m.uraian) === pUraianMurni
+            );
+        }
+
+        if (mIdx >= 0) {
+            usedMurni.add(mIdx);
+            rows.push(buildRabCompareRow(murniArr[mIdx], it, pIdx));
+        } else {
+            // Item baru di PERUBAHAN: SEMULA bersih bernilai 0
+            rows.push(buildRabCompareRow(null, it, pIdx));
+        }
     });
 
-    // Item MURNI tanpa padanan di PERUBAHAN (menjadi 0)
+    // Item MURNI yang tidak ada lagi di PERUBAHAN -> MENJADI bersih bernilai 0
     murniArr.forEach((it, idx) => {
         if (usedMurni.has(idx)) return;
         rows.push(buildRabCompareRow(it, null, rows.length));
     });
+
+    // Urutkan rows secara hierarkis berdasarkan kelompok rekening belanja
+    rows.sort((a, b) => {
+        const rekA = getRabItemRekening(a);
+        const rekB = getRabItemRekening(b);
+        const cmp = compareKodeUnikFull(rekA, rekB);
+        if (cmp !== 0) return cmp;
+        return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    // Perbarui urutan nomor rapi
+    rows.forEach((r, i) => { r.urutan = i; });
 
     return rows;
 }
@@ -2104,23 +2259,7 @@ app.get('/api/rpjmdes-standar', async (req, res) => {
 // dan opsi manual dari tahun lain di modal). TIDAK tersambung
 // ke tabel rpjmdes / rkpdes (sinkronisasi dibuat terputus).
 // ============================================================
-
-function compareKodeUnikFull(aKode, bKode) {
-    const strA = String(aKode || '').trim();
-    const strB = String(bKode || '').trim();
-    if (!strA && !strB) return 0;
-    if (!strA) return 1;
-    if (!strB) return -1;
-    const partsA = strA.split(/[\.\-\s]+/).filter(Boolean).map(p => parseInt(p, 10) || 0);
-    const partsB = strB.split(/[\.\-\s]+/).filter(Boolean).map(p => parseInt(p, 10) || 0);
-    const maxLen = Math.max(partsA.length, partsB.length);
-    for (let i = 0; i < maxLen; i++) {
-        const valA = partsA[i] !== undefined ? partsA[i] : 0;
-        const valB = partsB[i] !== undefined ? partsB[i] : 0;
-        if (valA !== valB) return valA - valB;
-    }
-    return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
-}
+// (compareKodeUnikFull terdefinisi di bagian atas file)
 
 function isRpjmTargetDitarik(item, tahun) {
     const targetCol = `target_${tahun}`;
@@ -4391,10 +4530,29 @@ app.get(['/api/pembiayaan-netto/rab', '/api/pembiayaan/rab'], async (req, res) =
 // GET /api/rab?kode_unik_full=..&tahun=YYYY[&tipe=PERUBAHAN]  -> detail (items + rpjm_data)
 app.get('/api/rab', async (req, res) => {
     try {
-        const { kode_unik_full, tahun } = req.query;
+        const { kode_unik_full, tahun, id } = req.query;
         const tahunInt = parseInt(tahun, 10) || 2027;
         const tipeAnggaran = normalizeRabTipe(req.query.tipe || req.query.tipe_anggaran);
         const withItems = req.query.with_items === 'true' || req.query.include_items === 'true' || req.query.for_module === 'pembiayaan_netto';
+
+        // 1. Pencarian langsung via primary key ID (misal untuk mengambil snapshot Murni via id_referensi_murni)
+        if (id) {
+            const rabId = parseInt(id, 10);
+            if (Number.isFinite(rabId)) {
+                const { data: rowById, error: errById } = await supabase
+                    .from(RAB_TABLE)
+                    .select(RAB_FULL_COLUMNS)
+                    .eq('id', rabId)
+                    .maybeSingle();
+                if (!errById && rowById) {
+                    return res.json({
+                        success: true,
+                        tipe_anggaran: rowById.tipe_anggaran,
+                        data: enrichRabDetail(rowById)
+                    });
+                }
+            }
+        }
 
         if (!kode_unik_full) {
             console.log(`📡 GET /api/rab?tahun=${tahunInt}&tipe=${tipeAnggaran}&withItems=${withItems}`);
@@ -4464,7 +4622,18 @@ app.get('/api/rab', async (req, res) => {
             if (tipeAnggaran === RAB_TIPE_PERUBAHAN) {
                 const hasValidItems = saved && Array.isArray(saved.items) && saved.items.length > 0;
                 if (!saved || !hasValidItems) {
-                    const murni = await getRabFromDb(kode_unik_full, tahunInt, RAB_TIPE_MURNI);
+                    let murni = null;
+                    if (saved && saved.id_referensi_murni) {
+                        const { data: mRow } = await supabase
+                            .from(RAB_TABLE)
+                            .select(RAB_FULL_COLUMNS)
+                            .eq('id', saved.id_referensi_murni)
+                            .maybeSingle();
+                        if (mRow) murni = enrichRabDetail(mRow);
+                    }
+                    if (!murni) {
+                        murni = await getRabFromDb(kode_unik_full, tahunInt, RAB_TIPE_MURNI);
+                    }
                     if (murni && Array.isArray(murni.items) && murni.items.length > 0) {
                         const murniItems = murni.items.map((it, idx) => ({
                             ...it,
@@ -4554,7 +4723,7 @@ app.post('/api/rab', async (req, res) => {
             lokasi: payload.lokasi || rpjm_data?.lokasi_kegiatan || rpjm_data?.lokasi || 'Desa Batetangnga',
             lokasi_kegiatan: payload.lokasi_kegiatan || rpjm_data?.lokasi_kegiatan || payload.lokasi || '',
             jenis_kegiatan: payload.jenis_kegiatan || rpjm_data?.jenis_kegiatan || rpjm_data?.nama_kegiatan || '',
-            items: items,
+            items: Array.isArray(items) ? sortRabItems(items) : [],
             jumlah_anggaran: (payload.jumlah_anggaran !== undefined && payload.jumlah_anggaran !== null && payload.jumlah_anggaran !== '' && !isNaN(Number(payload.jumlah_anggaran)))
                 ? Number(payload.jumlah_anggaran)
                 : ((total_biaya !== undefined && total_biaya !== null && total_biaya !== '' && !isNaN(Number(total_biaya)))
@@ -4691,28 +4860,46 @@ app.get('/api/rab/perbandingan', async (req, res) => {
             fetchRabRowsForTipe(tahunInt, RAB_TIPE_PERUBAHAN, { kode_unik_full, prefix })
         ]);
 
-        const perMap = new Map();
-        perubahanRows.forEach(r => {
-            const k = String(r.kode_unik_full || r.kode_unik || '').trim();
-            if (k) perMap.set(k, r);
+        const normKode = (k) => String(k || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
+
+        const murniById = new Map();
+        const murniByKode = new Map();
+        murniRows.forEach(m => {
+            if (m.id) murniById.set(Number(m.id), m);
+            const k = String(m.kode_unik_full || m.kode_unik || '').trim();
+            if (k) {
+                murniByKode.set(k, m);
+                murniByKode.set(normKode(k), m);
+            }
         });
 
-        const kodeSet = new Set();
-        murniRows.forEach(r => kodeSet.add(String(r.kode_unik_full || r.kode_unik || '').trim()));
-        perubahanRows.forEach(r => kodeSet.add(String(r.kode_unik_full || r.kode_unik || '').trim()));
+        const perByRef = new Map();
+        const perByKode = new Map();
+        perubahanRows.forEach(p => {
+            if (p.id_referensi_murni) perByRef.set(Number(p.id_referensi_murni), p);
+            const k = String(p.kode_unik_full || p.kode_unik || '').trim();
+            if (k) {
+                perByKode.set(k, p);
+                perByKode.set(normKode(k), p);
+            }
+        });
 
         const comparisons = [];
-        kodeSet.forEach(kode => {
-            if (!kode) return;
-            const m = murniRows.find(r => String(r.kode_unik_full || r.kode_unik || '').trim() === kode) || null;
-            const p = perMap.get(kode) || null;
-            const belumAdaPerubahan = !!m && !p;
+        const matchedPerIds = new Set();
 
-            // Belum dibuat versi PERUBAHAN: tampilkan MURNI apa adanya (selisih 0),
-            // ditandai `belum_ada_perubahan` agar UI dapat memberi peringatan.
+        // 1. Iterasi baris MURNI dan cari baris PERUBAHAN pasangannya (via ref Murni atau Kode)
+        murniRows.forEach(m => {
+            let p = perByRef.get(Number(m.id));
+            if (!p) {
+                const k = String(m.kode_unik_full || m.kode_unik || '').trim();
+                p = perByKode.get(k) || perByKode.get(normKode(k)) || null;
+            }
+            if (p) matchedPerIds.add(Number(p.id));
+
+            const belumAdaPerubahan = !p;
             const items = belumAdaPerubahan
                 ? (Array.isArray(m.items) ? m.items : []).map((it, idx) => buildRabCompareRow(it, it, idx))
-                : alignRabItems(m ? m.items : [], p ? p.items : []);
+                : alignRabItems(m.items, p.items);
 
             const total = items.reduce((acc, row) => {
                 acc.semula += Number(row.semula.jumlah) || 0;
@@ -4722,15 +4909,44 @@ app.get('/api/rab/perbandingan', async (req, res) => {
             }, { semula: 0, menjadi: 0, selisih: 0 });
 
             comparisons.push({
-                kode_unik_full: kode,
-                nama_kegiatan: (p && p.nama_kegiatan) || (m && m.nama_kegiatan) || '-',
-                bidang: (p && p.bidang) || (m && m.bidang) || '',
-                jenis_kegiatan: (p && p.jenis_kegiatan) || (m && m.jenis_kegiatan) || '',
-                sumber_dana: (p && p.sumber_dana) || (m && m.sumber_dana) || 'DDS',
-                id_murni: m ? m.id : null,
+                kode_unik_full: (p && p.kode_unik_full) || m.kode_unik_full || m.kode_unik || '',
+                nama_kegiatan: (p && p.nama_kegiatan) || m.nama_kegiatan || '-',
+                bidang: (p && p.bidang) || m.bidang || '',
+                jenis_kegiatan: (p && p.jenis_kegiatan) || m.jenis_kegiatan || '',
+                sumber_dana: (p && p.sumber_dana) || m.sumber_dana || 'DDS',
+                id_murni: m.id,
                 id_perubahan: p ? p.id : null,
                 belum_ada_perubahan: belumAdaPerubahan,
-                hanya_perubahan: !m && !!p,
+                hanya_perubahan: false,
+                items,
+                total
+            });
+        });
+
+        // 2. Tambahkan baris PERUBAHAN yang baru (tidak berpasangan dengan Murni yang sudah diproses)
+        perubahanRows.forEach(p => {
+            if (matchedPerIds.has(Number(p.id))) return;
+            const m = p.id_referensi_murni ? murniById.get(Number(p.id_referensi_murni)) : null;
+            if (m) return;
+
+            const items = alignRabItems([], p.items);
+            const total = items.reduce((acc, row) => {
+                acc.semula += Number(row.semula.jumlah) || 0;
+                acc.menjadi += Number(row.menjadi.jumlah) || 0;
+                acc.selisih += Number(row.selisih) || 0;
+                return acc;
+            }, { semula: 0, menjadi: 0, selisih: 0 });
+
+            comparisons.push({
+                kode_unik_full: p.kode_unik_full || p.kode_unik || '',
+                nama_kegiatan: p.nama_kegiatan || '-',
+                bidang: p.bidang || '',
+                jenis_kegiatan: p.jenis_kegiatan || '',
+                sumber_dana: p.sumber_dana || 'DDS',
+                id_murni: null,
+                id_perubahan: p.id,
+                belum_ada_perubahan: false,
+                hanya_perubahan: true,
                 items,
                 total
             });
@@ -9914,6 +10130,9 @@ module.exports.rabPerubahan = {
     rabItemJumlah,
     buildRabCompareRow,
     alignRabItems,
+    sortRabItems,
+    compareKodeUnikFull,
+    sortHierarchical,
     RAB_TIPE_MURNI,
     RAB_TIPE_PERUBAHAN,
     RAB_COMPARE_COLUMNS,

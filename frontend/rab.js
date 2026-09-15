@@ -666,50 +666,81 @@ let rabMurniRefItems = [];
 let rabMurniRefTotal = 0;
 
 function getItemMurniRef(item, idx) {
-    if (!isModePerubahan() || !rabMurniRefItems.length) {
+    if (!isModePerubahan() || !rabMurniRefItems.length || !item) {
         return { isBaru: isModePerubahan(), vol: 0, sat: (item && item.satuan) || '-', harga: 0, jumlah: 0, uraian: '' };
     }
 
+    const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+    const pUraian = norm(item.uraian);
+    const pGroup = norm(item.group || item.group_belanja);
+    const pSub = norm(item.subgroup || item.sub_kelompok);
+    const pUraianMurni = norm(item.uraian_murni);
+    const urut = Number(item.urutan_murni);
+
     let murniMatch = null;
-    // 1. Cek via urutan_murni (jejak langsung saat clone)
-    const urut = Number(item && item.urutan_murni);
+
+    // 1. Cek via urutan_murni HANYA JIKA uraian atau grup cocok (mencegah salah pasang printer vs kertas f4)
     if (Number.isInteger(urut) && urut >= 0 && urut < rabMurniRefItems.length) {
-        murniMatch = rabMurniRefItems[urut];
+        const cand = rabMurniRefItems[urut];
+        const candUraian = norm(cand && cand.uraian);
+        const candGroup = norm(cand && (cand.group || cand.group_belanja));
+        const uraianMatch = candUraian && (candUraian === pUraian || (pUraianMurni && candUraian === pUraianMurni));
+        const groupMatch = candGroup && pGroup && (candGroup === pGroup);
+        if (uraianMatch || groupMatch) {
+            murniMatch = cand;
+        }
     }
 
-    // 2. Fallback: padanan berdasarkan composite key (group + subgroup + uraian)
-    if (!murniMatch) {
-        murniMatch = rabMurniRefItems.find(m => 
-            String(m.uraian || '').trim().toLowerCase() === String(item?.uraian || '').trim().toLowerCase() &&
-            String(m.group || '').trim().toLowerCase() === String(item?.group || '').trim().toLowerCase()
+    // 2. Cari exact match: uraian + group + subgroup
+    if (!murniMatch && pUraian) {
+        murniMatch = rabMurniRefItems.find(m =>
+            norm(m.uraian) === pUraian &&
+            norm(m.group || m.group_belanja) === pGroup &&
+            (!pSub || norm(m.subgroup || m.sub_kelompok) === pSub)
         );
     }
 
-    // 3. Fallback: padanan berdasarkan uraian saja
-    if (!murniMatch) {
-        murniMatch = rabMurniRefItems.find(m => 
-            String(m.uraian || '').trim().toLowerCase() === String(item?.uraian || '').trim().toLowerCase()
+    // 3. Cari match: uraian + group
+    if (!murniMatch && pUraian) {
+        murniMatch = rabMurniRefItems.find(m =>
+            norm(m.uraian) === pUraian &&
+            norm(m.group || m.group_belanja) === pGroup
+        );
+    }
+
+    // 4. Cari match: uraian saja
+    if (!murniMatch && pUraian) {
+        murniMatch = rabMurniRefItems.find(m =>
+            norm(m.uraian) === pUraian
+        );
+    }
+
+    // 5. Cari match via uraian_murni
+    if (!murniMatch && pUraianMurni) {
+        murniMatch = rabMurniRefItems.find(m =>
+            norm(m.uraian) === pUraianMurni
         );
     }
 
     if (murniMatch) {
         const vol = Number(murniMatch.volume || 0);
-        const harga = Number(murniMatch.harga || 0);
+        const harga = Number(murniMatch.harga || murniMatch.harga_satuan || 0);
         const jumlah = Number(murniMatch.jumlah !== undefined ? murniMatch.jumlah : (vol * harga));
         return {
             isBaru: false,
             vol,
-            sat: murniMatch.satuan || (item && item.satuan) || '-',
+            sat: murniMatch.satuan || item.satuan || '-',
             harga,
             jumlah,
             uraian: murniMatch.uraian || ''
         };
     }
 
+    // Item baru di PERUBAHAN: SEMULA bersih bernilai 0
     return {
         isBaru: true,
         vol: 0,
-        sat: (item && item.satuan) || '-',
+        sat: item.satuan || '-',
         harga: 0,
         jumlah: 0,
         uraian: ''
@@ -817,9 +848,11 @@ async function loadSavedRAB() {
         }
 
         // Jika dalam mode PERUBAHAN, tarik versi MURNI untuk referensi nilai 'SEMULA'
-        if (isModePerubahan() && selectedRpjm?.kode_unik_full) {
+        if (isModePerubahan() && (currentRabRefMurni || selectedRpjm?.kode_unik_full)) {
             try {
-                const urlMurni = `${API_URL}/rab?kode_unik_full=${encodeURIComponent(selectedRpjm.kode_unik_full)}&tahun=${encodeURIComponent(rabYear)}&tipe=MURNI`;
+                const urlMurni = currentRabRefMurni
+                    ? `${API_URL}/rab?id=${encodeURIComponent(currentRabRefMurni)}&tipe=MURNI`
+                    : `${API_URL}/rab?kode_unik_full=${encodeURIComponent(selectedRpjm.kode_unik_full)}&tahun=${encodeURIComponent(rabYear)}&tipe=MURNI`;
                 const resMurni = await fetch(urlMurni);
                 if (resMurni.ok) {
                     const jsonMurni = await resMurni.json().catch(() => null);
@@ -856,19 +889,34 @@ async function loadSavedRAB() {
                         satuan_murni: m.satuan || '',
                         harga_murni: hrg,
                         jumlah_murni: jml,
-                        id_referensi_murni: m.id_referensi_murni || null,
+                        id_referensi_murni: m.id_referensi_murni || currentRabRefMurni || null,
                         item_baru: false,
                         item_dihapus: false
                     };
                 });
                 console.log(`[RAB Perubahan] Auto-fill ${rabItems.length} item dari versi MURNI untuk ${selectedRpjm.kode_unik_full}`);
             } else if (rabItems.length > 0 && rabMurniRefItems.length > 0) {
-                // Pastikan urutan_murni terisi jika item berasal dari murni
+                // Pastikan urutan_murni terisi HANYA jika item memang cocok dengan murni
+                const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
                 rabItems.forEach((it, idx) => {
-                    if (it.urutan_murni === undefined) {
+                    const pUraian = norm(it.uraian);
+                    const pGroup = norm(it.group || it.group_belanja);
+                    const pUraianMurni = norm(it.uraian_murni);
+
+                    // Verifikasi apakah urutan_murni yang tersimpan masih valid
+                    if (it.urutan_murni !== undefined && it.urutan_murni !== null) {
+                        const target = rabMurniRefItems[it.urutan_murni];
+                        const tUraian = norm(target && target.uraian);
+                        const tGroup = norm(target && (target.group || target.group_belanja));
+                        if (!target || (tUraian !== pUraian && (!pUraianMurni || tUraian !== pUraianMurni) && tGroup !== pGroup)) {
+                            it.urutan_murni = null;
+                        }
+                    }
+
+                    if (it.urutan_murni === undefined || it.urutan_murni === null) {
                         const mIdx = rabMurniRefItems.findIndex(m =>
-                            String(m.uraian || '').trim().toLowerCase() === String(it.uraian || '').trim().toLowerCase() &&
-                            String(m.group || '').trim().toLowerCase() === String(it.group || '').trim().toLowerCase()
+                            norm(m.uraian) === pUraian &&
+                            norm(m.group || m.group_belanja) === pGroup
                         );
                         if (mIdx >= 0) {
                             it.urutan_murni = mIdx;
@@ -919,9 +967,35 @@ function getCodeHierarchy(item) {
     return { kBid, kSub, kKeg, kUnik };
 }
 
+function compareKodeUnikFull(aKode, bKode) {
+    const strA = String(aKode || '').trim();
+    const strB = String(bKode || '').trim();
+    if (!strA && !strB) return 0;
+    if (!strA) return 1;
+    if (!strB) return -1;
+    const cleanA = strA.replace(/^PEM\./i, '');
+    const cleanB = strB.replace(/^PEM\./i, '');
+    const partsA = cleanA.split(/[\.\-\s]+/).filter(Boolean).map(p => parseInt(p, 10) || 0);
+    const partsB = cleanB.split(/[\.\-\s]+/).filter(Boolean).map(p => parseInt(p, 10) || 0);
+    const maxLen = Math.max(partsA.length, partsB.length);
+    for (let i = 0; i < maxLen; i++) {
+        const valA = partsA[i] !== undefined ? partsA[i] : 0;
+        const valB = partsB[i] !== undefined ? partsB[i] : 0;
+        if (valA !== valB) return valA - valB;
+    }
+    return cleanA.localeCompare(cleanB, undefined, { numeric: true, sensitivity: 'base' });
+}
+
 function sortHierarchical(dataArray) {
     if (!Array.isArray(dataArray)) return dataArray;
     return dataArray.sort((a, b) => {
+        const kUnikA = String(a.kode_unik_full || a.kode_unik || a.kode_klasifikasi || a.kode || '').trim();
+        const kUnikB = String(b.kode_unik_full || b.kode_unik || b.kode_klasifikasi || b.kode || '').trim();
+        if (kUnikA && kUnikB) {
+            const cmp = compareKodeUnikFull(kUnikA, kUnikB);
+            if (cmp !== 0) return cmp;
+        }
+
         const hA = getCodeHierarchy(a);
         const hB = getCodeHierarchy(b);
 
@@ -934,7 +1008,7 @@ function sortHierarchical(dataArray) {
         if (hA.kKeg !== hB.kKeg && hA.kKeg && hB.kKeg) {
             return hA.kKeg.localeCompare(hB.kKeg, undefined, { numeric: true, sensitivity: 'base' });
         }
-        return hA.kUnik.localeCompare(hB.kUnik, undefined, { numeric: true, sensitivity: 'base' });
+        return compareKodeUnikFull(hA.kUnik, hB.kUnik);
     });
 }
 
@@ -1383,10 +1457,15 @@ function addRabItem() {
         const prev = rabItems[editIndex];
         if (prev.urutan_murni !== undefined) item.urutan_murni = prev.urutan_murni;
         if (prev.id_referensi_murni !== undefined) item.id_referensi_murni = prev.id_referensi_murni;
+        if (prev.uraian_murni !== undefined) item.uraian_murni = prev.uraian_murni;
+        if (!item.uraian_murni && prev.uraian && prev.uraian !== item.uraian && item.urutan_murni !== null) {
+            item.uraian_murni = prev.uraian;
+        }
     } else if (isModePerubahan()) {
         // Item baru murni tambahan pada versi PERUBAHAN: tidak punya padanan MURNI,
         // sehingga nilai SEMULA otomatis 0 pada laporan perbandingan.
         item.urutan_murni = null;
+        item.uraian_murni = null;
     }
 
     if (editIndex > -1) {
@@ -2526,6 +2605,11 @@ async function cetakRabPerubahan() {
 
         const groupHeaders = [];
         groupMap.forEach(v => { if (!groupHeaders.includes(v.group)) groupHeaders.push(v.group); });
+        groupHeaders.sort((a, b) => {
+            const codeA = RAB_GROUP_CODE[a] || '9.9.9';
+            const codeB = RAB_GROUP_CODE[b] || '9.9.9';
+            return compareKodeRAB(codeA, codeB);
+        });
 
         let runningNo = 0;
         groupHeaders.forEach(groupName => {
@@ -2534,8 +2618,13 @@ async function cetakRabPerubahan() {
                     <td colspan="9" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px; text-transform:uppercase;">${groupName}</td>
                 </tr>`;
 
-            groupMap.forEach(entry => {
-                if (entry.group !== groupName) return;
+            const groupEntries = Array.from(groupMap.values()).filter(e => e.group === groupName).sort((a, b) => {
+                const codeA = RAB_SUBGROUP_CODE[a.subgroup] || '9.9.9.99';
+                const codeB = RAB_SUBGROUP_CODE[b.subgroup] || '9.9.9.99';
+                return compareKodeRAB(codeA, codeB);
+            });
+
+            groupEntries.forEach(entry => {
 
                 const subSemula = entry.items.reduce((s, it) => s + (Number(it.semula.jumlah) || 0), 0);
                 const subMenjadi = entry.items.reduce((s, it) => s + (Number(it.menjadi.jumlah) || 0), 0);
