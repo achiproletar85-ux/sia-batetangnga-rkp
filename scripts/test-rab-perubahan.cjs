@@ -498,6 +498,45 @@ console.log('\n17) Penempatan Item Baru Sesuai Sub-Kelompok Rekening (Kasus Baju
     check('Baju Batik selisih bertambah = +2.250.000', aligned[4].selisih, 2250000);
 }
 
+// ============================================================
+// 18. Konsistensi Penjumlahan Total Semula & Menjadi (Zero Loss Aggregation)
+// ============================================================
+console.log('\n18) Konsistensi Penjumlahan Total Semula & Menjadi (Zero Loss Aggregation)');
+{
+    const murni = [
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas f4', volume: 70, harga: 70000, jumlah: 4900000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas A4', volume: 20, harga: 65000, jumlah: 1300000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Pakaian Dinas/Seragam/Atribut', uraian: 'Baju Keki', volume: 8, harga: 650000, jumlah: 5200000 },
+        { group: 'Belanja Pemeliharaan', subgroup: 'Belanja Pemeliharaan Peralatan', uraian: 'Perbaikan StandInfografis', volume: 1, harga: 2000000, jumlah: 2000000 }
+    ];
+
+    // Di Perubahan:
+    // - Kertas f4 tetap
+    // - Kertas A4 dinaikkan harganya (1.300.000 -> 1.500.000)
+    // - Perbaikan StandInfografis dihapus
+    // - Baju Batik baru ditambahkan (2.250.000)
+    const per = [
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas f4', volume: 70, harga: 70000, jumlah: 4900000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas A4', volume: 20, harga: 75000, jumlah: 1500000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Pakaian Dinas/Seragam/Atribut', uraian: 'Baju Keki', volume: 8, harga: 650000, jumlah: 5200000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Pakaian Dinas/Seragam/Atribut', uraian: 'Baju Batik', volume: 5, harga: 450000, jumlah: 2250000, item_baru: true }
+    ];
+
+    const aligned = alignRabItems(murni, per);
+
+    const murniExpectedTotal = murni.reduce((s, it) => s + it.jumlah, 0); // 13.400.000
+    const perExpectedTotal = per.reduce((s, it) => s + it.jumlah, 0);     // 13.850.000
+
+    const totalSemulaAggregated = aligned.reduce((s, r) => s + r.semula.jumlah, 0);
+    const totalMenjadiAggregated = aligned.reduce((s, r) => s + r.menjadi.jumlah, 0);
+    const totalSelisihAggregated = aligned.reduce((s, r) => s + r.selisih, 0);
+
+    check('Total Semula hasil penjajaran = 100% total Murni asli', totalSemulaAggregated, murniExpectedTotal);
+    check('Total Menjadi hasil penjajaran = 100% total Perubahan asli', totalMenjadiAggregated, perExpectedTotal);
+    check('Total Selisih hasil penjajaran = Menjadi - Semula', totalSelisihAggregated, perExpectedTotal - murniExpectedTotal);
+    check('Item terhapus (Perbaikan StandInfografis) tetap terhitung di Total Semula', aligned.find(r => r.uraian === 'Perbaikan StandInfografis').semula.jumlah, 2000000);
+}
+
 console.log(`\n========================================`);
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

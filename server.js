@@ -5167,9 +5167,9 @@ app.get('/api/rab/perbandingan', async (req, res) => {
                 : alignRabItems(mItems, pItems);
 
             const total = items.reduce((acc, row) => {
-                acc.semula += Number(row.semula.jumlah) || 0;
-                acc.menjadi += Number(row.menjadi.jumlah) || 0;
-                acc.selisih += Number(row.selisih) || 0;
+                acc.semula += Math.round(Number(row.semula && row.semula.jumlah) || 0);
+                acc.menjadi += Math.round(Number(row.menjadi && row.menjadi.jumlah) || 0);
+                acc.selisih += Math.round(Number(row.selisih) || 0);
                 return acc;
             }, { semula: 0, menjadi: 0, selisih: 0 });
 
@@ -5197,9 +5197,9 @@ app.get('/api/rab/perbandingan', async (req, res) => {
             const pItems = parseRabItemsSafely(p.items);
             const items = alignRabItems([], pItems);
             const total = items.reduce((acc, row) => {
-                acc.semula += Number(row.semula.jumlah) || 0;
-                acc.menjadi += Number(row.menjadi.jumlah) || 0;
-                acc.selisih += Number(row.selisih) || 0;
+                acc.semula += Math.round(Number(row.semula && row.semula.jumlah) || 0);
+                acc.menjadi += Math.round(Number(row.menjadi && row.menjadi.jumlah) || 0);
+                acc.selisih += Math.round(Number(row.selisih) || 0);
                 return acc;
             }, { semula: 0, menjadi: 0, selisih: 0 });
 
@@ -5221,9 +5221,9 @@ app.get('/api/rab/perbandingan', async (req, res) => {
         comparisons.sort((a, b) => compareKodeUnikFull(a, b));
 
         const grandTotal = comparisons.reduce((acc, c) => {
-            acc.semula += c.total.semula;
-            acc.menjadi += c.total.menjadi;
-            acc.selisih += c.total.selisih;
+            acc.semula += Math.round(c.total.semula || 0);
+            acc.menjadi += Math.round(c.total.menjadi || 0);
+            acc.selisih += Math.round(c.total.selisih || 0);
             return acc;
         }, { semula: 0, menjadi: 0, selisih: 0 });
 

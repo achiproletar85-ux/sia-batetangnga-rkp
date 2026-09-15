@@ -796,55 +796,73 @@ function getItemMurniRef(item, idx) {
         return { isBaru: isModePerubahan(), vol: 0, sat: (item && item.satuan) || '-', harga: 0, jumlah: 0, uraian: '' };
     }
 
+    // Jika item ditandai sebagai item_baru, jangan pasangkan ke Murni
+    if (item.item_baru === true || item.item_baru === 'true') {
+        return { isBaru: true, vol: 0, sat: (item && item.satuan) || '-', harga: 0, jumlah: 0, uraian: item.uraian || '' };
+    }
+
     const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
     const pUraian = norm(item.uraian);
-    const pGroup = norm(item.group || item.group_belanja);
+    const pGroup = norm(item.group || item.group_belanja || item.kelompok_belanja);
     const pSub = norm(item.subgroup || item.sub_kelompok);
     const pUraianMurni = norm(item.uraian_murni);
-    const urut = Number(item.urutan_murni);
+    const pSubCode = typeof getRabSubgroupCode === 'function' ? getRabSubgroupCode(item.subgroup || item.sub_kelompok, item.group || item.group_belanja) : '';
+
+    const isSameSubgroup = (m) => {
+        if (!m) return false;
+        const mSubCode = typeof getRabSubgroupCode === 'function' ? getRabSubgroupCode(m.subgroup || m.sub_kelompok, m.group || m.group_belanja) : '';
+        if (pSubCode && mSubCode && pSubCode !== '9.9.9.99' && mSubCode !== '9.9.9.99') {
+            return pSubCode === mSubCode;
+        }
+        const mSub = norm(m.subgroup || m.sub_kelompok);
+        if (pSub && mSub) return pSub === mSub;
+        const mGrp = norm(m.group || m.group_belanja || m.kelompok_belanja);
+        return !pGroup || !mGrp || pGroup === mGrp;
+    };
 
     let murniMatch = null;
+    const hasUrut = item.urutan_murni !== null && item.urutan_murni !== undefined && item.urutan_murni !== '' && Number.isInteger(Number(item.urutan_murni));
+    const urut = hasUrut ? Number(item.urutan_murni) : -1;
 
-    // 1. Cek via urutan_murni HANYA JIKA uraian atau grup cocok (mencegah salah pasang printer vs kertas f4)
-    if (Number.isInteger(urut) && urut >= 0 && urut < rabMurniRefItems.length) {
+    // 1. Cek via urutan_murni bila dalam subgroup yang sama dan uraian persis/cocok
+    if (urut >= 0 && urut < rabMurniRefItems.length) {
         const cand = rabMurniRefItems[urut];
-        const candUraian = norm(cand && cand.uraian);
-        const candGroup = norm(cand && (cand.group || cand.group_belanja));
-        const uraianMatch = candUraian && (candUraian === pUraian || (pUraianMurni && candUraian === pUraianMurni));
-        const groupMatch = candGroup && pGroup && (candGroup === pGroup);
-        if (uraianMatch || groupMatch) {
-            murniMatch = cand;
+        if (cand && isSameSubgroup(cand)) {
+            const candUraian = norm(cand.uraian);
+            if (candUraian === pUraian || (pUraianMurni && candUraian === pUraianMurni)) {
+                murniMatch = cand;
+            }
         }
     }
 
-    // 2. Cari exact match: uraian + group + subgroup
+    // 2. Cari exact match: uraian + subgroup
     if (!murniMatch && pUraian) {
         murniMatch = rabMurniRefItems.find(m =>
-            norm(m.uraian) === pUraian &&
-            norm(m.group || m.group_belanja) === pGroup &&
-            (!pSub || norm(m.subgroup || m.sub_kelompok) === pSub)
-        );
-    }
-
-    // 3. Cari match: uraian + group
-    if (!murniMatch && pUraian) {
-        murniMatch = rabMurniRefItems.find(m =>
-            norm(m.uraian) === pUraian &&
-            norm(m.group || m.group_belanja) === pGroup
-        );
-    }
-
-    // 4. Cari match: uraian saja
-    if (!murniMatch && pUraian) {
-        murniMatch = rabMurniRefItems.find(m =>
+            isSameSubgroup(m) &&
             norm(m.uraian) === pUraian
         );
     }
 
-    // 5. Cari match via uraian_murni
+    // 3. Cari match via uraian_murni dalam subgroup yang sama
     if (!murniMatch && pUraianMurni) {
         murniMatch = rabMurniRefItems.find(m =>
+            isSameSubgroup(m) &&
             norm(m.uraian) === pUraianMurni
+        );
+    }
+
+    // 4. Fallback: urutan_murni dalam subgroup yang sama
+    if (!murniMatch && urut >= 0 && urut < rabMurniRefItems.length) {
+        const cand = rabMurniRefItems[urut];
+        if (cand && isSameSubgroup(cand)) {
+            murniMatch = cand;
+        }
+    }
+
+    // 5. Fallback: exact match uraian saja
+    if (!murniMatch && pUraian) {
+        murniMatch = rabMurniRefItems.find(m =>
+            norm(m.uraian) === pUraian
         );
     }
 
@@ -984,8 +1002,8 @@ async function loadSavedRAB() {
                     const jsonMurni = await resMurni.json().catch(() => null);
                     if (jsonMurni && jsonMurni.success && jsonMurni.data) {
                         rabMurniRefItems = Array.isArray(jsonMurni.data.items) ? jsonMurni.data.items : [];
-                        rabMurniRefTotal = Number(jsonMurni.data.jumlah_anggaran || jsonMurni.data.total_biaya || 0) ||
-                            rabMurniRefItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+                        const itemsSum = rabMurniRefItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+                        rabMurniRefTotal = itemsSum || Number(jsonMurni.data.jumlah_anggaran || jsonMurni.data.total_biaya || 0);
                     }
                 }
             } catch (eMurni) {
@@ -1751,7 +1769,7 @@ function renderRabItems() {
 
     const totalBiaya = rabItems.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
     const totalSemula = isModePerubahan()
-        ? rabItems.reduce((sum, item, idx) => sum + (Number(getItemMurniRef(item, idx).jumlah) || 0), 0)
+        ? (rabMurniRefTotal || (rabMurniRefItems.length ? rabMurniRefItems.reduce((sum, m) => sum + (Number(m.jumlah) || 0), 0) : 0))
         : 0;
     const totalSelisih = totalBiaya - totalSemula;
 
