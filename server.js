@@ -552,10 +552,31 @@ async function saveRabToDb(record) {
 
     const firstItem = itemsArray[0] || {};
 
-    const totalBiaya = Number(record.jumlah_anggaran || record.total_biaya || record.total_rab || 0) || itemsArray.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0);
-    const volumeVal = Number(record.volume || record.volume_rab || firstItem.volume || 1);
+    const totalBiaya = (record.jumlah_anggaran !== undefined && record.jumlah_anggaran !== null && record.jumlah_anggaran !== '' && !isNaN(Number(record.jumlah_anggaran)))
+        ? Number(record.jumlah_anggaran)
+        : ((record.total_biaya !== undefined && record.total_biaya !== null && record.total_biaya !== '' && !isNaN(Number(record.total_biaya)))
+            ? Number(record.total_biaya)
+            : ((record.total_rab !== undefined && record.total_rab !== null && record.total_rab !== '' && !isNaN(Number(record.total_rab)))
+                ? Number(record.total_rab)
+                : itemsArray.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0)));
+
+    const volumeVal = (record.volume !== undefined && record.volume !== null && record.volume !== '' && !isNaN(Number(record.volume)))
+        ? Number(record.volume)
+        : ((record.volume_rab !== undefined && record.volume_rab !== null && record.volume_rab !== '' && !isNaN(Number(record.volume_rab)))
+            ? Number(record.volume_rab)
+            : ((firstItem.volume !== undefined && firstItem.volume !== null && firstItem.volume !== '' && !isNaN(Number(firstItem.volume)))
+                ? Number(firstItem.volume)
+                : 1));
+
     const satuanVal = String(record.satuan || record.satuan_rab || firstItem.satuan || 'Paket');
-    const hargaSatuanVal = Number(record.harga_satuan || record.harga_satuan_rab || firstItem.harga || totalBiaya);
+
+    const hargaSatuanVal = (record.harga_satuan !== undefined && record.harga_satuan !== null && record.harga_satuan !== '' && !isNaN(Number(record.harga_satuan)))
+        ? Number(record.harga_satuan)
+        : ((record.harga_satuan_rab !== undefined && record.harga_satuan_rab !== null && record.harga_satuan_rab !== '' && !isNaN(Number(record.harga_satuan_rab)))
+            ? Number(record.harga_satuan_rab)
+            : ((firstItem.harga !== undefined && firstItem.harga !== null && firstItem.harga !== '' && !isNaN(Number(firstItem.harga)))
+                ? Number(firstItem.harga)
+                : totalBiaya));
     const uraianText = String(record.nama_kegiatan || record.uraian || firstItem.uraian || record.rpjm_data?.nama_kegiatan || 'Rincian RAB Kegiatan').trim();
 
     // Payload kanonik: satu kolom per makna (nama_kegiatan, uraian, volume, satuan,
@@ -4406,10 +4427,24 @@ app.post('/api/rab', async (req, res) => {
             lokasi_kegiatan: payload.lokasi_kegiatan || rpjm_data?.lokasi_kegiatan || payload.lokasi || '',
             jenis_kegiatan: payload.jenis_kegiatan || rpjm_data?.jenis_kegiatan || rpjm_data?.nama_kegiatan || '',
             items: items,
-            jumlah_anggaran: Number(total_biaya || total_rab || payload.jumlah_anggaran || 0),
-            volume: Number(payload.volume || payload.volume_rab || 1),
+            jumlah_anggaran: (payload.jumlah_anggaran !== undefined && payload.jumlah_anggaran !== null && payload.jumlah_anggaran !== '' && !isNaN(Number(payload.jumlah_anggaran)))
+                ? Number(payload.jumlah_anggaran)
+                : ((total_biaya !== undefined && total_biaya !== null && total_biaya !== '' && !isNaN(Number(total_biaya)))
+                    ? Number(total_biaya)
+                    : ((total_rab !== undefined && total_rab !== null && total_rab !== '' && !isNaN(Number(total_rab)))
+                        ? Number(total_rab)
+                        : 0)),
+            volume: (payload.volume !== undefined && payload.volume !== null && payload.volume !== '' && !isNaN(Number(payload.volume)))
+                ? Number(payload.volume)
+                : ((payload.volume_rab !== undefined && payload.volume_rab !== null && payload.volume_rab !== '' && !isNaN(Number(payload.volume_rab)))
+                    ? Number(payload.volume_rab)
+                    : 1),
             satuan: payload.satuan || payload.satuan_rab || 'Paket',
-            harga_satuan: Number(payload.harga_satuan || payload.harga_satuan_rab || total_biaya || 0),
+            harga_satuan: (payload.harga_satuan !== undefined && payload.harga_satuan !== null && payload.harga_satuan !== '' && !isNaN(Number(payload.harga_satuan)))
+                ? Number(payload.harga_satuan)
+                : ((payload.harga_satuan_rab !== undefined && payload.harga_satuan_rab !== null && payload.harga_satuan_rab !== '' && !isNaN(Number(payload.harga_satuan_rab)))
+                    ? Number(payload.harga_satuan_rab)
+                    : ((total_biaya !== undefined && total_biaya !== null && total_biaya !== '' && !isNaN(Number(total_biaya))) ? Number(total_biaya) : 0)),
             sumber_dana: payload.sumber_dana || payload.sumber_dana_rab || 'DDS',
             rpjm_data: rpjm_data || null,
             saved_at: new Date().toISOString(),
@@ -6784,9 +6819,9 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
         // ==========================================
         if (body.semula && typeof body.semula === 'object') {
             const sem = body.semula;
-            const volSemulaNum = Number(sem.volume) || 1;
+            const volSemulaNum = (sem.volume !== undefined && sem.volume !== null && sem.volume !== '' && !isNaN(Number(sem.volume))) ? Number(sem.volume) : 1;
             const satSemulaStr = String(sem.satuan || 'Paket');
-            const biayaSemulaNum = Number(sem.biaya) || 0;
+            const biayaSemulaNum = (sem.biaya !== undefined && sem.biaya !== null && sem.biaya !== '' && !isNaN(Number(sem.biaya))) ? Number(sem.biaya) : 0;
             const lokasiSemulaStr = String(sem.lokasi || 'Desa Batetangnga');
             const sumberSemulaStr = String(sem.sumber_biaya || sem.sumber_dana || 'DDS');
             const waktuSemulaStr = String(sem.waktu_pelaksanaan || '12 Bulan');
@@ -6829,7 +6864,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             // B. Update atau Insert tabel rkpdes (Semula/Murni)
             try {
                 const rkpSemulaPayload = {
-                    volume: String(sem.volume || 1),
+                    volume: String((sem.volume !== undefined && sem.volume !== null && sem.volume !== '' && !isNaN(Number(sem.volume))) ? sem.volume : 1),
                     satuan: satSemulaStr,
                     prakiraan_biaya: biayaSemulaNum,
                     lokasi: lokasiSemulaStr,
@@ -6886,9 +6921,11 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
         // 2. KOORDINASI DATA SISI MENJADI (Perubahan)
         // ==========================================
         const men = (body.menjadi && typeof body.menjadi === 'object') ? body.menjadi : body;
-        const volNum = Number(men.volume ?? body.volume) || 1;
+        const rawMenVol = men.volume ?? body.volume;
+        const volNum = (rawMenVol !== undefined && rawMenVol !== null && rawMenVol !== '' && !isNaN(Number(rawMenVol))) ? Number(rawMenVol) : 1;
         const satStr = String(men.satuan || body.satuan || 'Paket');
-        const biayaNum = Number(men.biaya != null ? men.biaya : body.biaya) || 0;
+        const rawMenBiaya = men.biaya != null ? men.biaya : body.biaya;
+        const biayaNum = (rawMenBiaya !== undefined && rawMenBiaya !== null && rawMenBiaya !== '' && !isNaN(Number(rawMenBiaya))) ? Number(rawMenBiaya) : 0;
         const lokasiStr = String(men.lokasi || body.lokasi || 'Desa Batetangnga');
         const sumberStr = String(men.sumber_biaya || men.sumber_dana || body.sumber_biaya || body.sumber_dana || 'DDS');
         const waktuStr = String(men.waktu_pelaksanaan || body.waktu_pelaksanaan || '12 Bulan');

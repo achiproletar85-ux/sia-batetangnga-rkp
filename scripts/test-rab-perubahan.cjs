@@ -141,6 +141,23 @@ console.log('\n6) Kepatuhan zero-wildcard pada konstanta kolom');
     check('RAB_LIST_COLUMNS memuat tipe_anggaran', RAB_LIST_COLUMNS.includes('tipe_anggaran'), true);
 }
 
+console.log('\n7) Penanganan nilai 0 (nol) pada volume, harga, dan jumlah');
+{
+    check('rabItemJumlah volume 0 -> 0', rabItemJumlah({ volume: 0, harga: 50000 }), 0);
+    check('rabItemJumlah harga 0 -> 0', rabItemJumlah({ volume: 10, harga: 0 }), 0);
+    check('rabItemJumlah volume "0" -> 0', rabItemJumlah({ volume: '0', harga: 50000 }), 0);
+    check('rabItemJumlah eksplisit jumlah 0 -> 0', rabItemJumlah({ volume: 0, harga: 0, jumlah: 0 }), 0);
+
+    const murni = [{ group: 'G', subgroup: 'S', uraian: 'Kegiatan Awal Nol', volume: 0, satuan: 'Paket', harga: 0, jumlah: 0 }];
+    const perubahan = [{ group: 'G', subgroup: 'S', uraian: 'Kegiatan Awal Nol', volume: 1, satuan: 'Paket', harga: 100000, jumlah: 100000, urutan_murni: 0 }];
+    const rows = alignRabItems(murni, perubahan);
+    check('penjajaran murni 0 dengan perubahan 100rb: 1 baris', rows.length, 1);
+    check('semula jumlah = 0', rows[0].semula.jumlah, 0);
+    check('semula volume = 0', rows[0].semula.volume, 0);
+    check('menjadi jumlah = 100.000', rows[0].menjadi.jumlah, 100000);
+    check('selisih bertambah = +100.000', rows[0].selisih, 100000);
+}
+
 console.log(`\n========================================`);
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

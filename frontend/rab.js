@@ -757,9 +757,9 @@ async function loadSavedRAB() {
             // otomatis isi rabItems dari referensi MURNI sebagai draf awal perubahan
             if ((!rabItems || rabItems.length === 0) && rabMurniRefItems.length > 0) {
                 rabItems = rabMurniRefItems.map((m, idx) => {
-                    const vol = Number(m.volume) || 1;
-                    const hrg = Number(m.harga !== undefined ? m.harga : (m.harga_satuan || 0));
-                    const jml = Number(m.jumlah !== undefined ? m.jumlah : (vol * hrg));
+                    const vol = (m.volume !== undefined && m.volume !== null && m.volume !== '' && !isNaN(Number(m.volume))) ? Number(m.volume) : 1;
+                    const hrg = Number(m.harga !== undefined && m.harga !== null && m.harga !== '' ? m.harga : (m.harga_satuan !== undefined && m.harga_satuan !== null && m.harga_satuan !== '' ? m.harga_satuan : 0));
+                    const jml = Number(m.jumlah !== undefined && m.jumlah !== null && m.jumlah !== '' ? m.jumlah : (vol * hrg));
                     return {
                         group: (m.group || m.group_belanja || m.group_nama || '').trim(),
                         subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
@@ -1175,9 +1175,9 @@ async function saveRAB() {
     
     const totalBiaya = rabItems.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
     const firstItem = rabItems[0] || {};
-    const volumeRab = parseFloat(firstItem.volume) || 1;
-    const hargaSatuanRab = parseFloat(firstItem.harga) || totalBiaya;
-    const totalRab = totalBiaya || (volumeRab * hargaSatuanRab);
+    const volumeRab = (firstItem.volume !== undefined && firstItem.volume !== null && firstItem.volume !== '' && !isNaN(Number(firstItem.volume))) ? parseFloat(firstItem.volume) : 1;
+    const hargaSatuanRab = (firstItem.harga !== undefined && firstItem.harga !== null && firstItem.harga !== '' && !isNaN(Number(firstItem.harga))) ? parseFloat(firstItem.harga) : totalBiaya;
+    const totalRab = Number.isFinite(totalBiaya) ? totalBiaya : (volumeRab * hargaSatuanRab);
 
     const payload = {
         kode_unik_full: String(activity.kode_unik_full || kodeUnikFix).trim(),
@@ -1249,29 +1249,34 @@ function addRabItem() {
     const group = document.getElementById('select-group').value;
     const subgroup = document.getElementById('select-subgroup').value;
     const uraian = document.getElementById('input-uraian').value.trim();
-    const volume = document.getElementById('input-volume').value.trim();
+    const volumeRaw = document.getElementById('input-volume')?.value;
+    const volume = (volumeRaw !== undefined && volumeRaw !== null) ? String(volumeRaw).trim() : '';
     const satuan = getSatuanValue();
     const hargaRaw = document.getElementById('input-harga')?.value || '';
     const harga = parseNumber(hargaRaw); // parseNumber handles dots (.) as thousands separators
     const sumber = document.getElementById('select-sumber-dana').value;
     const keterangan = document.getElementById('input-keterangan').value.trim();
 
-    if (!group || !subgroup || !uraian || !satuan || !(harga > 0)) {
-        showToast('Isi group, sub group, uraian, satuan, dan harga (lebih dari 0) terlebih dahulu', 'error');
+    // Validasi eksplisit: izinkan nilai 0 (nol) untuk volume dan harga satuan
+    if (!group || !subgroup || !uraian || !satuan || volume === '' || hargaRaw.trim() === '' || !Number.isFinite(harga) || harga < 0) {
+        showToast('Isi group, sub group, uraian, volume, satuan, dan harga satuan (minimal 0) terlebih dahulu', 'error');
         return;
     }
 
     const volumeNumber = Number(volume.replace(/,/g, '.'));
-    const jumlah = Number.isFinite(volumeNumber) && volumeNumber > 0 ? volumeNumber * harga : harga;
+    const validVol = (Number.isFinite(volumeNumber) && volumeNumber >= 0) ? volumeNumber : 0;
+    const jumlah = validVol * harga;
 
-    // VALIDASI OVER-BUDGET LOGIC (MENCEGAH OVER-BUDGET)
-    const isEditingIdx = (typeof editIndex === 'number' && editIndex >= 0) ? editIndex : -1;
-    const isBudgetSafe = validatePaguBudget(rabYear, sumber, jumlah, isEditingIdx);
-    if (!isBudgetSafe) {
-        return; // BLOK PENYIMPANAN - OVER BUDGET
+    // VALIDASI OVER-BUDGET LOGIC (MENCEGAH OVER-BUDGET) - hanya jika jumlah > 0
+    if (jumlah > 0) {
+        const isEditingIdx = (typeof editIndex === 'number' && editIndex >= 0) ? editIndex : -1;
+        const isBudgetSafe = validatePaguBudget(rabYear, sumber, jumlah, isEditingIdx);
+        if (!isBudgetSafe) {
+            return; // BLOK PENYIMPANAN - OVER BUDGET
+        }
     }
 
-    const item = { group, subgroup, uraian, volume, satuan, harga, jumlah, sumber, keterangan };
+    const item = { group, subgroup, uraian, volume: validVol, satuan, harga, jumlah, sumber, keterangan };
 
     // RAB PERUBAHAN: pertahankan jejak penjajaran dari versi MURNI saat mengedit,
     // supaya SEMULA <-> MENJADI tetap berpasangan walau uraian diubah.
@@ -1332,10 +1337,10 @@ function editRabItem(index) {
     }
 
     document.getElementById('input-uraian').value = item.uraian || '';
-    document.getElementById('input-volume').value = item.volume !== undefined ? item.volume : '';
+    document.getElementById('input-volume').value = (item.volume !== undefined && item.volume !== null && item.volume !== '') ? item.volume : '';
     document.getElementById('input-satuan').value = item.satuan || '';
-    const hrgVal = Number(item.harga !== undefined ? item.harga : (item.harga_satuan || 0));
-    document.getElementById('input-harga').value = hrgVal ? formatRupiah(hrgVal) : '';
+    const hrgVal = Number(item.harga !== undefined && item.harga !== null && item.harga !== '' ? item.harga : (item.harga_satuan !== undefined && item.harga_satuan !== null && item.harga_satuan !== '' ? item.harga_satuan : 0));
+    document.getElementById('input-harga').value = (hrgVal !== null && hrgVal !== undefined && !isNaN(hrgVal)) ? (hrgVal === 0 ? '0' : formatRupiah(hrgVal)) : '';
     document.getElementById('input-keterangan').value = item.keterangan || '';
     // Wajib pulihkan sumber dana item agar saat edit & simpan sumber tidak hilang/tertukar
     const sumber = document.getElementById('select-sumber-dana');
@@ -1392,8 +1397,11 @@ function salinDataItem() {
     const satuanInput = document.getElementById('input-satuan'); // Modified line
 
     if (uraian) uraian.value = item.uraian || '';
-    if (volume) volume.value = (item.volume !== undefined && item.volume !== null && item.volume !== '') ? item.volume : 1;
-    if (harga) harga.value = item.harga ? formatRupiah(item.harga) : '';
+    if (volume) volume.value = (item.volume !== undefined && item.volume !== null && item.volume !== '') ? item.volume : 0;
+    if (harga) {
+        const hrgVal = Number(item.harga !== undefined && item.harga !== null && item.harga !== '' ? item.harga : 0);
+        harga.value = (hrgVal === 0 ? '0' : formatRupiah(hrgVal));
+    }
     if (ket) ket.value = item.keterangan || '';
 
     if (sumber && item.sumber) {
@@ -1539,7 +1547,7 @@ function renderRabItems() {
                 const ref = getItemMurniRef(item, idx);
 
                 let uraianBadge = '';
-                let volCell = `<div class="font-bold text-slate-800">${item.volume || '-'}</div>`;
+                let volCell = `<div class="font-bold text-slate-800">${(item.volume !== undefined && item.volume !== null && item.volume !== '') ? item.volume : '-'}</div>`;
                 let satCell = `<div>${item.satuan || '-'}</div>`;
                 let hargaCell = `<div class="font-bold text-slate-800">Rp ${formatRupiah(item.harga)}</div>`;
                 let jumlahCell = `<div class="font-extrabold text-slate-900">Rp ${formatRupiah(item.jumlah)}</div>`;
