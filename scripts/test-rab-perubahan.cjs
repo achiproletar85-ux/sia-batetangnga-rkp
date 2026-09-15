@@ -14,7 +14,7 @@
  */
 const path = require('path');
 const app = require(path.resolve(__dirname, '..', 'server.js'));
-const { alignRabItems, rabItemJumlah, normalizeRabTipe, sortRabItems, compareKodeUnikFull, sortHierarchical, getKode, getRabGroupCode, getRabSubgroupCode, getRabItemRekening } = app.rabPerubahan;
+const { alignRabItems, parseRabItemsSafely, rabItemJumlah, normalizeRabTipe, sortRabItems, compareKodeUnikFull, sortHierarchical, getKode, getRabGroupCode, getRabSubgroupCode, getRabItemRekening } = app.rabPerubahan;
 
 let pass = 0;
 let fail = 0;
@@ -395,6 +395,40 @@ console.log('\n14) Kunci Urutan Master RAB Murni sebagai Kerangka Utama RAB Peru
 
     // 6. Nomor urut rapi 1..5
     check('Nomor urut baris 1 s/d 5 terurut rapi', aligned.map(r => r.no), [1, 2, 3, 4, 5]);
+}
+
+// ============================================================
+// 15. Safe Parser JSON & Penjajaran Stringified Items
+// ============================================================
+console.log('\n15) Safe Parser JSON & Penjajaran Stringified Items');
+{
+    // Uji parseRabItemsSafely
+    const arr = [{ uraian: 'Test 1' }];
+    check('Array murni tetap array', parseRabItemsSafely(arr), arr);
+    check('JSON string array diparse dengan benar', parseRabItemsSafely(JSON.stringify(arr)), arr);
+    check('String rusak/invalid JSON fallback ke array kosong []', parseRabItemsSafely('bukan json'), []);
+    check('Object non-array fallback ke array kosong []', parseRabItemsSafely('{"uraian":"obj"}'), []);
+    check('null / undefined fallback ke array kosong []', parseRabItemsSafely(null), []);
+
+    // alignRabItems dengan input stringified JSON
+    const murniJson = JSON.stringify([
+        { uraian: 'Kertas F4', volume: 5, satuan: 'Rim', harga: 50000, group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos' },
+        { uraian: 'Spidol', volume: 2, satuan: 'Kotak', harga: 25000, group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos' }
+    ]);
+    const perJson = JSON.stringify([
+        { uraian: 'Spidol', volume: 4, satuan: 'Kotak', harga: 25000, group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos' },
+        { uraian: 'Kertas F4', volume: 5, satuan: 'Rim', harga: 55000, group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos' },
+        { uraian: 'Map Arsip', volume: 10, satuan: 'Buah', harga: 5000, group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos' }
+    ]);
+
+    const res = alignRabItems(murniJson, perJson);
+    check('Total baris dengan stringified items = 3', res.length, 3);
+    check('Master item 0 tetap Kertas F4', res[0].uraian, 'Kertas F4');
+    check('Master item 0 MENJADI harga terupdate', res[0].menjadi.harga, 55000);
+    check('Master item 1 tetap Spidol', res[1].uraian, 'Spidol');
+    check('Master item 1 MENJADI volume terupdate', res[1].menjadi.volume, 4);
+    check('Item baru Map Arsip di paling bawah', res[2].uraian, 'Map Arsip');
+    check('Item baru ditandai item_baru = true', res[2].item_baru, true);
 }
 
 console.log(`\n========================================`);

@@ -2766,59 +2766,70 @@ async function cetakRabPerubahan() {
 
         // KUNCI URUTAN MASTER RAB MURNI: Jangan lakukan sorting ulang yang mengubah urutan item murni.
         // comp.items sudah terkunci mati mengikuti urutan asli RAB Murni dari server (/api/rab/perbandingan).
-        // Kelompokkan item per group -> subgroup berdasarkan urutan kemunculan di RAB Murni.
-        const groupHeaders = [];
-        const groupMap = new Map();
-        comp.items.forEach(it => {
+        // Render item secara berurutan persis sesuai indeks master skeleton comp.items.
+        let runningNo = 0;
+        let lastGroup = null;
+        let lastSubgroup = null;
+        let subCounter = 0;
+
+        const itemsList = Array.isArray(comp.items) ? comp.items : [];
+        for (let i = 0; i < itemsList.length; i++) {
+            const it = itemsList[i];
             const g = getGroup(it);
             const sg = getSubgroup(it);
-            const gKey = `${g}\u0000${sg}`;
-            if (!groupMap.has(gKey)) groupMap.set(gKey, { group: g, subgroup: sg, items: [] });
-            groupMap.get(gKey).items.push(it);
-            if (!groupHeaders.includes(g)) groupHeaders.push(g);
-        });
 
-        let runningNo = 0;
-        groupHeaders.forEach(groupName => {
-            tbodyRows += `
-                <tr style="background-color:#f1f5f9;">
-                    <td colspan="9" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px; text-transform:uppercase;">${groupName}</td>
-                </tr>`;
+            if (g !== lastGroup) {
+                lastGroup = g;
+                lastSubgroup = null;
+                tbodyRows += `
+                    <tr style="background-color:#f1f5f9;">
+                        <td colspan="9" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px; text-transform:uppercase;">${g}</td>
+                    </tr>`;
+            }
 
-            const groupEntries = Array.from(groupMap.values()).filter(e => e.group === groupName);
+            if (sg !== lastSubgroup) {
+                lastSubgroup = sg;
+                subCounter = 0;
 
-            groupEntries.forEach(entry => {
-
-                const subSemula = entry.items.reduce((s, it) => s + (Number(it.semula.jumlah) || 0), 0);
-                const subMenjadi = entry.items.reduce((s, it) => s + (Number(it.menjadi.jumlah) || 0), 0);
+                // Hitung subtotal untuk blok kontigu item di bawah subgroup ini
+                let subSemula = 0;
+                let subMenjadi = 0;
+                for (let j = i; j < itemsList.length; j++) {
+                    const nextIt = itemsList[j];
+                    if (getGroup(nextIt) === g && getSubgroup(nextIt) === sg) {
+                        subSemula += Number(nextIt.semula && nextIt.semula.jumlah) || 0;
+                        subMenjadi += Number(nextIt.menjadi && nextIt.menjadi.jumlah) || 0;
+                    } else {
+                        break;
+                    }
+                }
 
                 tbodyRows += `
                     <tr style="background-color:#f8fafc;">
-                        <td colspan="2" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px;">${entry.subgroup}</td>
+                        <td colspan="2" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px;">${sg}</td>
                         <td colspan="3" style="border:1px solid #000; padding:6px 8px; text-align:right; font-weight:bold; font-size:12px;">Rp ${fmt(subSemula)}</td>
                         <td colspan="3" style="border:1px solid #000; padding:6px 8px; text-align:right; font-weight:bold; font-size:12px;">Rp ${fmt(subMenjadi)}</td>
                         <td style="border:1px solid #000; padding:6px 8px; text-align:right; font-weight:bold; font-size:12px;">${fmtSelisih(subMenjadi - subSemula)}</td>
                     </tr>`;
+            }
 
-                entry.items.forEach((it, subIdx) => {
-                    runningNo += 1;
-                    const volSemula = it.item_baru ? '0' : `${it.semula.volume ?? 0} ${it.semula.satuan || ''}`.trim();
-                    const volMenjadi = it.item_dihapus ? '0' : `${it.menjadi.volume ?? 0} ${it.menjadi.satuan || ''}`.trim();
-                    tbodyRows += `
-                    <tr>
-                        <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${runningNo}</td>
-                        <td style="border:1px solid #000; padding:4px 6px; padding-left:16px; font-size:11px;">${charLabel(subIdx + 1)} ${it.uraian}${it.keterangan ? ` (${it.keterangan})` : ''}</td>
-                        <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${volSemula || '0'}</td>
-                        <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_baru ? '0' : fmt(it.semula.harga)}</td>
-                        <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_baru ? '0' : fmt(it.semula.jumlah)}</td>
-                        <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${volMenjadi || '0'}</td>
-                        <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_dihapus ? '0' : fmt(it.menjadi.harga)}</td>
-                        <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_dihapus ? '0' : fmt(it.menjadi.jumlah)}</td>
-                        <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${fmtSelisih(it.selisih)}</td>
-                    </tr>`;
-                });
-            });
-        });
+            runningNo += 1;
+            subCounter += 1;
+            const volSemula = it.item_baru ? '0' : `${it.semula && it.semula.volume != null ? it.semula.volume : 0} ${it.semula && it.semula.satuan ? it.semula.satuan : ''}`.trim();
+            const volMenjadi = it.item_dihapus ? '0' : `${it.menjadi && it.menjadi.volume != null ? it.menjadi.volume : 0} ${it.menjadi && it.menjadi.satuan ? it.menjadi.satuan : ''}`.trim();
+            tbodyRows += `
+            <tr>
+                <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${runningNo}</td>
+                <td style="border:1px solid #000; padding:4px 6px; padding-left:16px; font-size:11px;">${charLabel(subCounter)} ${it.uraian}${it.keterangan ? ` (${it.keterangan})` : ''}</td>
+                <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${volSemula || '0'}</td>
+                <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_baru ? '0' : fmt(it.semula && it.semula.harga)}</td>
+                <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_baru ? '0' : fmt(it.semula && it.semula.jumlah)}</td>
+                <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${volMenjadi || '0'}</td>
+                <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_dihapus ? '0' : fmt(it.menjadi && it.menjadi.harga)}</td>
+                <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_dihapus ? '0' : fmt(it.menjadi && it.menjadi.jumlah)}</td>
+                <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${fmtSelisih(it.selisih)}</td>
+            </tr>`;
+        }
 
         // TOTAL per kegiatan
         tbodyRows += `

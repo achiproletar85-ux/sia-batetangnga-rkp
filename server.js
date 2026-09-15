@@ -1203,14 +1203,25 @@ function sortRabItems(items) {
     }));
 }
 
+function parseRabItemsSafely(raw) {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed;
+        } catch (_) {}
+    }
+    return [];
+}
+
 // Penjajaran item MURNI (SEMULA) dengan item PERUBAHAN (MENJADI).
 // - Kerangka utama urutan item belanja (items) DIKUNCI MATI mengikuti data RAB Murni asalnya.
 // - Pasangan dicocokkan berdasarkan uraian/grup atau urutan_murni.
 // - Item yang hanya ada di MURNI tetap berada di posisi aslinya dengan MENJADI = 0.
 // - Item baru pada PERUBAHAN (tidak ada di Murni) ditempatkan di bagian paling bawah.
 function alignRabItems(murniItems, perubahanItems) {
-    const murniArr = Array.isArray(murniItems) ? murniItems : [];
-    const perArr = Array.isArray(perubahanItems) ? perubahanItems : [];
+    const murniArr = parseRabItemsSafely(murniItems);
+    const perArr = parseRabItemsSafely(perubahanItems);
     const usedPer = new Set();
     const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -5015,10 +5026,12 @@ app.get('/api/rab/perbandingan', async (req, res) => {
             }
             if (p) matchedPerIds.add(Number(p.id));
 
+            const mItems = parseRabItemsSafely(m.items);
+            const pItems = p ? parseRabItemsSafely(p.items) : [];
             const belumAdaPerubahan = !p;
             const items = belumAdaPerubahan
-                ? (Array.isArray(m.items) ? m.items : []).map((it, idx) => buildRabCompareRow(it, it, idx))
-                : alignRabItems(m.items, p.items);
+                ? mItems.map((it, idx) => buildRabCompareRow(it, it, idx))
+                : alignRabItems(mItems, pItems);
 
             const total = items.reduce((acc, row) => {
                 acc.semula += Number(row.semula.jumlah) || 0;
@@ -5048,7 +5061,8 @@ app.get('/api/rab/perbandingan', async (req, res) => {
             const m = p.id_referensi_murni ? murniById.get(Number(p.id_referensi_murni)) : null;
             if (m) return;
 
-            const items = alignRabItems([], p.items);
+            const pItems = parseRabItemsSafely(p.items);
+            const items = alignRabItems([], pItems);
             const total = items.reduce((acc, row) => {
                 acc.semula += Number(row.semula.jumlah) || 0;
                 acc.menjadi += Number(row.menjadi.jumlah) || 0;
@@ -10249,6 +10263,7 @@ module.exports.rabPerubahan = {
     rabItemJumlah,
     buildRabCompareRow,
     alignRabItems,
+    parseRabItemsSafely,
     sortRabItems,
     compareKodeUnikFull,
     sortHierarchical,
