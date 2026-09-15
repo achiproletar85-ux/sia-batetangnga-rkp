@@ -579,8 +579,8 @@
 
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div>
-                                    <label class="form-label">Sumber Dana</label>
-                                    <select id="select-sumber-dana" class="input-field"></select>
+                                    <label id="label-sumber-dana" class="form-label">Sumber Dana *</label>
+                                    <select id="select-sumber-dana" class="input-field" required></select>
                                 </div>
                                 <div>
                                     <label class="form-label">Keterangan (Opsional)</label>
@@ -628,6 +628,7 @@
                                     <tr>
                                         <th style="width: 40px;" class="text-center">No</th>
                                         <th>Uraian Belanja</th>
+                                        <th style="width: 110px;" class="text-center">Sumber Dana</th>
                                         <th style="width: 80px;" class="text-center">Volume</th>
                                         <th style="width: 80px;" class="text-center">Satuan</th>
                                         <th style="width: 120px;" class="text-right">Harga Satuan</th>
@@ -637,7 +638,7 @@
                                 </thead>
                                 <tbody id="rab-items-body">
                                     <tr>
-                                        <td colspan="7" class="text-center py-8 text-slate-400">Belum ada item RAB. Tambahkan
+                                        <td colspan="8" class="text-center py-8 text-slate-400">Belum ada item RAB. Tambahkan
                                             item pertama.</td>
                                     </tr>
                                 </tbody>

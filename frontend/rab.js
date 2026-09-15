@@ -1488,6 +1488,18 @@ async function saveRAB() {
 
     const activity = selectedRpjm || {};
     const namaBidangFull = getNamaBidangFull(activity.bidang, activity.kode_unik_full || kodeUnikFix);
+
+    if (!rabItems || rabItems.length === 0) {
+        showToast('Belum ada item belanja pada RAB. Tambahkan item terlebih dahulu.', 'error');
+        return;
+    }
+
+    // Validasi Sumber Dana wajib terisi pada seluruh item belanja
+    const itemTanpaSumber = rabItems.find(it => !it.sumber || !String(it.sumber).trim());
+    if (itemTanpaSumber) {
+        showToast(`Item "${itemTanpaSumber.uraian || 'Belanja'}" belum memiliki Sumber Dana! Seluruh item wajib memiliki Sumber Dana sebelum disimpan.`, 'error');
+        return;
+    }
     
     const totalBiaya = rabItems.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
     const firstItem = rabItems[0] || {};
@@ -1584,6 +1596,13 @@ function addRabItem() {
     // Validasi eksplisit: izinkan nilai 0 (nol) untuk volume dan harga satuan
     if (!group || !subgroup || !uraian || !satuan || volume === '' || hargaRaw.trim() === '' || !Number.isFinite(harga) || harga < 0) {
         showToast('Isi group, sub group, uraian, volume, satuan, dan harga satuan (minimal 0) terlebih dahulu', 'error');
+        return;
+    }
+
+    // Validasi Wajib Sumber Dana
+    if (!sumber || !String(sumber).trim()) {
+        showToast('Pilih Sumber Dana terlebih dahulu! Field Sumber Dana wajib diisi.', 'error');
+        document.getElementById('select-sumber-dana')?.focus();
         return;
     }
 
@@ -1808,7 +1827,7 @@ function renderRabItems() {
     if (!tbody) return;
 
     if (!rabItems.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-500">Belum ada item RAB. Tambahkan item pertama.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500">Belum ada item RAB. Tambahkan item pertama.</td></tr>';
         return;
     }
 
@@ -1858,7 +1877,7 @@ function renderRabItems() {
     groupHeaders.forEach(groupName => {
         html += `
             <tr class="rab-group-row">
-                <td colspan="7" class="px-4 py-2 font-extrabold text-sm tracking-wide">
+                <td colspan="8" class="px-4 py-2 font-extrabold text-sm tracking-wide">
                     <i class="fas fa-folder mr-2"></i> ${groupName}
                 </td>
             </tr>`;
@@ -1872,7 +1891,7 @@ function renderRabItems() {
 
             html += `
                 <tr class="rab-subgroup-row">
-                    <td colspan="5" class="pl-8 px-4 py-1.5 font-bold text-xs">${entry.subgroup}</td>
+                    <td colspan="6" class="pl-8 px-4 py-1.5 font-bold text-xs">${entry.subgroup}</td>
                     <td class="text-right pr-3 font-bold text-xs">
                         <div>Rp ${formatRupiah(subTotal)}</div>
                         ${isModePerubahan() ? `<div class="text-[10px] text-slate-500 font-normal">Semula: Rp ${formatRupiah(subTotalSemula)}</div>` : ''}
@@ -1890,16 +1909,38 @@ function renderRabItems() {
                 let hargaCell = `<div class="font-bold text-slate-800">Rp ${formatRupiah(item.harga)}</div>`;
                 let jumlahCell = `<div class="font-extrabold text-slate-900">Rp ${formatRupiah(item.jumlah)}</div>`;
 
+                let sumberBadge = '';
+                const sText = String(item.sumber || '').trim();
+                if (!sText) {
+                    sumberBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-red-100 text-red-700 border border-red-300 animate-pulse shadow-xs" title="Sumber Dana belum diisi! Wajib diisi saat simpan."><i class="fas fa-exclamation-triangle text-red-600"></i> [Belum Diisi]</span>`;
+                    uraianBadge += `<div class="text-[10px] font-bold text-red-600 mt-0.5"><i class="fas fa-exclamation-circle"></i> Sumber Dana belum dipilih</div>`;
+                } else {
+                    const sUpper = sText.toUpperCase();
+                    let badgeClass = 'bg-slate-100 text-slate-800 border-slate-200';
+                    if (sUpper.includes('DDS') || sUpper.includes('DANA DESA') || sUpper === 'DD') {
+                        badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                    } else if (sUpper.includes('ADD') || sUpper.includes('ALOKASI DANA')) {
+                        badgeClass = 'bg-blue-100 text-blue-800 border-blue-300';
+                    } else if (sUpper.includes('PBH') || sUpper.includes('BAGI HASIL') || sUpper.includes('BHP')) {
+                        badgeClass = 'bg-indigo-100 text-indigo-800 border-indigo-300';
+                    } else if (sUpper.includes('PAD') || sUpper.includes('PENDAPATAN ASLI')) {
+                        badgeClass = 'bg-amber-100 text-amber-800 border-amber-300';
+                    } else if (sUpper.includes('APBD')) {
+                        badgeClass = 'bg-purple-100 text-purple-800 border-purple-300';
+                    }
+                    sumberBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}">${sText}</span>`;
+                }
+
                 if (isModePerubahan()) {
                     if (ref.isBaru) {
-                        uraianBadge = `<div class="mt-1"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200"><i class="fas fa-plus-circle text-[9px]"></i> Item Baru (Semula: Rp 0)</span></div>`;
+                        uraianBadge = `<div class="mt-1"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200"><i class="fas fa-plus-circle text-[9px]"></i> Item Baru (Semula: Rp 0)</span></div>` + uraianBadge;
                         volCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: 0</div>`;
                         hargaCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: Rp 0</div>`;
                         jumlahCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: Rp 0</div>`;
                         jumlahCell += `<div class="text-[10px] font-bold text-emerald-600 whitespace-nowrap">(+Rp ${formatRupiah(item.jumlah)})</div>`;
                     } else {
                         if (ref.uraian && ref.uraian.trim().toLowerCase() !== String(item.uraian || '').trim().toLowerCase()) {
-                            uraianBadge = `<div class="text-[10px] text-slate-400 italic mt-0.5">Semula: ${ref.uraian}</div>`;
+                            uraianBadge = `<div class="text-[10px] text-slate-400 italic mt-0.5">Semula: ${ref.uraian}</div>` + uraianBadge;
                         }
                         volCell += `<div class="text-[10px] text-slate-500 font-medium whitespace-nowrap" title="Volume Semula (RAB Murni)">Semula: ${ref.vol}</div>`;
                         if (ref.sat && ref.sat !== item.satuan) {
@@ -1926,6 +1967,7 @@ function renderRabItems() {
                             ${uraianBadge}
                             ${item.keterangan ? `<div class="text-slate-400 text-xs mt-1">${item.keterangan}</div>` : ''}
                         </td>
+                        <td class="text-center">${sumberBadge}</td>
                         <td class="text-center">${volCell}</td>
                         <td class="text-center">${satCell}</td>
                         <td class="text-right">${hargaCell}</td>
