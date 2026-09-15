@@ -275,9 +275,25 @@ console.log('\n11) Pengurutan Sub-Item Belanja SisKeuDes (sortRabItems)');
     check('item 4 memiliki no = 4', sortedItems[3].no, 4);
 }
 
+console.log('\n12) Pengurutan Cetak Hierarkis RAB Perubahan');
+{
+    const comps = [
+        { kode_unik_full: '01.01.01.03.', nama_kegiatan: 'Kegiatan 3' },
+        { kode_unik_full: '01.01.01.01.', nama_kegiatan: 'Kegiatan 1' },
+        { kode_unik_full: '01.01.01.02.', nama_kegiatan: 'Kegiatan 2' },
+        { kode_unik_full: '01.01.01.10.', nama_kegiatan: 'Kegiatan 10' }
+    ];
+    comps.sort((a, b) => compareKodeUnikFull(a.kode_unik_full, b.kode_unik_full));
+    check('Kegiatan perbandingan terurut hierarkis (01 < 02 < 03 < 10)',
+        comps.map(c => c.kode_unik_full),
+        ['01.01.01.01.', '01.01.01.02.', '01.01.01.03.', '01.01.01.10.']
+    );
+}
+
 console.log(`\n========================================`);
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
 console.log(`========================================\n`);
 
 process.exit(fail === 0 ? 0 : 1);
+

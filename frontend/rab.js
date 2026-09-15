@@ -1855,7 +1855,8 @@ async function populateGroupCetakDropdown() {
         });
 
         // Format Opsi: "[01.01.01.] Penyediaan Penghasilan Tetap dan Tunjangan Kepala Desa"
-        selectElem.innerHTML = Array.from(groupMap.entries()).map(([prefix, title]) => 
+        const sortedGroupEntries = Array.from(groupMap.entries()).sort((a, b) => compareKodeUnikFull(a[0], b[0]));
+        selectElem.innerHTML = sortedGroupEntries.map(([prefix, title]) => 
             `<option value="${prefix}">[${prefix}] ${title}</option>`
         ).join('');
 
@@ -1979,10 +1980,21 @@ async function cetakPdfByGroup() {
     let itemsToPrint = [];
 
     if (matchedRows && matchedRows.length > 0) {
+        matchedRows.sort((a, b) => compareKodeUnikFull(a.kode_unik_full || a.kode_unik || a.kode_kegiatan, b.kode_unik_full || b.kode_unik || b.kode_kegiatan));
         matchedRows.forEach(row => {
             let parsedItems = typeof row.items === 'string' ? JSON.parse(row.items || '[]') : (row.items || []);
             
             if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+                parsedItems.sort((a, b) => {
+                    const codeA = RAB_SUBGROUP_CODE[a.subgroup] || RAB_GROUP_CODE[a.group] || '9.9.9';
+                    const codeB = RAB_SUBGROUP_CODE[b.subgroup] || RAB_GROUP_CODE[b.group] || '9.9.9';
+                    const cmp = compareKodeRAB(codeA, codeB);
+                    if (cmp !== 0) return cmp;
+                    const uA = Number(a.urutan ?? a.no ?? 999999);
+                    const uB = Number(b.urutan ?? b.no ?? 999999);
+                    if (uA !== uB) return uA - uB;
+                    return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
+                });
                 parsedItems.forEach(it => {
                     const vol = Number(it.volume) || 12;
                     const hrg = Number(it.harga || it.harga_satuan || 0);
@@ -2219,7 +2231,13 @@ function getGroupKey(row, item) {
     });
 
     // RENDERING LOOP (URUT: 1. Group -> 2. Nama Kegiatan -> 3. Subgroup -> 4. Items)
-    Object.keys(groupedData).forEach(gKey => {
+    const sortedGroupKeys = Object.keys(groupedData).sort((a, b) => {
+        const codeA = RAB_GROUP_CODE[a] || '9.9.9';
+        const codeB = RAB_GROUP_CODE[b] || '9.9.9';
+        return compareKodeRAB(codeA, codeB);
+    });
+
+    sortedGroupKeys.forEach(gKey => {
         // 1. TAMPILKAN GROUP (Level 1 - Atas) -> bg-slate-200 font-bold
         tbodyRows += `
             <tr style="font-weight: bold; background-color: #e2e8f0;">
@@ -2229,7 +2247,11 @@ function getGroupKey(row, item) {
 
         Object.keys(groupedData[gKey]).forEach(namaKeg => {
             let repSumber = '';
-            const subKeys = Object.keys(groupedData[gKey][namaKeg]);
+            const subKeys = Object.keys(groupedData[gKey][namaKeg]).sort((a, b) => {
+                const codeA = RAB_SUBGROUP_CODE[a] || '9.9.9.99';
+                const codeB = RAB_SUBGROUP_CODE[b] || '9.9.9.99';
+                return compareKodeRAB(codeA, codeB);
+            });
             if (subKeys.length > 0) {
                 repSumber = groupedData[gKey][namaKeg][subKeys[0]].sumberDana;
             }
@@ -2245,6 +2267,12 @@ function getGroupKey(row, item) {
 
             subKeys.forEach(sgKey => {
                 const groupSubData = groupedData[gKey][namaKeg][sgKey];
+                groupSubData.items.sort((a, b) => {
+                    const uA = Number(a.urutan ?? a.no ?? 999999);
+                    const uB = Number(b.urutan ?? b.no ?? 999999);
+                    if (uA !== uB) return uA - uB;
+                    return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
+                });
 
                 // 3. TAMPILKAN SUBGROUP (Level 3 - Bawah) -> Tebal, Normal Case (Bukan Uppercase) + Subtotal di Kolom f
                 tbodyRows += `
@@ -2539,6 +2567,7 @@ async function cetakRabPerubahan() {
         try { json = await res.json(); } catch (_) {}
         if (res.ok && json && json.success && Array.isArray(json.data)) {
             comparisons = json.data;
+            comparisons.sort((a, b) => compareKodeUnikFull(a.kode_unik_full || a.kode_unik, b.kode_unik_full || b.kode_unik));
             grandTotal = json.total || grandTotal;
         } else {
             const msg = (json && json.error) || `Gagal memuat perbandingan RAB (HTTP ${res.status})`;
@@ -2625,6 +2654,12 @@ async function cetakRabPerubahan() {
             });
 
             groupEntries.forEach(entry => {
+                entry.items.sort((a, b) => {
+                    const uA = Number(a.urutan ?? a.no ?? a.semula?.urutan ?? a.menjadi?.urutan ?? 999999);
+                    const uB = Number(b.urutan ?? b.no ?? b.semula?.urutan ?? b.menjadi?.urutan ?? 999999);
+                    if (uA !== uB) return uA - uB;
+                    return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
+                });
 
                 const subSemula = entry.items.reduce((s, it) => s + (Number(it.semula.jumlah) || 0), 0);
                 const subMenjadi = entry.items.reduce((s, it) => s + (Number(it.menjadi.jumlah) || 0), 0);
@@ -2637,14 +2672,14 @@ async function cetakRabPerubahan() {
                         <td style="border:1px solid #000; padding:6px 8px; text-align:right; font-weight:bold; font-size:12px;">${fmtSelisih(subMenjadi - subSemula)}</td>
                     </tr>`;
 
-                entry.items.forEach(it => {
+                entry.items.forEach((it, subIdx) => {
                     runningNo += 1;
                     const volSemula = it.item_baru ? '0' : `${it.semula.volume ?? 0} ${it.semula.satuan || ''}`.trim();
                     const volMenjadi = it.item_dihapus ? '0' : `${it.menjadi.volume ?? 0} ${it.menjadi.satuan || ''}`.trim();
                     tbodyRows += `
                     <tr>
                         <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${runningNo}</td>
-                        <td style="border:1px solid #000; padding:4px 6px; padding-left:16px; font-size:11px;">${charLabel(runningNo)} ${it.uraian}${it.keterangan ? ` (${it.keterangan})` : ''}</td>
+                        <td style="border:1px solid #000; padding:4px 6px; padding-left:16px; font-size:11px;">${charLabel(subIdx + 1)} ${it.uraian}${it.keterangan ? ` (${it.keterangan})` : ''}</td>
                         <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${volSemula || '0'}</td>
                         <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_baru ? '0' : fmt(it.semula.harga)}</td>
                         <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_baru ? '0' : fmt(it.semula.jumlah)}</td>
