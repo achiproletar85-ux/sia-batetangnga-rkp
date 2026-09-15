@@ -1199,13 +1199,16 @@ function getRabItemRekening(it) {
 
 const SISKEUDES_ITEM_ORDER = [
     'kertas f4',
+    'kertas hvs f4',
     'kertas a4',
+    'kertas hvs a4',
     'bundel besar',
     'bundel kecil',
     'polpen tanda tangan',
     'tinta black',
     'tinta warna',
     'buku polio',
+    'buku folio',
     'pulpen',
     'lem',
     'map lubang plastik',

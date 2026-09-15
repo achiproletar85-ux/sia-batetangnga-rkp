@@ -12,6 +12,7 @@
     "import-csv": "node scripts/import-csv.js",
     "seed-admin": "node scripts/seed-admin-supabase.js",
     "audit:egress": "node scripts/audit-supabase-calls.cjs",
+    "audit:tingkat-lanjut": "node scripts/audit-tingkat-lanjut.cjs",
     "test:rab-perubahan": "node scripts/test-rab-perubahan.cjs",
     "test:rkpdes-perubahan": "node scripts/test-rkpdes-perubahan.cjs",
     "test:rktl-perubahan": "node scripts/test-rktl-perubahan.cjs",
