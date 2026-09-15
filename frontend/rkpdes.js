@@ -41,11 +41,55 @@ function showToast(msg, type = 'success') {
     toast._timeout = setTimeout(() => toast.classList.add('hidden'), 3500);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     try {
         localStorage.removeItem('rkpdes_cache');
     } catch(e) {}
-    loadRkpdesData();
+
+    // Persistensi tahun & tab dari URL atau localStorage
+    const params = new URLSearchParams(window.location.search);
+    const tahunParam = params.get('tahun');
+    const tabParam = params.get('tab') || params.get('tipe') || params.get('mode');
+
+    if (tahunParam) {
+        const num = parseInt(tahunParam, 10);
+        if (Number.isFinite(num) && num >= 2020 && num <= 2035) activeYear = num;
+    } else {
+        try {
+            const savedYear = localStorage.getItem('sia_tahun_anggaran') || localStorage.getItem('rab_tahun_anggaran');
+            if (savedYear) {
+                const num = parseInt(savedYear, 10);
+                if (Number.isFinite(num) && num >= 2020 && num <= 2035) activeYear = num;
+            } else {
+                const cal = new Date().getFullYear();
+                if (cal >= 2022 && cal <= 2030) activeYear = cal;
+            }
+        } catch (_) {}
+    }
+
+    if (tabParam) {
+        if (String(tabParam).toLowerCase() === 'perubahan') currentRkpdesTab = 'perubahan';
+        else currentRkpdesTab = 'murni';
+    } else {
+        try {
+            const savedTab = localStorage.getItem('sia_tipe_anggaran') || localStorage.getItem('rab_tipe_anggaran');
+            if (savedTab && String(savedTab).toUpperCase().includes('PERUBAHAN')) {
+                currentRkpdesTab = 'perubahan';
+            } else {
+                currentRkpdesTab = 'murni';
+            }
+        } catch (_) {}
+    }
+
+    // Sinkronkan kontrol DOM
+    const selYear = document.getElementById('select-year');
+    if (selYear) selYear.value = String(activeYear);
+
+    if (currentRkpdesTab === 'perubahan') {
+        await switchRkpdesTab('perubahan');
+    } else {
+        await loadRkpdesData();
+    }
 
     // Event listener eksplisit tombol cetak dengan pencegahan default action
     const btnCetakPerubahan = document.getElementById('btn-cetak-perubahan');
@@ -881,6 +925,10 @@ window.editInRabFromModal = editInRabFromModal;
 
 async function onYearChange() {
     activeYear = Number(document.getElementById('select-year')?.value) || 2027;
+    try {
+        localStorage.setItem('sia_tahun_anggaran', String(activeYear));
+        localStorage.setItem('rab_tahun_anggaran', String(activeYear));
+    } catch (_) {}
     if (currentRkpdesTab === 'perubahan') {
         await loadRkpdesPerubahanData();
     } else {
@@ -890,8 +938,11 @@ async function onYearChange() {
 window.onYearChange = onYearChange;
 
 async function switchRkpdesTab(tab) {
-    if (currentRkpdesTab === tab) return; // sudah aktif: cegah re-render penuh yang memblokir main thread
     currentRkpdesTab = tab;
+    try {
+        localStorage.setItem('sia_tipe_anggaran', tab === 'perubahan' ? 'PERUBAHAN' : 'MURNI');
+        localStorage.setItem('rab_tipe_anggaran', tab === 'perubahan' ? 'PERUBAHAN' : 'MURNI');
+    } catch (_) {}
     const btnMurni = document.getElementById('tab-btn-murni');
     const btnPerubahan = document.getElementById('tab-btn-perubahan');
     const badge = document.getElementById('tab-badge-info');

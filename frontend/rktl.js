@@ -72,12 +72,49 @@ let rktlRowsData = [];
 let timPenyusunData = [];
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Deteksi mode dari query URL: ?tipe=perubahan
+    // Deteksi mode dari query URL: ?tipe=perubahan atau localStorage
     const urlParams = new URLSearchParams(window.location.search);
     const tipeParam = urlParams.get('tipe');
     if (tipeParam && String(tipeParam).toLowerCase() === 'perubahan') {
         currentRktlMode = 'PERUBAHAN';
+    } else if (tipeParam && String(tipeParam).toLowerCase() === 'murni') {
+        currentRktlMode = 'MURNI';
+    } else {
+        try {
+            const savedMode = localStorage.getItem('sia_tipe_anggaran') || localStorage.getItem('rab_tipe_anggaran');
+            if (savedMode && String(savedMode).toUpperCase().includes('PERUBAHAN')) {
+                currentRktlMode = 'PERUBAHAN';
+            } else {
+                currentRktlMode = 'MURNI';
+            }
+        } catch (_) {}
     }
+
+    const tahunParam = urlParams.get('tahun');
+    let initialYear = null;
+    if (tahunParam) {
+        initialYear = parseInt(tahunParam, 10);
+    } else {
+        try {
+            const savedYear = localStorage.getItem('sia_tahun_anggaran') || localStorage.getItem('rab_tahun_anggaran');
+            if (savedYear) {
+                const parsedY = parseInt(savedYear, 10);
+                if (Number.isFinite(parsedY) && parsedY >= 2020 && parsedY <= 2035) initialYear = parsedY;
+            } else {
+                const cal = new Date().getFullYear();
+                if (cal >= 2022 && cal <= 2030) initialYear = cal;
+            }
+        } catch (_) {}
+    }
+
+    const selTahun = document.getElementById('select-tahun');
+    if (selTahun && initialYear) {
+        selTahun.value = String(initialYear);
+        if (document.getElementById('judul-tahun-doc')) {
+            document.getElementById('judul-tahun-doc').innerText = String(initialYear);
+        }
+    }
+
     updateRktlModeUI();
     loadRKTLData();
     setupEventListeners();
@@ -86,6 +123,10 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupEventListeners() {
     document.getElementById('select-tahun')?.addEventListener('change', () => {
         const tahun = document.getElementById('select-tahun').value;
+        try {
+            localStorage.setItem('sia_tahun_anggaran', String(tahun));
+            localStorage.setItem('rab_tahun_anggaran', String(tahun));
+        } catch (_) {}
         if (document.getElementById('judul-tahun-doc')) {
             document.getElementById('judul-tahun-doc').innerText = tahun;
         }
@@ -95,6 +136,10 @@ function setupEventListeners() {
 // Ganti Mode RKTL: Murni vs Perubahan
 function switchRktlMode(mode) {
     currentRktlMode = (mode && String(mode).toUpperCase() === 'PERUBAHAN') ? 'PERUBAHAN' : 'MURNI';
+    try {
+        localStorage.setItem('sia_tipe_anggaran', currentRktlMode);
+        localStorage.setItem('rab_tipe_anggaran', currentRktlMode);
+    } catch (_) {}
     updateRktlModeUI();
     loadRKTLData();
 }

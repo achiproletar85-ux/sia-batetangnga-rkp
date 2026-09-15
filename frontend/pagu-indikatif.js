@@ -20,14 +20,44 @@ function showToast(msg, type = 'success') {
 
 if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {
-        // 1. Cek parameter URL (?tipe=perubahan)
+        // 1. Cek parameter URL (?tipe=perubahan) atau localStorage
         const params = new URLSearchParams(window.location.search);
         const tipeParam = params.get('tipe') || params.get('mode');
         if (tipeParam && tipeParam.toUpperCase() === 'PERUBAHAN') {
             currentPaguMode = 'PERUBAHAN';
-        } else {
+        } else if (tipeParam && tipeParam.toUpperCase() === 'MURNI') {
             currentPaguMode = 'MURNI';
+        } else {
+            try {
+                const savedMode = localStorage.getItem('sia_tipe_anggaran') || localStorage.getItem('rab_tipe_anggaran');
+                if (savedMode && String(savedMode).toUpperCase().includes('PERUBAHAN')) {
+                    currentPaguMode = 'PERUBAHAN';
+                } else {
+                    currentPaguMode = 'MURNI';
+                }
+            } catch (_) {}
         }
+
+        // Sinkronkan pilihan tahun dari URL atau localStorage
+        const tahunParam = params.get('tahun');
+        let initialYear = 2027;
+        if (tahunParam) {
+            initialYear = parseInt(tahunParam, 10);
+        } else {
+            try {
+                const savedYear = localStorage.getItem('sia_tahun_anggaran') || localStorage.getItem('rab_tahun_anggaran');
+                if (savedYear) {
+                    const parsedY = parseInt(savedYear, 10);
+                    if (Number.isFinite(parsedY) && parsedY >= 2020 && parsedY <= 2035) initialYear = parsedY;
+                } else {
+                    const cal = new Date().getFullYear();
+                    if (cal >= 2022 && cal <= 2030) initialYear = cal;
+                }
+            } catch (_) {}
+        }
+
+        const selYear = document.getElementById('select-year');
+        if (selYear) selYear.value = String(initialYear);
 
         // 2. Sinkronkan kontrol tanggal cetak & tim penyusun
         const inputTgl = document.getElementById('tgl-cetak') || document.getElementById('input-tanggal-pembiayaan');
@@ -50,6 +80,10 @@ if (typeof document !== 'undefined') {
 
 function switchPaguMode(mode) {
     currentPaguMode = String(mode || '').toUpperCase() === 'PERUBAHAN' ? 'PERUBAHAN' : 'MURNI';
+    try {
+        localStorage.setItem('sia_tipe_anggaran', currentPaguMode);
+        localStorage.setItem('rab_tipe_anggaran', currentPaguMode);
+    } catch (_) {}
 
     // Perbarui query param URL tanpa reload halaman
     try {
@@ -311,6 +345,10 @@ function renderMatriksKomparasiPagu(compData, activeYear) {
 
 async function loadPaguIndikatifData() {
     const activeYear = Number(document.getElementById('select-year')?.value) || 2027;
+    try {
+        localStorage.setItem('sia_tahun_anggaran', String(activeYear));
+        localStorage.setItem('rab_tahun_anggaran', String(activeYear));
+    } catch (_) {}
     const tahunHeader = document.getElementById('tahun-header');
     if (tahunHeader) tahunHeader.textContent = `TAHUN ANGGARAN ${activeYear}`;
 

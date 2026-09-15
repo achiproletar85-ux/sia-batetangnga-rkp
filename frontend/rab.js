@@ -11,8 +11,35 @@ let rpjmItems = [];
 let filteredRpjmItems = [];
 let selectedRpjm = null;
 let rabItems = [];
+const RAB_TIPE_MURNI = 'MURNI';
+const RAB_TIPE_PERUBAHAN = 'PERUBAHAN';
+
+function getDefaultYear() {
+    try {
+        const saved = localStorage.getItem('rab_tahun_anggaran') || localStorage.getItem('sia_tahun_anggaran');
+        if (saved) {
+            const num = parseInt(saved, 10);
+            if (Number.isFinite(num) && num >= 2020 && num <= 2035) return num;
+        }
+    } catch (_) {}
+    const calYear = new Date().getFullYear();
+    if (calYear >= 2022 && calYear <= 2030) return calYear;
+    return 2026;
+}
+
+function getDefaultTipe() {
+    try {
+        const saved = localStorage.getItem('rab_tipe_anggaran') || localStorage.getItem('sia_tipe_anggaran');
+        if (saved) {
+            const norm = String(saved).toUpperCase().trim();
+            if (norm === RAB_TIPE_PERUBAHAN || norm === RAB_TIPE_MURNI) return norm;
+        }
+    } catch (_) {}
+    return RAB_TIPE_MURNI;
+}
+
 let savedRabList = [];
-let rabYear = 2027;
+let rabYear = getDefaultYear();
 let editIndex = -1;
 let currentRabId = null;
 let currentRabRefMurni = null;
@@ -20,10 +47,8 @@ let currentRabRefMurni = null;
 // ==========================================
 // RAB PERUBAHAN — snapshot versi (MURNI / PERUBAHAN)
 // ==========================================
-let rabTipe = 'MURNI';
+let rabTipe = getDefaultTipe();
 let rabMurniLocked = false;   // true bila versi MURNI kegiatan terpilih sudah dikunci
-const RAB_TIPE_MURNI = 'MURNI';
-const RAB_TIPE_PERUBAHAN = 'PERUBAHAN';
 
 function isModePerubahan() {
     return rabTipe === RAB_TIPE_PERUBAHAN;
@@ -214,6 +239,47 @@ function formatRupiahInput(el) {
 }
 
 async function loadInitialData() {
+    // 1. Cek parameter URL terlebih dahulu (?tahun=...&tipe=...)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tahunFromUrl = urlParams.get('tahun');
+    const tipeFromUrl = urlParams.get('tipe') || urlParams.get('tipe_anggaran');
+
+    if (tahunFromUrl) {
+        const parsedY = parseInt(tahunFromUrl, 10);
+        if (Number.isFinite(parsedY) && parsedY >= 2020 && parsedY <= 2035) {
+            rabYear = parsedY;
+        }
+    } else {
+        rabYear = getDefaultYear();
+    }
+
+    if (tipeFromUrl) {
+        rabTipe = String(tipeFromUrl).toUpperCase().trim() === RAB_TIPE_PERUBAHAN
+            ? RAB_TIPE_PERUBAHAN
+            : RAB_TIPE_MURNI;
+    } else {
+        rabTipe = getDefaultTipe();
+    }
+
+    // Persist ke localStorage
+    try {
+        localStorage.setItem('rab_tahun_anggaran', String(rabYear));
+        localStorage.setItem('sia_tahun_anggaran', String(rabYear));
+        localStorage.setItem('rab_tipe_anggaran', rabTipe);
+        localStorage.setItem('sia_tipe_anggaran', rabTipe);
+    } catch (_) {}
+
+    // Sinkronkan elemen dropdown di DOM jika sudah tersedia
+    const selYear = document.getElementById('select-year');
+    if (selYear) {
+        selYear.value = String(rabYear);
+    }
+    const selTipe = document.getElementById('select-tipe-anggaran');
+    if (selTipe) {
+        selTipe.value = rabTipe;
+    }
+    applyReadOnlyMode();
+
     populateGroupOptions();
     await loadSumberDana();
     await loadRabActivities();
@@ -249,9 +315,7 @@ async function loadInitialData() {
     }
 
     // Handle redirect from pembiayaan page
-    const urlParams = new URLSearchParams(window.location.search);
     const kodeUnikFromUrl = urlParams.get('kode_unik');
-    const tahunFromUrl = urlParams.get('tahun');
 
     if (kodeUnikFromUrl && tahunFromUrl) {
         showToast('Mengarahkan ke data RAB dari halaman pembiayaan...', 'success');
@@ -475,8 +539,14 @@ function filterRpjmItems() {
 }
 
 async function onYearChange() { // Make it async
-    rabYear = parseInt(document.getElementById('select-year').value, 10) || 2027;
+    rabYear = parseInt(document.getElementById('select-year').value, 10) || getDefaultYear();
+    try {
+        localStorage.setItem('rab_tahun_anggaran', String(rabYear));
+        localStorage.setItem('sia_tahun_anggaran', String(rabYear));
+    } catch (_) {}
     selectedRpjm = null;
+    currentRabId = null;
+    currentRabRefMurni = null;
     window.currentDataRPJMDES = null;
     if (document.getElementById('select-kode-unik')) document.getElementById('select-kode-unik').value = '';
     if (document.getElementById('rpjm-summary')) document.getElementById('rpjm-summary').innerHTML = '';
@@ -989,6 +1059,10 @@ function renderSavedRabList() {
 async function loadSavedRabItem(kode, year) {
     document.getElementById('select-year').value = year;
     rabYear = Number(year);
+    try {
+        localStorage.setItem('rab_tahun_anggaran', String(rabYear));
+        localStorage.setItem('sia_tahun_anggaran', String(rabYear));
+    } catch (_) {}
     await loadRabActivities();
     document.getElementById('search-rpjm').value = '';
 
@@ -2305,6 +2379,10 @@ async function onTipeAnggaranChange(nilai) {
     rabTipe = String(nilai || RAB_TIPE_MURNI).toUpperCase() === RAB_TIPE_PERUBAHAN
         ? RAB_TIPE_PERUBAHAN
         : RAB_TIPE_MURNI;
+    try {
+        localStorage.setItem('rab_tipe_anggaran', rabTipe);
+        localStorage.setItem('sia_tipe_anggaran', rabTipe);
+    } catch (_) {}
     currentRabId = null;
     currentRabRefMurni = null;
     rabItems = [];

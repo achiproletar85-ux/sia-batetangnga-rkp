@@ -4405,13 +4405,18 @@ app.get('/api/rab', async (req, res) => {
                 // Jika diminta merge_murni untuk tipe PERUBAHAN: kegiatan yang tidak berubah tetap dimuat dari Murni
                 if (tipeAnggaran === RAB_TIPE_PERUBAHAN && (req.query.merge_murni === 'true' || req.query.merge_unmodified === 'true')) {
                     const murniRows = await listRabsFromDb(tahunInt, RAB_TIPE_MURNI, withItems) || [];
+                    const normKode = (k) => String(k || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
                     const perubByRef = new Map();
                     const perubByKode = new Map();
                     const perubByName = new Map();
 
                     data.forEach(p => {
                         if (p.id_referensi_murni) perubByRef.set(String(p.id_referensi_murni), p);
-                        if (p.kode_unik_full) perubByKode.set(String(p.kode_unik_full).trim(), p);
+                        if (p.kode_unik_full) {
+                            perubByKode.set(String(p.kode_unik_full).trim(), p);
+                            perubByKode.set(normKode(p.kode_unik_full), p);
+                        }
+                        if (p.kode_unik) perubByKode.set(normKode(p.kode_unik), p);
                         if (p.nama_kegiatan) perubByName.set(String(p.nama_kegiatan).trim().toLowerCase(), p);
                     });
 
@@ -4420,7 +4425,10 @@ app.get('/api/rab', async (req, res) => {
 
                     murniRows.forEach(m => {
                         let match = perubByRef.get(String(m.id));
-                        if (!match && m.kode_unik_full) match = perubByKode.get(String(m.kode_unik_full).trim());
+                        if (!match && m.kode_unik_full) {
+                            match = perubByKode.get(String(m.kode_unik_full).trim()) || perubByKode.get(normKode(m.kode_unik_full));
+                        }
+                        if (!match && m.kode_unik) match = perubByKode.get(normKode(m.kode_unik));
                         if (!match && m.nama_kegiatan) match = perubByName.get(String(m.nama_kegiatan).trim().toLowerCase());
 
                         if (match) {
@@ -6507,10 +6515,17 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             console.warn('⚠️ Query rab perubahan fetch failed:', rabPerQueryErr.message);
         }
 
+        const normKode = (k) => String(k || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
+
         const perMap = new Map();
+        const perMapByRef = new Map();
+
         perRows.forEach(p => {
-            const k = String(p.kode_unik_full || p.kode_unik || '').trim();
-            if (k) perMap.set(k, p);
+            const rawK = String(p.kode_unik_full || p.kode_unik || '').trim();
+            const cleanK = normKode(rawK);
+            if (rawK) perMap.set(rawK, p);
+            if (cleanK) perMap.set(cleanK, p);
+            if (p.id_referensi_murni) perMapByRef.set(String(p.id_referensi_murni), p);
         });
 
         // 4. Pengayaan dengan metadata RPJMDes Standar
@@ -6522,10 +6537,19 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
         }
 
         const combinedMap = new Map();
+        const matchedPerRowIds = new Set();
+
         murniRows.forEach(m => {
             const code = String(m.kode_unik_full || m.kode_unik || m.id || '').trim();
             if (!code) return;
-            const p = perMap.get(code);
+            const cleanCode = normKode(code);
+            let p = perMap.get(code) || perMap.get(cleanCode);
+            if (!p && m.id) p = perMapByRef.get(String(m.id));
+            if (!p && m.rab_id) p = perMapByRef.get(String(m.rab_id));
+
+            if (p && p.id) {
+                matchedPerRowIds.add(String(p.id));
+            }
 
             const rawNamaMurni = (m.nama_kegiatan && String(m.nama_kegiatan).trim() !== '' && String(m.nama_kegiatan).trim() !== '-')
                 ? String(m.nama_kegiatan).trim()
@@ -6700,8 +6724,10 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
 
         // 5. Tambahkan kegiatan yang HANYA ada di Perubahan (kegiatan baru)
         perRows.forEach(p => {
+            if (p.id && matchedPerRowIds.has(String(p.id))) return;
             const code = String(p.kode_unik_full || p.kode_unik || '').trim();
-            if (code && !combinedMap.has(code)) {
+            const cleanCode = normKode(code);
+            if (code && !combinedMap.has(code) && (!cleanCode || !combinedMap.has(cleanCode))) {
                 const resolved = resolveRpjmStandar(code, p.bidang, null, p.nama_kegiatan || p.uraian, rpjmLookup);
                 const biayaMenjadi = Number(p.jumlah_anggaran || 0);
                 const volMenjadi = String(p.volume || 1);
@@ -8262,13 +8288,18 @@ app.get('/api/pagu-indikatif/perubahan', async (req, res) => {
         });
 
         // Gabungkan Murni dan Perubahan: jika kegiatan tidak berubah di PAK, pertahankan anggaran Murni
+        const normKode = (k) => String(k || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
         const perubByRef = new Map();
         const perubByKode = new Map();
         const perubByName = new Map();
 
         (rabPerubahanRows || []).forEach(p => {
             if (p.id_referensi_murni) perubByRef.set(String(p.id_referensi_murni), p);
-            if (p.kode_unik_full) perubByKode.set(String(p.kode_unik_full).trim(), p);
+            if (p.kode_unik_full) {
+                perubByKode.set(String(p.kode_unik_full).trim(), p);
+                perubByKode.set(normKode(p.kode_unik_full), p);
+            }
+            if (p.kode_unik) perubByKode.set(normKode(p.kode_unik), p);
             if (p.nama_kegiatan) perubByName.set(String(p.nama_kegiatan).trim().toLowerCase(), p);
         });
 
@@ -8277,7 +8308,10 @@ app.get('/api/pagu-indikatif/perubahan', async (req, res) => {
 
         (rabMurniRows || []).forEach(m => {
             let match = perubByRef.get(String(m.id));
-            if (!match && m.kode_unik_full) match = perubByKode.get(String(m.kode_unik_full).trim());
+            if (!match && m.kode_unik_full) {
+                match = perubByKode.get(String(m.kode_unik_full).trim()) || perubByKode.get(normKode(m.kode_unik_full));
+            }
+            if (!match && m.kode_unik) match = perubByKode.get(normKode(m.kode_unik));
             if (!match && m.nama_kegiatan) match = perubByName.get(String(m.nama_kegiatan).trim().toLowerCase());
 
             if (match) {
