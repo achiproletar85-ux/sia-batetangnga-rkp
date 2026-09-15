@@ -189,8 +189,134 @@ const RAB_GROUP_CODE = {};
 const RAB_SUBGROUP_CODE = {};
 rabCategories.forEach(c => {
     if (c.group && c.groupCode && !RAB_GROUP_CODE[c.group]) RAB_GROUP_CODE[c.group] = c.groupCode;
-    if (c.subgroup && c.subgroupCode && !RAB_SUBGROUP_CODE[c.subgroup]) RAB_SUBGROUP_CODE[c.subgroup] = c.subgroupCode;
+    if (c.subgroup && c.subgroupCode && !RAB_SUBGROUP_CODE[c.subgroup]) {
+        RAB_SUBGROUP_CODE[c.subgroup] = c.subgroupCode.replace(/90-99$/, '99');
+    }
 });
+
+// Alias & variasi penulisan kelompok/sub-kelompok belanja SisKeuDes
+const SUBGROUP_ALIASES = {
+    'Belanja Alat Tulis Kantor dan Benda Pos': '5.2.1.01',
+    'Belanja Perlengkapan Alat Tulis Kantor dan Benda Pos': '5.2.1.01',
+    'Belanja Alat Tulis Kantor': '5.2.1.01',
+    'Alat Tulis Kantor dan Benda Pos': '5.2.1.01',
+    'Alat Tulis Kantor': '5.2.1.01',
+    'Belanja ATK': '5.2.1.01',
+    'ATK': '5.2.1.01',
+    'Belanja Alat-alat Listrik': '5.2.1.02',
+    'Belanja Perlengkapan Alat-alat Listrik': '5.2.1.02',
+    'Belanja Alat Listrik': '5.2.1.02',
+    'Alat-alat Listrik': '5.2.1.02',
+    'Belanja Perlengkapan Alat-alat Rumah Tangga/Peralatan dan Bahan Kebersihan': '5.2.1.03',
+    'Belanja Perlengkapan Alat-alat Rumah Tangga dan Bahan Kebersihan': '5.2.1.03',
+    'Belanja Alat-alat Rumah Tangga dan Bahan Kebersihan': '5.2.1.03',
+    'Belanja Alat Rumah Tangga dan Bahan Kebersihan': '5.2.1.03',
+    'Belanja Bahan Bakar Minyak/Gas/Isi Ulang Tabung Pemadam Kebakaran': '5.2.1.04',
+    'Belanja Bahan Bakar Minyak/Gas': '5.2.1.04',
+    'Belanja BBM/Gas': '5.2.1.04',
+    'Belanja BBM': '5.2.1.04',
+    'Belanja Perlengkapan Cetak/Penggandaan - Belanja Barang Cetak dan Penggandaan': '5.2.1.05',
+    'Belanja Perlengkapan Cetak/Penggandaan': '5.2.1.05',
+    'Belanja Cetak dan Penggandaan': '5.2.1.05',
+    'Belanja Cetak/Penggandaan': '5.2.1.05',
+    'Belanja Perlengkapan Barang Konsumsi (Makan/minum) - Belanja Barang Konsumsi': '5.2.1.06',
+    'Belanja Perlengkapan Barang Konsumsi': '5.2.1.06',
+    'Belanja Makan dan Minum': '5.2.1.06',
+    'Belanja Makan/Minum': '5.2.1.06',
+    'Belanja Konsumsi': '5.2.1.06',
+    'Belanja Bahan/Material': '5.2.1.07',
+    'Belanja Bahan dan Material': '5.2.1.07',
+    'Belanja Bahan Baku': '5.2.1.07',
+    'Belanja Bendera/Umbul-umbul/Spanduk': '5.2.1.08',
+    'Belanja Bendera, Umbul-umbul dan Spanduk': '5.2.1.08',
+    'Belanja Spanduk': '5.2.1.08',
+    'Belanja Pakaian Dinas/Seragam/Atribut': '5.2.1.09',
+    'Belanja Pakaian Dinas/Seragam': '5.2.1.09',
+    'Belanja Pakaian Dinas': '5.2.1.09',
+    'Belanja Seragam': '5.2.1.09',
+    'Belanja Obat-obatan': '5.2.1.10',
+    'Belanja Pakan Hewan/Ikan, Obat-obatan Hewan': '5.2.1.11',
+    'Belanja Pakan Hewan/Ikan': '5.2.1.11',
+    'Belanja Pupuk/Obat-obatan Pertanian': '5.2.1.12',
+    'Belanja Pupuk dan Obat-obatan Pertanian': '5.2.1.12',
+    'Belanja Barang Perlengkapan': '5.2.1.99',
+    'Belanja Barang Perlengkapan Lainnya': '5.2.1.99',
+    'Belanja Perlengkapan Lainnya': '5.2.1.99',
+    'Belanja Pemeliharaan Mesin dan Peralatan Berat': '5.2.6.01',
+    'Belanja Pemeliharaan Kendaraan Bermotor': '5.2.6.02',
+    'Belanja Pemeliharaan Peralatan': '5.2.6.03',
+    'Belanja Modal Peralatan Komputer': '5.3.2.03'
+};
+Object.assign(RAB_SUBGROUP_CODE, SUBGROUP_ALIASES);
+
+function getRabGroupCode(groupName) {
+    if (!groupName) return '9.9.9';
+    const raw = String(groupName).trim();
+    if (RAB_GROUP_CODE[raw]) return RAB_GROUP_CODE[raw];
+    const norm = raw.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    for (const [k, v] of Object.entries(RAB_GROUP_CODE)) {
+        const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (norm === kNorm) return v;
+    }
+    if (norm.includes('kepala desa') && (norm.includes('siltap') || norm.includes('penghasilan tetap') || norm.includes('tunjangan'))) return '5.1.1';
+    if (norm.includes('perangkat desa') && (norm.includes('siltap') || norm.includes('penghasilan tetap') || norm.includes('tunjangan'))) return '5.1.2';
+    if (norm.includes('jaminan') && norm.includes('sosial')) return '5.1.3';
+    if (norm.includes('bpd')) return '5.1.4';
+    if (norm.includes('pegawai')) return '5.1';
+    if (norm.includes('perlengkapan')) return '5.2.1';
+    if (norm.includes('honor')) return '5.2.2';
+    if (norm.includes('perjalanan') && norm.includes('dinas')) return '5.2.3';
+    if (norm.includes('sewa')) return '5.2.4';
+    if (norm.includes('operasional') && (norm.includes('kantor') || norm.includes('perkantoran'))) return '5.2.5';
+    if (norm.includes('pemeliharaan')) return '5.2.6';
+    if (norm.includes('diserahkan') || norm.includes('masyarakat')) return '5.2.7';
+    if (norm.includes('barang') && norm.includes('jasa')) return '5.2';
+    if (norm.includes('tanah')) return '5.3.1';
+    if (norm.includes('peralatan') || norm.includes('mesin') || norm.includes('alat berat')) return '5.3.2';
+    if (norm.includes('kendaraan')) return '5.3.3';
+    if (norm.includes('gedung') || norm.includes('bangunan') || norm.includes('taman')) return '5.3.4';
+    if (norm.includes('jalan')) return '5.3.5';
+    if (norm.includes('jembatan')) return '5.3.6';
+    if (norm.includes('irigasi') || norm.includes('embung') || norm.includes('drainase')) return '5.3.7';
+    if (norm.includes('jaringan') || norm.includes('instalasi')) return '5.3.8';
+    if (norm.includes('modal')) return '5.3.9';
+    if (norm.includes('tak terduga')) return '5.4.1';
+    return '9.9.9';
+}
+
+function getRabSubgroupCode(subgroupName, groupName) {
+    const rawSub = String(subgroupName || '').trim();
+    if (rawSub) {
+        if (RAB_SUBGROUP_CODE[rawSub]) return RAB_SUBGROUP_CODE[rawSub];
+        const normSub = rawSub.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+        for (const [k, v] of Object.entries(RAB_SUBGROUP_CODE)) {
+            const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+            if (normSub === kNorm) return v;
+        }
+
+        // Keyword heuristics untuk 5.2.1
+        if (normSub.includes('tulis') || normSub.includes('benda pos') || normSub.includes('atk')) return '5.2.1.01';
+        if (normSub.includes('listrik')) return '5.2.1.02';
+        if (normSub.includes('rumah tangga') || normSub.includes('kebersihan')) return '5.2.1.03';
+        if (normSub.includes('bbm') || normSub.includes('minyak') || normSub.includes('pemadam')) return '5.2.1.04';
+        if (normSub.includes('cetak') || normSub.includes('penggandaan')) return '5.2.1.05';
+        if (normSub.includes('konsumsi') || normSub.includes('makan') || normSub.includes('minum')) return '5.2.1.06';
+        if (normSub.includes('bahan') || normSub.includes('material')) return '5.2.1.07';
+        if (normSub.includes('bendera') || normSub.includes('spanduk') || normSub.includes('umbul')) return '5.2.1.08';
+        if (normSub.includes('pakaian') || normSub.includes('seragam') || normSub.includes('atribut')) return '5.2.1.09';
+        if (normSub.includes('obat') && !normSub.includes('hewan') && !normSub.includes('pertanian')) return '5.2.1.10';
+        if (normSub.includes('pakan') || (normSub.includes('hewan') && !normSub.includes('modal'))) return '5.2.1.11';
+        if (normSub.includes('pupuk') || (normSub.includes('pertanian') && !normSub.includes('modal'))) return '5.2.1.12';
+
+        if (normSub.includes('perlengkapan')) return '5.2.1.99';
+    }
+
+    const grpCode = getRabGroupCode(groupName);
+    if (grpCode && grpCode !== '9.9.9') {
+        return grpCode + '.99';
+    }
+    return '9.9.9.99';
+}
 
 function compareKodeRAB(codeA, codeB) {
     const toParts = c => String(c || '').split('.').filter(Boolean).map(p => parseInt(p, 10) || 0);
@@ -1669,8 +1795,8 @@ function renderRabItems() {
             acc[gKey] = {
                 group,
                 subgroup,
-                groupCode: String(RAB_GROUP_CODE[group] || ''),
-                subgroupCode: String(RAB_SUBGROUP_CODE[subgroup] || ''),
+                groupCode: getRabGroupCode(group),
+                subgroupCode: getRabSubgroupCode(subgroup, group),
                 items: []
             };
         }
@@ -1993,8 +2119,8 @@ async function cetakPdfByGroup() {
             
             if (Array.isArray(parsedItems) && parsedItems.length > 0) {
                 parsedItems.sort((a, b) => {
-                    const codeA = RAB_SUBGROUP_CODE[a.subgroup] || RAB_GROUP_CODE[a.group] || '9.9.9';
-                    const codeB = RAB_SUBGROUP_CODE[b.subgroup] || RAB_GROUP_CODE[b.group] || '9.9.9';
+                    const codeA = getRabSubgroupCode(a.subgroup, a.group);
+                    const codeB = getRabSubgroupCode(b.subgroup, b.group);
                     const cmp = compareKodeRAB(codeA, codeB);
                     if (cmp !== 0) return cmp;
                     const uA = Number(a.urutan ?? a.no ?? 999999);
@@ -2239,9 +2365,11 @@ function getGroupKey(row, item) {
 
     // RENDERING LOOP (URUT: 1. Group -> 2. Nama Kegiatan -> 3. Subgroup -> 4. Items)
     const sortedGroupKeys = Object.keys(groupedData).sort((a, b) => {
-        const codeA = RAB_GROUP_CODE[a] || '9.9.9';
-        const codeB = RAB_GROUP_CODE[b] || '9.9.9';
-        return compareKodeRAB(codeA, codeB);
+        const codeA = getRabGroupCode(a);
+        const codeB = getRabGroupCode(b);
+        const cmp = compareKodeRAB(codeA, codeB);
+        if (cmp !== 0) return cmp;
+        return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
     });
 
     sortedGroupKeys.forEach(gKey => {
@@ -2255,9 +2383,11 @@ function getGroupKey(row, item) {
         Object.keys(groupedData[gKey]).forEach(namaKeg => {
             let repSumber = '';
             const subKeys = Object.keys(groupedData[gKey][namaKeg]).sort((a, b) => {
-                const codeA = RAB_SUBGROUP_CODE[a] || '9.9.9.99';
-                const codeB = RAB_SUBGROUP_CODE[b] || '9.9.9.99';
-                return compareKodeRAB(codeA, codeB);
+                const codeA = getRabSubgroupCode(a, gKey);
+                const codeB = getRabSubgroupCode(b, gKey);
+                const cmp = compareKodeRAB(codeA, codeB);
+                if (cmp !== 0) return cmp;
+                return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
             });
             if (subKeys.length > 0) {
                 repSumber = groupedData[gKey][namaKeg][subKeys[0]].sumberDana;
@@ -2640,8 +2770,8 @@ async function cetakRabPerubahan() {
             const grpB = getGroup(b);
             const subA = getSubgroup(a);
             const subB = getSubgroup(b);
-            const codeA = RAB_SUBGROUP_CODE[subA] || RAB_GROUP_CODE[grpA] || '9.9.9';
-            const codeB = RAB_SUBGROUP_CODE[subB] || RAB_GROUP_CODE[grpB] || '9.9.9';
+            const codeA = getRabSubgroupCode(subA, grpA);
+            const codeB = getRabSubgroupCode(subB, grpB);
             const cmpCode = compareKodeRAB(codeA, codeB);
             if (cmpCode !== 0) return cmpCode;
             const uA = Number(a.semula?.urutan ?? a.menjadi?.urutan ?? a.urutan ?? a.no ?? 999999);
@@ -2663,9 +2793,11 @@ async function cetakRabPerubahan() {
         const groupHeaders = [];
         groupMap.forEach(v => { if (!groupHeaders.includes(v.group)) groupHeaders.push(v.group); });
         groupHeaders.sort((a, b) => {
-            const codeA = RAB_GROUP_CODE[a] || '9.9.9';
-            const codeB = RAB_GROUP_CODE[b] || '9.9.9';
-            return compareKodeRAB(codeA, codeB);
+            const codeA = getRabGroupCode(a);
+            const codeB = getRabGroupCode(b);
+            const cmp = compareKodeRAB(codeA, codeB);
+            if (cmp !== 0) return cmp;
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
         });
 
         let runningNo = 0;
@@ -2676,9 +2808,11 @@ async function cetakRabPerubahan() {
                 </tr>`;
 
             const groupEntries = Array.from(groupMap.values()).filter(e => e.group === groupName).sort((a, b) => {
-                const codeA = RAB_SUBGROUP_CODE[a.subgroup] || '9.9.9.99';
-                const codeB = RAB_SUBGROUP_CODE[b.subgroup] || '9.9.9.99';
-                return compareKodeRAB(codeA, codeB);
+                const codeA = getRabSubgroupCode(a.subgroup, groupName);
+                const codeB = getRabSubgroupCode(b.subgroup, groupName);
+                const cmp = compareKodeRAB(codeA, codeB);
+                if (cmp !== 0) return cmp;
+                return a.subgroup.localeCompare(b.subgroup, undefined, { numeric: true, sensitivity: 'base' });
             });
 
             groupEntries.forEach(entry => {

@@ -1020,14 +1020,24 @@ const RAB_GROUP_CODE_MAP = {
     'Belanja Pegawai': '5.1',
     'Belanja Barang Perlengkapan': '5.2.1',
     'Belanja Jasa Honorarium': '5.2.2',
-    'Belanja Operasional Perkantoran': '5.2.3',
+    'Belanja Perjalanan Dinas': '5.2.3',
+    'Belanja Jasa Sewa': '5.2.4',
+    'Belanja Operasional Perkantoran': '5.2.5',
     'Belanja Pemeliharaan': '5.2.6',
+    'Belanja Barang dan Jasa yang Diserahkan kepada Masyarakat': '5.2.7',
     'Belanja Barang dan Jasa': '5.2',
     'Belanja Modal Pengadaan Tanah': '5.3.1',
+    'Belanja Modal Peralatan, Mesin, dan Alat Berat': '5.3.2',
     'Belanja Modal Pengadaan Peralatan, Mesin dan Alat Berat': '5.3.2',
-    'Belanja Modal Gedung, Bangunan dan Taman': '5.3.3',
-    'Belanja Modal Jalan, Jaringan dan Irigasi': '5.3.4',
+    'Belanja Modal Kendaraan': '5.3.3',
+    'Belanja Modal Gedung, Bangunan dan Taman': '5.3.4',
+    'Belanja Modal Jalan/Prasarana Jalan': '5.3.5',
+    'Belanja Modal Jalan, Jaringan dan Irigasi': '5.3.5',
+    'Belanja Modal Jembatan': '5.3.6',
+    'Belanja Modal Irigasi/Embung/Air Sungai/Drainase/Air Limbah/Persampahan': '5.3.7',
+    'Belanja Modal Jaringan/Instalasi': '5.3.8',
     'Belanja Modal lainnya': '5.3.9',
+    'Belanja Modal Lainnya': '5.3.9',
     'Belanja Modal': '5.3',
     'Belanja Tak Terduga': '5.4.1'
 };
@@ -1035,8 +1045,10 @@ const RAB_GROUP_CODE_MAP = {
 const RAB_SUBGROUP_CODE_MAP = {
     'Penghasilan Tetap Kepala Desa': '5.1.1.01',
     'Tunjangan Kepala Desa': '5.1.1.02',
+    'Penerimaan Lain Kepala Desa yang Sah': '5.1.1.99',
     'Penghasilan Tetap Perangkat Desa': '5.1.2.01',
     'Tunjangan Perangkat Desa': '5.1.2.02',
+    'Penerimaan Lain Perangkat Desa yang Sah': '5.1.2.99',
     'Jaminan Kesehatan Kepala Desa': '5.1.3.01',
     'Jaminan Kesehatan Perangkat Desa': '5.1.3.02',
     'Jaminan Ketenagakerjaan Kepala Desa': '5.1.3.03',
@@ -1045,24 +1057,131 @@ const RAB_SUBGROUP_CODE_MAP = {
     'Tunjangan Kinerja BPD': '5.1.4.02',
     'Belanja Perlengkapan Alat Tulis Kantor dan Benda Pos': '5.2.1.01',
     'Belanja Alat Tulis Kantor dan Benda Pos': '5.2.1.01',
+    'Belanja Alat Tulis Kantor': '5.2.1.01',
+    'Alat Tulis Kantor dan Benda Pos': '5.2.1.01',
+    'Alat Tulis Kantor': '5.2.1.01',
+    'Belanja ATK': '5.2.1.01',
+    'ATK': '5.2.1.01',
     'Belanja Perlengkapan Alat-alat Listrik': '5.2.1.02',
+    'Belanja Alat-alat Listrik': '5.2.1.02',
+    'Belanja Alat Listrik': '5.2.1.02',
+    'Alat-alat Listrik': '5.2.1.02',
     'Belanja Perlengkapan Alat-alat Rumah Tangga/Peralatan dan Bahan Kebersihan': '5.2.1.03',
+    'Belanja Perlengkapan Alat-alat Rumah Tangga dan Bahan Kebersihan': '5.2.1.03',
+    'Belanja Alat-alat Rumah Tangga dan Bahan Kebersihan': '5.2.1.03',
+    'Belanja Alat Rumah Tangga dan Bahan Kebersihan': '5.2.1.03',
     'Belanja Bahan Bakar Minyak/Gas/Isi Ulang Tabung Pemadam Kebakaran': '5.2.1.04',
+    'Belanja Bahan Bakar Minyak/Gas': '5.2.1.04',
+    'Belanja BBM/Gas': '5.2.1.04',
+    'Belanja BBM': '5.2.1.04',
     'Belanja Perlengkapan Cetak/Penggandaan - Belanja Barang Cetak dan Penggandaan': '5.2.1.05',
+    'Belanja Perlengkapan Cetak/Penggandaan': '5.2.1.05',
+    'Belanja Cetak dan Penggandaan': '5.2.1.05',
+    'Belanja Cetak/Penggandaan': '5.2.1.05',
+    'Belanja Perlengkapan Barang Konsumsi (Makan/minum) - Belanja Barang Konsumsi': '5.2.1.06',
+    'Belanja Perlengkapan Barang Konsumsi': '5.2.1.06',
+    'Belanja Makan dan Minum': '5.2.1.06',
+    'Belanja Makan/Minum': '5.2.1.06',
+    'Belanja Konsumsi': '5.2.1.06',
+    'Belanja Bahan/Material': '5.2.1.07',
+    'Belanja Bahan dan Material': '5.2.1.07',
+    'Belanja Bahan Baku': '5.2.1.07',
+    'Belanja Bendera/Umbul-umbul/Spanduk': '5.2.1.08',
+    'Belanja Bendera, Umbul-umbul dan Spanduk': '5.2.1.08',
+    'Belanja Spanduk': '5.2.1.08',
+    'Belanja Pakaian Dinas/Seragam/Atribut': '5.2.1.09',
+    'Belanja Pakaian Dinas/Seragam': '5.2.1.09',
+    'Belanja Pakaian Dinas': '5.2.1.09',
+    'Belanja Seragam': '5.2.1.09',
+    'Belanja Obat-obatan': '5.2.1.10',
+    'Belanja Pakan Hewan/Ikan, Obat-obatan Hewan': '5.2.1.11',
+    'Belanja Pakan Hewan/Ikan': '5.2.1.11',
+    'Belanja Pupuk/Obat-obatan Pertanian': '5.2.1.12',
+    'Belanja Pupuk dan Obat-obatan Pertanian': '5.2.1.12',
+    'Belanja Barang Perlengkapan': '5.2.1.99',
+    'Belanja Barang Perlengkapan Lainnya': '5.2.1.99',
+    'Belanja Perlengkapan Lainnya': '5.2.1.99',
     'Belanja Pemeliharaan Mesin dan Peralatan Berat': '5.2.6.01',
-    'Belanja Pemeliharaan Peralatan': '5.2.6.01',
     'Belanja Pemeliharaan Kendaraan Bermotor': '5.2.6.02',
+    'Belanja Pemeliharaan Peralatan': '5.2.6.03',
     'Belanja Modal Peralatan Komputer': '5.3.2.03'
 };
 
+function getRabGroupCode(groupName) {
+    if (!groupName) return '9.9.9';
+    const raw = String(groupName).trim();
+    if (RAB_GROUP_CODE_MAP[raw]) return RAB_GROUP_CODE_MAP[raw];
+    const norm = raw.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    for (const [k, v] of Object.entries(RAB_GROUP_CODE_MAP)) {
+        const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (norm === kNorm) return v;
+    }
+    if (norm.includes('kepala desa') && (norm.includes('siltap') || norm.includes('penghasilan tetap') || norm.includes('tunjangan'))) return '5.1.1';
+    if (norm.includes('perangkat desa') && (norm.includes('siltap') || norm.includes('penghasilan tetap') || norm.includes('tunjangan'))) return '5.1.2';
+    if (norm.includes('jaminan') && norm.includes('sosial')) return '5.1.3';
+    if (norm.includes('bpd')) return '5.1.4';
+    if (norm.includes('pegawai')) return '5.1';
+    if (norm.includes('perlengkapan')) return '5.2.1';
+    if (norm.includes('honor')) return '5.2.2';
+    if (norm.includes('perjalanan') && norm.includes('dinas')) return '5.2.3';
+    if (norm.includes('sewa')) return '5.2.4';
+    if (norm.includes('operasional') && (norm.includes('kantor') || norm.includes('perkantoran'))) return '5.2.5';
+    if (norm.includes('pemeliharaan')) return '5.2.6';
+    if (norm.includes('diserahkan') || norm.includes('masyarakat')) return '5.2.7';
+    if (norm.includes('barang') && norm.includes('jasa')) return '5.2';
+    if (norm.includes('tanah')) return '5.3.1';
+    if (norm.includes('peralatan') || norm.includes('mesin') || norm.includes('alat berat')) return '5.3.2';
+    if (norm.includes('kendaraan')) return '5.3.3';
+    if (norm.includes('gedung') || norm.includes('bangunan') || norm.includes('taman')) return '5.3.4';
+    if (norm.includes('jalan')) return '5.3.5';
+    if (norm.includes('jembatan')) return '5.3.6';
+    if (norm.includes('irigasi') || norm.includes('embung') || norm.includes('drainase')) return '5.3.7';
+    if (norm.includes('jaringan') || norm.includes('instalasi')) return '5.3.8';
+    if (norm.includes('modal')) return '5.3.9';
+    if (norm.includes('tak terduga')) return '5.4.1';
+    return '9.9.9';
+}
+
+function getRabSubgroupCode(subgroupName, groupName) {
+    const rawSub = String(subgroupName || '').trim();
+    if (rawSub) {
+        if (RAB_SUBGROUP_CODE_MAP[rawSub]) return RAB_SUBGROUP_CODE_MAP[rawSub];
+        const normSub = rawSub.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+        for (const [k, v] of Object.entries(RAB_SUBGROUP_CODE_MAP)) {
+            const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+            if (normSub === kNorm) return v;
+        }
+
+        // Keyword heuristics untuk 5.2.1
+        if (normSub.includes('tulis') || normSub.includes('benda pos') || normSub.includes('atk')) return '5.2.1.01';
+        if (normSub.includes('listrik')) return '5.2.1.02';
+        if (normSub.includes('rumah tangga') || normSub.includes('kebersihan')) return '5.2.1.03';
+        if (normSub.includes('bbm') || normSub.includes('minyak') || normSub.includes('pemadam')) return '5.2.1.04';
+        if (normSub.includes('cetak') || normSub.includes('penggandaan')) return '5.2.1.05';
+        if (normSub.includes('konsumsi') || normSub.includes('makan') || normSub.includes('minum')) return '5.2.1.06';
+        if (normSub.includes('bahan') || normSub.includes('material')) return '5.2.1.07';
+        if (normSub.includes('bendera') || normSub.includes('spanduk') || normSub.includes('umbul')) return '5.2.1.08';
+        if (normSub.includes('pakaian') || normSub.includes('seragam') || normSub.includes('atribut')) return '5.2.1.09';
+        if (normSub.includes('obat') && !normSub.includes('hewan') && !normSub.includes('pertanian')) return '5.2.1.10';
+        if (normSub.includes('pakan') || (normSub.includes('hewan') && !normSub.includes('modal'))) return '5.2.1.11';
+        if (normSub.includes('pupuk') || (normSub.includes('pertanian') && !normSub.includes('modal'))) return '5.2.1.12';
+
+        if (normSub.includes('perlengkapan')) return '5.2.1.99';
+    }
+
+    const grpCode = getRabGroupCode(groupName);
+    if (grpCode && grpCode !== '9.9.9') {
+        return grpCode + '.99';
+    }
+    return '9.9.9.99';
+}
+
 function getRabItemRekening(it) {
-    if (!it || typeof it !== 'object') return '9.9.9';
+    if (!it || typeof it !== 'object') return '9.9.9.99';
     if (it.kode_rekening) return String(it.kode_rekening).trim();
     const sub = String(it.subgroup || it.sub_kelompok || '').trim();
-    if (RAB_SUBGROUP_CODE_MAP[sub]) return RAB_SUBGROUP_CODE_MAP[sub];
-    const grp = String(it.group || it.kelompok_belanja || '').trim();
-    if (RAB_GROUP_CODE_MAP[grp]) return RAB_GROUP_CODE_MAP[grp];
-    return '9.9.9';
+    const grp = String(it.group || it.group_belanja || it.kelompok_belanja || '').trim();
+    return getRabSubgroupCode(sub, grp);
 }
 
 function sortRabItems(items) {
@@ -10157,6 +10276,9 @@ module.exports.rabPerubahan = {
     compareKodeUnikFull,
     sortHierarchical,
     getKode,
+    getRabGroupCode,
+    getRabSubgroupCode,
+    getRabItemRekening,
     RAB_TIPE_MURNI,
     RAB_TIPE_PERUBAHAN,
     RAB_COMPARE_COLUMNS,

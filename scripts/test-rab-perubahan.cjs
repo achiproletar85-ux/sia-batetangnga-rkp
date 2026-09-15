@@ -14,7 +14,7 @@
  */
 const path = require('path');
 const app = require(path.resolve(__dirname, '..', 'server.js'));
-const { alignRabItems, rabItemJumlah, normalizeRabTipe, sortRabItems, compareKodeUnikFull, sortHierarchical, getKode } = app.rabPerubahan;
+const { alignRabItems, rabItemJumlah, normalizeRabTipe, sortRabItems, compareKodeUnikFull, sortHierarchical, getKode, getRabGroupCode, getRabSubgroupCode, getRabItemRekening } = app.rabPerubahan;
 
 let pass = 0;
 let fail = 0;
@@ -310,6 +310,39 @@ console.log('\n12) Pengurutan Cetak Hierarkis RAB Perubahan & Helper Universal g
     check('aligned item 1 adalah Siltap Kades (5.1.1.01)', aligned[0].uraian, 'Siltap Kades');
     check('aligned item 2 adalah Tunjangan Kades (5.1.1.02)', aligned[1].uraian, 'Tunjangan Kades (Revisi)');
     check('aligned item 3 adalah Item Baru Operasional (5.2.1.01)', aligned[2].uraian, 'Item Baru Operasional');
+}
+
+console.log('\n13) Hierarki Kelompok & Sub-Kelompok Belanja SisKeuDes (Cetak RAB Murni & Perubahan)');
+{
+    // Resolusi kode rekening kelompok dan sub-kelompok
+    const codeGroupPerlengkapan = getRabGroupCode('Belanja Barang Perlengkapan');
+    check('Group Belanja Barang Perlengkapan -> 5.2.1', codeGroupPerlengkapan, '5.2.1');
+
+    const codeATKPenuh = getRabSubgroupCode('Belanja Perlengkapan Alat Tulis Kantor dan Benda Pos', 'Belanja Barang Perlengkapan');
+    check('Subgroup ATK versi lengkap -> 5.2.1.01', codeATKPenuh, '5.2.1.01');
+
+    const codeATKStandar = getRabSubgroupCode('Belanja Alat Tulis Kantor dan Benda Pos', 'Belanja Barang Perlengkapan');
+    check('Subgroup ATK standar SisKeuDes -> 5.2.1.01', codeATKStandar, '5.2.1.01');
+
+    const codePerlengkapanGen = getRabSubgroupCode('Belanja Barang Perlengkapan', 'Belanja Barang Perlengkapan');
+    check('Subgroup generic Belanja Barang Perlengkapan -> 5.2.1.99', codePerlengkapanGen, '5.2.1.99');
+
+    // Uji pembanding hierarki rekening: ATK (5.2.1.01) HARUS muncul sebelum generic Perlengkapan (5.2.1.99)
+    const cmpAtkVsGen = compareKodeUnikFull(codeATKStandar, codePerlengkapanGen);
+    check('ATK (5.2.1.01) lebih dulu daripada generic Perlengkapan (5.2.1.99)', cmpAtkVsGen < 0, true);
+
+    // Uji sortRabItems memastikan urutan fisik item belanja sesuai rekening SisKeuDes
+    const itemsBelanja = [
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Barang Perlengkapan', uraian: 'Perlengkapan Umum Kantor' },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas HVS' },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Perlengkapan Alat-alat Listrik', uraian: 'Lampu LED' },
+        { group: 'Belanja Jasa Honorarium', subgroup: 'Belanja Jasa Honorarium Tim yang Melaksanakan Kegiatan', uraian: 'Honor TPK' }
+    ];
+    const sortedBelanja = sortRabItems(itemsBelanja);
+    check('Urutan 1 adalah Kertas HVS (5.2.1.01)', sortedBelanja[0].uraian, 'Kertas HVS');
+    check('Urutan 2 adalah Lampu LED (5.2.1.02)', sortedBelanja[1].uraian, 'Lampu LED');
+    check('Urutan 3 adalah Perlengkapan Umum Kantor (5.2.1.99)', sortedBelanja[2].uraian, 'Perlengkapan Umum Kantor');
+    check('Urutan 4 adalah Honor TPK (5.2.2.01)', sortedBelanja[3].uraian, 'Honor TPK');
 }
 
 console.log(`\n========================================`);
