@@ -2764,23 +2764,10 @@ async function cetakRabPerubahan() {
         const getGroup = (it) => String(it.group || it.group_belanja || it.kelompok_belanja || (it.semula && (it.semula.group || it.semula.group_belanja)) || (it.menjadi && (it.menjadi.group || it.menjadi.group_belanja)) || 'Belanja').trim();
         const getSubgroup = (it) => String(it.subgroup || it.sub_kelompok || it.group_kegiatan || (it.semula && (it.semula.subgroup || it.semula.sub_kelompok)) || (it.menjadi && (it.menjadi.subgroup || it.menjadi.sub_kelompok)) || 'Sub Group').trim();
 
-        // Urutkan rincian item SEMULA dan MENJADI secara mendalam sebelum grouping
-        comp.items.sort((a, b) => {
-            const grpA = getGroup(a);
-            const grpB = getGroup(b);
-            const subA = getSubgroup(a);
-            const subB = getSubgroup(b);
-            const codeA = getRabSubgroupCode(subA, grpA);
-            const codeB = getRabSubgroupCode(subB, grpB);
-            const cmpCode = compareKodeRAB(codeA, codeB);
-            if (cmpCode !== 0) return cmpCode;
-            const uA = Number(a.semula?.urutan ?? a.menjadi?.urutan ?? a.urutan ?? a.no ?? 999999);
-            const uB = Number(b.semula?.urutan ?? b.menjadi?.urutan ?? b.urutan ?? b.no ?? 999999);
-            if (uA !== uB) return uA - uB;
-            return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
-        });
-
-        // Kelompokkan item per group -> subgroup
+        // KUNCI URUTAN MASTER RAB MURNI: Jangan lakukan sorting ulang yang mengubah urutan item murni.
+        // comp.items sudah terkunci mati mengikuti urutan asli RAB Murni dari server (/api/rab/perbandingan).
+        // Kelompokkan item per group -> subgroup berdasarkan urutan kemunculan di RAB Murni.
+        const groupHeaders = [];
         const groupMap = new Map();
         comp.items.forEach(it => {
             const g = getGroup(it);
@@ -2788,16 +2775,7 @@ async function cetakRabPerubahan() {
             const gKey = `${g}\u0000${sg}`;
             if (!groupMap.has(gKey)) groupMap.set(gKey, { group: g, subgroup: sg, items: [] });
             groupMap.get(gKey).items.push(it);
-        });
-
-        const groupHeaders = [];
-        groupMap.forEach(v => { if (!groupHeaders.includes(v.group)) groupHeaders.push(v.group); });
-        groupHeaders.sort((a, b) => {
-            const codeA = getRabGroupCode(a);
-            const codeB = getRabGroupCode(b);
-            const cmp = compareKodeRAB(codeA, codeB);
-            if (cmp !== 0) return cmp;
-            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+            if (!groupHeaders.includes(g)) groupHeaders.push(g);
         });
 
         let runningNo = 0;
@@ -2807,21 +2785,9 @@ async function cetakRabPerubahan() {
                     <td colspan="9" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px; text-transform:uppercase;">${groupName}</td>
                 </tr>`;
 
-            const groupEntries = Array.from(groupMap.values()).filter(e => e.group === groupName).sort((a, b) => {
-                const codeA = getRabSubgroupCode(a.subgroup, groupName);
-                const codeB = getRabSubgroupCode(b.subgroup, groupName);
-                const cmp = compareKodeRAB(codeA, codeB);
-                if (cmp !== 0) return cmp;
-                return a.subgroup.localeCompare(b.subgroup, undefined, { numeric: true, sensitivity: 'base' });
-            });
+            const groupEntries = Array.from(groupMap.values()).filter(e => e.group === groupName);
 
             groupEntries.forEach(entry => {
-                entry.items.sort((a, b) => {
-                    const uA = Number(a.urutan ?? a.no ?? a.semula?.urutan ?? a.menjadi?.urutan ?? 999999);
-                    const uB = Number(b.urutan ?? b.no ?? b.semula?.urutan ?? b.menjadi?.urutan ?? 999999);
-                    if (uA !== uB) return uA - uB;
-                    return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
-                });
 
                 const subSemula = entry.items.reduce((s, it) => s + (Number(it.semula.jumlah) || 0), 0);
                 const subMenjadi = entry.items.reduce((s, it) => s + (Number(it.menjadi.jumlah) || 0), 0);

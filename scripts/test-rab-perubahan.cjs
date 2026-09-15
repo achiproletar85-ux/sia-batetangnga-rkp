@@ -345,10 +345,63 @@ console.log('\n13) Hierarki Kelompok & Sub-Kelompok Belanja SisKeuDes (Cetak RAB
     check('Urutan 4 adalah Honor TPK (5.2.2.01)', sortedBelanja[3].uraian, 'Honor TPK');
 }
 
+console.log('\n14) Kunci Urutan Master RAB Murni sebagai Kerangka Utama RAB Perubahan');
+{
+    // Susunan asli di RAB Murni tidak alfabetis dan tidak menurut rekening:
+    // 0: Z - Buku Tulis (5.2.1.01)
+    // 1: A - Servis Printer (5.2.6.01)
+    // 2: M - Lampu Bohlam (5.2.1.02)
+    const murni = [
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Z - Buku Tulis', volume: 10, satuan: 'Buah', harga: 5000 },
+        { group: 'Belanja Pemeliharaan', subgroup: 'Belanja Pemeliharaan Peralatan', uraian: 'A - Servis Printer', volume: 1, satuan: 'Unit', harga: 200000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Perlengkapan Alat-alat Listrik', uraian: 'M - Lampu Bohlam', volume: 5, satuan: 'Buah', harga: 25000 }
+    ];
+
+    // Di draf Perubahan, item diacak urutan inputnya, 1 item dihapus, dan 2 item baru ditambahkan:
+    const perubahan = [
+        { group: 'Belanja Pemeliharaan', subgroup: 'Belanja Pemeliharaan Peralatan', uraian: 'A - Servis Printer (Naik)', volume: 2, satuan: 'Unit', harga: 200000, urutan_murni: 1 },
+        { group: 'Belanja Modal lainnya', subgroup: 'Belanja Modal Lainnya', uraian: 'Item Tambahan 1', volume: 1, satuan: 'Paket', harga: 1000000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Z - Buku Tulis', volume: 15, satuan: 'Buah', harga: 5000, urutan_murni: 0 },
+        { group: 'Belanja Jasa Honorarium', subgroup: 'Belanja Jasa Honorarium Petugas', uraian: 'Item Tambahan 2', volume: 1, satuan: 'Orang', harga: 500000 }
+    ];
+
+    const aligned = alignRabItems(murni, perubahan);
+
+    // 1. Total baris = 3 (master murni) + 2 (tambahan) = 5
+    check('Total baris perbandingan = 5', aligned.length, 5);
+
+    // 2. Baris 0 harus terkunci mati pada murni[0] (Z - Buku Tulis)
+    check('Baris 0 terkunci pada murni[0] (Z - Buku Tulis)', aligned[0].uraian, 'Z - Buku Tulis');
+    check('Baris 0 SEMULA volume = 10', aligned[0].semula.volume, 10);
+    check('Baris 0 MENJADI volume = 15', aligned[0].menjadi.volume, 15);
+    check('Baris 0 bukan item baru', aligned[0].item_baru, false);
+
+    // 3. Baris 1 harus terkunci mati pada murni[1] (A - Servis Printer)
+    check('Baris 1 terkunci pada murni[1] (A - Servis Printer)', aligned[1].uraian, 'A - Servis Printer (Naik)');
+    check('Baris 1 SEMULA volume = 1', aligned[1].semula.volume, 1);
+    check('Baris 1 MENJADI volume = 2', aligned[1].menjadi.volume, 2);
+
+    // 4. Baris 2 harus terkunci mati pada murni[2] (M - Lampu Bohlam) walau dihapus di Perubahan
+    check('Baris 2 terkunci pada murni[2] (M - Lampu Bohlam)', aligned[2].uraian, 'M - Lampu Bohlam');
+    check('Baris 2 SEMULA volume = 5', aligned[2].semula.volume, 5);
+    check('Baris 2 MENJADI jumlah = 0 (item dihapus)', aligned[2].menjadi.jumlah, 0);
+    check('Baris 2 ditandai item_dihapus = true', aligned[2].item_dihapus, true);
+
+    // 5. Item tambahan dari Perubahan WAJIB ditempatkan di paling bawah
+    check('Baris 3 adalah Item Tambahan 1 di paling bawah master', aligned[3].uraian, 'Item Tambahan 1');
+    check('Baris 3 ditandai item_baru = true', aligned[3].item_baru, true);
+    check('Baris 4 adalah Item Tambahan 2 di paling bawah master', aligned[4].uraian, 'Item Tambahan 2');
+    check('Baris 4 ditandai item_baru = true', aligned[4].item_baru, true);
+
+    // 6. Nomor urut rapi 1..5
+    check('Nomor urut baris 1 s/d 5 terurut rapi', aligned.map(r => r.no), [1, 2, 3, 4, 5]);
+}
+
 console.log(`\n========================================`);
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
 console.log(`========================================\n`);
 
 process.exit(fail === 0 ? 0 : 1);
+
 
