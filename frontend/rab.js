@@ -538,21 +538,82 @@ function onGroupChange() {
     }
 }
 
+function normalizeSumberDana(raw) {
+    if (!raw) return '';
+    const s = String(raw).trim();
+    if (!s) return '';
+    const upper = s.toUpperCase();
+
+    // Standardisasi variasi ADD: "add", "ADD", "add (Alokasi Dana Desa)", "ADD (Alokasi Dana Desa)", "Alokasi Dana Desa"
+    if (upper === 'ADD' || upper.includes('ALOKASI DANA') || /^ADD\b/i.test(s) || /^\(?ADD\)?$/i.test(s)) {
+        return 'ADD (Alokasi Dana Desa)';
+    }
+
+    // Standardisasi variasi DDS: "dds", "DDS", "DDS (Dana Desa)", "Dana Desa"
+    if (upper === 'DDS' || upper === 'DD' || upper.includes('DANA DESA') || /^DDS\b/i.test(s) || /^\(?DDS\)?$/i.test(s)) {
+        return 'DDS (Dana Desa)';
+    }
+
+    // Standardisasi variasi PBH: "pbh", "PBH", "Bagi Hasil Pajak", etc.
+    if (upper === 'PBH' || upper.includes('BAGI HASIL') || upper.includes('PAJAK') || upper.includes('RETRIBUSI')) {
+        return 'PBH (Bagi Hasil Pajak & Retribusi)';
+    }
+
+    // Standardisasi variasi APBD Tk. I
+    if (upper.includes('APBD TK. I') || upper.includes('APBD I') || upper.includes('PROVINSI') || upper.includes('BKK PROV')) {
+        return 'APBD Tk. I (Provinsi)';
+    }
+
+    // Standardisasi variasi APBD Tk. II
+    if (upper.includes('APBD TK. II') || upper.includes('APBD II') || upper.includes('KABUPATEN') || upper.includes('KOTA')) {
+        return 'APBD Tk. II (Kabupaten)';
+    }
+
+    // Standardisasi variasi PAD
+    if (upper === 'PAD' || upper.includes('PENDAPATAN ASLI')) {
+        return 'PAD (Pendapatan Asli Desa)';
+    }
+
+    return s;
+}
+
 async function loadSumberDana(preselected) {
     const el = document.getElementById('select-sumber-dana');
+    if (!el) return;
     el.innerHTML = '<option value="">-- Pilih --</option>';
     try {
         const res = await fetch(`${API_URL}/sumber-dana`);
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-            json.data.forEach(item => el.innerHTML += `<option value="${item}">${item}</option>`);
+            const seen = new Set();
+            json.data.forEach(item => {
+                const norm = normalizeSumberDana(item);
+                if (norm && !seen.has(norm)) {
+                    seen.add(norm);
+                    el.innerHTML += `<option value="${norm}">${norm}</option>`;
+                }
+            });
+            if (!seen.has('ADD (Alokasi Dana Desa)')) {
+                el.innerHTML += `<option value="ADD (Alokasi Dana Desa)">ADD (Alokasi Dana Desa)</option>`;
+            }
+            if (!seen.has('DDS (Dana Desa)')) {
+                el.innerHTML += `<option value="DDS (Dana Desa)">DDS (Dana Desa)</option>`;
+            }
             autoSelectSumberDana(el, preselected);
             return;
         }
     } catch (error) {
         console.error(error);
     }
-    ['ADD (Alokasi Dana Desa)', 'DDS (Dana Desa)', 'APBD', 'APBN'].forEach(item => el.innerHTML += `<option value="${item}">${item}</option>`);
+    const defaultList = [
+        'ADD (Alokasi Dana Desa)',
+        'DDS (Dana Desa)',
+        'PBH (Bagi Hasil Pajak & Retribusi)',
+        'APBD Tk. I (Provinsi)',
+        'APBD Tk. II (Kabupaten)',
+        'PAD (Pendapatan Asli Desa)'
+    ];
+    defaultList.forEach(item => el.innerHTML += `<option value="${item}">${item}</option>`);
     autoSelectSumberDana(el, preselected);
 }
 
@@ -560,13 +621,20 @@ function autoSelectSumberDana(el, sumberText) {
     if (!el || !sumberText) return;
     const s = String(sumberText).trim();
     if (!s) return;
-    // Nonaktifkan placeholder "Pilih" bila ada kecocokan
-    const matchExact = [...el.options].find(o => o.value === s);
-    if (matchExact) {
-        el.value = s;
+    const norm = normalizeSumberDana(s);
+    // 1. Coba cocokkan dengan nilai normalisasi baku
+    const matchNorm = [...el.options].find(o => o.value === norm);
+    if (matchNorm) {
+        el.value = matchNorm.value;
         return;
     }
-    // Fallback: cari opsi yang cocok normalisasi (contain-additive, hindari salah-maps ADD/TK)
+    // 2. Nonaktifkan placeholder "Pilih" bila ada kecocokan exact
+    const matchExact = [...el.options].find(o => o.value.toLowerCase() === s.toLowerCase());
+    if (matchExact) {
+        el.value = matchExact.value;
+        return;
+    }
+    // 3. Fallback: cari opsi yang cocok normalisasi (contain-additive, hindari salah-maps ADD/TK)
     const code = normalizeSumberCode(s);
     const fallback = [...el.options].find(o => normalizeSumberCode(o.value) === code);
     if (fallback) {
@@ -982,7 +1050,10 @@ async function loadSavedRAB() {
             try { json = await res.json(); } catch (_) {}
         }
         if (json && json.success && json.data) {
-            rabItems = Array.isArray(json.data.items) ? json.data.items : [];
+            rabItems = Array.isArray(json.data.items) ? json.data.items.map(it => ({
+                ...it,
+                sumber: normalizeSumberDana(it.sumber || it.sumber_dana)
+            })) : [];
             currentRabId = json.data.id || null;
             currentRabRefMurni = json.data.id_referensi_murni || null;
         } else {
@@ -1001,7 +1072,10 @@ async function loadSavedRAB() {
                 if (resMurni.ok) {
                     const jsonMurni = await resMurni.json().catch(() => null);
                     if (jsonMurni && jsonMurni.success && jsonMurni.data) {
-                        rabMurniRefItems = Array.isArray(jsonMurni.data.items) ? jsonMurni.data.items : [];
+                        rabMurniRefItems = Array.isArray(jsonMurni.data.items) ? jsonMurni.data.items.map(it => ({
+                            ...it,
+                            sumber: normalizeSumberDana(it.sumber || it.sumber_dana)
+                        })) : [];
                         const itemsSum = rabMurniRefItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
                         rabMurniRefTotal = itemsSum || Number(jsonMurni.data.jumlah_anggaran || jsonMurni.data.total_biaya || 0);
                     }
@@ -1025,7 +1099,7 @@ async function loadSavedRAB() {
                         satuan: m.satuan || 'Paket',
                         harga: hrg,
                         jumlah: jml,
-                        sumber: m.sumber || m.sumber_dana || 'ADD',
+                        sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
                         keterangan: m.keterangan || '',
                         urutan_murni: m.urutan_murni !== undefined ? m.urutan_murni : idx,
                         uraian_murni: m.uraian || '',
@@ -1494,15 +1568,20 @@ async function saveRAB() {
         return;
     }
 
-    // Validasi Sumber Dana wajib terisi pada seluruh item belanja
-    const itemTanpaSumber = rabItems.find(it => !it.sumber || !String(it.sumber).trim());
-    if (itemTanpaSumber) {
-        showToast(`Item "${itemTanpaSumber.uraian || 'Belanja'}" belum memiliki Sumber Dana! Seluruh item wajib memiliki Sumber Dana sebelum disimpan.`, 'error');
-        return;
+    // Validasi & Normalisasi Sumber Dana wajib terisi pada seluruh item belanja
+    for (let i = 0; i < rabItems.length; i++) {
+        const it = rabItems[i];
+        const norm = normalizeSumberDana(it.sumber);
+        if (!norm) {
+            showToast(`Item "${it.uraian || 'Belanja'}" belum memiliki Sumber Dana! Seluruh item wajib memiliki Sumber Dana sebelum disimpan.`, 'error');
+            return;
+        }
+        it.sumber = norm;
     }
     
     const totalBiaya = rabItems.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
     const firstItem = rabItems[0] || {};
+    const normFirstSumber = normalizeSumberDana(firstItem.sumber) || 'DDS (Dana Desa)';
     const volumeRab = (firstItem.volume !== undefined && firstItem.volume !== null && firstItem.volume !== '' && !isNaN(Number(firstItem.volume))) ? parseFloat(firstItem.volume) : 1;
     const hargaSatuanRab = (firstItem.harga !== undefined && firstItem.harga !== null && firstItem.harga !== '' && !isNaN(Number(firstItem.harga))) ? parseFloat(firstItem.harga) : totalBiaya;
     const totalRab = Number.isFinite(totalBiaya) ? totalBiaya : (volumeRab * hargaSatuanRab);
@@ -1521,14 +1600,14 @@ async function saveRAB() {
         volume: volumeRab,
         satuan: firstItem.satuan || 'Paket',
         harga_satuan: hargaSatuanRab,
-        sumber_dana: firstItem.sumber || 'DDS',
+        sumber_dana: normFirstSumber,
         rpjm_data: {
             kode_unik_full: String(activity.kode_unik_full || kodeUnikFix).trim(),
             nama_kegiatan: activity.nama_kegiatan || '',
             bidang: namaBidangFull,
             jenis_bidang: activity.jenis_bid || activity.jenis_bidang || '',
             jenis_kegiatan: activity.jenis_kegiatan || '',
-            sumber_dana: firstItem.sumber || 'DDS'
+            sumber_dana: normFirstSumber
         }
     };
     // Use kode_unik_full as the primary key for the POST request as well
@@ -1590,7 +1669,8 @@ function addRabItem() {
     const satuan = getSatuanValue();
     const hargaRaw = document.getElementById('input-harga')?.value || '';
     const harga = parseNumber(hargaRaw); // parseNumber handles dots (.) as thousands separators
-    const sumber = document.getElementById('select-sumber-dana').value;
+    const rawSumber = document.getElementById('select-sumber-dana')?.value || '';
+    const sumber = normalizeSumberDana(rawSumber);
     const keterangan = document.getElementById('input-keterangan').value.trim();
 
     // Validasi eksplisit: izinkan nilai 0 (nol) untuk volume dan harga satuan
@@ -1910,7 +1990,7 @@ function renderRabItems() {
                 let jumlahCell = `<div class="font-extrabold text-slate-900">Rp ${formatRupiah(item.jumlah)}</div>`;
 
                 let sumberBadge = '';
-                const sText = String(item.sumber || '').trim();
+                const sText = normalizeSumberDana(item.sumber);
                 if (!sText) {
                     sumberBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-red-100 text-red-700 border border-red-300 animate-pulse shadow-xs" title="Sumber Dana belum diisi! Wajib diisi saat simpan."><i class="fas fa-exclamation-triangle text-red-600"></i> [Belum Diisi]</span>`;
                     uraianBadge += `<div class="text-[10px] font-bold text-red-600 mt-0.5"><i class="fas fa-exclamation-circle"></i> Sumber Dana belum dipilih</div>`;
@@ -3435,6 +3515,7 @@ async function fixRabData() {
     }
 }
 
+window.normalizeSumberDana = normalizeSumberDana;
 window.normalizeSumberCode = normalizeSumberCode;
 window.loadPaguAnggaran = loadPaguAnggaran;
 window.updateRabInfographicStats = updateRabInfographicStats;

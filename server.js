@@ -427,6 +427,45 @@ function sortHierarchical(dataArray) {
 const RAB_FULL_COLUMNS = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, tipe_anggaran, id_referensi_murni, saved_at';
 const RAB_FULL_COLUMNS_LEGACY = 'id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data, saved_at';
 
+function normalizeSumberDana(raw) {
+    if (!raw) return '';
+    const s = String(raw).trim();
+    if (!s) return '';
+    const upper = s.toUpperCase();
+
+    // Standardisasi variasi ADD: "add", "ADD", "add (Alokasi Dana Desa)", "ADD (Alokasi Dana Desa)", "Alokasi Dana Desa"
+    if (upper === 'ADD' || upper.includes('ALOKASI DANA') || /^ADD\b/i.test(s) || /^\(?ADD\)?$/i.test(s)) {
+        return 'ADD (Alokasi Dana Desa)';
+    }
+
+    // Standardisasi variasi DDS: "dds", "DDS", "DDS (Dana Desa)", "Dana Desa"
+    if (upper === 'DDS' || upper === 'DD' || upper.includes('DANA DESA') || /^DDS\b/i.test(s) || /^\(?DDS\)?$/i.test(s)) {
+        return 'DDS (Dana Desa)';
+    }
+
+    // Standardisasi variasi PBH: "pbh", "PBH", "Bagi Hasil Pajak", etc.
+    if (upper === 'PBH' || upper.includes('BAGI HASIL') || upper.includes('PAJAK') || upper.includes('RETRIBUSI')) {
+        return 'PBH (Bagi Hasil Pajak & Retribusi)';
+    }
+
+    // Standardisasi variasi APBD Tk. I
+    if (upper.includes('APBD TK. I') || upper.includes('APBD I') || upper.includes('PROVINSI') || upper.includes('BKK PROV')) {
+        return 'APBD Tk. I (Provinsi)';
+    }
+
+    // Standardisasi variasi APBD Tk. II
+    if (upper.includes('APBD TK. II') || upper.includes('APBD II') || upper.includes('KABUPATEN') || upper.includes('KOTA')) {
+        return 'APBD Tk. II (Kabupaten)';
+    }
+
+    // Standardisasi variasi PAD
+    if (upper === 'PAD' || upper.includes('PENDAPATAN ASLI')) {
+        return 'PAD (Pendapatan Asli Desa)';
+    }
+
+    return s;
+}
+
 function enrichRabDetail(r) {
     if (!r) return r;
     const fullKode = String(r.kode_unik_full || r.kode_unik || '').trim();
@@ -441,6 +480,24 @@ function enrichRabDetail(r) {
     }
     if (!r.sub_bidang || r.sub_bidang === '-') {
         r.sub_bidang = resolvedSub;
+    }
+    if (r.sumber_dana) {
+        r.sumber_dana = normalizeSumberDana(r.sumber_dana);
+    }
+    let pItems = r.items;
+    if (typeof pItems === 'string') {
+        try { pItems = JSON.parse(pItems); } catch(_) {}
+    }
+    if (Array.isArray(pItems)) {
+        r.items = pItems.map(it => {
+            if (it && typeof it === 'object') {
+                return {
+                    ...it,
+                    sumber: normalizeSumberDana(it.sumber || it.sumber_dana || r.sumber_dana)
+                };
+            }
+            return it;
+        });
     }
     return r;
 }
@@ -580,7 +637,16 @@ async function getMergedRkpRows(tahunInt, extraRabFields) {
 async function saveRabToDb(record) {
     const safeKode = String(record.kode_unik || record.kode_unik_full || 'RAB-' + Date.now()).trim();
     const safeTahun = parseInt(record.tahun, 10) || 2027;
-    const itemsArray = Array.isArray(record.items) ? record.items : [];
+    const rawItemsArray = Array.isArray(record.items) ? record.items : [];
+    const itemsArray = rawItemsArray.map(it => {
+        if (it && typeof it === 'object') {
+            return {
+                ...it,
+                sumber: normalizeSumberDana(it.sumber || it.sumber_dana || record.sumber_dana)
+            };
+        }
+        return it;
+    });
 
     const firstItem = itemsArray[0] || {};
 
@@ -618,6 +684,9 @@ async function saveRabToDb(record) {
         record.rpjm_data = {};
     }
     const rd = record.rpjm_data;
+    const normFirstSumber = normalizeSumberDana(firstItem.sumber || firstItem.sumber_dana || record.sumber_dana);
+    const normSumberDana = normalizeSumberDana(record.sumber_dana || record.sumber_dana_rab || rd.sumber_dana || normFirstSumber || 'DDS (Dana Desa)');
+
     const dbPayload = {
         kode_unik: safeKode,
         kode_unik_full: String(record.kode_unik_full || safeKode).trim(),
@@ -636,7 +705,7 @@ async function saveRabToDb(record) {
         satuan: satuanVal,
         harga_satuan: hargaSatuanVal,
         jumlah_anggaran: totalBiaya,
-        sumber_dana: String(record.sumber_dana || record.sumber_dana_rab || rd.sumber_dana || firstItem.sumber || 'DDS'),
+        sumber_dana: normSumberDana,
         items: itemsArray,
         rpjm_data: record.rpjm_data || {},
         // Penanda versi RAB (RAB Perubahan): 'MURNI' | 'PERUBAHAN'
@@ -935,12 +1004,19 @@ async function listRabsFromDb(tahun, tipeAnggaran = RAB_TIPE_MURNI, withItems = 
             try { parsedItems = JSON.parse(parsedItems); } catch(_) {}
         }
 
+        const normSumber = normalizeSumberDana(r.sumber_dana);
+        const normItems = withItems ? (Array.isArray(parsedItems) ? parsedItems.map(it => ({
+            ...it,
+            sumber: normalizeSumberDana(it.sumber || it.sumber_dana || normSumber)
+        })) : []) : r.items;
+
         return {
             ...r,
             bidang: resolvedBidang,
             sub_bidang: resolvedSubBidang,
             jenis_bidang: r.jenis_bidang && r.jenis_bidang !== '-' ? r.jenis_bidang : resolvedSubBidang,
-            items: withItems ? (Array.isArray(parsedItems) ? parsedItems : []) : r.items
+            sumber_dana: normSumber,
+            items: normItems
         };
     });
     sortHierarchical(rows);
@@ -2096,7 +2172,24 @@ app.get('/api/sumber-dana', async (req, res) => {
             .limit(50);
 
         if (error) throw error;
-        const sumberList = data.map(item => item.sumber).filter(Boolean);
+        const rawList = data.map(item => item.sumber).filter(Boolean);
+        const uniqueSet = new Set();
+        const sumberList = [];
+        rawList.forEach(raw => {
+            const norm = normalizeSumberDana(raw);
+            if (norm && !uniqueSet.has(norm)) {
+                uniqueSet.add(norm);
+                sumberList.push(norm);
+            }
+        });
+        if (!uniqueSet.has('ADD (Alokasi Dana Desa)')) {
+            uniqueSet.add('ADD (Alokasi Dana Desa)');
+            sumberList.unshift('ADD (Alokasi Dana Desa)');
+        }
+        if (!uniqueSet.has('DDS (Dana Desa)')) {
+            uniqueSet.add('DDS (Dana Desa)');
+            sumberList.push('DDS (Dana Desa)');
+        }
         if (sumberList.length > 0) {
             refCacheSet('sumberDana', sumberList);
         }
@@ -4982,7 +5075,10 @@ app.post('/api/rab', async (req, res) => {
             lokasi: payload.lokasi || rpjm_data?.lokasi_kegiatan || rpjm_data?.lokasi || 'Desa Batetangnga',
             lokasi_kegiatan: payload.lokasi_kegiatan || rpjm_data?.lokasi_kegiatan || payload.lokasi || '',
             jenis_kegiatan: payload.jenis_kegiatan || rpjm_data?.jenis_kegiatan || rpjm_data?.nama_kegiatan || '',
-            items: Array.isArray(items) ? sortRabItems(items) : [],
+            items: Array.isArray(items) ? sortRabItems(items.map(it => ({
+                ...it,
+                sumber: normalizeSumberDana(it.sumber || it.sumber_dana || payload.sumber_dana)
+            }))) : [],
             jumlah_anggaran: (payload.jumlah_anggaran !== undefined && payload.jumlah_anggaran !== null && payload.jumlah_anggaran !== '' && !isNaN(Number(payload.jumlah_anggaran)))
                 ? Number(payload.jumlah_anggaran)
                 : ((total_biaya !== undefined && total_biaya !== null && total_biaya !== '' && !isNaN(Number(total_biaya)))
@@ -5001,7 +5097,7 @@ app.post('/api/rab', async (req, res) => {
                 : ((payload.harga_satuan_rab !== undefined && payload.harga_satuan_rab !== null && payload.harga_satuan_rab !== '' && !isNaN(Number(payload.harga_satuan_rab)))
                     ? Number(payload.harga_satuan_rab)
                     : ((total_biaya !== undefined && total_biaya !== null && total_biaya !== '' && !isNaN(Number(total_biaya))) ? Number(total_biaya) : 0)),
-            sumber_dana: payload.sumber_dana || payload.sumber_dana_rab || 'DDS',
+            sumber_dana: normalizeSumberDana(payload.sumber_dana || payload.sumber_dana_rab || 'DDS (Dana Desa)'),
             rpjm_data: rpjm_data || null,
             saved_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -10391,6 +10487,7 @@ module.exports.startServer = startServer;
 
 // Helper RAB Perubahan diekspor agar bisa diuji otomatis (scripts/test-rab-perubahan.cjs)
 module.exports.rabPerubahan = {
+    normalizeSumberDana,
     normalizeRabTipe,
     rabItemKey,
     rabItemJumlah,
@@ -10409,3 +10506,4 @@ module.exports.rabPerubahan = {
     RAB_COMPARE_COLUMNS,
     RAB_LIST_COLUMNS
 };
+app.rabPerubahan = module.exports.rabPerubahan;
