@@ -368,9 +368,15 @@ async function rabQueryWithTipeFallback(buildQuery, primaryCols, legacyCols) {
     return res;
 }
 
+const getKode = (item) => {
+    if (!item) return '';
+    if (typeof item === 'string') return item.trim();
+    return String(item.kode_unik_full || item.kode_unik || item.uraian_kode || item.kode_kegiatan || item.kode || item.kode_klasifikasi || '').trim();
+};
+
 function compareKodeUnikFull(aKode, bKode) {
-    const strA = String(aKode || '').trim();
-    const strB = String(bKode || '').trim();
+    const strA = getKode(aKode);
+    const strB = getKode(bKode);
     if (!strA && !strB) return 0;
     if (!strA) return 1;
     if (!strB) return -1;
@@ -390,8 +396,8 @@ function compareKodeUnikFull(aKode, bKode) {
 function sortHierarchical(dataArray) {
     if (!Array.isArray(dataArray)) return dataArray;
     return dataArray.sort((a, b) => {
-        const kUnikA = String(a.kode_unik_full || a.kode_unik || a.kode_klasifikasi || a.kode || '').trim();
-        const kUnikB = String(b.kode_unik_full || b.kode_unik || b.kode_klasifikasi || b.kode || '').trim();
+        const kUnikA = getKode(a);
+        const kUnikB = getKode(b);
         if (kUnikA && kUnikB) {
             const cmp = compareKodeUnikFull(kUnikA, kUnikB);
             if (cmp !== 0) return cmp;
@@ -1167,11 +1173,14 @@ function alignRabItems(murniItems, perubahanItems) {
         const rekB = getRabItemRekening(b);
         const cmp = compareKodeUnikFull(rekA, rekB);
         if (cmp !== 0) return cmp;
+        const uA = Number(a.urutan ?? a.no ?? a.semula?.urutan ?? a.menjadi?.urutan ?? 999999);
+        const uB = Number(b.urutan ?? b.no ?? b.semula?.urutan ?? b.menjadi?.urutan ?? 999999);
+        if (uA !== uB) return uA - uB;
         return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
     });
 
     // Perbarui urutan nomor rapi
-    rows.forEach((r, i) => { r.urutan = i; });
+    rows.forEach((r, i) => { r.urutan = i; r.no = i + 1; });
 
     return rows;
 }
@@ -4901,6 +4910,20 @@ app.get('/api/rab/perbandingan', async (req, res) => {
                 ? (Array.isArray(m.items) ? m.items : []).map((it, idx) => buildRabCompareRow(it, it, idx))
                 : alignRabItems(m.items, p.items);
 
+            if (belumAdaPerubahan && Array.isArray(items)) {
+                items.sort((a, b) => {
+                    const rekA = getRabItemRekening(a);
+                    const rekB = getRabItemRekening(b);
+                    const cmp = compareKodeUnikFull(rekA, rekB);
+                    if (cmp !== 0) return cmp;
+                    const uA = Number(a.urutan ?? a.no ?? a.semula?.urutan ?? a.menjadi?.urutan ?? 999999);
+                    const uB = Number(b.urutan ?? b.no ?? b.semula?.urutan ?? b.menjadi?.urutan ?? 999999);
+                    if (uA !== uB) return uA - uB;
+                    return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
+                });
+                items.forEach((r, i) => { r.urutan = i; r.no = i + 1; });
+            }
+
             const total = items.reduce((acc, row) => {
                 acc.semula += Number(row.semula.jumlah) || 0;
                 acc.menjadi += Number(row.menjadi.jumlah) || 0;
@@ -4952,7 +4975,7 @@ app.get('/api/rab/perbandingan', async (req, res) => {
             });
         });
 
-        comparisons.sort((a, b) => compareKodeUnikFull(a.kode_unik_full, b.kode_unik_full));
+        comparisons.sort((a, b) => compareKodeUnikFull(a, b));
 
         const grandTotal = comparisons.reduce((acc, c) => {
             acc.semula += c.total.semula;
@@ -10133,6 +10156,7 @@ module.exports.rabPerubahan = {
     sortRabItems,
     compareKodeUnikFull,
     sortHierarchical,
+    getKode,
     RAB_TIPE_MURNI,
     RAB_TIPE_PERUBAHAN,
     RAB_COMPARE_COLUMNS,

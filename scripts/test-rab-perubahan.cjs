@@ -14,7 +14,7 @@
  */
 const path = require('path');
 const app = require(path.resolve(__dirname, '..', 'server.js'));
-const { alignRabItems, rabItemJumlah, normalizeRabTipe, sortRabItems, compareKodeUnikFull, sortHierarchical } = app.rabPerubahan;
+const { alignRabItems, rabItemJumlah, normalizeRabTipe, sortRabItems, compareKodeUnikFull, sortHierarchical, getKode } = app.rabPerubahan;
 
 let pass = 0;
 let fail = 0;
@@ -275,19 +275,41 @@ console.log('\n11) Pengurutan Sub-Item Belanja SisKeuDes (sortRabItems)');
     check('item 4 memiliki no = 4', sortedItems[3].no, 4);
 }
 
-console.log('\n12) Pengurutan Cetak Hierarkis RAB Perubahan');
+console.log('\n12) Pengurutan Cetak Hierarkis RAB Perubahan & Helper Universal getKode');
 {
-    const comps = [
-        { kode_unik_full: '01.01.01.03.', nama_kegiatan: 'Kegiatan 3' },
-        { kode_unik_full: '01.01.01.01.', nama_kegiatan: 'Kegiatan 1' },
+    // Uji helper universal getKode
+    check('getKode membaca kode_unik_full', getKode({ kode_unik_full: '01.01.01.01.' }), '01.01.01.01.');
+    check('getKode membaca fallback kode_unik', getKode({ kode_unik: '01.01.01.02.' }), '01.01.01.02.');
+    check('getKode membaca fallback uraian_kode', getKode({ uraian_kode: '01.01.01.03.' }), '01.01.01.03.');
+    check('getKode menerima string murni', getKode('01.01.01.04.'), '01.01.01.04.');
+
+    // Uji compareKodeUnikFull dengan objek campuran properti
+    const mixedComps = [
+        { uraian_kode: '01.01.01.03.', nama_kegiatan: 'Kegiatan 3' },
+        { kode_unik: '01.01.01.01.', nama_kegiatan: 'Kegiatan 1' },
         { kode_unik_full: '01.01.01.02.', nama_kegiatan: 'Kegiatan 2' },
         { kode_unik_full: '01.01.01.10.', nama_kegiatan: 'Kegiatan 10' }
     ];
-    comps.sort((a, b) => compareKodeUnikFull(a.kode_unik_full, b.kode_unik_full));
-    check('Kegiatan perbandingan terurut hierarkis (01 < 02 < 03 < 10)',
-        comps.map(c => c.kode_unik_full),
+    mixedComps.sort(compareKodeUnikFull);
+    check('Objek dengan properti kode campuran terurut hierarkis (01 < 02 < 03 < 10)',
+        mixedComps.map(c => getKode(c)),
         ['01.01.01.01.', '01.01.01.02.', '01.01.01.03.', '01.01.01.10.']
     );
+
+    // Uji alignRabItems memastikan rincian item terurut rapi
+    const murni = [
+        item('Siltap Kades', 12, 'OB', 3000000, { group: 'Penghasilan Tetap dan Tunjangan Kepala Desa', subgroup: 'Penghasilan Tetap Kepala Desa', urutan: 1 }),
+        item('Tunjangan Kades', 12, 'OB', 500000, { group: 'Penghasilan Tetap dan Tunjangan Kepala Desa', subgroup: 'Tunjangan Kepala Desa', urutan: 2 })
+    ];
+    const per = [
+        item('Tunjangan Kades (Revisi)', 12, 'OB', 600000, { group: 'Penghasilan Tetap dan Tunjangan Kepala Desa', subgroup: 'Tunjangan Kepala Desa', urutan_murni: 1 }),
+        item('Item Baru Operasional', 1, 'Paket', 1000000, { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Perlengkapan Alat Tulis Kantor dan Benda Pos' }),
+        item('Siltap Kades', 12, 'OB', 3000000, { group: 'Penghasilan Tetap dan Tunjangan Kepala Desa', subgroup: 'Penghasilan Tetap Kepala Desa', urutan_murni: 0 })
+    ];
+    const aligned = alignRabItems(murni, per);
+    check('aligned item 1 adalah Siltap Kades (5.1.1.01)', aligned[0].uraian, 'Siltap Kades');
+    check('aligned item 2 adalah Tunjangan Kades (5.1.1.02)', aligned[1].uraian, 'Tunjangan Kades (Revisi)');
+    check('aligned item 3 adalah Item Baru Operasional (5.2.1.01)', aligned[2].uraian, 'Item Baru Operasional');
 }
 
 console.log(`\n========================================`);

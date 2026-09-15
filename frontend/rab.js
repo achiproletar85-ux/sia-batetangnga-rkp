@@ -967,9 +967,16 @@ function getCodeHierarchy(item) {
     return { kBid, kSub, kKeg, kUnik };
 }
 
+const getKode = (item) => {
+    if (!item) return '';
+    if (typeof item === 'string') return item.trim();
+    return String(item.kode_unik_full || item.kode_unik || item.uraian_kode || item.kode_kegiatan || item.kode || item.kode_klasifikasi || '').trim();
+};
+window.getKode = getKode;
+
 function compareKodeUnikFull(aKode, bKode) {
-    const strA = String(aKode || '').trim();
-    const strB = String(bKode || '').trim();
+    const strA = getKode(aKode);
+    const strB = getKode(bKode);
     if (!strA && !strB) return 0;
     if (!strA) return 1;
     if (!strB) return -1;
@@ -989,8 +996,8 @@ function compareKodeUnikFull(aKode, bKode) {
 function sortHierarchical(dataArray) {
     if (!Array.isArray(dataArray)) return dataArray;
     return dataArray.sort((a, b) => {
-        const kUnikA = String(a.kode_unik_full || a.kode_unik || a.kode_klasifikasi || a.kode || '').trim();
-        const kUnikB = String(b.kode_unik_full || b.kode_unik || b.kode_klasifikasi || b.kode || '').trim();
+        const kUnikA = getKode(a);
+        const kUnikB = getKode(b);
         if (kUnikA && kUnikB) {
             const cmp = compareKodeUnikFull(kUnikA, kUnikB);
             if (cmp !== 0) return cmp;
@@ -1980,7 +1987,7 @@ async function cetakPdfByGroup() {
     let itemsToPrint = [];
 
     if (matchedRows && matchedRows.length > 0) {
-        matchedRows.sort((a, b) => compareKodeUnikFull(a.kode_unik_full || a.kode_unik || a.kode_kegiatan, b.kode_unik_full || b.kode_unik || b.kode_kegiatan));
+        matchedRows.sort((a, b) => compareKodeUnikFull(getKode(a), getKode(b)));
         matchedRows.forEach(row => {
             let parsedItems = typeof row.items === 'string' ? JSON.parse(row.items || '[]') : (row.items || []);
             
@@ -2567,7 +2574,7 @@ async function cetakRabPerubahan() {
         try { json = await res.json(); } catch (_) {}
         if (res.ok && json && json.success && Array.isArray(json.data)) {
             comparisons = json.data;
-            comparisons.sort((a, b) => compareKodeUnikFull(a.kode_unik_full || a.kode_unik, b.kode_unik_full || b.kode_unik));
+            comparisons.sort((a, b) => compareKodeUnikFull(getKode(a), getKode(b)));
             grandTotal = json.total || grandTotal;
         } else {
             const msg = (json && json.error) || `Gagal memuat perbandingan RAB (HTTP ${res.status})`;
@@ -2614,19 +2621,40 @@ async function cetakRabPerubahan() {
     let tbodyRows = '';
 
     comparisons.forEach(comp => {
+        const kodeKegiatan = getKode(comp);
+
         // Header kegiatan
         tbodyRows += `
             <tr style="background-color:#e2e8f0;">
                 <td colspan="9" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px;">
-                    ${comp.kode_unik_full} — ${comp.nama_kegiatan || '-'}
+                    ${kodeKegiatan} — ${comp.nama_kegiatan || '-'}
                 </td>
             </tr>`;
 
-        // Kelompokkan item per group -> subgroup, urut sesuai input
+        const getGroup = (it) => String(it.group || it.group_belanja || it.kelompok_belanja || (it.semula && (it.semula.group || it.semula.group_belanja)) || (it.menjadi && (it.menjadi.group || it.menjadi.group_belanja)) || 'Belanja').trim();
+        const getSubgroup = (it) => String(it.subgroup || it.sub_kelompok || it.group_kegiatan || (it.semula && (it.semula.subgroup || it.semula.sub_kelompok)) || (it.menjadi && (it.menjadi.subgroup || it.menjadi.sub_kelompok)) || 'Sub Group').trim();
+
+        // Urutkan rincian item SEMULA dan MENJADI secara mendalam sebelum grouping
+        comp.items.sort((a, b) => {
+            const grpA = getGroup(a);
+            const grpB = getGroup(b);
+            const subA = getSubgroup(a);
+            const subB = getSubgroup(b);
+            const codeA = RAB_SUBGROUP_CODE[subA] || RAB_GROUP_CODE[grpA] || '9.9.9';
+            const codeB = RAB_SUBGROUP_CODE[subB] || RAB_GROUP_CODE[grpB] || '9.9.9';
+            const cmpCode = compareKodeRAB(codeA, codeB);
+            if (cmpCode !== 0) return cmpCode;
+            const uA = Number(a.semula?.urutan ?? a.menjadi?.urutan ?? a.urutan ?? a.no ?? 999999);
+            const uB = Number(b.semula?.urutan ?? b.menjadi?.urutan ?? b.urutan ?? b.no ?? 999999);
+            if (uA !== uB) return uA - uB;
+            return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        // Kelompokkan item per group -> subgroup
         const groupMap = new Map();
         comp.items.forEach(it => {
-            const g = (it.group || 'Belanja').trim();
-            const sg = (it.subgroup || 'Sub Group').trim();
+            const g = getGroup(it);
+            const sg = getSubgroup(it);
             const gKey = `${g}\u0000${sg}`;
             if (!groupMap.has(gKey)) groupMap.set(gKey, { group: g, subgroup: sg, items: [] });
             groupMap.get(gKey).items.push(it);
