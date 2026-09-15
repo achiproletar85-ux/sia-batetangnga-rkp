@@ -627,29 +627,122 @@ async function saveRabToDb(record) {
         delete payloadLegacy.id_referensi_murni;
 
         const writeOnce = async (payload, useTipeFilter) => {
-            let selQ = supabase
-                .from('rab')
-                .select('id')
-                .eq('kode_unik_full', kodeFull)
-                .eq('tahun', safeTahun);
-            if (useTipeFilter) selQ = selQ.eq('tipe_anggaran', payload.tipe_anggaran);
-            const { data: existingRows, error: selErr } = await selQ.limit(1);
-            if (selErr) {
-                console.error("Supabase Error Details (select):", selErr);
-                throw selErr;
+            let existingId = null;
+
+            // 1. Cek langsung via record.id jika disediakan dari caller/frontend
+            if (record.id) {
+                const { data: idRows, error: idErr } = await supabase
+                    .from('rab')
+                    .select('id')
+                    .eq('id', record.id)
+                    .limit(1);
+                if (idErr) {
+                    console.error("Supabase Error Details (select by id):", idErr);
+                    throw idErr;
+                }
+                if (idRows && idRows.length > 0) {
+                    existingId = idRows[0].id;
+                }
             }
 
-            if (existingRows && existingRows.length > 0) {
+            // 2. Jika belum ditemukan by id, cari berdasarkan kandidat kode_unik_full + tahun (+ tipe_anggaran)
+            if (!existingId) {
+                const rawClean = String(kodeFull).trim();
+                const noDot = rawClean.replace(/\.+$/, '');
+                const withDot = noDot + '.';
+                const candidateCodes = Array.from(new Set([
+                    rawClean,
+                    noDot,
+                    withDot,
+                    noDot.replace(/^PEM\./i, ''),
+                    (noDot.replace(/^PEM\./i, '')) + '.',
+                    'PEM.' + noDot.replace(/^PEM\./i, ''),
+                    'PEM.' + (noDot.replace(/^PEM\./i, '')) + '.'
+                ])).filter(Boolean);
+
+                let selQ = supabase
+                    .from('rab')
+                    .select('id, kode_unik_full')
+                    .in('kode_unik_full', candidateCodes)
+                    .eq('tahun', safeTahun);
+                if (useTipeFilter && payload.tipe_anggaran) {
+                    selQ = selQ.eq('tipe_anggaran', payload.tipe_anggaran);
+                }
+                const { data: existingRows, error: selErr } = await selQ.order('id', { ascending: true }).limit(1);
+                if (selErr) {
+                    console.error("Supabase Error Details (select by kode_unik_full):", selErr);
+                    throw selErr;
+                }
+                if (existingRows && existingRows.length > 0) {
+                    existingId = existingRows[0].id;
+                }
+            }
+
+            // 3. Jika belum ditemukan, coba cari berdasarkan kolom kode_unik
+            if (!existingId) {
+                const rawClean = String(kodeFull).trim();
+                const noDot = rawClean.replace(/\.+$/, '');
+                const withDot = noDot + '.';
+                const candidateCodes = Array.from(new Set([
+                    rawClean,
+                    noDot,
+                    withDot,
+                    noDot.replace(/^PEM\./i, ''),
+                    (noDot.replace(/^PEM\./i, '')) + '.',
+                    'PEM.' + noDot.replace(/^PEM\./i, ''),
+                    'PEM.' + (noDot.replace(/^PEM\./i, '')) + '.'
+                ])).filter(Boolean);
+
+                let selQ2 = supabase
+                    .from('rab')
+                    .select('id, kode_unik')
+                    .in('kode_unik', candidateCodes)
+                    .eq('tahun', safeTahun);
+                if (useTipeFilter && payload.tipe_anggaran) {
+                    selQ2 = selQ2.eq('tipe_anggaran', payload.tipe_anggaran);
+                }
+                const { data: kodeUnikRows, error: kodeUnikErr } = await selQ2.order('id', { ascending: true }).limit(1);
+                if (kodeUnikErr) {
+                    console.error("Supabase Error Details (select by kode_unik):", kodeUnikErr);
+                    throw kodeUnikErr;
+                }
+                if (kodeUnikRows && kodeUnikRows.length > 0) {
+                    existingId = kodeUnikRows[0].id;
+                }
+            }
+
+            // 4. Khusus tipe PERUBAHAN: jika ada id_referensi_murni, cari baris perubahan untuk murni tersebut
+            if (!existingId && useTipeFilter && payload.tipe_anggaran === RAB_TIPE_PERUBAHAN && payload.id_referensi_murni) {
+                const { data: refRows, error: refErr } = await supabase
+                    .from('rab')
+                    .select('id')
+                    .eq('id_referensi_murni', payload.id_referensi_murni)
+                    .eq('tahun', safeTahun)
+                    .eq('tipe_anggaran', RAB_TIPE_PERUBAHAN)
+                    .order('id', { ascending: true })
+                    .limit(1);
+                if (refErr) {
+                    console.error("Supabase Error Details (select by id_referensi_murni):", refErr);
+                    throw refErr;
+                }
+                if (refRows && refRows.length > 0) {
+                    existingId = refRows[0].id;
+                }
+            }
+
+            if (existingId) {
+                const updatePayload = { ...payload };
+                delete updatePayload.id;
                 const { data: upd, error: updErr } = await supabase
                     .from('rab')
-                    .update(payload)
-                    .eq('id', existingRows[0].id)
-                    .select('id');
+                    .update(updatePayload)
+                    .eq('id', existingId)
+                    .select('id, kode_unik_full, tahun, tipe_anggaran, id_referensi_murni, jumlah_anggaran');
                 if (updErr) {
                     console.error("Supabase Error Details (update):", updErr);
                     throw updErr;
                 }
-                return Array.isArray(upd) && upd.length > 0 ? upd[0] : payload;
+                return Array.isArray(upd) && upd.length > 0 ? upd[0] : { id: existingId, ...payload };
             }
 
             const { data: maxRow } = await supabase
@@ -661,12 +754,12 @@ async function saveRabToDb(record) {
             const { data: ins, error: insErr } = await supabase
                 .from('rab')
                 .insert([{ id: nextId, ...payload }])
-                .select('id');
+                .select('id, kode_unik_full, tahun, tipe_anggaran, id_referensi_murni, jumlah_anggaran');
             if (insErr) {
                 console.error("Supabase Error Details (insert):", insErr);
                 throw insErr;
             }
-            return Array.isArray(ins) && ins.length > 0 ? ins[0] : payload;
+            return Array.isArray(ins) && ins.length > 0 ? ins[0] : { id: nextId, ...payload };
         };
 
         let result;
@@ -950,11 +1043,24 @@ async function deleteRabFromDb(kode_unik_full, tahun, tipeAnggaran = null) {
     const safeTahun = parseInt(tahun, 10) || 2027;
     const kode = String(kode_unik_full).trim();
 
+    const rawClean = String(kode).trim();
+    const noDot = rawClean.replace(/\.+$/, '');
+    const withDot = noDot + '.';
+    const candidateCodes = Array.from(new Set([
+        rawClean,
+        noDot,
+        withDot,
+        noDot.replace(/^PEM\./i, ''),
+        (noDot.replace(/^PEM\./i, '')) + '.',
+        'PEM.' + noDot.replace(/^PEM\./i, ''),
+        'PEM.' + (noDot.replace(/^PEM\./i, '')) + '.'
+    ])).filter(Boolean);
+
     const run = async (withTipe) => {
         let q = supabase
             .from(RAB_TABLE)
             .delete()
-            .eq('kode_unik_full', kode)
+            .in('kode_unik_full', candidateCodes)
             .eq('tahun', safeTahun);
         if (withTipe) {
             q = q.eq('tipe_anggaran', normalizeRabTipe(tipeAnggaran));
@@ -4410,9 +4516,23 @@ app.post('/api/rab', async (req, res) => {
         const bidangFull = namaBidangPrioritas(noBidang);
         const tipeAnggaran = normalizeRabTipe(payload.tipe_anggaran || payload.tipe);
 
+        let refMurniId = (payload.id_referensi_murni !== undefined && payload.id_referensi_murni !== null && payload.id_referensi_murni !== '')
+            ? Number(payload.id_referensi_murni)
+            : null;
+
+        if (tipeAnggaran === RAB_TIPE_PERUBAHAN && !refMurniId) {
+            try {
+                const murniRow = await getRabFromDb(targetKode, Number(tahun), RAB_TIPE_MURNI);
+                if (murniRow && murniRow.id) {
+                    refMurniId = Number(murniRow.id);
+                }
+            } catch (_) {}
+        }
+
         // Formulir RAB Murni dibuka penuh agar pengguna dapat menyesuaikan rincian anggaran kapan saja
 
         const record = {
+            id: (payload.id !== undefined && payload.id !== null && payload.id !== '') ? Number(payload.id) : undefined,
             kode_unik: targetKode,
             kode_unik_full: String(kode_unik_full || targetKode).trim(),
             tahun: Number(tahun),
@@ -4420,7 +4540,7 @@ app.post('/api/rab', async (req, res) => {
             bidang: bidangFull,
             status: payload.status || (tipeAnggaran === RAB_TIPE_PERUBAHAN ? 'perubahan' : 'draft'),
             tipe_anggaran: tipeAnggaran,
-            id_referensi_murni: payload.id_referensi_murni || null,
+            id_referensi_murni: refMurniId,
             group_nama: payload.group_nama || '',
             sub_group_nama: payload.sub_group_nama || '',
             lokasi: payload.lokasi || rpjm_data?.lokasi_kegiatan || rpjm_data?.lokasi || 'Desa Batetangnga',

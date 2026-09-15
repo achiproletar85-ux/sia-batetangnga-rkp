@@ -158,6 +158,46 @@ console.log('\n7) Penanganan nilai 0 (nol) pada volume, harga, dan jumlah');
     check('selisih bertambah = +100.000', rows[0].selisih, 100000);
 }
 
+console.log('\n8) Pencegahan Duplikasi Row & Double-Count Pagu saat Edit RAB Perubahan');
+{
+    const normKode = (k) => String(k || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
+
+    check('normKode buang titik akhir "01.01.01.01."', normKode('01.01.01.01.'), '01.01.01.01');
+    check('normKode buang prefix PEM. "PEM.01.01.01.01."', normKode('PEM.01.01.01.01.'), '01.01.01.01');
+    check('normKode cocokkan variasi format kode', normKode('01.01.01.01.') === normKode('PEM.01.01.01.01'), true);
+
+    // Simulasi pencegahan double-count dalam alokasi pagu
+    const mockSavedRabList = [
+        { id: 751, kode_unik_full: '01.01.01.01.', tahun: 2026, jumlah_anggaran: 50000000, sumber_dana: 'DDS' },
+        { id: 752, kode_unik_full: '01.01.01.02.', tahun: 2026, jumlah_anggaran: 30000000, sumber_dana: 'DDS' }
+    ];
+    const selectedRpjm = { kode_unik_full: '01.01.01.01', tahun: 2026 };
+    const currentRabId = 751;
+    const th = '2026';
+
+    let totalAllocatedWithoutDoubleCount = 0;
+    mockSavedRabList.forEach(rab => {
+        if (String(rab.tahun) === th) {
+            const rabKode = normKode(rab.kode_unik_full || rab.kode_unik);
+            const curKode = normKode(selectedRpjm?.kode_unik_full || selectedRpjm?.kode_unik);
+            const isSameId = (currentRabId && rab.id && String(rab.id) === String(currentRabId));
+            const isSameKode = (curKode && rabKode && curKode === rabKode);
+
+            if (isSameId || isSameKode) {
+                return; // baris yang sedang diedit dilewati
+            }
+            totalAllocatedWithoutDoubleCount += Number(rab.jumlah_anggaran || 0);
+        }
+    });
+
+    check('kegiatan yang sedang diedit dilewati dari savedRabList (hanya kegiatan lain 30jt dihitung)', totalAllocatedWithoutDoubleCount, 30000000);
+
+    // Simulasi penambahan nominal baru setelah diedit (misal naik menjadi 55jt)
+    const newJumlah = 55000000;
+    const finalAllocated = totalAllocatedWithoutDoubleCount + newJumlah;
+    check('total alokasi akurat (30jt + 55jt = 85jt, bukan 135jt double-count)', finalAllocated, 85000000);
+}
+
 console.log(`\n========================================`);
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

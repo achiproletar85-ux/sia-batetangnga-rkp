@@ -14,6 +14,8 @@ let rabItems = [];
 let savedRabList = [];
 let rabYear = 2027;
 let editIndex = -1;
+let currentRabId = null;
+let currentRabRefMurni = null;
 
 // ==========================================
 // RAB PERUBAHAN — snapshot versi (MURNI / PERUBAHAN)
@@ -530,6 +532,8 @@ async function selectRpjm() {
     }
 
     if (!selectedRpjm) {
+        currentRabId = null;
+        currentRabRefMurni = null;
         if (document.getElementById('rpjm-summary')) document.getElementById('rpjm-summary').innerHTML = '';
         const panel = document.getElementById('rab-form-panel');
         if (panel) {
@@ -720,6 +724,8 @@ async function loadSavedRAB() {
     const key = getStorageKey();
     if (!key) return;
 
+    currentRabId = null;
+    currentRabRefMurni = null;
     rabMurniRefItems = [];
     rabMurniRefTotal = 0;
 
@@ -732,8 +738,12 @@ async function loadSavedRAB() {
         }
         if (json && json.success && json.data) {
             rabItems = Array.isArray(json.data.items) ? json.data.items : [];
+            currentRabId = json.data.id || null;
+            currentRabRefMurni = json.data.id_referensi_murni || null;
         } else {
             rabItems = [];
+            currentRabId = null;
+            currentRabRefMurni = null;
         }
 
         // Jika dalam mode PERUBAHAN, tarik versi MURNI untuk referensi nilai 'SEMULA'
@@ -1036,14 +1046,19 @@ async function loadSavedRabItem(kode, year) {
         const k = String(item.kode_unik_full || item.kode_unik || '').trim();
         return k === String(kode).trim() || k.replace(/\.+$/, '').replace(/^PEM\./i, '') === cleanTarget;
     });
+    const savedRow = savedRabList.find(r => {
+        const k = String(r.kode_unik_full || r.kode_unik || '').trim();
+        return k === String(kode).trim() || k.replace(/\.+$/, '').replace(/^PEM\./i, '') === cleanTarget;
+    });
     if (!found) {
-        const savedRow = savedRabList.find(r => {
-            const k = String(r.kode_unik_full || r.kode_unik || '').trim();
-            return k === String(kode).trim() || k.replace(/\.+$/, '').replace(/^PEM\./i, '') === cleanTarget;
-        });
         selectedRpjm = savedRow ? { ...savedRow, kode_unik_full: savedRow.kode_unik_full || savedRow.kode_unik || kode } : null;
     } else {
         selectedRpjm = found;
+    }
+
+    if (savedRow && savedRow.id) {
+        currentRabId = savedRow.id;
+        currentRabRefMurni = savedRow.id_referensi_murni || null;
     }
 
     await selectRpjm();
@@ -1077,6 +1092,8 @@ async function deleteSavedRabItem(kode, year) {
         }
         await loadSavedRabList();
         if (selectedRpjm?.kode_unik_full === kode && rabYear === Number(year)) {
+            currentRabId = null;
+            currentRabRefMurni = null;
             rabItems = [];
             renderRabItems();
         }
@@ -1180,6 +1197,8 @@ async function saveRAB() {
     const totalRab = Number.isFinite(totalBiaya) ? totalBiaya : (volumeRab * hargaSatuanRab);
 
     const payload = {
+        id: currentRabId || undefined,
+        id_referensi_murni: currentRabRefMurni || undefined,
         kode_unik_full: String(activity.kode_unik_full || kodeUnikFix).trim(),
         tahun: Number(rabYear),
         nama_kegiatan: activity.nama_kegiatan || '',
@@ -1215,6 +1234,12 @@ async function saveRAB() {
         let json = null;
         try { json = await res.json(); } catch (_) {}
         if (res.ok && json && json.success) {
+            if (json.data && json.data.id) {
+                currentRabId = json.data.id;
+            }
+            if (json.data && json.data.id_referensi_murni) {
+                currentRabRefMurni = json.data.id_referensi_murni;
+            }
             showToast(`✅ Data RAB ${rabTipe} berhasil disimpan ke Supabase!`, 'success');
             await loadSavedRabList();
             await refreshLockStatus();
@@ -2280,6 +2305,8 @@ async function onTipeAnggaranChange(nilai) {
     rabTipe = String(nilai || RAB_TIPE_MURNI).toUpperCase() === RAB_TIPE_PERUBAHAN
         ? RAB_TIPE_PERUBAHAN
         : RAB_TIPE_MURNI;
+    currentRabId = null;
+    currentRabRefMurni = null;
     rabItems = [];
     rabMurniRefItems = [];
     rabMurniRefTotal = 0;
@@ -2876,9 +2903,13 @@ function validatePaguBudget(tahun, sumber, newJumlah, isEditingIndex = -1) {
                 // HINDARI double-count: rabItems = item RAB terpilih yang sedang dibuka.
                 // Item tersebut sudah dijumlahkan secara terpisah dari array rabItems di bawah,
                 // jadi baris yang sama di savedRabList harus dilewati.
-                const rabKode = String(rab.kode_unik_full || rab.kode_unik || '').trim();
-                const curKode = String(selectedRpjm?.kode_unik_full || selectedRpjm?.kode_unik || '').trim();
-                if (curKode && rabKode === curKode && String(rab.tahun) === th) {
+                const normKode = (k) => String(k || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
+                const rabKode = normKode(rab.kode_unik_full || rab.kode_unik);
+                const curKode = normKode(selectedRpjm?.kode_unik_full || selectedRpjm?.kode_unik);
+                const isSameId = (currentRabId && rab.id && String(rab.id) === String(currentRabId));
+                const isSameKode = (curKode && rabKode && curKode === rabKode);
+
+                if ((isSameId || isSameKode) && String(rab.tahun) === th) {
                     return;
                 }
                 if (Array.isArray(rab.items) && rab.items.length > 0) {
