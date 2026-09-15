@@ -224,3 +224,17 @@ npm run check:all            # audit egress + syntax + uji di atas
 
 Setiap perubahan pada `alignRabItems()`, `rabItemJumlah()`, atau konstanta kolom RAB
 **harus** disertai penyesuaian `scripts/test-rab-perubahan.cjs`.
+
+### 8.5 Kebijakan Sinkronisasi Struktur & Kunci Kerangka Master RAB (Master Skeleton Hard-Lock Policy)
+
+1. **Sinkronisasi Struktur Mutlak Antara Murni & Perubahan**:
+   - Struktur array `items` antara RAB Murni dan RAB Perubahan **wajib identik** urutannya (*plek-ketiplek*).
+   - Baris pada RAB Murni adalah **Kunci Master (Master Skeleton)** mutlak.
+   - Contoh: Jika `Kertas f4` berada di urutan nomor 1 pada RAB Murni, maka pada RAB Perubahan `Kertas f4` **wajib** berada di urutan nomor 1. Jika `Kertas A4` di nomor 2, maka pada Perubahan juga **wajib** di nomor 2.
+2. **Penanganan Penambahan Data Baru (Append-at-End)**:
+   - **Pada sisi RAB Perubahan**: Setiap item belanja baru yang ditambahkan di Perubahan (tidak ada di Murni) **wajib diletakkan di bagian paling bawah** setelah seluruh master item dari Murni selesai dirender/disimpan (`item_baru = true`, `SEMULA = 0`). Jangan pernah menyisipkan item baru di tengah-tengah urutan master Murni karena akan merusak indeks komparasi.
+   - **Pada sisi RAB Murni**: Jika admin desa menambah rincian baru pada Murni, urutan sub-item belanja diatur mengikuti standar SisKeuDes (`SISKEUDES_ITEM_ORDER` / `sortRabItems`), dan RAB Perubahan disinkronkan kembali menggunakan kerangka urutan Murni tersebut.
+3. **Penyimpanan Database & Larangan Sorting Frontend**:
+   - Kolom `items` di database Supabase (tabel `rab`) untuk kedua versi **wajib disimpan dalam urutan fisik yang sudah terurut baku**.
+   - Di frontend (`frontend/rab.js`): **DILARANG KERAS** memanggil fungsi `.sort()` pada array item atau kelompok saat rendering tabel, preview, maupun cetak PDF (`executePrintRAB`, `cetakRabPerubahan`). Seluruh perenderan wajib mengikuti urutan data apa adanya (*sequential order*) dari backend.
+
