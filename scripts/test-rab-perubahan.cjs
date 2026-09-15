@@ -269,8 +269,8 @@ console.log('\n11) Pengurutan Sub-Item Belanja SisKeuDes (sortRabItems)');
     const sortedItems = sortRabItems(rawItems);
     check('item 1 adalah 5.1 (Siltap Kades)', sortedItems[0].uraian, 'Siltap Kades');
     check('item 1 memiliki no = 1', sortedItems[0].no, 1);
-    check('item 2 adalah Amplop (alfabetis dalam 5.2.1)', sortedItems[1].uraian, 'Amplop');
-    check('item 3 adalah Kertas A4 (dalam 5.2.1)', sortedItems[2].uraian, 'Kertas A4');
+    check('item 2 adalah Kertas A4 (prioritas SisKeuDes dalam 5.2.1)', sortedItems[1].uraian, 'Kertas A4');
+    check('item 3 adalah Amplop (dalam 5.2.1)', sortedItems[2].uraian, 'Amplop');
     check('item 4 adalah 5.3 (Bibit Pohon)', sortedItems[3].uraian, 'Bibit Pohon');
     check('item 4 memiliki no = 4', sortedItems[3].no, 4);
 }
@@ -432,34 +432,44 @@ console.log('\n15) Safe Parser JSON & Penjajaran Stringified Items');
 }
 
 // ============================================================
-// 16. Standardisasi Urutan Raw Database: Kertas F4 (#1) vs Amplop (#2)
+// 16. Standardisasi Urutan Raw Database: Kertas F4 (#1), Kertas A4 (#2), Bundel Besar (#3), Amplop (#4)
 // ============================================================
-console.log('\n16) Standardisasi Urutan Raw Database: Kertas F4 (#1) vs Amplop (#2)');
+console.log('\n16) Standardisasi Urutan Raw Database: SisKeuDes Order (Kertas F4 #1, Kertas A4 #2, Bundel Besar #3)');
 {
-    // Raw items dari database tanpa nomor urut eksplisit di mana Amplop masuk bersama Kertas f4:
+    // Raw items dari database tanpa nomor urut eksplisit dengan susunan acak:
     const rawMurni = [
         { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Amplop', volume: 4, satuan: 'Doz', harga: 35000 },
-        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas f4', volume: 70, satuan: 'Rim', harga: 70000 }
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Bundel Besar', volume: 12, satuan: 'Buah', harga: 45000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas f4', volume: 70, satuan: 'Rim', harga: 70000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas A4', volume: 20, satuan: 'Rim', harga: 65000 }
     ];
 
     const sortedMurni = sortRabItems(rawMurni);
-    check('Kertas f4 dikunci di urutan 1 (prioritas ATK 5.2.1.01)', sortedMurni[0].uraian, 'Kertas f4');
+    check('Kertas f4 dikunci di urutan 1 (prioritas SisKeuDes 5.2.1.01)', sortedMurni[0].uraian, 'Kertas f4');
     check('Kertas f4 mendapat no = 1', sortedMurni[0].no, 1);
-    check('Amplop di urutan 2', sortedMurni[1].uraian, 'Amplop');
-    check('Amplop mendapat no = 2', sortedMurni[1].no, 2);
+    check('Kertas A4 di urutan 2', sortedMurni[1].uraian, 'Kertas A4');
+    check('Kertas A4 mendapat no = 2', sortedMurni[1].no, 2);
+    check('Bundel Besar di urutan 3', sortedMurni[2].uraian, 'Bundel Besar');
+    check('Bundel Besar mendapat no = 3', sortedMurni[2].no, 3);
+    check('Amplop di urutan 4', sortedMurni[3].uraian, 'Amplop');
+    check('Amplop mendapat no = 4', sortedMurni[3].no, 4);
 
-    // Di draf perubahan, Amplop dinaikkan dan Kertas f4 tetap
+    // Di draf perubahan, urutan master murni tetap dikunci
     const per = [
         { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas f4', volume: 70, satuan: 'Rim', harga: 70000 },
-        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Amplop', volume: 6, satuan: 'Doz', harga: 35000 }
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Bundel Besar', volume: 12, satuan: 'Buah', harga: 45000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Amplop', volume: 6, satuan: 'Doz', harga: 35000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas A4', volume: 25, satuan: 'Rim', harga: 65000 }
     ];
 
     const aligned = alignRabItems(sortedMurni, per);
     check('Row 0 terlock pada Kertas f4 di nomor 1', aligned[0].uraian, 'Kertas f4');
     check('Row 0 MENJADI volume Kertas f4 = 70', aligned[0].menjadi.volume, 70);
-    check('Row 1 terlock pada Amplop di nomor 2', aligned[1].uraian, 'Amplop');
-    check('Row 1 MENJADI volume Amplop = 6', aligned[1].menjadi.volume, 6);
-    check('Nomor urut baris 1 dan 2', aligned.map(r => r.no), [1, 2]);
+    check('Row 1 terlock pada Kertas A4 di nomor 2', aligned[1].uraian, 'Kertas A4');
+    check('Row 1 MENJADI volume Kertas A4 = 25', aligned[1].menjadi.volume, 25);
+    check('Row 2 terlock pada Bundel Besar di nomor 3', aligned[2].uraian, 'Bundel Besar');
+    check('Row 3 terlock pada Amplop di nomor 4', aligned[3].uraian, 'Amplop');
+    check('Nomor urut baris 1 s/d 4', aligned.map(r => r.no), [1, 2, 3, 4]);
 }
 
 console.log(`\n========================================`);
