@@ -432,21 +432,21 @@ console.log('\n15) Safe Parser JSON & Penjajaran Stringified Items');
 }
 
 // ============================================================
-// 16. Standardisasi Urutan Raw Database: Amplop (#1) vs Kertas F4 (#2)
+// 16. Standardisasi Urutan Raw Database: Kertas F4 (#1) vs Amplop (#2)
 // ============================================================
-console.log('\n16) Standardisasi Urutan Raw Database: Amplop (#1) vs Kertas F4 (#2)');
+console.log('\n16) Standardisasi Urutan Raw Database: Kertas F4 (#1) vs Amplop (#2)');
 {
-    // Raw items dari database tanpa nomor urut eksplisit di mana Kertas f4 masuk lebih dulu dari Amplop:
+    // Raw items dari database tanpa nomor urut eksplisit di mana Amplop masuk bersama Kertas f4:
     const rawMurni = [
-        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas f4', volume: 70, satuan: 'Rim', harga: 70000 },
-        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Amplop', volume: 4, satuan: 'Doz', harga: 35000 }
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Amplop', volume: 4, satuan: 'Doz', harga: 35000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas f4', volume: 70, satuan: 'Rim', harga: 70000 }
     ];
 
     const sortedMurni = sortRabItems(rawMurni);
-    check('Amplop di urutan 1 (alfabetis dalam 5.2.1.01)', sortedMurni[0].uraian, 'Amplop');
-    check('Amplop mendapat no = 1', sortedMurni[0].no, 1);
-    check('Kertas f4 di urutan 2', sortedMurni[1].uraian, 'Kertas f4');
-    check('Kertas f4 mendapat no = 2', sortedMurni[1].no, 2);
+    check('Kertas f4 dikunci di urutan 1 (prioritas ATK 5.2.1.01)', sortedMurni[0].uraian, 'Kertas f4');
+    check('Kertas f4 mendapat no = 1', sortedMurni[0].no, 1);
+    check('Amplop di urutan 2', sortedMurni[1].uraian, 'Amplop');
+    check('Amplop mendapat no = 2', sortedMurni[1].no, 2);
 
     // Di draf perubahan, Amplop dinaikkan dan Kertas f4 tetap
     const per = [
@@ -455,10 +455,10 @@ console.log('\n16) Standardisasi Urutan Raw Database: Amplop (#1) vs Kertas F4 (
     ];
 
     const aligned = alignRabItems(sortedMurni, per);
-    check('Row 0 terlock pada Amplop (bukan Kertas f4)', aligned[0].uraian, 'Amplop');
-    check('Row 0 MENJADI volume Amplop = 6', aligned[0].menjadi.volume, 6);
-    check('Row 1 terlock pada Kertas f4', aligned[1].uraian, 'Kertas f4');
-    check('Row 1 MENJADI volume Kertas f4 = 70', aligned[1].menjadi.volume, 70);
+    check('Row 0 terlock pada Kertas f4 di nomor 1', aligned[0].uraian, 'Kertas f4');
+    check('Row 0 MENJADI volume Kertas f4 = 70', aligned[0].menjadi.volume, 70);
+    check('Row 1 terlock pada Amplop di nomor 2', aligned[1].uraian, 'Amplop');
+    check('Row 1 MENJADI volume Amplop = 6', aligned[1].menjadi.volume, 6);
     check('Nomor urut baris 1 dan 2', aligned.map(r => r.no), [1, 2]);
 }
 

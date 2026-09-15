@@ -1,62 +1,10 @@
 require('dotenv').config();
 const supabase = require('../backend/config/supabase.js');
-
-// Helper pembanding kode unik / rekening
-const compareKodeUnikFull = (a, b) => {
-  if (!a && !b) return 0;
-  if (!a) return 1;
-  if (!b) return -1;
-  const cleanA = String(a).trim().replace(/\.+$/, '');
-  const cleanB = String(b).trim().replace(/\.+$/, '');
-  const partsA = cleanA.split('.');
-  const partsB = cleanB.split('.');
-  const maxLen = Math.max(partsA.length, partsB.length);
-  for (let i = 0; i < maxLen; i++) {
-    const partA = partsA[i];
-    const partB = partsB[i];
-    if (partA === undefined) return -1;
-    if (partB === undefined) return 1;
-    const numA = parseInt(partA, 10);
-    const numB = parseInt(partB, 10);
-    const isNumA = !isNaN(numA) && String(numA) === partA;
-    const isNumB = !isNaN(numB) && String(numB) === partB;
-    if (isNumA && isNumB) {
-      if (numA !== numB) return numA - numB;
-    } else {
-      const cmp = partA.localeCompare(partB, 'id', { numeric: true, sensitivity: 'base' });
-      if (cmp !== 0) return cmp;
-    }
-  }
-  return 0;
-};
-
-const getRabItemRekening = (item) => {
-  const code = String(
-    item.kode_rekening ||
-    item.rekening ||
-    item.kode_kegiatan ||
-    item.kode_unik ||
-    item.kode_unik_full ||
-    ''
-  ).trim();
-  return code.replace(/\.+$/, '');
-};
-
-const sortRabItems = (items) => {
-  if (!Array.isArray(items)) return [];
-  return [...items].sort((a, b) => {
-    const codeA = getRabItemRekening(a);
-    const codeB = getRabItemRekening(b);
-    const cmpCode = compareKodeUnikFull(codeA, codeB);
-    if (cmpCode !== 0) return cmpCode;
-    const nameA = String(a.uraian || a.nama_barang || a.nama || '').trim();
-    const nameB = String(b.uraian || b.nama_barang || b.nama || '').trim();
-    return nameA.localeCompare(nameB, 'id', { numeric: true, sensitivity: 'base' });
-  });
-};
+const app = require('../server.js');
+const { getRabItemRekening, sortRabItems, compareKodeUnikFull } = app.rabPerubahan;
 
 async function main() {
-  console.log('=== MEMULAI SINKRONISASI MUTLAK URUTAN RAB SUPABASE ===');
+  console.log('=== MEMULAI SINKRONISASI MUTLAK URUTAN RAB SUPABASE (KERTAS F4 DI NOMOR 1) ===');
 
   if (!supabase) {
     console.error('Koneksi Supabase tidak tersedia!');
@@ -76,7 +24,7 @@ async function main() {
 
   console.log(`Ditemukan ${murniList.length} baris RAB Murni.`);
 
-  // Standarisasi dan update MURNI jika urutan item belum sesuai alfabetis/rekening
+  // Standarisasi dan update MURNI agar Kertas f4 terkunci di nomor 1
   const murniMap = new Map();
 
   for (const m of murniList) {
@@ -85,18 +33,19 @@ async function main() {
       const sorted = sortRabItems(originalItems);
       const renumbered = sorted.map((it, idx) => ({
         ...it,
+        kode_rekening: it.kode_rekening || (getRabItemRekening(it) ? getRabItemRekening(it) + '.' : undefined),
         no: idx + 1,
         urutan: idx + 1
       }));
 
-      // Cek apakah ada perubahan urutan
+      // Cek apakah ada perubahan urutan atau properti
       const hasChanged = originalItems.some((it, idx) => {
         const s = renumbered[idx];
-        return !s || (it.uraian || it.nama_barang) !== (s.uraian || s.nama_barang);
-      });
+        return !s || (it.uraian || it.nama_barang) !== (s.uraian || s.nama_barang) || it.no !== s.no;
+      }) || originalItems.length !== renumbered.length;
 
       if (hasChanged) {
-        console.log(`Menstandarkan urutan RAB Murni ID ${m.id} (${m.kode_unik_full || m.kode_unik})...`);
+        console.log(`Menstandarkan urutan RAB Murni ID ${m.id} (${m.kode_unik_full || m.kode_unik}) -> Baris 1: ${renumbered[0]?.uraian || renumbered[0]?.nama_barang}`);
         const { error: updErr } = await supabase
           .from('rab')
           .update({
@@ -107,16 +56,14 @@ async function main() {
 
         if (updErr) {
           console.error(`Gagal update RAB Murni ID ${m.id}:`, updErr.message);
-        } else {
-          console.log(`Berhasil standarisasi RAB Murni ID ${m.id}.`);
         }
         murniMap.set(m.id, renumbered);
         if (m.kode_unik_full) murniMap.set(m.kode_unik_full, renumbered);
         if (m.kode_unik) murniMap.set(m.kode_unik, renumbered);
       } else {
-        murniMap.set(m.id, originalItems);
-        if (m.kode_unik_full) murniMap.set(m.kode_unik_full, originalItems);
-        if (m.kode_unik) murniMap.set(m.kode_unik, originalItems);
+        murniMap.set(m.id, renumbered);
+        if (m.kode_unik_full) murniMap.set(m.kode_unik_full, renumbered);
+        if (m.kode_unik) murniMap.set(m.kode_unik, renumbered);
       }
     }
   }
@@ -151,9 +98,10 @@ async function main() {
     }
 
     if (!masterItems || masterItems.length === 0) {
-      // Jika tidak ada murni persis, urutkan dengan sortRabItems saja
+      // Jika tidak ada murni persis, urutkan dengan sortRabItems
       const sorted = sortRabItems(rawPItems).map((it, idx) => ({
         ...it,
+        kode_rekening: it.kode_rekening || (getRabItemRekening(it) ? getRabItemRekening(it) + '.' : undefined),
         no: idx + 1,
         urutan: idx + 1
       }));
@@ -213,7 +161,15 @@ async function main() {
           ...targetP,
           id_referensi_murni: targetP.id_referensi_murni || mItem.id || null,
           urutan_murni: mIdx + 1,
-          kode_rekening: mItem.kode_rekening || targetP.kode_rekening
+          kode_rekening: targetP.kode_rekening || mItem.kode_rekening || (mRekening ? mRekening + '.' : undefined)
+        });
+      } else if (mName.includes('kertas f4')) {
+        // Jika Kertas f4 ada di Murni tapi belum ada di Perubahan, masukkan Kertas f4 dari Murni
+        matchedPItems.push({
+          ...mItem,
+          id_referensi_murni: mItem.id || null,
+          urutan_murni: mIdx + 1,
+          kode_rekening: mItem.kode_rekening || (mRekening ? mRekening + '.' : undefined)
         });
       }
     });
@@ -253,7 +209,7 @@ async function main() {
     }
   }
 
-  console.log(`=== SINKRONISASI SELESAI: ${totalUpdatedPerubahan} RAB Perubahan diperbarui. ===`);
+  console.log(`=== SINKRONISASI SELESAI: ${totalUpdatedPerubahan} RAB Perubahan diperbarui dengan Kertas f4 di nomor 1. ===`);
 }
 
 main().catch((err) => {

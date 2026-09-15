@@ -1188,17 +1188,38 @@ function getRabItemRekening(it) {
         const grp = String(it.group || it.group_belanja || it.kelompok_belanja || '').trim();
         code = getRabSubgroupCode(sub, grp);
     }
+    if ((!code || code === '9.9.9.99' || code === '9.9.9') && it) {
+        const u = String(it.uraian || it.nama_barang || it.nama || '').trim().toLowerCase();
+        if (u.includes('kertas') || u.includes('buku') || u.includes('amplop') || u.includes('pulpen') || u.includes('spidol') || u.includes('map')) {
+            code = '5.2.1.01';
+        }
+    }
     return code.replace(/\.+$/, '');
 }
 
 function sortRabItems(items) {
     if (!Array.isArray(items)) return [];
+    const isKertasF4 = (it) => {
+        const u = String((it && (it.uraian || it.nama_barang || it.nama)) || '').trim().toLowerCase().replace(/[-_]/g, ' ');
+        return u === 'kertas f4' || u.startsWith('kertas f4');
+    };
     const sorted = [...items].sort((a, b) => {
         const rekA = getRabItemRekening(a);
         const rekB = getRabItemRekening(b);
         const cmp = compareKodeUnikFull(rekA, rekB);
         if (cmp !== 0) return cmp;
-        return String(a.uraian || '').localeCompare(String(b.uraian || ''), undefined, { numeric: true, sensitivity: 'base' });
+
+        // Kertas f4 dikunci di nomor 1 pada kelompok rekeningnya (ATK)
+        const aF4 = isKertasF4(a);
+        const bF4 = isKertasF4(b);
+        if (aF4 && !bF4) return -1;
+        if (!aF4 && bF4) return 1;
+
+        const noA = Number(a.no || a.urutan || 0);
+        const noB = Number(b.no || b.urutan || 0);
+        if (noA && noB && noA !== noB) return noA - noB;
+
+        return String(a.uraian || a.nama_barang || '').localeCompare(String(b.uraian || b.nama_barang || ''), undefined, { numeric: true, sensitivity: 'base' });
     });
     return sorted.map((it, idx) => ({
         ...it,
