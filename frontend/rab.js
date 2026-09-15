@@ -1588,11 +1588,20 @@ function addRabItem() {
     // supaya SEMULA <-> MENJADI tetap berpasangan walau uraian diubah.
     if (editIndex > -1 && rabItems[editIndex]) {
         const prev = rabItems[editIndex];
-        if (prev.urutan_murni !== undefined) item.urutan_murni = prev.urutan_murni;
-        if (prev.id_referensi_murni !== undefined) item.id_referensi_murni = prev.id_referensi_murni;
-        if (prev.uraian_murni !== undefined) item.uraian_murni = prev.uraian_murni;
-        if (!item.uraian_murni && prev.uraian && prev.uraian !== item.uraian && item.urutan_murni !== null) {
-            item.uraian_murni = prev.uraian;
+        const sameSub = String(prev.subgroup || '').trim().toLowerCase() === String(item.subgroup || '').trim().toLowerCase();
+        const sameGrp = String(prev.group || '').trim().toLowerCase() === String(item.group || '').trim().toLowerCase();
+        if (sameSub && sameGrp) {
+            if (prev.urutan_murni !== undefined) item.urutan_murni = prev.urutan_murni;
+            if (prev.id_referensi_murni !== undefined) item.id_referensi_murni = prev.id_referensi_murni;
+            if (prev.uraian_murni !== undefined) item.uraian_murni = prev.uraian_murni;
+            if (!item.uraian_murni && prev.uraian && prev.uraian !== item.uraian && item.urutan_murni !== null) {
+                item.uraian_murni = prev.uraian;
+            }
+        } else {
+            // Berubah sub-kelompok: dianggap item baru di sub-grup tujuan agar tidak merusak urutan master murni
+            item.urutan_murni = null;
+            item.uraian_murni = null;
+            item.id_referensi_murni = null;
         }
     } else if (isModePerubahan()) {
         // Item baru murni tambahan pada versi PERUBAHAN: tidak punya padanan MURNI,

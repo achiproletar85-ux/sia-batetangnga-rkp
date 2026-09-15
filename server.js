@@ -1318,51 +1318,54 @@ function alignRabItems(murniItems, perubahanItems) {
         const mUraian = norm(m && m.uraian);
         const mGroup = norm(m && (m.group || m.group_belanja || m.kelompok_belanja));
         const mSub = norm(m && (m.subgroup || m.sub_kelompok));
+        const mRek = getRabItemRekening(m);
 
-        // Prioritas 1: Cocokkan via urutan_murni HANYA bila uraian cocok
-        // (mencegah salah pasang printer vs kertas f4 bila grup & uraian berbeda total)
+        // Helper untuk memastikan pasangan berada dalam rekening / sub-grup yang sama
+        const isSameSubgroup = (p) => {
+            if (!p) return false;
+            const pRek = getRabItemRekening(p);
+            if (mRek && pRek && mRek !== '9.9.9.99' && pRek !== '9.9.9.99') {
+                return mRek === pRek;
+            }
+            const pSub = norm(p.subgroup || p.sub_kelompok);
+            if (mSub && pSub) return mSub === pSub;
+            const pGrp = norm(p.group || p.group_belanja || p.kelompok_belanja);
+            return !mGroup || !pGrp || mGroup === pGrp;
+        };
+
+        // Prioritas 1: Cocokkan via urutan_murni bila dalam rekening/subgroup yang sama
         pIdx = perArr.findIndex((p, idx) => {
             if (usedPer.has(idx)) return false;
+            if (p && (p.item_baru === true || p.item_baru === 'true')) return false;
             const urut = Number(p && p.urutan_murni);
             if (!Number.isInteger(urut) || urut !== mIdx) return false;
-            const pUraian = norm(p.uraian);
-            const pUraianMurni = norm(p.uraian_murni);
-            const pGroup = norm(p.group || p.group_belanja || p.kelompok_belanja);
-            return (pUraian && (pUraian === mUraian || pUraianMurni === mUraian)) || (pGroup && pGroup === mGroup);
+            return isSameSubgroup(p);
         });
 
-        // Prioritas 2: Exact match: uraian + group + subgroup
+        // Prioritas 2: Exact match: uraian + rekening/subgroup
         if (pIdx < 0 && mUraian) {
             pIdx = perArr.findIndex((p, idx) =>
                 !usedPer.has(idx) &&
-                norm(p.uraian) === mUraian &&
-                norm(p.group || p.group_belanja || p.kelompok_belanja) === mGroup &&
-                (!mSub || norm(p.subgroup || p.sub_kelompok) === mSub)
-            );
-        }
-
-        // Prioritas 3: Match: uraian + group
-        if (pIdx < 0 && mUraian) {
-            pIdx = perArr.findIndex((p, idx) =>
-                !usedPer.has(idx) &&
-                norm(p.uraian) === mUraian &&
-                norm(p.group || p.group_belanja || p.kelompok_belanja) === mGroup
-            );
-        }
-
-        // Prioritas 4: Match: uraian saja
-        if (pIdx < 0 && mUraian) {
-            pIdx = perArr.findIndex((p, idx) =>
-                !usedPer.has(idx) &&
+                isSameSubgroup(p) &&
                 norm(p.uraian) === mUraian
             );
         }
 
-        // Prioritas 5: Match: uraian_murni cocok dengan uraian murni asli
+        // Prioritas 3: Match: uraian_murni cocok dengan uraian murni asli dalam rekening yang sama
         if (pIdx < 0 && mUraian) {
             pIdx = perArr.findIndex((p, idx) =>
                 !usedPer.has(idx) &&
+                isSameSubgroup(p) &&
                 norm(p.uraian_murni) === mUraian
+            );
+        }
+
+        // Prioritas 4: Fallback bila tidak ada rekening ketat tapi uraian dan group sama
+        if (pIdx < 0 && mUraian) {
+            pIdx = perArr.findIndex((p, idx) =>
+                !usedPer.has(idx) &&
+                norm(p.uraian) === mUraian &&
+                (!mGroup || norm(p.group || p.group_belanja) === mGroup)
             );
         }
 
@@ -1376,13 +1379,54 @@ function alignRabItems(murniItems, perubahanItems) {
     });
 
     // 2. ITEM BARU (TAMBAHAN): Item di Perubahan yang tidak ada di Murni
-    // Ditempatkan di bagian paling bawah setelah seluruh item master murni selesai
+    // Ditempatkan pada sub-kelompok rekeningnya yang tepat (di bagian bawah subgrupnya)
+    const newItems = [];
     perArr.forEach((p, idx) => {
-        if (usedPer.has(idx)) return;
-        rows.push(buildRabCompareRow(null, p, rows.length));
+        if (!usedPer.has(idx)) {
+            newItems.push(buildRabCompareRow(null, p, 0));
+        }
     });
 
-    // 3. Kunci urutan nomor baris rapi (100% mengikuti urutan master murni + item baru di bawah)
+    if (newItems.length > 0) {
+        const finalRows = [];
+        const subGroupLastIndex = new Map();
+        rows.forEach((r, idx) => {
+            const rek = getRabItemRekening(r);
+            subGroupLastIndex.set(rek, idx);
+        });
+
+        const newItemsBySub = new Map();
+        const unmappedNewItems = [];
+        newItems.forEach(it => {
+            const rek = getRabItemRekening(it);
+            if (subGroupLastIndex.has(rek)) {
+                if (!newItemsBySub.has(rek)) newItemsBySub.set(rek, []);
+                newItemsBySub.get(rek).push(it);
+            } else {
+                unmappedNewItems.push(it);
+            }
+        });
+
+        rows.forEach((r, idx) => {
+            finalRows.push(r);
+            const rek = getRabItemRekening(r);
+            if (subGroupLastIndex.get(rek) === idx && newItemsBySub.has(rek)) {
+                finalRows.push(...newItemsBySub.get(rek));
+            }
+        });
+
+        if (unmappedNewItems.length > 0) {
+            finalRows.push(...unmappedNewItems);
+        }
+
+        finalRows.forEach((r, i) => {
+            r.urutan = i;
+            r.no = i + 1;
+        });
+        return finalRows;
+    }
+
+    // 3. Kunci urutan nomor baris rapi
     rows.forEach((r, i) => {
         r.urutan = i;
         r.no = i + 1;

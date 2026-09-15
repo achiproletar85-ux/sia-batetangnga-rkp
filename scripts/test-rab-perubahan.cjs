@@ -466,6 +466,38 @@ console.log('\n16) Standardisasi Urutan Raw Database: Master Skeleton Diawali Am
     check('Nomor urut baris 1 s/d 3', aligned.map(r => r.no), [1, 2, 3]);
 }
 
+console.log('\n17) Penempatan Item Baru Sesuai Sub-Kelompok Rekening (Kasus Baju Batik Tidak Boleh Melompat ke Atas)');
+{
+    const murni = [
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas f4', volume: 70, satuan: 'Rim', harga: 70000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas A4', volume: 20, satuan: 'Rim', harga: 65000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Pakaian Dinas/Seragam/Atribut', uraian: 'Baju Keki', volume: 8, satuan: 'Pasang', harga: 650000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Pakaian Dinas/Seragam/Atribut', uraian: 'Baju Seragam', volume: 13, satuan: 'Pasang', harga: 650000 }
+    ];
+
+    // Di Perubahan, admin menginput item baru "Baju Batik" di bawah Pakaian Dinas
+    // dan secara tidak sengaja item tersebut memiliki urutan_murni = 1 atau uraian_murni = "Kertas f4"
+    const per = [
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas f4', volume: 70, satuan: 'Rim', harga: 70000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas A4', volume: 20, satuan: 'Rim', harga: 65000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Pakaian Dinas/Seragam/Atribut', uraian: 'Baju Keki', volume: 8, satuan: 'Pasang', harga: 650000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Pakaian Dinas/Seragam/Atribut', uraian: 'Baju Seragam', volume: 13, satuan: 'Pasang', harga: 650000 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Pakaian Dinas/Seragam/Atribut', uraian: 'Baju Batik', volume: 5, satuan: 'Pasang', harga: 450000, urutan_murni: 1, uraian_murni: 'Kertas f4' }
+    ];
+
+    const aligned = alignRabItems(murni, per);
+    check('Baris 1 tetap Kertas f4 (ATK)', aligned[0].uraian, 'Kertas f4');
+    check('Baris 1 subgroup adalah ATK', aligned[0].subgroup, 'Belanja Alat Tulis Kantor dan Benda Pos');
+    check('Baris 2 tetap Kertas A4 (ATK)', aligned[1].uraian, 'Kertas A4');
+    check('Baris 3 adalah Baju Keki (Pakaian Dinas)', aligned[2].uraian, 'Baju Keki');
+    check('Baris 4 adalah Baju Seragam (Pakaian Dinas)', aligned[3].uraian, 'Baju Seragam');
+    check('Baris 5 adalah Baju Batik (Pakaian Dinas, tidak melompat ke atas)', aligned[4].uraian, 'Baju Batik');
+    check('Baju Batik adalah item baru', aligned[4].item_baru, true);
+    check('Baju Batik SEMULA volume = 0', aligned[4].semula.volume, 0);
+    check('Baju Batik MENJADI volume = 5', aligned[4].menjadi.volume, 5);
+    check('Baju Batik selisih bertambah = +2.250.000', aligned[4].selisih, 2250000);
+}
+
 console.log(`\n========================================`);
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
