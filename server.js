@@ -5127,23 +5127,11 @@ app.get('/api/rab', async (req, res) => {
             let saved = await getRabFromDb(targetKode, tahunInt, tipeAnggaran);
             let isFallbackMurni = false;
 
-            // Jika tipe PERUBAHAN diminta tapi belum ada data tersimpan di DB atau items-nya kosong,
-            // fallback ambil baris MURNI agar items dan rincian tetap terkirim ke frontend
+            // Jika tipe PERUBAHAN diminta tapi belum ada data tersimpan di DB,
+            // fallback ambil baris MURNI agar items dan rincian tetap terkirim ke frontend sebagai draf awal
             if (tipeAnggaran === RAB_TIPE_PERUBAHAN) {
-                const hasValidItems = saved && Array.isArray(saved.items) && saved.items.length > 0;
-                if (!saved || !hasValidItems) {
-                    let murni = null;
-                    if (saved && saved.id_referensi_murni) {
-                        const { data: mRow } = await supabase
-                            .from(RAB_TABLE)
-                            .select(RAB_FULL_COLUMNS)
-                            .eq('id', saved.id_referensi_murni)
-                            .maybeSingle();
-                        if (mRow) murni = enrichRabDetail(mRow);
-                    }
-                    if (!murni) {
-                        murni = await getRabFromDb(targetKode, tahunInt, RAB_TIPE_MURNI);
-                    }
+                if (!saved) {
+                    let murni = await getRabFromDb(targetKode, tahunInt, RAB_TIPE_MURNI);
                     if (murni && Array.isArray(murni.items) && murni.items.length > 0) {
                         const murniItems = murni.items.map((it, idx) => ({
                             ...it,
@@ -5151,20 +5139,14 @@ app.get('/api/rab', async (req, res) => {
                             id_referensi_murni: it.id_referensi_murni || murni.id
                         }));
 
-                        if (saved) {
-                            // Baris PERUBAHAN ada tetapi items kosong -> isi items dari Murni
-                            saved.items = murniItems;
-                            saved.id_referensi_murni = saved.id_referensi_murni || murni.id;
-                        } else {
-                            // Belum ada baris PERUBAHAN di DB -> buat objek draf dari Murni
-                            saved = {
-                                ...murni,
-                                id: null, // Tandai draf baru
-                                tipe_anggaran: RAB_TIPE_PERUBAHAN,
-                                id_referensi_murni: murni.id,
-                                items: murniItems
-                            };
-                        }
+                        // Belum ada baris PERUBAHAN di DB -> buat objek draf dari Murni
+                        saved = {
+                            ...murni,
+                            id: null, // Tandai draf baru
+                            tipe_anggaran: RAB_TIPE_PERUBAHAN,
+                            id_referensi_murni: murni.id,
+                            items: murniItems
+                        };
                         isFallbackMurni = true;
                     }
                 }

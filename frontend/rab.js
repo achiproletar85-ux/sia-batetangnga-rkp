@@ -1281,9 +1281,9 @@ async function loadSavedRAB() {
                 console.warn('Gagal memuat referensi Murni:', eMurni);
             }
 
-            // AUTO-FILL FALLBACK: Jika di mode PERUBAHAN rincian items masih kosong,
+            // AUTO-FILL FALLBACK: Jika di mode PERUBAHAN belum pernah disimpan (currentRabId null) dan rincian items masih kosong,
             // otomatis isi rabItems dari referensi MURNI sebagai draf awal perubahan
-            if ((!rabItems || rabItems.length === 0) && rabMurniRefItems.length > 0) {
+            if ((!rabItems || rabItems.length === 0) && rabMurniRefItems.length > 0 && !currentRabId) {
                 rabItems = rabMurniRefItems.map((m, idx) => {
                     const vol = (m.volume !== undefined && m.volume !== null && m.volume !== '' && !isNaN(Number(m.volume))) ? Number(m.volume) : 1;
                     const hrg = Number(m.harga !== undefined && m.harga !== null && m.harga !== '' ? m.harga : (m.harga_satuan !== undefined && m.harga_satuan !== null && m.harga_satuan !== '' ? m.harga_satuan : 0));
@@ -1896,33 +1896,30 @@ async function executeSaveRAB() {
     const activity = selectedRpjm || {};
     const namaBidangFull = getNamaBidangFull(activity.bidang, activity.kode_unik_full || kodeUnikFix);
 
-    if (!rabItems || rabItems.length === 0) {
-        showToast('Belum ada item belanja pada RAB. Tambahkan item terlebih dahulu.', 'error');
-        return;
-    }
-
-    // Validasi & Normalisasi Sumber Dana wajib terisi pada seluruh item belanja
-    for (let i = 0; i < rabItems.length; i++) {
-        const it = rabItems[i];
-        const norm = normalizeSumberDana(it.sumber);
-        if (!norm) {
-            showToast(`Item "${it.uraian || 'Belanja'}" belum memiliki Sumber Dana! Seluruh item wajib memiliki Sumber Dana sebelum disimpan.`, 'error');
-            return;
-        }
-        it.sumber = norm;
-    }
-    
-    reindexRabItemsBySubgroup(rabItems);
-
-    const totalBiaya = rabItems.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
-    const firstItem = rabItems[0] || {};
+    const isEmptyRab = (!rabItems || rabItems.length === 0);
+    const totalBiaya = isEmptyRab ? 0 : rabItems.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
+    const firstItem = isEmptyRab ? {} : (rabItems[0] || {});
     const normFirstSumber = normalizeSumberDana(firstItem.sumber) || 'DDS (Dana Desa)';
-    const volumeRab = (firstItem.volume !== undefined && firstItem.volume !== null && firstItem.volume !== '' && !isNaN(Number(firstItem.volume))) ? parseFloat(firstItem.volume) : 1;
-    const hargaSatuanRab = (firstItem.harga !== undefined && firstItem.harga !== null && firstItem.harga !== '' && !isNaN(Number(firstItem.harga))) ? parseFloat(firstItem.harga) : totalBiaya;
-    const totalRab = Number.isFinite(totalBiaya) ? totalBiaya : (volumeRab * hargaSatuanRab);
+    const volumeRab = (!isEmptyRab && firstItem.volume !== undefined && firstItem.volume !== null && firstItem.volume !== '' && !isNaN(Number(firstItem.volume))) ? parseFloat(firstItem.volume) : 0;
+    const hargaSatuanRab = (!isEmptyRab && firstItem.harga !== undefined && firstItem.harga !== null && firstItem.harga !== '' && !isNaN(Number(firstItem.harga))) ? parseFloat(firstItem.harga) : 0;
+    const totalRab = isEmptyRab ? 0 : (Number.isFinite(totalBiaya) ? totalBiaya : (volumeRab * hargaSatuanRab));
+
+    // Validasi & Normalisasi Sumber Dana pada seluruh item belanja yang tersisa
+    if (!isEmptyRab) {
+        for (let i = 0; i < rabItems.length; i++) {
+            const it = rabItems[i];
+            let norm = normalizeSumberDana(it.sumber);
+            if (!norm) {
+                norm = normalizeSumberDana(it.sumber_dana) || normFirstSumber || 'DDS (Dana Desa)';
+            }
+            it.sumber = norm;
+            it.sumber_dana = norm;
+        }
+        reindexRabItemsBySubgroup(rabItems);
+    }
 
     // Sanitasi lengkap seluruh item agar seluruh properti tersimpan utuh dan presisi
-    const sanitizedItems = rabItems.map((it, idx) => {
+    const sanitizedItems = isEmptyRab ? [] : rabItems.map((it, idx) => {
         const vol = (it.volume !== undefined && it.volume !== null && it.volume !== '' && !isNaN(Number(it.volume))) ? Number(it.volume) : 1;
         const hrg = (it.harga !== undefined && it.harga !== null && it.harga !== '' && !isNaN(Number(it.harga))) ? Number(it.harga) : (it.harga_satuan !== undefined && it.harga_satuan !== null && it.harga_satuan !== '' && !isNaN(Number(it.harga_satuan)) ? Number(it.harga_satuan) : 0);
         const jml = (it.jumlah !== undefined && it.jumlah !== null && it.jumlah !== '' && !isNaN(Number(it.jumlah))) ? Number(it.jumlah) : (it.jumlah_biaya !== undefined && it.jumlah_biaya !== null && it.jumlah_biaya !== '' && !isNaN(Number(it.jumlah_biaya)) ? Number(it.jumlah_biaya) : (vol * hrg));
@@ -2001,10 +1998,13 @@ async function executeSaveRAB() {
         rabMurniLocked = false;
         applyReadOnlyMode();
         await loadSavedRabList();
+        throw new Error(json.error || 'Data RAB terkunci');
     } else {
         setFormDirty(true);
-        showToast((json && (json.error || json.message)) || `Gagal menyimpan RAB ke database (HTTP ${res.status})`, 'error');
+        const errMsg = (json && (json.error || json.message)) || `Gagal menyimpan RAB ke database (HTTP ${res.status})`;
+        showToast(errMsg, 'error');
         await loadSavedRabList();
+        throw new Error(errMsg);
     }
 }
 
@@ -2068,14 +2068,15 @@ function cancelEditRabItem() {
     showToast('Batal edit item. Form siap untuk input item baru.', 'info');
 }
 
-function clearRabItems() {
+async function clearRabItems() {
     if (rabItems.length === 0) return;
     if (!confirm('Yakin ingin mengosongkan seluruh item RAB pada kegiatan ini?')) return;
     setFormDirty(true);
     rabItems = [];
     resetRabItemForm();
     renderRabItems();
-    saveRAB();
+    showToast('Mengosongkan seluruh item RAB dan menyimpan ke Supabase...', 'info');
+    await saveRAB();
 }
 
 function addRabItem() {
@@ -2261,12 +2262,35 @@ function reindexRabItemsBySubgroup(items) {
     });
 }
 
-function removeRabItem(index) {
+async function removeRabItem(index, skipConfirm = false) {
+    if (index < 0 || index >= rabItems.length) return;
+    const item = rabItems[index];
+    const uraian = item ? (item.uraian || `Item #${index + 1}`) : `Item #${index + 1}`;
+
+    if (!skipConfirm && typeof window !== 'undefined' && typeof window.confirm === 'function') {
+        const ok = window.confirm(`Apakah Anda yakin ingin menghapus item "${uraian}" dari RAB?`);
+        if (!ok) return;
+    }
+
+    // Reset edit state jika sedang mengedit item yang dihapus
+    if (typeof editIndex === 'number') {
+        if (editIndex === index) {
+            cancelEditRabItem();
+        } else if (editIndex > index) {
+            editIndex--;
+        }
+    }
+
     setFormDirty(true);
     rabItems.splice(index, 1);
     reindexRabItemsBySubgroup(rabItems);
     renderRabItems();
-    saveRAB();
+    showToast(`Menghapus item "${uraian}" dan menyimpan ke Supabase...`, 'info');
+    await saveRAB();
+}
+
+async function deleteRabItem(index, skipConfirm = false) {
+    return await removeRabItem(index, skipConfirm);
 }
 
 function moveRabItemUp(idx) {
@@ -4453,4 +4477,7 @@ window.bukaModalSyncDuaArah = bukaModalSyncDuaArah;
 window.tutupModalSyncDuaArah = tutupModalSyncDuaArah;
 window.syncUrutanBerdasarkanMurni = syncUrutanBerdasarkanMurni;
 window.syncUrutanBerdasarkanPerubahan = syncUrutanBerdasarkanPerubahan;
+window.removeRabItem = removeRabItem;
+window.deleteRabItem = deleteRabItem;
+window.clearRabItems = clearRabItems;
 
