@@ -1268,7 +1268,7 @@ const RAB_SUBGROUP_CODE_MAP = {
     'Belanja Pemeliharaan Mesin dan Peralatan Berat': '5.2.6.01',
     'Belanja Pemeliharaan Kendaraan Bermotor': '5.2.6.02',
     'Belanja Pemeliharaan Peralatan': '5.2.6.03',
-    'Belanja Modal Peralatan Komputer': '5.3.2.03'
+    'Belanja Modal Peralatan Komputer': '5.3.2.02'
 };
 
 function getRabGroupCode(groupName) {
@@ -1308,12 +1308,21 @@ function getRabGroupCode(groupName) {
 
 function getRabSubgroupCode(subgroupName, groupName) {
     const rawSub = String(subgroupName || '').trim();
+    const grpCode = getRabGroupCode(groupName);
     if (rawSub) {
         if (RAB_SUBGROUP_CODE_MAP[rawSub]) return RAB_SUBGROUP_CODE_MAP[rawSub];
         const normSub = rawSub.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
         for (const [k, v] of Object.entries(RAB_SUBGROUP_CODE_MAP)) {
             const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
             if (normSub === kNorm) return v;
+        }
+
+        // Heuristics untuk Belanja Modal Fisik (5.3.4 - 5.3.8)
+        if (grpCode && (grpCode === '5.3.4' || grpCode === '5.3.5' || grpCode === '5.3.6' || grpCode === '5.3.7' || grpCode === '5.3.8')) {
+            if (normSub.includes('bahan') || normSub.includes('material')) return grpCode + '.01';
+            if (normSub.includes('sewa peralatan') || normSub.includes('sewa')) return grpCode + '.02';
+            if (normSub.includes('upah')) return grpCode + '.03';
+            if (normSub.includes('honor') || normSub.includes('tim')) return grpCode + '.04';
         }
 
         // Keyword heuristics untuk 5.2.1
@@ -1333,7 +1342,6 @@ function getRabSubgroupCode(subgroupName, groupName) {
         if (normSub.includes('perlengkapan')) return '5.2.1.99';
     }
 
-    const grpCode = getRabGroupCode(groupName);
     if (grpCode && grpCode !== '9.9.9') {
         return grpCode + '.99';
     }

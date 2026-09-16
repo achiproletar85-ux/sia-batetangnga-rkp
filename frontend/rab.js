@@ -133,48 +133,48 @@ const rabCategories = [
     { group: 'Belanja Barang dan Jasa yang Diserahkan kepada Masyarakat', subgroup: 'Belanja Bantuan Bibit Tanaman/Hewan/Ikan', groupCode: '5.2.7', subgroupCode: '5.2.7.05' },
     { group: 'Belanja Barang dan Jasa yang Diserahkan kepada Masyarakat', subgroup: 'Belanja Barang dan Jasa yang Diserahkan kepada Masyarakat Lainnya', groupCode: '5.2.7', subgroupCode: '5.2.7.90-99' },
     { group: 'Belanja Modal Pengadaan Tanah', subgroup: 'Belanja Modal Pembebasan/Pembelian Tanah', groupCode: '5.3.1', subgroupCode: '5.3.1.01' },
-    { group: 'Belanja Modal Pengadaan Tanah', subgroup: 'Belanja Modal Pembayaran Honorarium Tim Tanah', groupCode: '5.3.1', subgroupCode: '5.3.1.02' },
-    { group: 'Belanja Modal Pengadaan Tanah', subgroup: 'Belanja Modal Pengukuran dan Pembuatan Sertifikat Tanah', groupCode: '5.3.1', subgroupCode: '5.3.1.03' },
-    { group: 'Belanja Modal Pengadaan Tanah', subgroup: 'Belanja Modal Pengurukan dan Pematangan Tanah', groupCode: '5.3.1', subgroupCode: '5.3.1.04' },
-    { group: 'Belanja Modal Pengadaan Tanah', subgroup: 'Belanja Modal Perjalanan Pengadaan Tanah', groupCode: '5.3.1', subgroupCode: '5.3.1.05' },
+    { group: 'Belanja Modal Pengadaan Tanah', subgroup: 'Belanja Modal Pengukuran dan Pembuatan Sertifikat Tanah', groupCode: '5.3.1', subgroupCode: '5.3.1.02' },
+    { group: 'Belanja Modal Pengadaan Tanah', subgroup: 'Belanja Modal Pengurukan dan Pematangan Tanah', groupCode: '5.3.1', subgroupCode: '5.3.1.03' },
+    { group: 'Belanja Modal Pengadaan Tanah', subgroup: 'Belanja Modal Perjalanan Pengadaan Tanah', groupCode: '5.3.1', subgroupCode: '5.3.1.04' },
+    { group: 'Belanja Modal Pengadaan Tanah', subgroup: 'Belanja Modal Pembayaran Honorarium Tim Tanah', groupCode: '5.3.1', subgroupCode: '5.3.1.05' },
     { group: 'Belanja Modal Pengadaan Tanah', subgroup: 'Belanja Modal Pengadaan Tanah Lainnya', groupCode: '5.3.1', subgroupCode: '5.3.1.90-99' },
-    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.2', subgroupCode: '5.3.2.01' },
-    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Elektronik dan Alat Studio', groupCode: '5.3.2', subgroupCode: '5.3.2.02' },
-    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Komputer', groupCode: '5.3.2', subgroupCode: '5.3.2.03' },
-    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Mebel dan Aksesori Ruangan', groupCode: '5.3.2', subgroupCode: '5.3.2.04' },
-    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Dapur', groupCode: '5.3.2', subgroupCode: '5.3.2.05' },
-    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Alat Ukur', groupCode: '5.3.2', subgroupCode: '5.3.2.06' },
-    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Rambu-rambu/Patok Tanah', groupCode: '5.3.2', subgroupCode: '5.3.2.07' },
-    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan khusus Kesehatan', groupCode: '5.3.2', subgroupCode: '5.3.2.08' },
-    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan khusus Pertanian/Perikanan/Peternakan', groupCode: '5.3.2', subgroupCode: '5.3.2.09' },
-    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Mesin', groupCode: '5.3.2', subgroupCode: '5.3.2.10' },
-    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Pengadaan Alat-Alat Berat', groupCode: '5.3.2', subgroupCode: '5.3.2.11' },
+    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Elektronik dan Alat Studio', groupCode: '5.3.2', subgroupCode: '5.3.2.01' },
+    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Komputer', groupCode: '5.3.2', subgroupCode: '5.3.2.02' },
+    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Mebel dan Aksesori Ruangan', groupCode: '5.3.2', subgroupCode: '5.3.2.03' },
+    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Dapur', groupCode: '5.3.2', subgroupCode: '5.3.2.04' },
+    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Alat Ukur', groupCode: '5.3.2', subgroupCode: '5.3.2.05' },
+    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan Rambu-rambu/Patok Tanah', groupCode: '5.3.2', subgroupCode: '5.3.2.06' },
+    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan khusus Kesehatan', groupCode: '5.3.2', subgroupCode: '5.3.2.07' },
+    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan khusus Pertanian/Perikanan/Peternakan', groupCode: '5.3.2', subgroupCode: '5.3.2.08' },
+    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Mesin', groupCode: '5.3.2', subgroupCode: '5.3.2.09' },
+    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Pengadaan Alat-Alat Berat', groupCode: '5.3.2', subgroupCode: '5.3.2.10' },
+    { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.2', subgroupCode: '5.3.2.11' },
     { group: 'Belanja Modal Peralatan, Mesin, dan Alat Berat', subgroup: 'Belanja Modal Peralatan, Mesin, dan Alat Berat Lainnya', groupCode: '5.3.2', subgroupCode: '5.3.2.90-99' },
-    { group: 'Belanja Modal Kendaraan', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.3', subgroupCode: '5.3.3.01' },
-    { group: 'Belanja Modal Kendaraan', subgroup: 'Belanja Modal Kendaraan Darat Bermotor', groupCode: '5.3.3', subgroupCode: '5.3.3.02' },
-    { group: 'Belanja Modal Kendaraan', subgroup: 'Belanja Modal Angkutan Darat Tidak Bermotor', groupCode: '5.3.3', subgroupCode: '5.3.3.03' },
-    { group: 'Belanja Modal Kendaraan', subgroup: 'Belanja Modal Angkutan Air Tidak Bermotor', groupCode: '5.3.3', subgroupCode: '5.3.3.05' },
+    { group: 'Belanja Modal Kendaraan', subgroup: 'Belanja Modal Kendaraan Darat Bermotor', groupCode: '5.3.3', subgroupCode: '5.3.3.01' },
+    { group: 'Belanja Modal Kendaraan', subgroup: 'Belanja Modal Angkutan Darat Tidak Bermotor', groupCode: '5.3.3', subgroupCode: '5.3.3.02' },
+    { group: 'Belanja Modal Kendaraan', subgroup: 'Belanja Modal Angkutan Air Tidak Bermotor', groupCode: '5.3.3', subgroupCode: '5.3.3.03' },
+    { group: 'Belanja Modal Kendaraan', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.3', subgroupCode: '5.3.3.04' },
     { group: 'Belanja Modal Kendaraan', subgroup: 'Belanja Modal Kendaraan Lainnya', groupCode: '5.3.3', subgroupCode: '5.3.3.90-99' },
-    { group: 'Belanja Modal Gedung, Bangunan dan Taman', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.4', subgroupCode: '5.3.4.01' },
-    { group: 'Belanja Modal Gedung, Bangunan dan Taman', subgroup: 'Belanja Modal Upah Tenaga Kerja', groupCode: '5.3.4', subgroupCode: '5.3.4.02' },
-    { group: 'Belanja Modal Gedung, Bangunan dan Taman', subgroup: 'Belanja Modal Bahan Baku', groupCode: '5.3.4', subgroupCode: '5.3.4.03' },
-    { group: 'Belanja Modal Gedung, Bangunan dan Taman', subgroup: 'Belanja Modal Sewa Peralatan', groupCode: '5.3.4', subgroupCode: '5.3.4.04' },
-    { group: 'Belanja Modal Jalan/Prasarana Jalan', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.5', subgroupCode: '5.3.5.01' },
-    { group: 'Belanja Modal Jalan/Prasarana Jalan', subgroup: 'Belanja Modal Upah Tenaga Kerja', groupCode: '5.3.5', subgroupCode: '5.3.5.02' },
-    { group: 'Belanja Modal Jalan/Prasarana Jalan', subgroup: 'Belanja Modal Bahan Baku', groupCode: '5.3.5', subgroupCode: '5.3.5.03' },
-    { group: 'Belanja Modal Jalan/Prasarana Jalan', subgroup: 'Belanja Modal Sewa Peralatan', groupCode: '5.3.5', subgroupCode: '5.3.5.04' },
-    { group: 'Belanja Modal Jembatan', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.6', subgroupCode: '5.3.6.01' },
-    { group: 'Belanja Modal Jembatan', subgroup: 'Belanja Modal Upah Tenaga Kerja', groupCode: '5.3.6', subgroupCode: '5.3.6.02' },
-    { group: 'Belanja Modal Jembatan', subgroup: 'Belanja Modal Bahan Baku', groupCode: '5.3.6', subgroupCode: '5.3.6.03' },
-    { group: 'Belanja Modal Jembatan', subgroup: 'Belanja Modal Sewa Peralatan', groupCode: '5.3.6', subgroupCode: '5.3.6.04' },
-    { group: 'Belanja Modal Irigasi/Embung/Air Sungai/Drainase/Air Limbah/Persampahan', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.7', subgroupCode: '5.3.7.01' },
-    { group: 'Belanja Modal Irigasi/Embung/Air Sungai/Drainase/Air Limbah/Persampahan', subgroup: 'Belanja Modal Upah Tenaga Kerja', groupCode: '5.3.7', subgroupCode: '5.3.7.02' },
-    { group: 'Belanja Modal Irigasi/Embung/Air Sungai/Drainase/Air Limbah/Persampahan', subgroup: 'Belanja Modal Bahan Baku', groupCode: '5.3.7', subgroupCode: '5.3.7.03' },
-    { group: 'Belanja Modal Irigasi/Embung/Air Sungai/Drainase/Air Limbah/Persampahan', subgroup: 'Belanja Modal Sewa Peralatan', groupCode: '5.3.7', subgroupCode: '5.3.7.04' },
-    { group: 'Belanja Modal Jaringan/Instalasi', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.8', subgroupCode: '5.3.8.01' },
-    { group: 'Belanja Modal Jaringan/Instalasi', subgroup: 'Belanja Modal Upah Tenaga Kerja', groupCode: '5.3.8', subgroupCode: '5.3.8.02' },
-    { group: 'Belanja Modal Jaringan/Instalasi', subgroup: 'Belanja Modal Bahan Baku', groupCode: '5.3.8', subgroupCode: '5.3.8.03' },
-    { group: 'Belanja Modal Jaringan/Instalasi', subgroup: 'Belanja Modal Sewa Peralatan', groupCode: '5.3.8', subgroupCode: '5.3.8.04' },
+    { group: 'Belanja Modal Gedung, Bangunan dan Taman', subgroup: 'Belanja Modal Bahan Baku', groupCode: '5.3.4', subgroupCode: '5.3.4.01' },
+    { group: 'Belanja Modal Gedung, Bangunan dan Taman', subgroup: 'Belanja Modal Sewa Peralatan', groupCode: '5.3.4', subgroupCode: '5.3.4.02' },
+    { group: 'Belanja Modal Gedung, Bangunan dan Taman', subgroup: 'Belanja Modal Upah Tenaga Kerja', groupCode: '5.3.4', subgroupCode: '5.3.4.03' },
+    { group: 'Belanja Modal Gedung, Bangunan dan Taman', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.4', subgroupCode: '5.3.4.04' },
+    { group: 'Belanja Modal Jalan/Prasarana Jalan', subgroup: 'Belanja Modal Bahan Baku', groupCode: '5.3.5', subgroupCode: '5.3.5.01' },
+    { group: 'Belanja Modal Jalan/Prasarana Jalan', subgroup: 'Belanja Modal Sewa Peralatan', groupCode: '5.3.5', subgroupCode: '5.3.5.02' },
+    { group: 'Belanja Modal Jalan/Prasarana Jalan', subgroup: 'Belanja Modal Upah Tenaga Kerja', groupCode: '5.3.5', subgroupCode: '5.3.5.03' },
+    { group: 'Belanja Modal Jalan/Prasarana Jalan', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.5', subgroupCode: '5.3.5.04' },
+    { group: 'Belanja Modal Jembatan', subgroup: 'Belanja Modal Bahan Baku', groupCode: '5.3.6', subgroupCode: '5.3.6.01' },
+    { group: 'Belanja Modal Jembatan', subgroup: 'Belanja Modal Sewa Peralatan', groupCode: '5.3.6', subgroupCode: '5.3.6.02' },
+    { group: 'Belanja Modal Jembatan', subgroup: 'Belanja Modal Upah Tenaga Kerja', groupCode: '5.3.6', subgroupCode: '5.3.6.03' },
+    { group: 'Belanja Modal Jembatan', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.6', subgroupCode: '5.3.6.04' },
+    { group: 'Belanja Modal Irigasi/Embung/Air Sungai/Drainase/Air Limbah/Persampahan', subgroup: 'Belanja Modal Bahan Baku', groupCode: '5.3.7', subgroupCode: '5.3.7.01' },
+    { group: 'Belanja Modal Irigasi/Embung/Air Sungai/Drainase/Air Limbah/Persampahan', subgroup: 'Belanja Modal Sewa Peralatan', groupCode: '5.3.7', subgroupCode: '5.3.7.02' },
+    { group: 'Belanja Modal Irigasi/Embung/Air Sungai/Drainase/Air Limbah/Persampahan', subgroup: 'Belanja Modal Upah Tenaga Kerja', groupCode: '5.3.7', subgroupCode: '5.3.7.03' },
+    { group: 'Belanja Modal Irigasi/Embung/Air Sungai/Drainase/Air Limbah/Persampahan', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.7', subgroupCode: '5.3.7.04' },
+    { group: 'Belanja Modal Jaringan/Instalasi', subgroup: 'Belanja Modal Bahan Baku', groupCode: '5.3.8', subgroupCode: '5.3.8.01' },
+    { group: 'Belanja Modal Jaringan/Instalasi', subgroup: 'Belanja Modal Sewa Peralatan', groupCode: '5.3.8', subgroupCode: '5.3.8.02' },
+    { group: 'Belanja Modal Jaringan/Instalasi', subgroup: 'Belanja Modal Upah Tenaga Kerja', groupCode: '5.3.8', subgroupCode: '5.3.8.03' },
+    { group: 'Belanja Modal Jaringan/Instalasi', subgroup: 'Belanja Modal Honor Tim yang Melaksanakan Kegiatan', groupCode: '5.3.8', subgroupCode: '5.3.8.04' },
     { group: 'Belanja Modal lainnya', subgroup: 'Belanja Modal khusus Pendidikan dan Perpustakaan', groupCode: '5.3.9', subgroupCode: '5.3.9.01' },
     { group: 'Belanja Modal lainnya', subgroup: 'Belanja Modal khusus Olahraga', groupCode: '5.3.9', subgroupCode: '5.3.9.02' },
     { group: 'Belanja Modal lainnya', subgroup: 'Belanja Modal khusus Kesenian/Kebudayaan/keagamaan', groupCode: '5.3.9', subgroupCode: '5.3.9.03' },
@@ -245,7 +245,7 @@ const SUBGROUP_ALIASES = {
     'Belanja Pemeliharaan Mesin dan Peralatan Berat': '5.2.6.01',
     'Belanja Pemeliharaan Kendaraan Bermotor': '5.2.6.02',
     'Belanja Pemeliharaan Peralatan': '5.2.6.03',
-    'Belanja Modal Peralatan Komputer': '5.3.2.03'
+    'Belanja Modal Peralatan Komputer': '5.3.2.02'
 };
 Object.assign(RAB_SUBGROUP_CODE, SUBGROUP_ALIASES);
 
@@ -286,12 +286,21 @@ function getRabGroupCode(groupName) {
 
 function getRabSubgroupCode(subgroupName, groupName) {
     const rawSub = String(subgroupName || '').trim();
+    const grpCode = getRabGroupCode(groupName);
     if (rawSub) {
         if (RAB_SUBGROUP_CODE[rawSub]) return RAB_SUBGROUP_CODE[rawSub];
         const normSub = rawSub.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
         for (const [k, v] of Object.entries(RAB_SUBGROUP_CODE)) {
             const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
             if (normSub === kNorm) return v;
+        }
+
+        // Heuristics untuk Belanja Modal Fisik (5.3.4 - 5.3.8)
+        if (grpCode && (grpCode === '5.3.4' || grpCode === '5.3.5' || grpCode === '5.3.6' || grpCode === '5.3.7' || grpCode === '5.3.8')) {
+            if (normSub.includes('bahan') || normSub.includes('material')) return grpCode + '.01';
+            if (normSub.includes('sewa peralatan') || normSub.includes('sewa')) return grpCode + '.02';
+            if (normSub.includes('upah')) return grpCode + '.03';
+            if (normSub.includes('honor') || normSub.includes('tim')) return grpCode + '.04';
         }
 
         // Keyword heuristics untuk 5.2.1
@@ -311,7 +320,6 @@ function getRabSubgroupCode(subgroupName, groupName) {
         if (normSub.includes('perlengkapan')) return '5.2.1.99';
     }
 
-    const grpCode = getRabGroupCode(groupName);
     if (grpCode && grpCode !== '9.9.9') {
         return grpCode + '.99';
     }
@@ -673,11 +681,41 @@ function getSatuanValue() {
     return input ? input.value.trim() : '';
 }
 
+function getSubgroupOrderWeight(subgroupName, groupName) {
+    const s = String(subgroupName || '').toLowerCase().trim();
+    const g = String(groupName || '').toLowerCase().trim();
+
+    // Urutan standar SisKeuDes untuk Belanja Modal Fisik & Pengadaan:
+    // 1. Bahan Baku / Material
+    // 2. Sewa Peralatan
+    // 3. Upah Tenaga Kerja
+    // 4. Honor Tim Pelaksana Kegiatan (ditempatkan di bagian akhir sebelum belanja lainnya)
+    if (g.includes('modal') || g.includes('pemeliharaan') || g.includes('barang dan jasa')) {
+        if (s.includes('bahan baku') || s.includes('bahan/material') || (s.includes('bahan') && !s.includes('bakar')) || s.includes('material')) return 1;
+        if (s.includes('sewa peralatan') || (s.includes('sewa') && !s.includes('gedung') && !s.includes('ruang'))) return 2;
+        if (s.includes('upah tenaga kerja') || s.includes('upah')) return 3;
+        if (s.includes('honor tim') || s.includes('honorarium tim') || s.includes('tim yang melaksanakan') || s.includes('tim pengadaan')) return 8;
+        if (s.includes('honor')) return 7;
+        if (s.includes('lainnya')) return 9;
+    }
+    return 5;
+}
+
 function onGroupChange() {
     const group = document.getElementById('select-group').value;
     const select = document.getElementById('select-subgroup');
     select.innerHTML = '<option value="">-- Pilih Sub Group --</option>';
     const items = rabCategories.filter(item => item.group === group);
+    items.sort((a, b) => {
+        const wA = getSubgroupOrderWeight(a.subgroup, a.group);
+        const wB = getSubgroupOrderWeight(b.subgroup, b.group);
+        if (wA !== wB) return wA - wB;
+        if (a.subgroupCode && b.subgroupCode) {
+            const cmp = compareKodeRAB(a.subgroupCode, b.subgroupCode);
+            if (cmp !== 0) return cmp;
+        }
+        return String(a.subgroup || '').localeCompare(String(b.subgroup || ''));
+    });
     items.forEach(item => {
         select.innerHTML += `<option value="${item.subgroup}">${item.subgroup}</option>`;
     });
