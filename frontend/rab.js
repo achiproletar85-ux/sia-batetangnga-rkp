@@ -333,6 +333,142 @@ function compareKodeRAB(codeA, codeB) {
     return sa < sb ? -1 : (sa > sb ? 1 : 0);
 }
 
+function getRabItemRekening(it) {
+    if (!it || typeof it !== 'object') return '9.9.9.99';
+    let code = '';
+    if (it.kode_rekening) {
+        code = String(it.kode_rekening).trim();
+    } else {
+        const sub = String(it.subgroup || it.sub_kelompok || '').trim();
+        const grp = String(it.group || it.group_belanja || it.kelompok_belanja || '').trim();
+        code = getRabSubgroupCode(sub, grp);
+    }
+    if ((!code || code === '9.9.9.99' || code === '9.9.9') && it) {
+        const u = String(it.uraian || it.nama_barang || it.nama || '').trim().toLowerCase();
+        if (u.includes('kertas') || u.includes('buku') || u.includes('amplop') || u.includes('pulpen') || u.includes('spidol') || u.includes('map')) {
+            code = '5.2.1.01';
+        }
+    }
+    return code.replace(/\.+$/, '');
+}
+
+const SISKEUDES_ITEM_ORDER = [
+    'kertas f4',
+    'kertas hvs f4',
+    'kertas a4',
+    'kertas hvs a4',
+    'bundel besar',
+    'bundel kecil',
+    'polpen tanda tangan',
+    'tinta black',
+    'tinta warna',
+    'buku polio',
+    'buku folio',
+    'pulpen',
+    'lem',
+    'map lubang plastik',
+    'map plastik lubang',
+    'map biasa',
+    'peluru hekter',
+    'amplop',
+    'gunting',
+    'lakban',
+    'lampu',
+    'snack',
+    'nasi dos',
+    'nasi kotak',
+    'baleho 2x3',
+    'baleho kegiatan 2x1',
+    'baju keki',
+    'baju seragam',
+    'insentif petugas kebersihan',
+    'token listrik',
+    'majalah central news',
+    'wifi/internet',
+    'ganti oli',
+    'service',
+    'pajak motor',
+    'perbaikan motor',
+    'perbaikan printer',
+    'perbaikan standinfografis'
+];
+
+function getSiskeudesItemIndex(uraian) {
+    if (!uraian) return -1;
+    const norm = String(uraian).trim().toLowerCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ');
+    return SISKEUDES_ITEM_ORDER.findIndex(key => norm === key || norm.startsWith(key));
+}
+
+function sortRabItems(items) {
+    if (!Array.isArray(items)) return [];
+    const hasManualOrder = items.some(it => it && it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '');
+    if (hasManualOrder) {
+        const sorted = [...items].sort((a, b) => {
+            const rekA = getRabItemRekening(a);
+            const rekB = getRabItemRekening(b);
+            const cmp = compareKodeUnikFull(rekA, rekB);
+            if (cmp !== 0) return cmp;
+
+            const uA = Number(a.urutan_manual !== undefined && a.urutan_manual !== null && a.urutan_manual !== '' ? a.urutan_manual : (a.urutan || a.no || 999999));
+            const uB = Number(b.urutan_manual !== undefined && b.urutan_manual !== null && b.urutan_manual !== '' ? b.urutan_manual : (b.urutan || b.no || 999999));
+            if (uA !== uB) return uA - uB;
+            return 0;
+        });
+        const subCounters = {};
+        return sorted.map((it, idx) => {
+            const subKey = String(it.subgroup || it.sub_kelompok || it.group || '').trim();
+            subCounters[subKey] = (subCounters[subKey] || 0) + 1;
+            const subNo = subCounters[subKey];
+            return {
+                ...it,
+                no: subNo,
+                urutan: subNo,
+                urutan_manual: subNo,
+                no_subgroup: subNo,
+                urutan_subgroup: subNo
+            };
+        });
+    }
+    const sorted = [...items].sort((a, b) => {
+        const rekA = getRabItemRekening(a);
+        const rekB = getRabItemRekening(b);
+        const cmp = compareKodeUnikFull(rekA, rekB);
+        if (cmp !== 0) return cmp;
+
+        // Prioritas Urutan Standar SisKeuDes (Kertas f4 di #1, Kertas A4 di #2, Bundel Besar di #3, ..., Amplop di #14, dst)
+        const idxA = getSiskeudesItemIndex(a.uraian || a.nama_barang || a.nama);
+        const idxB = getSiskeudesItemIndex(b.uraian || b.nama_barang || b.nama);
+        if (idxA !== -1 && idxB !== -1) {
+            if (idxA !== idxB) return idxA - idxB;
+        } else if (idxA !== -1) {
+            return -1;
+        } else if (idxB !== -1) {
+            return 1;
+        }
+
+        const noA = Number(a.no || a.urutan || 0);
+        const noB = Number(b.no || b.urutan || 0);
+        if (noA && noB && noA !== noB) return noA - noB;
+
+        return String(a.uraian || a.nama_barang || '').localeCompare(String(b.uraian || b.nama_barang || ''), undefined, { numeric: true, sensitivity: 'base' });
+    });
+    const subCounters = {};
+    return sorted.map((it, idx) => {
+        const subKey = String(it.subgroup || it.sub_kelompok || it.group || '').trim();
+        subCounters[subKey] = (subCounters[subKey] || 0) + 1;
+        const subNo = subCounters[subKey];
+        return {
+            ...it,
+            no: it.no !== undefined ? it.no : (idx + 1),
+            urutan: it.urutan !== undefined ? it.urutan : (idx + 1),
+            no_subgroup: subNo,
+            urutan_subgroup: subNo
+        };
+    });
+}
+window.sortRabItems = sortRabItems;
+window.getRabItemRekening = getRabItemRekening;
+
 function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
     const msg = document.getElementById('toast-msg');
@@ -1050,20 +1186,14 @@ async function loadSavedRAB() {
             try { json = await res.json(); } catch (_) {}
         }
         if (json && json.success && json.data) {
-            rabItems = Array.isArray(json.data.items) ? json.data.items.map((it, idx) => ({
+            const mapped = Array.isArray(json.data.items) ? json.data.items.map((it, idx) => ({
                 ...it,
                 no: it.no !== undefined ? it.no : (idx + 1),
                 urutan: it.urutan !== undefined ? it.urutan : (idx + 1),
                 urutan_manual: it.urutan_manual !== undefined ? it.urutan_manual : (it.urutan !== undefined ? it.urutan : (idx + 1)),
                 sumber: normalizeSumberDana(it.sumber || it.sumber_dana)
             })) : [];
-            if (rabItems.some(it => it.urutan_manual !== undefined && it.urutan_manual !== null)) {
-                rabItems.sort((a, b) => {
-                    const uA = Number(a.urutan_manual !== undefined && a.urutan_manual !== null && a.urutan_manual !== '' ? a.urutan_manual : (a.urutan || a.no || 999999));
-                    const uB = Number(b.urutan_manual !== undefined && b.urutan_manual !== null && b.urutan_manual !== '' ? b.urutan_manual : (b.urutan || b.no || 999999));
-                    return uA - uB;
-                });
-            }
+            rabItems = sortRabItems(mapped);
             reindexRabItemsBySubgroup(rabItems);
             currentRabId = json.data.id || null;
             currentRabRefMurni = json.data.id_referensi_murni || null;
@@ -1083,10 +1213,11 @@ async function loadSavedRAB() {
                 if (resMurni.ok) {
                     const jsonMurni = await resMurni.json().catch(() => null);
                     if (jsonMurni && jsonMurni.success && jsonMurni.data) {
-                        rabMurniRefItems = Array.isArray(jsonMurni.data.items) ? jsonMurni.data.items.map(it => ({
+                        const mappedMurni = Array.isArray(jsonMurni.data.items) ? jsonMurni.data.items.map(it => ({
                             ...it,
                             sumber: normalizeSumberDana(it.sumber || it.sumber_dana)
                         })) : [];
+                        rabMurniRefItems = sortRabItems(mappedMurni);
                         const itemsSum = rabMurniRefItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
                         rabMurniRefTotal = itemsSum || Number(jsonMurni.data.jumlah_anggaran || jsonMurni.data.total_biaya || 0);
                     }
@@ -1847,7 +1978,7 @@ function reindexRabItemsBySubgroup(items) {
         it.urutan = subNo;
         it.urutan_subgroup = subNo;
         it.no_subgroup = subNo;
-        it.urutan_manual = it.urutan_manual !== undefined ? it.urutan_manual : subNo;
+        it.urutan_manual = subNo;
     });
 }
 
@@ -2524,7 +2655,7 @@ async function cetakPdfByGroup() {
             const prefixClean = targetPrefix.replace(/\.+$/, '');
             let query = client
                 .from('rab')
-                .select('id, kode_unik, kode_unik_full, kode_kegiatan, tahun, nama_kegiatan, uraian, jenis_kegiatan, bidang, group_nama, lokasi, lokasi_kegiatan, volume, volume_rab, satuan, harga_satuan, jumlah_anggaran, sumber_dana')
+                .select('id, kode_unik, kode_unik_full, kode_kegiatan, tahun, nama_kegiatan, uraian, jenis_kegiatan, bidang, group_nama, lokasi, lokasi_kegiatan, volume, volume_rab, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items')
                 .or(`kode_unik.ilike.${targetPrefix}%,kode_unik_full.ilike.${targetPrefix}%,kode_kegiatan.ilike.${targetPrefix}%,kode_unik.ilike.${prefixClean}%,kode_unik_full.ilike.${prefixClean}%`)
                 .limit(300);
 
@@ -2538,7 +2669,7 @@ async function cetakPdfByGroup() {
                 // Try without year restriction
                 const resNoYear = await client
                     .from('rab')
-                    .select('id, kode_unik, kode_unik_full, kode_kegiatan, tahun, nama_kegiatan, uraian, jenis_kegiatan, bidang, group_nama, lokasi, lokasi_kegiatan, volume, volume_rab, satuan, harga_satuan, jumlah_anggaran, sumber_dana')
+                    .select('id, kode_unik, kode_unik_full, kode_kegiatan, tahun, nama_kegiatan, uraian, jenis_kegiatan, bidang, group_nama, lokasi, lokasi_kegiatan, volume, volume_rab, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items')
                     .or(`kode_unik.ilike.${targetPrefix}%,kode_unik_full.ilike.${targetPrefix}%,kode_kegiatan.ilike.${targetPrefix}%,kode_unik.ilike.${prefixClean}%,kode_unik_full.ilike.${prefixClean}%`)
                     .limit(300);
                 if (resNoYear.data && resNoYear.data.length > 0) data = resNoYear.data;
@@ -2594,15 +2725,8 @@ async function cetakPdfByGroup() {
             
             if (Array.isArray(parsedItems) && parsedItems.length > 0) {
                 // SINKRONISASI URUTAN MUTLAK:
-                // Jika ada urutan manual, urutkan parsedItems agar persis seperti yang tampil di kartu web
-                if (parsedItems.some(it => it && it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '')) {
-                    parsedItems.sort((a, b) => {
-                        const uA = Number(a.urutan_manual !== undefined && a.urutan_manual !== null && a.urutan_manual !== '' ? a.urutan_manual : (a.urutan || a.no || 999999));
-                        const uB = Number(b.urutan_manual !== undefined && b.urutan_manual !== null && b.urutan_manual !== '' ? b.urutan_manual : (b.urutan || b.no || 999999));
-                        if (uA !== uB) return uA - uB;
-                        return 0;
-                    });
-                }
+                // Urutkan parsedItems mengikuti fungsi pengurutan standar dan urutan manual persis seperti kartu web
+                parsedItems = sortRabItems(parsedItems);
                 reindexRabItemsBySubgroup(parsedItems);
 
                 parsedItems.forEach(it => {

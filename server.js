@@ -489,7 +489,7 @@ function enrichRabDetail(r) {
         try { pItems = JSON.parse(pItems); } catch(_) {}
     }
     if (Array.isArray(pItems)) {
-        r.items = pItems.map(it => {
+        const mapped = pItems.map(it => {
             if (it && typeof it === 'object') {
                 return {
                     ...it,
@@ -498,6 +498,7 @@ function enrichRabDetail(r) {
             }
             return it;
         });
+        r.items = sortRabItems(mapped);
     }
     return r;
 }
@@ -1008,10 +1009,10 @@ async function listRabsFromDb(tahun, tipeAnggaran = RAB_TIPE_MURNI, withItems = 
         }
 
         const normSumber = normalizeSumberDana(r.sumber_dana);
-        const normItems = withItems ? (Array.isArray(parsedItems) ? parsedItems.map(it => ({
+        const normItems = withItems ? (Array.isArray(parsedItems) ? sortRabItems(parsedItems.map(it => ({
             ...it,
             sumber: normalizeSumberDana(it.sumber || it.sumber_dana || normSumber)
-        })) : []) : r.items;
+        }))) : []) : r.items;
 
         return {
             ...r,
@@ -1357,9 +1358,9 @@ function sortRabItems(items) {
             const subNo = subCounters[subKey];
             return {
                 ...it,
-                no: it.no !== undefined ? it.no : subNo,
-                urutan: it.urutan !== undefined ? it.urutan : subNo,
-                urutan_manual: it.urutan_manual !== undefined ? it.urutan_manual : subNo,
+                no: subNo,
+                urutan: subNo,
+                urutan_manual: subNo,
                 no_subgroup: subNo,
                 urutan_subgroup: subNo
             };
