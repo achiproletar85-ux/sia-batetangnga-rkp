@@ -5444,8 +5444,9 @@ app.get('/api/rab/perbandingan', async (req, res) => {
             if (p) matchedPerIds.add(Number(p.id));
 
             let mItems = parseRabItemsSafely(m.items);
+            const hasManualOrder = mItems.some(it => it && it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '');
             const hasExplicitOrder = mItems.some(it => Number(it.urutan || it.no || 0) > 0);
-            if (!hasExplicitOrder) {
+            if (!hasExplicitOrder || hasManualOrder) {
                 mItems = sortRabItems(mItems);
             }
             const pItems = p ? parseRabItemsSafely(p.items) : [];

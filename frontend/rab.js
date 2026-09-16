@@ -2490,6 +2490,30 @@ async function cetakPdfByGroup() {
         return kode.startsWith(targetPrefix) || kode.startsWith(prefixClean) || targetPrefix.startsWith(kode);
     });
 
+    // SINKRONISASI AKTIF: Jika pengguna sedang mengedit/melihat kegiatan di modul RAB,
+    // gunakan array rabItems terkini dari memori agar urutan manual dan item baru langsung tercetak identik.
+    if (selectedRpjm && Array.isArray(rabItems) && rabItems.length > 0) {
+        const curKode = String(selectedRpjm.kode_unik_full || selectedRpjm.kode_unik || '').trim();
+        const prefixClean = targetPrefix.replace(/\.+$/, '');
+        if (curKode.startsWith(targetPrefix) || curKode.startsWith(prefixClean) || targetPrefix.startsWith(curKode)) {
+            const existingIdx = matchedRows.findIndex(r => {
+                const rKode = String(r.kode_unik_full || r.kode_unik || '').trim();
+                return rKode === curKode || rKode.replace(/\.+$/, '') === curKode.replace(/\.+$/, '');
+            });
+            const activeRow = {
+                ...selectedRpjm,
+                items: [...rabItems],
+                nama_kegiatan: selectedRpjm.nama_kegiatan || selectedRpjm.jenis_kegiatan || groupTitle,
+                rpjm_data: selectedRpjm.rpjm_data || selectedRpjm
+            };
+            if (existingIdx >= 0) {
+                matchedRows[existingIdx] = activeRow;
+            } else {
+                matchedRows.push(activeRow);
+            }
+        }
+    }
+
     console.log("LOCAL MEMORY MATCHED ROWS:", matchedRows.length, matchedRows);
 
     // 2. FALLBACK QUERY DUA/TIGA KOLOM JIKA ARRAY LOCAL KOSONG ATAU BELUM MEMILIKI ITEMS
@@ -2569,6 +2593,18 @@ async function cetakPdfByGroup() {
             let parsedItems = typeof row.items === 'string' ? JSON.parse(row.items || '[]') : (row.items || []);
             
             if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+                // SINKRONISASI URUTAN MUTLAK:
+                // Jika ada urutan manual, urutkan parsedItems agar persis seperti yang tampil di kartu web
+                if (parsedItems.some(it => it && it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '')) {
+                    parsedItems.sort((a, b) => {
+                        const uA = Number(a.urutan_manual !== undefined && a.urutan_manual !== null && a.urutan_manual !== '' ? a.urutan_manual : (a.urutan || a.no || 999999));
+                        const uB = Number(b.urutan_manual !== undefined && b.urutan_manual !== null && b.urutan_manual !== '' ? b.urutan_manual : (b.urutan || b.no || 999999));
+                        if (uA !== uB) return uA - uB;
+                        return 0;
+                    });
+                }
+                reindexRabItemsBySubgroup(parsedItems);
+
                 parsedItems.forEach(it => {
                     const vol = Number(it.volume) || 12;
                     const hrg = Number(it.harga || it.harga_satuan || 0);
@@ -2583,7 +2619,14 @@ async function cetakPdfByGroup() {
                         group: (it.group || it.group_belanja || row.group || row.group_belanja || row.group_nama || '').trim(),
                         subgroup: (it.subgroup || it.group_kegiatan || row.subgroup || row.group_kegiatan || row.jenis_kegiatan || '').trim(),
                         nama_kegiatan: (it.nama_kegiatan || it.group || row.jenis_kegiatan || row.nama_kegiatan || '').trim(),
-                        rpjm_data: it.rpjm_data || row.rpjm_data || null
+                        rpjm_data: it.rpjm_data || row.rpjm_data || null,
+                        urutan_manual: it.urutan_manual,
+                        urutan: it.urutan,
+                        no: it.no,
+                        urutan_subgroup: it.urutan_subgroup,
+                        no_subgroup: it.no_subgroup,
+                        keterangan: it.keterangan || '',
+                        item_baru: it.item_baru
                     });
                 });
             } else {
@@ -2808,6 +2851,9 @@ function getGroupKey(row, item) {
     const sortedGroupKeys = Object.keys(groupedData).sort((a, b) => {
         const codeA = getRabGroupCode(a);
         const codeB = getRabGroupCode(b);
+        const aHasGroup = codeA !== '';
+        const bHasGroup = codeB !== '';
+        if (aHasGroup !== bHasGroup) return aHasGroup ? -1 : 1;
         const cmp = compareKodeRAB(codeA, codeB);
         if (cmp !== 0) return cmp;
         return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
@@ -2826,6 +2872,9 @@ function getGroupKey(row, item) {
             const subKeys = Object.keys(groupedData[gKey][namaKeg]).sort((a, b) => {
                 const codeA = getRabSubgroupCode(a, gKey);
                 const codeB = getRabSubgroupCode(b, gKey);
+                const aHasSub = codeA !== '';
+                const bHasSub = codeB !== '';
+                if (aHasSub !== bHasSub) return aHasSub ? -1 : 1;
                 const cmp = compareKodeRAB(codeA, codeB);
                 if (cmp !== 0) return cmp;
                 return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
@@ -2856,11 +2905,26 @@ function getGroupKey(row, item) {
                     </tr>
                 `;
 
-                // RESET ABJAD KE 'a.' HANYA DI SINI (PER SUBGROUP)
-                let charIndex = 97; // ASCII 'a'
+                // URUTKAN ITEM SECARA MUTLAK MENGIKUTI POSISI WEB CARD (urutan_manual / urutan_subgroup)
+                // TANPA localeCompare pada uraian agar susunan tidak teracak!
+                groupSubData.items.sort((a, b) => {
+                    const uA = Number(a.urutan_manual !== undefined && a.urutan_manual !== null && a.urutan_manual !== '' ? a.urutan_manual : (a.urutan_subgroup || a.no_subgroup || a.urutan || a.no || 999999));
+                    const uB = Number(b.urutan_manual !== undefined && b.urutan_manual !== null && b.urutan_manual !== '' ? b.urutan_manual : (b.urutan_subgroup || b.no_subgroup || b.urutan || b.no || 999999));
+                    if (uA !== uB) return uA - uB;
+                    return 0;
+                });
 
+                // RESET ABJAD KE 'a.' HANYA DI SINI (PER SUBGROUP)
+                const getSubCharLabel = (i) => {
+                    let n = i, s = '';
+                    do { s = String.fromCharCode(97 + (n % 26 === 0 ? 25 : (n % 26) - 1)) + s; n = Math.floor((n - 1) / 26); } while (n > 0);
+                    return s + '.';
+                };
+
+                let itemCounter = 0;
                 groupSubData.items.forEach(it => {
-                    const charLabel = String.fromCharCode(charIndex) + '.';
+                    itemCounter++;
+                    const charLabel = getSubCharLabel(itemCounter);
                     const itemTotal = Number(it.jumlah || (it.volume * it.harga) || 0);
                     const hrg = Number(it.harga || it.harga_satuan) || 0;
 
@@ -2874,7 +2938,6 @@ function getGroupKey(row, item) {
                             <td style="border: 1px solid #000; text-align: right; padding: 6px 8px;"></td>
                         </tr>
                     `;
-                    charIndex++;
                 });
             });
         });

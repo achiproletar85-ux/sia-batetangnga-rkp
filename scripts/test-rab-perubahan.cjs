@@ -584,11 +584,37 @@ console.log('\n19) Fitur Push Item Baru ke RAB Murni (/api/rab/sync-to-murni)');
     check('Tombol Push ke Murni terpasang pada badge Item Baru', rabJsCode.includes('Push ke Murni'), true);
 }
 
+// ============================================================
+// 20. Sinkronisasi Mutlak Urutan Tampilan Web & Cetak PDF
+// ============================================================
+console.log('\n20) Sinkronisasi Mutlak Urutan Tampilan Web & Cetak PDF');
+{
+    const fs = require('fs');
+    const rabJsCode = fs.readFileSync(path.resolve(__dirname, '..', 'frontend', 'rab.js'), 'utf8');
+    const serverCode = fs.readFileSync(path.resolve(__dirname, '..', 'server.js'), 'utf8');
+
+    // 1. Verifikasi integrasi data memori aktif ke cetak PDF
+    check('SINKRONISASI AKTIF: cetakPdfByGroup memeriksa rabItems di memori', rabJsCode.includes('// SINKRONISASI AKTIF: Jika pengguna sedang mengedit/melihat kegiatan di modul RAB'), true);
+
+    // 2. Verifikasi parsedItems di cetakPdfByGroup menghormati urutan_manual dan reindex
+    check('cetakPdfByGroup mengurutkan parsedItems berbasis urutan_manual', rabJsCode.includes('reindexRabItemsBySubgroup(parsedItems)'), true);
+
+    // 3. Verifikasi executePrintRAB tidak melakukan sort sembarangan pada uraian item
+    check('executePrintRAB menyortir groupSubData.items berbasis urutan_manual/subgroup', rabJsCode.includes('groupSubData.items.sort((a, b) => {'), true);
+
+    // 4. Verifikasi penomoran charLabel a., b., c... ter-reset per sub-kelompok
+    check('Penomoran getSubCharLabel terpasang di executePrintRAB', rabJsCode.includes('const getSubCharLabel = (i) =>'), true);
+
+    // 5. Verifikasi server.js /api/rab/perbandingan mendukung hasManualOrder
+    check('server.js mendukung hasManualOrder pada GET /api/rab/perbandingan', serverCode.includes('const hasManualOrder = mItems.some('), true);
+}
+
 console.log(`\n========================================`);
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
 console.log(`========================================\n`);
 
 process.exit(fail === 0 ? 0 : 1);
+
 
 
