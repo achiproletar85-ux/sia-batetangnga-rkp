@@ -1691,7 +1691,27 @@ function getNamaSubBidangFull(item, kodeUnik) {
     return "Sub Bidang Penyelenggaraan Pemerintahan Desa";
 }
 
-async function saveRAB() {
+let isSavingRab = false;
+let pendingSaveRab = false;
+
+function setSaveStatusIndicator(status) {
+    const indicator = document.getElementById('rab-save-status');
+    if (!indicator) return;
+    indicator.classList.remove('hidden');
+    if (status === 'saving') {
+        indicator.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 transition';
+        indicator.innerHTML = '<i class="fas fa-spinner fa-spin text-amber-500"></i> Menyimpan ke Supabase...';
+    } else if (status === 'saved') {
+        indicator.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 transition';
+        indicator.innerHTML = '<i class="fas fa-check-circle text-emerald-500"></i> Tersimpan di Supabase';
+    } else if (status === 'error') {
+        indicator.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 transition';
+        indicator.innerHTML = '<i class="fas fa-exclamation-triangle text-rose-500"></i> Gagal menyimpan';
+    }
+}
+window.setSaveStatusIndicator = setSaveStatusIndicator;
+
+async function executeSaveRAB() {
     const selectElem = document.getElementById('select-kode-unik');
     let kodeUnikFix = selectElem ? selectElem.value : '';
 
@@ -1734,6 +1754,36 @@ async function saveRAB() {
     const hargaSatuanRab = (firstItem.harga !== undefined && firstItem.harga !== null && firstItem.harga !== '' && !isNaN(Number(firstItem.harga))) ? parseFloat(firstItem.harga) : totalBiaya;
     const totalRab = Number.isFinite(totalBiaya) ? totalBiaya : (volumeRab * hargaSatuanRab);
 
+    // Sanitasi lengkap seluruh item agar seluruh properti tersimpan utuh dan presisi
+    const sanitizedItems = rabItems.map((it, idx) => {
+        const vol = (it.volume !== undefined && it.volume !== null && it.volume !== '' && !isNaN(Number(it.volume))) ? Number(it.volume) : 1;
+        const hrg = (it.harga !== undefined && it.harga !== null && it.harga !== '' && !isNaN(Number(it.harga))) ? Number(it.harga) : (it.harga_satuan !== undefined && it.harga_satuan !== null && it.harga_satuan !== '' && !isNaN(Number(it.harga_satuan)) ? Number(it.harga_satuan) : 0);
+        const jml = (it.jumlah !== undefined && it.jumlah !== null && it.jumlah !== '' && !isNaN(Number(it.jumlah))) ? Number(it.jumlah) : (it.jumlah_biaya !== undefined && it.jumlah_biaya !== null && it.jumlah_biaya !== '' && !isNaN(Number(it.jumlah_biaya)) ? Number(it.jumlah_biaya) : (vol * hrg));
+        const subNo = Number(it.no_subgroup || it.urutan_subgroup || it.no || it.urutan || (idx + 1));
+        const uManual = (it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '' && !isNaN(Number(it.urutan_manual))) ? Number(it.urutan_manual) : subNo;
+
+        return {
+            ...it,
+            group: String(it.group || it.group_belanja || 'Belanja').trim(),
+            subgroup: String(it.subgroup || it.sub_kelompok || 'Sub Group').trim(),
+            uraian: String(it.uraian || '-').trim(),
+            volume: vol,
+            satuan: String(it.satuan || 'Paket').trim(),
+            harga: hrg,
+            jumlah: jml,
+            harga_satuan: hrg,
+            jumlah_biaya: jml,
+            sumber: normalizeSumberDana(it.sumber || it.sumber_dana || normFirstSumber),
+            sumber_dana: normalizeSumberDana(it.sumber || it.sumber_dana || normFirstSumber),
+            keterangan: String(it.keterangan || '').trim(),
+            no: subNo,
+            urutan: subNo,
+            no_subgroup: subNo,
+            urutan_subgroup: subNo,
+            urutan_manual: uManual
+        };
+    });
+
     const payload = {
         id: currentRabId || undefined,
         id_referensi_murni: currentRabRefMurni || undefined,
@@ -1743,7 +1793,7 @@ async function saveRAB() {
         bidang: namaBidangFull,
         jenis_kegiatan: activity.jenis_kegiatan || '',
         tipe_anggaran: rabTipe,
-        items: rabItems,
+        items: sanitizedItems,
         jumlah_anggaran: totalRab,
         volume: volumeRab,
         satuan: firstItem.satuan || 'Paket',
@@ -1761,39 +1811,56 @@ async function saveRAB() {
     // Use kode_unik_full as the primary key for the POST request as well
     payload.kode_unik = payload.kode_unik_full;
 
-    console.log("PAYLOAD DIKIRIM KE SUPABASE:", JSON.stringify(payload));
+    const res = await fetch(`${API_URL}/rab`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    let json = null;
+    try { json = await res.json(); } catch (_) {}
+    if (res.ok && json && json.success) {
+        if (json.data && json.data.id) {
+            currentRabId = json.data.id;
+        }
+        if (json.data && json.data.id_referensi_murni) {
+            currentRabRefMurni = json.data.id_referensi_murni;
+        }
+        showToast(`✅ Data RAB ${rabTipe} berhasil disimpan ke Supabase!`, 'success');
+        await loadSavedRabList();
+        await refreshLockStatus();
+    } else if (json && json.locked) {
+        showToast(json.error || 'Gagal menyimpan data RAB.', 'error');
+        rabMurniLocked = false;
+        applyReadOnlyMode();
+        await loadSavedRabList();
+    } else {
+        showToast((json && (json.error || json.message)) || `Gagal menyimpan RAB ke database (HTTP ${res.status})`, 'error');
+        await loadSavedRabList();
+    }
+}
+
+async function saveRAB() {
+    if (isSavingRab) {
+        pendingSaveRab = true;
+        setSaveStatusIndicator('saving');
+        return;
+    }
+    isSavingRab = true;
+    setSaveStatusIndicator('saving');
 
     try {
-        const res = await fetch(`${API_URL}/rab`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        let json = null;
-        try { json = await res.json(); } catch (_) {}
-        if (res.ok && json && json.success) {
-            if (json.data && json.data.id) {
-                currentRabId = json.data.id;
-            }
-            if (json.data && json.data.id_referensi_murni) {
-                currentRabRefMurni = json.data.id_referensi_murni;
-            }
-            showToast(`✅ Data RAB ${rabTipe} berhasil disimpan ke Supabase!`, 'success');
-            await loadSavedRabList();
-            await refreshLockStatus();
-        } else if (json && json.locked) {
-            showToast(json.error || 'Gagal menyimpan data RAB.', 'error');
-            rabMurniLocked = false;
-            applyReadOnlyMode();
-            await loadSavedRabList();
-        } else {
-            showToast((json && (json.error || json.message)) || `Gagal menyimpan RAB ke database (HTTP ${res.status})`, 'error');
-            await loadSavedRabList();
-        }
+        do {
+            pendingSaveRab = false;
+            await executeSaveRAB();
+        } while (pendingSaveRab);
+        setSaveStatusIndicator('saved');
     } catch (error) {
         console.error('❌ Error saveRAB:', error);
+        setSaveStatusIndicator('error');
         showToast('Gagal menyimpan RAB ke database', 'error');
         await loadSavedRabList();
+    } finally {
+        isSavingRab = false;
     }
 }
 

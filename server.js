@@ -641,12 +641,26 @@ async function saveRabToDb(record) {
     const rawItemsArray = Array.isArray(record.items) ? record.items : [];
     const itemsArray = rawItemsArray.map((it, idx) => {
         if (it && typeof it === 'object') {
+            const vol = (it.volume !== undefined && it.volume !== null && it.volume !== '' && !isNaN(Number(it.volume))) ? Number(it.volume) : 1;
+            const hrg = (it.harga !== undefined && it.harga !== null && it.harga !== '' && !isNaN(Number(it.harga))) ? Number(it.harga) : (it.harga_satuan !== undefined && it.harga_satuan !== null && it.harga_satuan !== '' && !isNaN(Number(it.harga_satuan)) ? Number(it.harga_satuan) : 0);
+            const jml = (it.jumlah !== undefined && it.jumlah !== null && it.jumlah !== '' && !isNaN(Number(it.jumlah))) ? Number(it.jumlah) : (it.jumlah_biaya !== undefined && it.jumlah_biaya !== null && it.jumlah_biaya !== '' && !isNaN(Number(it.jumlah_biaya)) ? Number(it.jumlah_biaya) : (vol * hrg));
+            const subNo = it.no_subgroup || it.urutan_subgroup || it.no || it.urutan || (idx + 1);
+            const uManual = (it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '' && !isNaN(Number(it.urutan_manual))) ? Number(it.urutan_manual) : subNo;
+
             return {
                 ...it,
-                no: it.no !== undefined ? it.no : (idx + 1),
-                urutan: it.urutan !== undefined ? it.urutan : (idx + 1),
-                urutan_manual: it.urutan_manual !== undefined ? it.urutan_manual : (it.urutan !== undefined ? it.urutan : (idx + 1)),
-                sumber: normalizeSumberDana(it.sumber || it.sumber_dana || record.sumber_dana)
+                volume: vol,
+                harga: hrg,
+                jumlah: jml,
+                harga_satuan: hrg,
+                jumlah_biaya: jml,
+                no: subNo,
+                urutan: subNo,
+                no_subgroup: subNo,
+                urutan_subgroup: subNo,
+                urutan_manual: uManual,
+                sumber: normalizeSumberDana(it.sumber || it.sumber_dana || record.sumber_dana),
+                sumber_dana: normalizeSumberDana(it.sumber || it.sumber_dana || record.sumber_dana)
             };
         }
         return it;
@@ -734,13 +748,16 @@ async function saveRabToDb(record) {
         const writeOnce = async (payload, useTipeFilter) => {
             let existingId = null;
 
-            // 1. Cek langsung via record.id jika disediakan dari caller/frontend
+            // 1. Cek langsung via record.id jika disediakan dari caller/frontend (pastikan tipe_anggaran cocok)
             if (record.id) {
-                const { data: idRows, error: idErr } = await supabase
+                let idQ = supabase
                     .from('rab')
                     .select('id')
-                    .eq('id', record.id)
-                    .limit(1);
+                    .eq('id', record.id);
+                if (useTipeFilter && payload.tipe_anggaran) {
+                    idQ = idQ.eq('tipe_anggaran', payload.tipe_anggaran);
+                }
+                const { data: idRows, error: idErr } = await idQ.limit(1);
                 if (idErr) {
                     console.error("Supabase Error Details (select by id):", idErr);
                     throw idErr;
@@ -773,7 +790,7 @@ async function saveRabToDb(record) {
                 if (useTipeFilter && payload.tipe_anggaran) {
                     selQ = selQ.eq('tipe_anggaran', payload.tipe_anggaran);
                 }
-                const { data: existingRows, error: selErr } = await selQ.order('id', { ascending: true }).limit(1);
+                const { data: existingRows, error: selErr } = await selQ.order('id', { ascending: false }).limit(1);
                 if (selErr) {
                     console.error("Supabase Error Details (select by kode_unik_full):", selErr);
                     throw selErr;
@@ -806,7 +823,7 @@ async function saveRabToDb(record) {
                 if (useTipeFilter && payload.tipe_anggaran) {
                     selQ2 = selQ2.eq('tipe_anggaran', payload.tipe_anggaran);
                 }
-                const { data: kodeUnikRows, error: kodeUnikErr } = await selQ2.order('id', { ascending: true }).limit(1);
+                const { data: kodeUnikRows, error: kodeUnikErr } = await selQ2.order('id', { ascending: false }).limit(1);
                 if (kodeUnikErr) {
                     console.error("Supabase Error Details (select by kode_unik):", kodeUnikErr);
                     throw kodeUnikErr;
@@ -824,7 +841,7 @@ async function saveRabToDb(record) {
                     .eq('id_referensi_murni', payload.id_referensi_murni)
                     .eq('tahun', safeTahun)
                     .eq('tipe_anggaran', RAB_TIPE_PERUBAHAN)
-                    .order('id', { ascending: true })
+                    .order('id', { ascending: false })
                     .limit(1);
                 if (refErr) {
                     console.error("Supabase Error Details (select by id_referensi_murni):", refErr);
@@ -842,7 +859,7 @@ async function saveRabToDb(record) {
                     .from('rab')
                     .update(updatePayload)
                     .eq('id', existingId)
-                    .select('id, kode_unik_full, tahun, tipe_anggaran, id_referensi_murni, jumlah_anggaran');
+                    .select('id, kode_unik_full, tahun, tipe_anggaran, id_referensi_murni, jumlah_anggaran, items');
                 if (updErr) {
                     console.error("Supabase Error Details (update):", updErr);
                     throw updErr;
@@ -859,7 +876,7 @@ async function saveRabToDb(record) {
             const { data: ins, error: insErr } = await supabase
                 .from('rab')
                 .insert([{ id: nextId, ...payload }])
-                .select('id, kode_unik_full, tahun, tipe_anggaran, id_referensi_murni, jumlah_anggaran');
+                .select('id, kode_unik_full, tahun, tipe_anggaran, id_referensi_murni, jumlah_anggaran, items');
             if (insErr) {
                 console.error("Supabase Error Details (insert):", insErr);
                 throw insErr;
@@ -5125,13 +5142,29 @@ app.post('/api/rab', async (req, res) => {
             lokasi: payload.lokasi || rpjm_data?.lokasi_kegiatan || rpjm_data?.lokasi || 'Desa Batetangnga',
             lokasi_kegiatan: payload.lokasi_kegiatan || rpjm_data?.lokasi_kegiatan || payload.lokasi || '',
             jenis_kegiatan: payload.jenis_kegiatan || rpjm_data?.jenis_kegiatan || rpjm_data?.nama_kegiatan || '',
-            items: Array.isArray(items) ? sortRabItems(items.map((it, idx) => ({
-                ...it,
-                no: it.no !== undefined ? it.no : (idx + 1),
-                urutan: it.urutan !== undefined ? it.urutan : (idx + 1),
-                urutan_manual: it.urutan_manual !== undefined ? it.urutan_manual : (it.urutan !== undefined ? it.urutan : (idx + 1)),
-                sumber: normalizeSumberDana(it.sumber || it.sumber_dana || payload.sumber_dana)
-            }))) : [],
+            items: Array.isArray(items) ? sortRabItems(items.map((it, idx) => {
+                const vol = (it.volume !== undefined && it.volume !== null && it.volume !== '' && !isNaN(Number(it.volume))) ? Number(it.volume) : 1;
+                const hrg = (it.harga !== undefined && it.harga !== null && it.harga !== '' && !isNaN(Number(it.harga))) ? Number(it.harga) : (it.harga_satuan !== undefined && it.harga_satuan !== null && it.harga_satuan !== '' && !isNaN(Number(it.harga_satuan)) ? Number(it.harga_satuan) : 0);
+                const jml = (it.jumlah !== undefined && it.jumlah !== null && it.jumlah !== '' && !isNaN(Number(it.jumlah))) ? Number(it.jumlah) : (it.jumlah_biaya !== undefined && it.jumlah_biaya !== null && it.jumlah_biaya !== '' && !isNaN(Number(it.jumlah_biaya)) ? Number(it.jumlah_biaya) : (vol * hrg));
+                const subNo = it.no_subgroup || it.urutan_subgroup || it.no || it.urutan || (idx + 1);
+                const uManual = (it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '' && !isNaN(Number(it.urutan_manual))) ? Number(it.urutan_manual) : subNo;
+
+                return {
+                    ...it,
+                    volume: vol,
+                    harga: hrg,
+                    jumlah: jml,
+                    harga_satuan: hrg,
+                    jumlah_biaya: jml,
+                    no: subNo,
+                    urutan: subNo,
+                    no_subgroup: subNo,
+                    urutan_subgroup: subNo,
+                    urutan_manual: uManual,
+                    sumber: normalizeSumberDana(it.sumber || it.sumber_dana || payload.sumber_dana),
+                    sumber_dana: normalizeSumberDana(it.sumber || it.sumber_dana || payload.sumber_dana)
+                };
+            })) : [],
             jumlah_anggaran: (payload.jumlah_anggaran !== undefined && payload.jumlah_anggaran !== null && payload.jumlah_anggaran !== '' && !isNaN(Number(payload.jumlah_anggaran)))
                 ? Number(payload.jumlah_anggaran)
                 : ((total_biaya !== undefined && total_biaya !== null && total_biaya !== '' && !isNaN(Number(total_biaya)))
