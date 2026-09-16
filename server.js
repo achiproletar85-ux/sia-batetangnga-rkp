@@ -1308,32 +1308,51 @@ function getRabGroupCode(groupName) {
 
 function getRabSubgroupCode(subgroupName, groupName) {
     const rawSub = String(subgroupName || '').trim();
+    const grpCode = getRabGroupCode(groupName);
+
     if (rawSub) {
-        if (RAB_SUBGROUP_CODE_MAP[rawSub]) return RAB_SUBGROUP_CODE_MAP[rawSub];
+        // 1. Cek langsung kecocokan di RAB_SUBGROUP_CODE_MAP jika group sesuai
+        if (RAB_SUBGROUP_CODE_MAP[rawSub] && (!grpCode || grpCode === '9.9.9' || RAB_SUBGROUP_CODE_MAP[rawSub].startsWith(grpCode))) {
+            return RAB_SUBGROUP_CODE_MAP[rawSub];
+        }
+
         const normSub = rawSub.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+
+        // 2. Heuristik khusus untuk Belanja Modal Fisik (5.3.4 - 5.3.8) sesuai urutan baku SisKeuDes:
+        // .01: Honor Tim, .02: Upah, .03: Bahan Baku, .04: Sewa
+        if (grpCode === '5.3.4' || grpCode === '5.3.5' || grpCode === '5.3.6' || grpCode === '5.3.7' || grpCode === '5.3.8') {
+            if (normSub.includes('honor') || normSub.includes('tim')) return grpCode + '.01';
+            if (normSub.includes('upah')) return grpCode + '.02';
+            if (normSub.includes('bahan') || normSub.includes('material')) return grpCode + '.03';
+            if (normSub.includes('sewa')) return grpCode + '.04';
+        }
+
+        // 3. Cek map alias jika bukan modal fisik
+        if (RAB_SUBGROUP_CODE_MAP[rawSub]) return RAB_SUBGROUP_CODE_MAP[rawSub];
         for (const [k, v] of Object.entries(RAB_SUBGROUP_CODE_MAP)) {
             const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
             if (normSub === kNorm) return v;
         }
 
-        // Keyword heuristics untuk 5.2.1
-        if (normSub.includes('tulis') || normSub.includes('benda pos') || normSub.includes('atk')) return '5.2.1.01';
-        if (normSub.includes('listrik')) return '5.2.1.02';
-        if (normSub.includes('rumah tangga') || normSub.includes('kebersihan')) return '5.2.1.03';
-        if (normSub.includes('bbm') || normSub.includes('minyak') || normSub.includes('pemadam')) return '5.2.1.04';
-        if (normSub.includes('cetak') || normSub.includes('penggandaan')) return '5.2.1.05';
-        if (normSub.includes('konsumsi') || normSub.includes('makan') || normSub.includes('minum')) return '5.2.1.06';
-        if (normSub.includes('bahan') || normSub.includes('material')) return '5.2.1.07';
-        if (normSub.includes('bendera') || normSub.includes('spanduk') || normSub.includes('umbul')) return '5.2.1.08';
-        if (normSub.includes('pakaian') || normSub.includes('seragam') || normSub.includes('atribut')) return '5.2.1.09';
-        if (normSub.includes('obat') && !normSub.includes('hewan') && !normSub.includes('pertanian')) return '5.2.1.10';
-        if (normSub.includes('pakan') || (normSub.includes('hewan') && !normSub.includes('modal'))) return '5.2.1.11';
-        if (normSub.includes('pupuk') || (normSub.includes('pertanian') && !normSub.includes('modal'))) return '5.2.1.12';
+        // 4. Keyword heuristics untuk 5.2.1 (hanya jika group 5.2 / 5.2.1)
+        if (!grpCode || grpCode === '5.2.1' || grpCode === '5.2') {
+            if (normSub.includes('tulis') || normSub.includes('benda pos') || normSub.includes('atk')) return '5.2.1.01';
+            if (normSub.includes('listrik')) return '5.2.1.02';
+            if (normSub.includes('rumah tangga') || normSub.includes('kebersihan')) return '5.2.1.03';
+            if (normSub.includes('bbm') || normSub.includes('minyak') || normSub.includes('pemadam')) return '5.2.1.04';
+            if (normSub.includes('cetak') || normSub.includes('penggandaan')) return '5.2.1.05';
+            if (normSub.includes('konsumsi') || normSub.includes('makan') || normSub.includes('minum')) return '5.2.1.06';
+            if (normSub.includes('bahan') || normSub.includes('material')) return '5.2.1.07';
+            if (normSub.includes('bendera') || normSub.includes('spanduk') || normSub.includes('umbul')) return '5.2.1.08';
+            if (normSub.includes('pakaian') || normSub.includes('seragam') || normSub.includes('atribut')) return '5.2.1.09';
+            if (normSub.includes('obat') && !normSub.includes('hewan') && !normSub.includes('pertanian')) return '5.2.1.10';
+            if (normSub.includes('pakan') || (normSub.includes('hewan') && !normSub.includes('modal'))) return '5.2.1.11';
+            if (normSub.includes('pupuk') || (normSub.includes('pertanian') && !normSub.includes('modal'))) return '5.2.1.12';
 
-        if (normSub.includes('perlengkapan')) return '5.2.1.99';
+            if (normSub.includes('perlengkapan')) return '5.2.1.99';
+        }
     }
 
-    const grpCode = getRabGroupCode(groupName);
     if (grpCode && grpCode !== '9.9.9') {
         return grpCode + '.99';
     }

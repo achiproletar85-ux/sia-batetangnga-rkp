@@ -286,7 +286,55 @@ function getRabGroupCode(groupName) {
 
 function getRabSubgroupCode(subgroupName, groupName) {
     const rawSub = String(subgroupName || '').trim();
+    const rawGrp = String(groupName || '').trim();
+
     if (rawSub) {
+        // 1. Cek langsung kecocokan persis pasangan (group, subgroup) di master rabCategories
+        if (rawGrp) {
+            const direct = rabCategories.find(c =>
+                c.group && c.subgroup &&
+                c.group.toLowerCase() === rawGrp.toLowerCase() &&
+                c.subgroup.toLowerCase() === rawSub.toLowerCase()
+            );
+            if (direct && direct.subgroupCode) {
+                return direct.subgroupCode.replace(/90-99$/, '99');
+            }
+        }
+
+        // 2. Cek kecocokan subgroup berdasarkan kode group (5.1.1, 5.2.1, 5.3.4, dst)
+        const grpCode = getRabGroupCode(groupName);
+        if (grpCode && grpCode !== '9.9.9') {
+            const inGrp = rabCategories.find(c =>
+                c.groupCode === grpCode &&
+                c.subgroup &&
+                c.subgroup.toLowerCase() === rawSub.toLowerCase()
+            );
+            if (inGrp && inGrp.subgroupCode) {
+                return inGrp.subgroupCode.replace(/90-99$/, '99');
+            }
+
+            // Normalisasi variasi penulisan subgroup di dalam group tersebut
+            const normSub = rawSub.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+            const inGrpNorm = rabCategories.find(c => {
+                if (c.groupCode !== grpCode) return false;
+                const cNorm = c.subgroup.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+                return cNorm === normSub;
+            });
+            if (inGrpNorm && inGrpNorm.subgroupCode) {
+                return inGrpNorm.subgroupCode.replace(/90-99$/, '99');
+            }
+
+            // Heuristik khusus untuk Belanja Modal Fisik (5.3.4 - 5.3.8) sesuai urutan baku SisKeuDes:
+            // .01: Honor Tim, .02: Upah, .03: Bahan Baku, .04: Sewa
+            if (grpCode === '5.3.4' || grpCode === '5.3.5' || grpCode === '5.3.6' || grpCode === '5.3.7' || grpCode === '5.3.8') {
+                if (normSub.includes('honor') || normSub.includes('tim')) return grpCode + '.01';
+                if (normSub.includes('upah')) return grpCode + '.02';
+                if (normSub.includes('bahan') || normSub.includes('material')) return grpCode + '.03';
+                if (normSub.includes('sewa')) return grpCode + '.04';
+            }
+        }
+
+        // 3. Cek map alias
         if (RAB_SUBGROUP_CODE[rawSub]) return RAB_SUBGROUP_CODE[rawSub];
         const normSub = rawSub.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
         for (const [k, v] of Object.entries(RAB_SUBGROUP_CODE)) {
@@ -294,21 +342,23 @@ function getRabSubgroupCode(subgroupName, groupName) {
             if (normSub === kNorm) return v;
         }
 
-        // Keyword heuristics untuk 5.2.1
-        if (normSub.includes('tulis') || normSub.includes('benda pos') || normSub.includes('atk')) return '5.2.1.01';
-        if (normSub.includes('listrik')) return '5.2.1.02';
-        if (normSub.includes('rumah tangga') || normSub.includes('kebersihan')) return '5.2.1.03';
-        if (normSub.includes('bbm') || normSub.includes('minyak') || normSub.includes('pemadam')) return '5.2.1.04';
-        if (normSub.includes('cetak') || normSub.includes('penggandaan')) return '5.2.1.05';
-        if (normSub.includes('konsumsi') || normSub.includes('makan') || normSub.includes('minum')) return '5.2.1.06';
-        if (normSub.includes('bahan') || normSub.includes('material')) return '5.2.1.07';
-        if (normSub.includes('bendera') || normSub.includes('spanduk') || normSub.includes('umbul')) return '5.2.1.08';
-        if (normSub.includes('pakaian') || normSub.includes('seragam') || normSub.includes('atribut')) return '5.2.1.09';
-        if (normSub.includes('obat') && !normSub.includes('hewan') && !normSub.includes('pertanian')) return '5.2.1.10';
-        if (normSub.includes('pakan') || (normSub.includes('hewan') && !normSub.includes('modal'))) return '5.2.1.11';
-        if (normSub.includes('pupuk') || (normSub.includes('pertanian') && !normSub.includes('modal'))) return '5.2.1.12';
+        // 4. Heuristik untuk 5.2.1 (hanya jika group bukan modal fisik)
+        if (!grpCode || grpCode === '5.2.1' || grpCode === '5.2') {
+            if (normSub.includes('tulis') || normSub.includes('benda pos') || normSub.includes('atk')) return '5.2.1.01';
+            if (normSub.includes('listrik')) return '5.2.1.02';
+            if (normSub.includes('rumah tangga') || normSub.includes('kebersihan')) return '5.2.1.03';
+            if (normSub.includes('bbm') || normSub.includes('minyak') || normSub.includes('pemadam')) return '5.2.1.04';
+            if (normSub.includes('cetak') || normSub.includes('penggandaan')) return '5.2.1.05';
+            if (normSub.includes('konsumsi') || normSub.includes('makan') || normSub.includes('minum')) return '5.2.1.06';
+            if (normSub.includes('bahan') || normSub.includes('material')) return '5.2.1.07';
+            if (normSub.includes('bendera') || normSub.includes('spanduk') || normSub.includes('umbul')) return '5.2.1.08';
+            if (normSub.includes('pakaian') || normSub.includes('seragam') || normSub.includes('atribut')) return '5.2.1.09';
+            if (normSub.includes('obat') && !normSub.includes('hewan') && !normSub.includes('pertanian')) return '5.2.1.10';
+            if (normSub.includes('pakan') || (normSub.includes('hewan') && !normSub.includes('modal'))) return '5.2.1.11';
+            if (normSub.includes('pupuk') || (normSub.includes('pertanian') && !normSub.includes('modal'))) return '5.2.1.12';
 
-        if (normSub.includes('perlengkapan')) return '5.2.1.99';
+            if (normSub.includes('perlengkapan')) return '5.2.1.99';
+        }
     }
 
     const grpCode = getRabGroupCode(groupName);
@@ -2235,9 +2285,10 @@ function addRabItem() {
         rabItems.splice(editIndex, 1, item);
         showToast('Perubahan item disimpan', 'success');
     } else {
-        rabItems.push(item); // Tampilkan item baru di paling bawah (urutan input)
+        rabItems.push(item);
         showToast('Item RAB berhasil ditambahkan', 'success');
     }
+    rabItems = sortRabItems(rabItems);
     setFormDirty(true);
     resetRabItemForm();
     reindexRabItemsBySubgroup(rabItems);
@@ -2705,6 +2756,28 @@ function renderRabItems() {
             const subTotalSemula = isModePerubahan()
                 ? entry.items.reduce((s, e) => s + (Number(getItemMurniRef(e.item, e.idx).jumlah) || 0), 0)
                 : 0;
+
+            // Pastikan item di dalam Sub Group terurut konsisten (urutan manual / indeks SisKeuDes)
+            entry.items.sort((a, b) => {
+                const itA = a.item;
+                const itB = b.item;
+                const uA = Number(itA.urutan_manual !== undefined && itA.urutan_manual !== null && itA.urutan_manual !== '' ? itA.urutan_manual : (itA.urutan_subgroup || itA.no_subgroup || itA.urutan || itA.no || 0));
+                const uB = Number(itB.urutan_manual !== undefined && itB.urutan_manual !== null && itB.urutan_manual !== '' ? itB.urutan_manual : (itB.urutan_subgroup || itB.no_subgroup || itB.urutan || itB.no || 0));
+                if (uA && uB && uA !== uB) return uA - uB;
+
+                const idxA = getSiskeudesItemIndex(itA.uraian || itA.nama_barang || itA.nama);
+                const idxB = getSiskeudesItemIndex(itB.uraian || itB.nama_barang || itB.nama);
+                if (idxA !== -1 && idxB !== -1) {
+                    if (idxA !== idxB) return idxA - idxB;
+                } else if (idxA !== -1) {
+                    return -1;
+                } else if (idxB !== -1) {
+                    return 1;
+                }
+
+                if (uA || uB) return (uA || 999999) - (uB || 999999);
+                return a.idx - b.idx;
+            });
 
             html += `
                 <div class="rab-subgroup-header bg-indigo-50/90 border border-indigo-100 rounded-xl px-4 py-2 font-bold text-xs text-indigo-950 flex items-center justify-between shadow-2xs mt-2.5">
@@ -3774,7 +3847,43 @@ async function cetakRabPerubahan() {
         let lastSubgroup = null;
         let subCounter = 0;
 
-        const itemsList = Array.isArray(comp.items) ? comp.items : [];
+        const itemsList = (Array.isArray(comp.items) ? [...comp.items] : []).sort((a, b) => {
+            const gA = getGroup(a);
+            const gB = getGroup(b);
+            const gCodeA = getRabGroupCode(gA);
+            const gCodeB = getRabGroupCode(gB);
+            const cmpG = compareKodeRAB(gCodeA, gCodeB);
+            if (cmpG !== 0) return cmpG;
+            const cmpGName = gA.localeCompare(gB);
+            if (cmpGName !== 0) return cmpGName;
+
+            const sgA = getSubgroup(a);
+            const sgB = getSubgroup(b);
+            const sgCodeA = getRabSubgroupCode(sgA, gA);
+            const sgCodeB = getRabSubgroupCode(sgB, gB);
+            const cmpSg = compareKodeRAB(sgCodeA, sgCodeB);
+            if (cmpSg !== 0) return cmpSg;
+            const cmpSgName = sgA.localeCompare(sgB);
+            if (cmpSgName !== 0) return cmpSgName;
+
+            const uA = Number(a.urutan_murni !== undefined && a.urutan_murni !== null ? a.urutan_murni : (a.urutan || (a.semula && a.semula.urutan) || (a.menjadi && a.menjadi.urutan) || 0));
+            const uB = Number(b.urutan_murni !== undefined && b.urutan_murni !== null ? b.urutan_murni : (b.urutan || (b.semula && b.semula.urutan) || (b.menjadi && b.menjadi.urutan) || 0));
+            if (uA && uB && uA !== uB) return uA - uB;
+
+            const urA = a.uraian || (a.semula && a.semula.uraian) || (a.menjadi && a.menjadi.uraian);
+            const urB = b.uraian || (b.semula && b.semula.uraian) || (b.menjadi && b.menjadi.uraian);
+            const idxA = getSiskeudesItemIndex(urA);
+            const idxB = getSiskeudesItemIndex(urB);
+            if (idxA !== -1 && idxB !== -1) {
+                if (idxA !== idxB) return idxA - idxB;
+            } else if (idxA !== -1) {
+                return -1;
+            } else if (idxB !== -1) {
+                return 1;
+            }
+
+            return 0;
+        });
         for (let i = 0; i < itemsList.length; i++) {
             const it = itemsList[i];
             const g = getGroup(it);
