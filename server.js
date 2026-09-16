@@ -1350,12 +1350,20 @@ function sortRabItems(items) {
             if (uA !== uB) return uA - uB;
             return 0;
         });
-        return sorted.map((it, idx) => ({
-            ...it,
-            no: idx + 1,
-            urutan: idx + 1,
-            urutan_manual: idx + 1
-        }));
+        const subCounters = {};
+        return sorted.map((it, idx) => {
+            const subKey = String(it.subgroup || it.sub_kelompok || it.group || '').trim();
+            subCounters[subKey] = (subCounters[subKey] || 0) + 1;
+            const subNo = subCounters[subKey];
+            return {
+                ...it,
+                no: it.no !== undefined ? it.no : subNo,
+                urutan: it.urutan !== undefined ? it.urutan : subNo,
+                urutan_manual: it.urutan_manual !== undefined ? it.urutan_manual : subNo,
+                no_subgroup: subNo,
+                urutan_subgroup: subNo
+            };
+        });
     }
     const sorted = [...items].sort((a, b) => {
         const rekA = getRabItemRekening(a);
@@ -1380,11 +1388,19 @@ function sortRabItems(items) {
 
         return String(a.uraian || a.nama_barang || '').localeCompare(String(b.uraian || b.nama_barang || ''), undefined, { numeric: true, sensitivity: 'base' });
     });
-    return sorted.map((it, idx) => ({
-        ...it,
-        no: idx + 1,
-        urutan: idx + 1
-    }));
+    const subCounters = {};
+    return sorted.map((it, idx) => {
+        const subKey = String(it.subgroup || it.sub_kelompok || it.group || '').trim();
+        subCounters[subKey] = (subCounters[subKey] || 0) + 1;
+        const subNo = subCounters[subKey];
+        return {
+            ...it,
+            no: it.no !== undefined ? it.no : (idx + 1),
+            urutan: it.urutan !== undefined ? it.urutan : (idx + 1),
+            no_subgroup: subNo,
+            urutan_subgroup: subNo
+        };
+    });
 }
 
 function parseRabItemsSafely(raw) {
@@ -1518,17 +1534,27 @@ function alignRabItems(murniItems, perubahanItems) {
             finalRows.push(...unmappedNewItems);
         }
 
+        const subCountersFinal = {};
         finalRows.forEach((r, i) => {
             r.urutan = i;
             r.no = i + 1;
+            const subKey = String(r.subgroup || r.sub_kelompok || r.group || '').trim();
+            subCountersFinal[subKey] = (subCountersFinal[subKey] || 0) + 1;
+            r.no_subgroup = subCountersFinal[subKey];
+            r.urutan_subgroup = subCountersFinal[subKey];
         });
         return finalRows;
     }
 
     // 3. Kunci urutan nomor baris rapi
+    const subCountersRows = {};
     rows.forEach((r, i) => {
         r.urutan = i;
         r.no = i + 1;
+        const subKey = String(r.subgroup || r.sub_kelompok || r.group || '').trim();
+        subCountersRows[subKey] = (subCountersRows[subKey] || 0) + 1;
+        r.no_subgroup = subCountersRows[subKey];
+        r.urutan_subgroup = subCountersRows[subKey];
     });
 
     return rows;

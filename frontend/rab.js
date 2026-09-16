@@ -1064,6 +1064,7 @@ async function loadSavedRAB() {
                     return uA - uB;
                 });
             }
+            reindexRabItemsBySubgroup(rabItems);
             currentRabId = json.data.id || null;
             currentRabRefMurni = json.data.id_referensi_murni || null;
         } else {
@@ -1125,6 +1126,7 @@ async function loadSavedRAB() {
                         no: m.no || idx + 1
                     };
                 });
+                reindexRabItemsBySubgroup(rabItems);
                 console.log(`[RAB Perubahan] Auto-fill ${rabItems.length} item dari versi MURNI untuk ${selectedRpjm.kode_unik_full}`);
             } else if (rabItems.length > 0 && rabMurniRefItems.length > 0) {
                 // Pastikan urutan_murni terisi HANYA jika item memang cocok dengan murni
@@ -1592,6 +1594,8 @@ async function saveRAB() {
         it.sumber = norm;
     }
     
+    reindexRabItemsBySubgroup(rabItems);
+
     const totalBiaya = rabItems.reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
     const firstItem = rabItems[0] || {};
     const normFirstSumber = normalizeSumberDana(firstItem.sumber) || 'DDS (Dana Desa)';
@@ -1763,11 +1767,7 @@ function addRabItem() {
         rabItems.push(item); // Tampilkan item baru di paling bawah (urutan input)
         showToast('Item RAB berhasil ditambahkan', 'success');
     }
-    rabItems.forEach((it, i) => {
-        it.no = i + 1;
-        it.urutan = i + 1;
-        it.urutan_manual = i + 1;
-    });
+    reindexRabItemsBySubgroup(rabItems);
     renderRabItems();
     saveRAB();
     document.getElementById('input-uraian').value = '';
@@ -1835,13 +1835,25 @@ function editRabItem(index) {
     }
 }
 
+function reindexRabItemsBySubgroup(items) {
+    if (!Array.isArray(items)) return;
+    const subgroupCounters = {};
+    items.forEach((it) => {
+        if (!it) return;
+        const key = String(it.group || '').trim() + '\u0000' + String(it.subgroup || '').trim();
+        subgroupCounters[key] = (subgroupCounters[key] || 0) + 1;
+        const subNo = subgroupCounters[key];
+        it.no = subNo;
+        it.urutan = subNo;
+        it.urutan_subgroup = subNo;
+        it.no_subgroup = subNo;
+        it.urutan_manual = it.urutan_manual !== undefined ? it.urutan_manual : subNo;
+    });
+}
+
 function removeRabItem(index) {
     rabItems.splice(index, 1);
-    rabItems.forEach((it, i) => {
-        it.no = i + 1;
-        it.urutan = i + 1;
-        it.urutan_manual = i + 1;
-    });
+    reindexRabItemsBySubgroup(rabItems);
     renderRabItems();
     saveRAB();
 }
@@ -1874,12 +1886,8 @@ function moveRabItemUp(idx) {
     rabItems[idx] = rabItems[prevSubIdx];
     rabItems[prevSubIdx] = temp;
 
-    // Normalisasi ulang nomor urut
-    rabItems.forEach((it, i) => {
-        it.no = i + 1;
-        it.urutan = i + 1;
-        it.urutan_manual = i + 1;
-    });
+    // Normalisasi ulang nomor urut per sub-kelompok
+    reindexRabItemsBySubgroup(rabItems);
 
     renderRabItems();
     saveRAB();
@@ -1914,12 +1922,8 @@ function moveRabItemDown(idx) {
     rabItems[idx] = rabItems[nextSubIdx];
     rabItems[nextSubIdx] = temp;
 
-    // Normalisasi ulang nomor urut
-    rabItems.forEach((it, i) => {
-        it.no = i + 1;
-        it.urutan = i + 1;
-        it.urutan_manual = i + 1;
-    });
+    // Normalisasi ulang nomor urut per sub-kelompok
+    reindexRabItemsBySubgroup(rabItems);
 
     renderRabItems();
     saveRAB();
@@ -1990,12 +1994,8 @@ function changeRabItemOrder(idx, newPosVal) {
         rabItems.splice(subgroupIndices[targetSubPos] || 0, 0, moved);
     }
 
-    // Normalisasi ulang nomor urut
-    rabItems.forEach((it, i) => {
-        it.no = i + 1;
-        it.urutan = i + 1;
-        it.urutan_manual = i + 1;
-    });
+    // Normalisasi ulang nomor urut per sub-kelompok
+    reindexRabItemsBySubgroup(rabItems);
 
     renderRabItems();
     saveRAB();
@@ -2211,8 +2211,14 @@ function renderRabItems() {
                     <td class="col-sticky-right"></td>
                 </tr>`;
 
+            let subNo = 0;
             entry.items.forEach(({ item, idx }, subIdx) => {
+                subNo += 1;
                 runningNo += 1;
+                item.no = subNo;
+                item.urutan = subNo;
+                item.urutan_subgroup = subNo;
+                item.no_subgroup = subNo;
                 const isFirst = (subIdx === 0);
                 const isLast = (subIdx === entry.items.length - 1);
                 const ref = getItemMurniRef(item, idx);
@@ -2287,11 +2293,11 @@ function renderRabItems() {
                 html += `
                     <tr class="rab-item-row">
                         <td class="text-center px-1">
-                            <input type="number" min="1" max="999" value="${runningNo}"
+                            <input type="number" min="1" max="${entry.items.length}" value="${subNo}"
                                    class="w-12 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white hover:border-slate-400 transition"
                                    onchange="changeRabItemOrder(${idx}, this.value)"
                                    onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-                                   title="Ketik nomor urut baru lalu tekan Enter untuk memindahkan baris">
+                                   title="Nomor urut ${subNo} dalam ${entry.subgroup}. Ketik nomor baru (1-${entry.items.length}) lalu tekan Enter untuk mengubah urutan">
                         </td>
                         <td>
                             <div class="font-semibold text-slate-800">${item.uraian}</div>
@@ -3790,3 +3796,4 @@ window.moveRabItemUp = moveRabItemUp;
 window.moveRabItemDown = moveRabItemDown;
 window.changeRabItemOrder = changeRabItemOrder;
 window.pushItemToMurni = pushItemToMurni;
+window.reindexRabItemsBySubgroup = reindexRabItemsBySubgroup;

@@ -290,6 +290,23 @@ console.log('\n11b) Fitur Kustomisasi / Urutan Manual RAB Item (urutan_manual)')
     check('Kertas f4 memiliki urutan_manual = 2', sortedManual[1].urutan_manual, 2);
 }
 
+console.log('\n11c) Reset Nomor Urut Kembali ke 1 Per Sub-Kelompok Belanja');
+{
+    const multiSubItems = [
+        { group: 'Belanja Pegawai', subgroup: 'Penghasilan Tetap Kepala Desa', uraian: 'Siltap Kades', no: 1, urutan_manual: 1 },
+        { group: 'Belanja Pegawai', subgroup: 'Penghasilan Tetap Kepala Desa', uraian: 'Tunjangan Kades', no: 2, urutan_manual: 2 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor', uraian: 'Kertas f4', no: 1, urutan_manual: 1 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor', uraian: 'Kertas A4', no: 2, urutan_manual: 2 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Cetak/Penggandaan', uraian: 'Fotocopy', no: 1, urutan_manual: 1 }
+    ];
+    const sorted = sortRabItems(multiSubItems);
+    check('Siltap Kades sub group no = 1', sorted[0].no_subgroup, 1);
+    check('Tunjangan Kades sub group no = 2', sorted[1].no_subgroup, 2);
+    check('Kertas f4 sub group no reset ke 1', sorted[2].no_subgroup, 1);
+    check('Kertas A4 sub group no = 2', sorted[3].no_subgroup, 2);
+    check('Fotocopy sub group no reset ke 1', sorted[4].no_subgroup, 1);
+}
+
 console.log('\n12) Pengurutan Cetak Hierarkis RAB Perubahan & Helper Universal getKode');
 {
     // Uji helper universal getKode
