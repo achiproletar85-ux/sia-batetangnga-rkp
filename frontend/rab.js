@@ -2139,7 +2139,12 @@ function renderRabItems() {
     if (!tbody) return;
 
     if (!rabItems.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500">Belum ada item RAB. Tambahkan item pertama.</td></tr>';
+        tbody.innerHTML = `
+            <div class="text-center py-10 bg-white rounded-xl border border-dashed border-slate-300 p-6">
+                <i class="fas fa-receipt text-3xl text-slate-300 mb-2"></i>
+                <div class="text-slate-500 font-semibold text-sm">Belum ada item RAB</div>
+                <div class="text-slate-400 text-xs mt-1">Gunakan form di atas untuk menambahkan rincian belanja.</div>
+            </div>`;
         return;
     }
 
@@ -2188,11 +2193,10 @@ function renderRabItems() {
 
     groupHeaders.forEach(groupName => {
         html += `
-            <tr class="rab-group-row">
-                <td colspan="8" class="px-4 py-2 font-extrabold text-sm tracking-wide">
-                    <i class="fas fa-folder mr-2"></i> ${groupName}
-                </td>
-            </tr>`;
+            <div class="rab-group-header bg-gradient-to-r from-indigo-700 via-indigo-800 to-indigo-900 text-white rounded-xl px-4 py-2.5 font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-xs mt-4 first:mt-0 tracking-wide uppercase">
+                <i class="fas fa-folder-open text-indigo-200"></i>
+                <span>${groupName}</span>
+            </div>`;
 
         entries.forEach(entry => {
             if (entry.group !== groupName) return;
@@ -2202,14 +2206,16 @@ function renderRabItems() {
                 : 0;
 
             html += `
-                <tr class="rab-subgroup-row">
-                    <td colspan="6" class="pl-8 px-4 py-1.5 font-bold text-xs">${entry.subgroup}</td>
-                    <td class="text-right pr-3 font-bold text-xs">
-                        <div>Rp ${formatRupiah(subTotal)}</div>
-                        ${isModePerubahan() ? `<div class="text-[10px] text-slate-500 font-normal">Semula: Rp ${formatRupiah(subTotalSemula)}</div>` : ''}
-                    </td>
-                    <td class="col-sticky-right"></td>
-                </tr>`;
+                <div class="rab-subgroup-header bg-indigo-50/90 border border-indigo-100 rounded-xl px-4 py-2 font-bold text-xs text-indigo-950 flex items-center justify-between shadow-2xs mt-2.5">
+                    <div class="flex items-center gap-2 min-w-0 pr-2">
+                        <i class="fas fa-layer-group text-indigo-500 flex-shrink-0"></i>
+                        <span class="truncate">${entry.subgroup}</span>
+                    </div>
+                    <div class="text-right flex-shrink-0 whitespace-nowrap">
+                        <span class="font-extrabold text-indigo-900 text-xs">Rp ${formatRupiah(subTotal)}</span>
+                        ${isModePerubahan() ? `<span class="text-[10px] text-slate-500 font-normal ml-1.5">(Semula: Rp ${formatRupiah(subTotalSemula)})</span>` : ''}
+                    </div>
+                </div>`;
 
             let subNo = 0;
             entry.items.forEach(({ item, idx }, subIdx) => {
@@ -2224,16 +2230,12 @@ function renderRabItems() {
                 const ref = getItemMurniRef(item, idx);
 
                 let uraianBadge = '';
-                let volCell = `<div class="font-bold text-slate-800 whitespace-nowrap">${(item.volume !== undefined && item.volume !== null && item.volume !== '') ? item.volume : '-'}</div>`;
-                let satCell = `<div class="whitespace-nowrap">${item.satuan || '-'}</div>`;
-                let hargaCell = `<div class="font-bold text-slate-800 whitespace-nowrap">Rp ${formatRupiah(item.harga)}</div>`;
-                let jumlahCell = `<div class="font-extrabold text-slate-900 whitespace-nowrap">Rp ${formatRupiah(item.jumlah)}</div>`;
 
                 let sumberBadge = '';
                 const sText = normalizeSumberDana(item.sumber);
                 if (!sText) {
-                    sumberBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 border border-red-300 animate-pulse shadow-xs whitespace-nowrap" title="Sumber Dana belum diisi! Wajib diisi saat simpan."><i class="fas fa-exclamation-triangle text-red-600"></i> [Kosong]</span>`;
-                    uraianBadge += `<div class="text-[10px] font-bold text-red-600 mt-0.5"><i class="fas fa-exclamation-circle"></i> Sumber Dana belum dipilih</div>`;
+                    sumberBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-red-100 text-red-700 border border-red-300 animate-pulse shadow-xs whitespace-nowrap" title="Sumber Dana belum diisi! Wajib diisi saat simpan."><i class="fas fa-exclamation-triangle text-red-600"></i> [Kosong]</span>`;
+                    uraianBadge += `<div class="text-xs font-bold text-red-600 mt-1"><i class="fas fa-exclamation-circle"></i> Sumber Dana belum dipilih</div>`;
                 } else {
                     const sUpper = sText.toUpperCase();
                     let badgeClass = 'bg-slate-100 text-slate-800 border-slate-200';
@@ -2260,77 +2262,103 @@ function renderRabItems() {
                         badgeClass = 'bg-purple-100 text-purple-800 border-purple-300';
                         shortCode = 'APBD';
                     }
-                    sumberBadge = `<span class="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-semibold border ${badgeClass} shadow-2xs whitespace-nowrap" title="${sText}">${shortCode}</span>`;
+                    sumberBadge = `<span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg text-xs font-bold border ${badgeClass} shadow-2xs whitespace-nowrap" title="${sText}">${shortCode}</span>`;
                 }
 
+                let diffBadge = '';
                 if (isModePerubahan()) {
                     if (ref.isBaru) {
                         uraianBadge = `
-                            <div class="mt-1 flex items-center gap-1.5 flex-wrap">
-                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                                    <i class="fas fa-plus-circle text-[9px]"></i> Item Baru (Semula: Rp 0)
+                            <div class="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                    <i class="fas fa-plus-circle text-[10px]"></i> Item Baru (Semula: Rp 0)
                                 </span>
                                 <button type="button" 
                                         onclick="pushItemToMurni(${idx})" 
-                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-300 hover:border-blue-600 transition shadow-2xs cursor-pointer"
+                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-extrabold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-300 hover:border-blue-600 transition shadow-2xs cursor-pointer"
                                         title="Salin dan tambahkan item baru ini secara otomatis ke master RAB Murni (Awal)">
-                                    <i class="fas fa-arrow-up-from-bracket text-[9px]"></i> Push ke Murni
+                                    <i class="fas fa-arrow-up-from-bracket text-[10px]"></i> Push ke Murni
                                 </button>
                             </div>` + uraianBadge;
-                        volCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: 0</div>`;
-                        hargaCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: Rp 0</div>`;
-                        jumlahCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: Rp 0</div>`;
-                        jumlahCell += `<div class="text-[10px] font-bold text-emerald-600 whitespace-nowrap">(+Rp ${formatRupiah(item.jumlah)})</div>`;
+                        diffBadge = `<span class="text-xs font-extrabold text-emerald-600 whitespace-nowrap">(+Rp ${formatRupiah(item.jumlah)})</span>`;
                     } else {
                         if (ref.uraian && ref.uraian.trim().toLowerCase() !== String(item.uraian || '').trim().toLowerCase()) {
-                            uraianBadge = `<div class="text-[10px] text-slate-400 italic mt-0.5">Semula: ${ref.uraian}</div>` + uraianBadge;
+                            uraianBadge = `<div class="text-xs text-slate-400 italic mt-0.5">Semula: ${ref.uraian}</div>` + uraianBadge;
                         }
-                        volCell += `<div class="text-[10px] text-slate-500 font-medium whitespace-nowrap" title="Volume Semula (RAB Murni)">Semula: ${ref.vol}</div>`;
-                        if (ref.sat && ref.sat !== item.satuan) {
-                            satCell += `<div class="text-[10px] text-slate-500 font-medium whitespace-nowrap">Semula: ${ref.sat}</div>`;
-                        }
-                        hargaCell += `<div class="text-[10px] text-slate-500 font-medium whitespace-nowrap" title="Harga Satuan Semula (RAB Murni)">Semula: Rp ${formatRupiah(ref.harga)}</div>`;
-                        jumlahCell += `<div class="text-[10px] text-slate-500 font-medium whitespace-nowrap" title="Jumlah Biaya Semula (RAB Murni)">Semula: Rp ${formatRupiah(ref.jumlah)}</div>`;
                         const diff = Number(item.jumlah || 0) - ref.jumlah;
                         if (diff > 0) {
-                            jumlahCell += `<div class="text-[10px] font-bold text-emerald-600 whitespace-nowrap">(+Rp ${formatRupiah(diff)})</div>`;
+                            diffBadge = `<span class="text-xs font-extrabold text-emerald-600 whitespace-nowrap" title="Semula: Rp ${formatRupiah(ref.jumlah)}">(+Rp ${formatRupiah(diff)})</span>`;
                         } else if (diff < 0) {
-                            jumlahCell += `<div class="text-[10px] font-bold text-rose-600 whitespace-nowrap">(-Rp ${formatRupiah(Math.abs(diff))})</div>`;
+                            diffBadge = `<span class="text-xs font-extrabold text-rose-600 whitespace-nowrap" title="Semula: Rp ${formatRupiah(ref.jumlah)}">(-Rp ${formatRupiah(Math.abs(diff))})</span>`;
                         } else {
-                            jumlahCell += `<div class="text-[10px] font-medium text-slate-400 whitespace-nowrap">(Tetap)</div>`;
+                            diffBadge = `<span class="text-xs font-medium text-slate-400 whitespace-nowrap">(Tetap)</span>`;
                         }
                     }
                 }
 
                 html += `
-                    <tr class="rab-item-row">
-                        <td class="text-center px-1">
-                            <input type="number" min="1" max="${entry.items.length}" value="${subNo}"
-                                   class="w-12 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white hover:border-slate-400 transition"
-                                   onchange="changeRabItemOrder(${idx}, this.value)"
-                                   onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-                                   title="Nomor urut ${subNo} dalam ${entry.subgroup}. Ketik nomor baru (1-${entry.items.length}) lalu tekan Enter untuk mengubah urutan">
-                        </td>
-                        <td>
-                            <div class="font-semibold text-slate-800">${item.uraian}</div>
-                            ${uraianBadge}
-                            ${item.keterangan ? `<div class="text-slate-400 text-xs mt-1">${item.keterangan}</div>` : ''}
-                        </td>
-                        <td class="text-center px-2 py-2 whitespace-nowrap">${sumberBadge}</td>
-                        <td class="text-center px-2 py-2 whitespace-nowrap">${volCell}</td>
-                        <td class="text-center px-2 py-2 whitespace-nowrap">${satCell}</td>
-                        <td class="text-right px-3 py-2 whitespace-nowrap">${hargaCell}</td>
-                        <td class="text-right px-3 py-2 whitespace-nowrap">${jumlahCell}</td>
-                        <td class="text-center whitespace-nowrap px-2 py-2 col-sticky-right">
-                            <div class="inline-flex items-center gap-1">
-                                ${(isModePerubahan() && ref.isBaru) ? `<button type="button" class="btn-outline px-1.5 py-1 text-[11px] font-bold text-blue-700 hover:text-white hover:bg-blue-600 border-blue-300" onclick="pushItemToMurni(${idx})" title="Push item baru ini ke master RAB Murni"><i class="fas fa-arrow-up-from-bracket"></i></button>` : ''}
-                                <button type="button" class="btn-outline px-1.5 py-1 text-[11px] font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 ${isFirst ? 'opacity-40 cursor-not-allowed' : ''}" onclick="${isFirst ? '' : `moveRabItemUp(${idx})`}" title="Pindah urutan ke atas" ${isFirst ? 'disabled' : ''}>▲</button>
-                                <button type="button" class="btn-outline px-1.5 py-1 text-[11px] font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 ${isLast ? 'opacity-40 cursor-not-allowed' : ''}" onclick="${isLast ? '' : `moveRabItemDown(${idx})`}" title="Pindah urutan ke bawah" ${isLast ? 'disabled' : ''}>▼</button>
-                                <button type="button" class="btn-outline px-2 py-1 text-xs text-slate-700 hover:text-blue-700 hover:bg-blue-50" onclick="editRabItem(${idx})" title="Edit data item">Edit</button>
-                                <button type="button" class="btn-outline px-2 py-1 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-300" onclick="removeRabItem(${idx})" title="Hapus item">Hapus</button>
+                    <div class="rab-item-card p-3 space-y-2.5">
+                        <!-- Baris Atas Kartu: [No Input] + [Uraian Belanja (Full Text)] + [Badge Sumber Dana] -->
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex items-start gap-2.5 flex-1 min-w-0">
+                                <div class="flex-shrink-0 pt-0.5">
+                                    <input type="number" min="1" max="${entry.items.length}" value="${subNo}"
+                                           class="w-11 h-7 text-center text-xs font-black border border-slate-300 rounded-lg px-1 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-slate-50 hover:bg-white transition"
+                                           onchange="changeRabItemOrder(${idx}, this.value)"
+                                           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+                                           title="Nomor urut ${subNo} dalam ${entry.subgroup}. Ketik nomor baru lalu tekan Enter untuk memindahkan urutan">
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-bold text-slate-900 leading-snug break-words">${item.uraian}</div>
+                                    ${uraianBadge}
+                                    ${item.keterangan ? `<div class="text-xs text-slate-400 font-medium mt-0.5 break-words">${item.keterangan}</div>` : ''}
+                                </div>
                             </div>
-                        </td>
-                    </tr>`;
+                            <div class="flex-shrink-0 pt-0.5">
+                                ${sumberBadge}
+                            </div>
+                        </div>
+
+                        <!-- Baris Bawah Kartu: [Volume & Satuan] | [Harga Satuan] | [Jumlah Biaya] disandingkan dengan [Tombol Kontrol Aksi] -->
+                        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+                            <div class="flex items-center gap-1.5 sm:gap-2.5 flex-wrap">
+                                <div class="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg" title="Volume dan Satuan">
+                                    <span class="text-slate-400 font-medium">Vol:</span>
+                                    <span class="font-bold text-slate-800">${(item.volume !== undefined && item.volume !== null && item.volume !== '') ? item.volume : '-'}</span>
+                                    <span class="text-slate-600 font-medium">${item.satuan || '-'}</span>
+                                    ${isModePerubahan() && !ref.isBaru && ref.vol !== undefined ? `<span class="text-[10px] text-slate-400 font-normal" title="Volume Semula (RAB Murni)">(Semula: ${ref.vol})</span>` : ''}
+                                </div>
+                                <div class="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg" title="Harga Satuan">
+                                    <span class="text-slate-400 font-medium">Harga:</span>
+                                    <span class="font-bold text-slate-800">Rp ${formatRupiah(item.harga)}</span>
+                                    ${isModePerubahan() && !ref.isBaru && ref.harga !== undefined && ref.harga !== item.harga ? `<span class="text-[10px] text-slate-400 font-normal" title="Harga Satuan Semula (RAB Murni)">(Semula: Rp ${formatRupiah(ref.harga)})</span>` : ''}
+                                </div>
+                                <div class="inline-flex items-center gap-1 bg-indigo-50/70 border border-indigo-100 px-2.5 py-1 rounded-lg" title="Jumlah Biaya Total">
+                                    <span class="text-indigo-600 font-bold">Total:</span>
+                                    <span class="font-extrabold text-indigo-900 text-xs sm:text-[13px]">Rp ${formatRupiah(item.jumlah)}</span>
+                                    ${diffBadge}
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1.5 flex-shrink-0 ml-auto">
+                                ${(isModePerubahan() && ref.isBaru) ? `
+                                    <button type="button" class="btn-outline !px-2 !py-1 text-xs font-bold text-blue-700 hover:text-white hover:bg-blue-600 border-blue-300 shadow-2xs cursor-pointer" onclick="pushItemToMurni(${idx})" title="Salin dan tambahkan item baru ini secara otomatis ke master RAB Murni (Awal)">
+                                        <i class="fas fa-arrow-up-from-bracket mr-1"></i> Push
+                                    </button>` : ''}
+                                <button type="button" class="btn-outline !px-2 !py-1 text-xs font-bold text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer ${isFirst ? 'opacity-35 cursor-not-allowed' : ''}" onclick="${isFirst ? '' : `moveRabItemUp(${idx})`}" title="Pindah urutan ke atas" ${isFirst ? 'disabled' : ''}>
+                                    ▲
+                                </button>
+                                <button type="button" class="btn-outline !px-2 !py-1 text-xs font-bold text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer ${isLast ? 'opacity-35 cursor-not-allowed' : ''}" onclick="${isLast ? '' : `moveRabItemDown(${idx})`}" title="Pindah urutan ke bawah" ${isLast ? 'disabled' : ''}>
+                                    ▼
+                                </button>
+                                <button type="button" class="btn-outline !px-2.5 !py-1 text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer" onclick="editRabItem(${idx})" title="Edit data item">
+                                    <i class="fas fa-edit mr-1 text-slate-400"></i> Edit
+                                </button>
+                                <button type="button" class="btn-outline !px-2.5 !py-1 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-300 cursor-pointer" onclick="removeRabItem(${idx})" title="Hapus item">
+                                    <i class="fas fa-trash-alt mr-1 text-rose-400"></i> Hapus
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
             });
         });
     });

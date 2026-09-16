@@ -284,6 +284,20 @@
             background: #eef2ff !important;
         }
 
+        /* ================= TATA LETAK KARTU BERLAPIS RAB ITEM ================= */
+        .rab-item-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .rab-item-card:hover {
+            border-color: #818cf8;
+            box-shadow: 0 4px 14px -2px rgba(99, 102, 241, 0.12);
+        }
+
         /* ================= STICKY RIGHT COLUMN (AKSI / URUTAN) ================= */
         th.col-sticky-right,
         td.col-sticky-right {
@@ -656,27 +670,15 @@
                             </div>
                         </div>
 
-                        <div class="table-wrapper max-h-[520px] overflow-y-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 55px; min-width: 50px;" class="text-center whitespace-nowrap" title="Nomor urut item (bisa diedit langsung)">No</th>
-                                        <th class="min-w-[160px]">Uraian Belanja</th>
-                                        <th style="width: 95px; min-width: 85px;" class="text-center whitespace-nowrap" title="Sumber Anggaran Dana">Sumber Dana</th>
-                                        <th style="width: 75px; min-width: 70px;" class="text-center whitespace-nowrap">Volume</th>
-                                        <th style="width: 80px; min-width: 75px;" class="text-center whitespace-nowrap">Satuan</th>
-                                        <th style="width: 125px; min-width: 120px;" class="text-right whitespace-nowrap">Harga Satuan</th>
-                                        <th style="width: 140px; min-width: 130px;" class="text-right whitespace-nowrap">Jumlah Biaya</th>
-                                        <th style="width: 165px; min-width: 160px;" class="text-center col-sticky-right whitespace-nowrap" title="Tombol aksi dan pengatur urutan (menempel di kanan)">Aksi / Urutan</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="rab-items-body">
-                                    <tr>
-                                        <td colspan="8" class="text-center py-8 text-slate-400">Belum ada item RAB. Tambahkan
-                                            item pertama.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <!-- DAFTAR ITEM RAB BERLAPIS / CARD LAYOUT (NO SCROLL HORIZONTAL) -->
+                        <div class="rab-cards-container max-h-[560px] overflow-y-auto overflow-x-hidden p-1 space-y-3 rounded-xl" id="rab-items-container">
+                            <div id="rab-items-body" class="space-y-3">
+                                <div class="text-center py-10 bg-slate-50/70 rounded-xl border border-dashed border-slate-300 p-6">
+                                    <i class="fas fa-receipt text-3xl text-slate-300 mb-2"></i>
+                                    <div class="text-slate-500 font-semibold text-sm">Belum ada item RAB</div>
+                                    <div class="text-slate-400 text-xs mt-1">Gunakan form di atas untuk menambahkan rincian belanja.</div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Total rangkuman & butang simpan -->
