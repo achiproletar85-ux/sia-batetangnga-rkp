@@ -518,9 +518,13 @@ async function getRabFromDb(kode_unik_full, tahun, tipeAnggaran = RAB_TIPE_MURNI
             .or(`kode_unik_full.eq.${targetKode},kode_unik.eq.${targetKode}`)
             .eq('tahun', tahun);
         if (cols === RAB_FULL_COLUMNS) {
-            q = q.eq('tipe_anggaran', tipe);
+            if (tipe === RAB_TIPE_MURNI) {
+                q = q.or(`tipe_anggaran.eq.${RAB_TIPE_MURNI},tipe_anggaran.is.null,tipe_anggaran.eq.`);
+            } else {
+                q = q.eq('tipe_anggaran', tipe);
+            }
         }
-        return q.order('id', { ascending: true }).limit(1);
+        return q.order('id', { ascending: false }).limit(1);
     };
 
     // 1. Coba pencarian langsung dengan target kode awal
@@ -546,6 +550,35 @@ async function getRabFromDb(kode_unik_full, tahun, tipeAnggaran = RAB_TIPE_MURNI
             if (altRow && (!altRow._tipe_fallback || normalizeRabTipe(altRow.tipe_anggaran) === tipe)) {
                 return enrichRabDetail(altRow);
             }
+        }
+    }
+
+    // 3. Fallback jika belum ketemu dengan filter tipe spesifik: cari baris kegiatan manapun untuk tahun tersebut
+    const allCodes = [rawKode, ...fallbacks];
+    for (const tryKode of allCodes) {
+        const { data: anyData, error: anyErr } = await supabase
+            .from(RAB_TABLE)
+            .select(RAB_FULL_COLUMNS)
+            .or(`kode_unik_full.eq.${tryKode},kode_unik.eq.${tryKode}`)
+            .eq('tahun', tahun)
+            .order('id', { ascending: false })
+            .limit(1);
+        if (!anyErr && anyData && anyData.length > 0) {
+            return enrichRabDetail(anyData[0]);
+        }
+    }
+
+    // 4. Fallback lintas tahun jika kegiatan tersimpan di tahun berbeda
+    for (const tryKode of allCodes) {
+        const { data: anyYrData, error: anyYrErr } = await supabase
+            .from(RAB_TABLE)
+            .select(RAB_FULL_COLUMNS)
+            .or(`kode_unik_full.eq.${tryKode},kode_unik.eq.${tryKode}`)
+            .order('tahun', { ascending: false })
+            .order('id', { ascending: false })
+            .limit(1);
+        if (!anyYrErr && anyYrData && anyYrData.length > 0) {
+            return enrichRabDetail(anyYrData[0]);
         }
     }
 
@@ -4949,8 +4982,9 @@ app.get(['/api/pembiayaan-netto/rab', '/api/pembiayaan/rab'], async (req, res) =
 // GET /api/rab?kode_unik_full=..&tahun=YYYY[&tipe=PERUBAHAN]  -> detail (items + rpjm_data)
 app.get('/api/rab', async (req, res) => {
     try {
-        const { kode_unik_full, tahun, id } = req.query;
-        const tahunInt = parseInt(tahun, 10) || 2027;
+        const targetKode = String(req.query.kode_unik_full || req.query.kode_unik || req.query.kode || '').trim();
+        const { tahun, id } = req.query;
+        const tahunInt = parseInt(tahun, 10) || 2026;
         const tipeAnggaran = normalizeRabTipe(req.query.tipe || req.query.tipe_anggaran);
         const withItems = req.query.with_items === 'true' || req.query.include_items === 'true' || req.query.for_module === 'pembiayaan_netto';
 
@@ -4973,7 +5007,7 @@ app.get('/api/rab', async (req, res) => {
             }
         }
 
-        if (!kode_unik_full) {
+        if (!targetKode) {
             console.log(`📡 GET /api/rab?tahun=${tahunInt}&tipe=${tipeAnggaran}&withItems=${withItems}`);
             let data = [];
             try {
@@ -5033,7 +5067,7 @@ app.get('/api/rab', async (req, res) => {
         }
 
         try {
-            let saved = await getRabFromDb(kode_unik_full, tahunInt, tipeAnggaran);
+            let saved = await getRabFromDb(targetKode, tahunInt, tipeAnggaran);
             let isFallbackMurni = false;
 
             // Jika tipe PERUBAHAN diminta tapi belum ada data tersimpan di DB atau items-nya kosong,
@@ -5051,7 +5085,7 @@ app.get('/api/rab', async (req, res) => {
                         if (mRow) murni = enrichRabDetail(mRow);
                     }
                     if (!murni) {
-                        murni = await getRabFromDb(kode_unik_full, tahunInt, RAB_TIPE_MURNI);
+                        murni = await getRabFromDb(targetKode, tahunInt, RAB_TIPE_MURNI);
                     }
                     if (murni && Array.isArray(murni.items) && murni.items.length > 0) {
                         const murniItems = murni.items.map((it, idx) => ({

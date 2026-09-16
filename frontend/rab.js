@@ -928,6 +928,16 @@ async function selectRpjm() {
         }) || null;
     }
 
+    if (!selectedRpjm && rawVal) {
+        selectedRpjm = {
+            kode_unik_full: rawVal,
+            kode_unik: rawVal,
+            nama_kegiatan: `Kegiatan (${rawVal})`,
+            bidang: '',
+            jenis_kegiatan: ''
+        };
+    }
+
     if (!selectedRpjm) {
         currentRabId = null;
         currentRabRefMurni = null;
@@ -943,7 +953,8 @@ async function selectRpjm() {
 
     const summaryContainer = document.getElementById('rpjm-summary');
     if (summaryContainer) {
-        const jenisBid = getNamaSubBidangFull(selectedRpjm, selectedRpjm.kode_unik_full);
+        const kodeDisplay = selectedRpjm.kode_unik_full || selectedRpjm.kode_unik || '-';
+        const jenisBid = getNamaSubBidangFull(selectedRpjm, selectedRpjm.kode_unik_full || selectedRpjm.kode_unik || '');
         const jenisKeg = selectedRpjm.jenis_kegiatan || selectedRpjm.kegiatan_induk || selectedRpjm.nama_kegiatan || 'Kegiatan Desa';
         summaryContainer.innerHTML = `
             <div class="p-5 bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -951,9 +962,9 @@ async function selectRpjm() {
                     <i class="fas fa-check-circle"></i> Data Kegiatan RAB Terpilih
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                    <div><span class="text-slate-500 font-medium">Kode Unik:</span> <strong class="text-slate-800 font-mono bg-slate-100 px-2 py-0.5 rounded">${selectedRpjm.kode_unik_full || '-'}</strong></div>
+                    <div><span class="text-slate-500 font-medium">Kode Unik:</span> <strong class="text-slate-800 font-mono bg-slate-100 px-2 py-0.5 rounded">${kodeDisplay}</strong></div>
                     <div class="md:col-span-2"><span class="text-slate-500 font-medium">Nama Kegiatan:</span> <strong class="text-slate-800 font-semibold">${selectedRpjm.nama_kegiatan || '-'}</strong></div>
-                    <div><span class="text-slate-500 font-medium">Bidang:</span> <span class="text-slate-700">${getNamaBidangFull(selectedRpjm.bidang, selectedRpjm.kode_unik_full)}</span></div>
+                    <div><span class="text-slate-500 font-medium">Bidang:</span> <span class="text-slate-700">${getNamaBidangFull(selectedRpjm.bidang, selectedRpjm.kode_unik_full || selectedRpjm.kode_unik || '')}</span></div>
                     <div><span class="text-slate-500 font-medium">Jenis Bidang:</span> <span class="text-slate-700">${jenisBid}</span></div>
                     <div class="md:col-span-2"><span class="text-slate-500 font-medium">Jenis Kegiatan:</span> <span class="text-slate-700">${jenisKeg}</span></div>
                 </div>
@@ -986,7 +997,8 @@ async function selectRpjm() {
 
 function getStorageKey() {
     if (!selectedRpjm) return null;
-    return `rab_${selectedRpjm.kode_unik_full}_${rabYear}`;
+    const kode = (selectedRpjm.kode_unik_full || selectedRpjm.kode_unik || selectedRpjm.kode || '').trim();
+    return kode ? `rab_${kode}_${rabYear}` : null;
 }
 
 let rabMurniRefItems = [];
@@ -1175,15 +1187,25 @@ async function loadSavedRAB() {
     rabMurniRefItems = [];
     rabMurniRefTotal = 0;
 
+    const targetKode = (selectedRpjm?.kode_unik_full || selectedRpjm?.kode_unik || selectedRpjm?.kode || '').trim();
+    if (!targetKode) return;
+
     try {
-        const url = `${API_URL}/rab?kode_unik_full=${encodeURIComponent(selectedRpjm.kode_unik_full)}&tahun=${encodeURIComponent(rabYear)}&tipe=${encodeURIComponent(rabTipe)}`;
+        const url = `${API_URL}/rab?kode_unik_full=${encodeURIComponent(targetKode)}&tahun=${encodeURIComponent(rabYear)}&tipe=${encodeURIComponent(rabTipe)}`;
         const res = await fetch(url);
         let json = null;
         if (res.ok) {
             try { json = await res.json(); } catch (_) {}
         }
         if (json && json.success && json.data) {
-            const mapped = Array.isArray(json.data.items) ? json.data.items.map((it, idx) => ({
+            let rawItems = json.data.items;
+            if (typeof rawItems === 'string') {
+                try { rawItems = JSON.parse(rawItems); } catch (_) { rawItems = []; }
+            }
+            if (!Array.isArray(rawItems) && Array.isArray(json.data.rincian_items)) {
+                rawItems = json.data.rincian_items;
+            }
+            const mapped = Array.isArray(rawItems) ? rawItems.map((it, idx) => ({
                 ...it,
                 no: it.no !== undefined ? it.no : (idx + 1),
                 urutan: it.urutan !== undefined ? it.urutan : (idx + 1),
@@ -1201,16 +1223,23 @@ async function loadSavedRAB() {
         }
 
         // Jika dalam mode PERUBAHAN, tarik versi MURNI untuk referensi nilai 'SEMULA'
-        if (isModePerubahan() && (currentRabRefMurni || selectedRpjm?.kode_unik_full)) {
+        if (isModePerubahan() && (currentRabRefMurni || targetKode)) {
             try {
                 const urlMurni = currentRabRefMurni
                     ? `${API_URL}/rab?id=${encodeURIComponent(currentRabRefMurni)}&tipe=MURNI`
-                    : `${API_URL}/rab?kode_unik_full=${encodeURIComponent(selectedRpjm.kode_unik_full)}&tahun=${encodeURIComponent(rabYear)}&tipe=MURNI`;
+                    : `${API_URL}/rab?kode_unik_full=${encodeURIComponent(targetKode)}&tahun=${encodeURIComponent(rabYear)}&tipe=MURNI`;
                 const resMurni = await fetch(urlMurni);
                 if (resMurni.ok) {
                     const jsonMurni = await resMurni.json().catch(() => null);
                     if (jsonMurni && jsonMurni.success && jsonMurni.data) {
-                        const mappedMurni = Array.isArray(jsonMurni.data.items) ? jsonMurni.data.items.map(it => ({
+                        let rawMurni = jsonMurni.data.items;
+                        if (typeof rawMurni === 'string') {
+                            try { rawMurni = JSON.parse(rawMurni); } catch (_) { rawMurni = []; }
+                        }
+                        if (!Array.isArray(rawMurni) && Array.isArray(jsonMurni.data.rincian_items)) {
+                            rawMurni = jsonMurni.data.rincian_items;
+                        }
+                        const mappedMurni = Array.isArray(rawMurni) ? rawMurni.map(it => ({
                             ...it,
                             sumber: normalizeSumberDana(it.sumber || it.sumber_dana)
                         })) : [];
@@ -1255,7 +1284,7 @@ async function loadSavedRAB() {
                     };
                 });
                 reindexRabItemsBySubgroup(rabItems);
-                console.log(`[RAB Perubahan] Auto-fill ${rabItems.length} item dari versi MURNI untuk ${selectedRpjm.kode_unik_full}`);
+                console.log(`[RAB Perubahan] Auto-fill ${rabItems.length} item dari versi MURNI untuk ${targetKode}`);
             } else if (rabItems.length > 0 && rabMurniRefItems.length > 0) {
                 // Pastikan urutan_murni terisi HANYA jika item memang cocok dengan murni
                 const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
@@ -1401,6 +1430,34 @@ async function loadSavedRabList() {
             });
             savedRabList = sortHierarchical(serverItems);
             renderSavedRabList();
+
+            // Sinkronkan ke rabActivitiesGlobal jika ada kegiatan tersimpan yang belum masuk daftar dropdown
+            let addedNew = false;
+            serverItems.forEach(s => {
+                const sKode = String(s.kode_unik_full || s.kode_unik || '').trim();
+                const sClean = sKode.replace(/\.+$/, '').replace(/^PEM\./i, '');
+                const exists = rabActivitiesGlobal.some(a => {
+                    const aKode = String(a.kode_unik_full || a.kode_unik || '').trim();
+                    const aClean = aKode.replace(/\.+$/, '').replace(/^PEM\./i, '');
+                    return aKode === sKode || (sClean && aClean === sClean);
+                });
+                if (!exists && sKode) {
+                    rabActivitiesGlobal.push({
+                        kode_unik_full: s.kode_unik_full || s.kode_unik,
+                        kode_unik: s.kode_unik || s.kode_unik_full,
+                        nama_kegiatan: s.nama_kegiatan || s.jenis_kegiatan || '(RAB tersimpan)',
+                        bidang: s.bidang || '',
+                        jenis_kegiatan: s.jenis_kegiatan || '',
+                        jenis_bid: s.jenis_bid || s.jenis_bidang || '',
+                        ...(s.rpjm_data || {})
+                    });
+                    addedNew = true;
+                }
+            });
+            if (addedNew) {
+                renderRabActivityOptions();
+            }
+
             // Pastikan infografis Pagu/Terpakai selalu tersinkron dgn data RAB terbaru
             updateRabInfographicStats();
             return;
@@ -1495,14 +1552,21 @@ function renderSavedRabList() {
 }
 
 async function loadSavedRabItem(kode, year) {
-    document.getElementById('select-year').value = year;
-    rabYear = Number(year);
-    try {
-        localStorage.setItem('rab_tahun_anggaran', String(rabYear));
-        localStorage.setItem('sia_tahun_anggaran', String(rabYear));
-    } catch (_) {}
+    if (year !== undefined && year !== null && String(year).trim() !== '') {
+        const parsedYear = Number(year);
+        if (!isNaN(parsedYear)) {
+            rabYear = parsedYear;
+            const yEl = document.getElementById('select-year');
+            if (yEl) yEl.value = String(rabYear);
+            try {
+                localStorage.setItem('rab_tahun_anggaran', String(rabYear));
+                localStorage.setItem('sia_tahun_anggaran', String(rabYear));
+            } catch (_) {}
+        }
+    }
     await loadRabActivities();
-    document.getElementById('search-rpjm').value = '';
+    const searchEl = document.getElementById('search-rpjm');
+    if (searchEl) searchEl.value = '';
 
     const cleanTarget = String(kode || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
 
