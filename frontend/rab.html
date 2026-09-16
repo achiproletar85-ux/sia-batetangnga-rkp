@@ -284,6 +284,40 @@
             background: #eef2ff !important;
         }
 
+        /* ================= STICKY RIGHT COLUMN (AKSI / URUTAN) ================= */
+        th.col-sticky-right,
+        td.col-sticky-right {
+            position: sticky;
+            right: 0;
+            z-index: 20;
+            box-shadow: -3px 0 6px -1px rgba(0, 0, 0, 0.07);
+        }
+
+        th.col-sticky-right {
+            background: #f8fafc !important;
+            z-index: 25;
+            border-left: 1px solid #e2e8f0;
+        }
+
+        td.col-sticky-right {
+            background-color: #ffffff;
+            border-left: 1px solid #e2e8f0;
+        }
+
+        .rab-item-row:nth-child(even) td.col-sticky-right {
+            background-color: #f8fafc;
+        }
+
+        .rab-item-row:hover td.col-sticky-right {
+            background-color: #eef2ff !important;
+        }
+
+        .rab-subgroup-row td.col-sticky-right {
+            background: #eef2ff !important;
+            border-left: 1px solid #e0e7ff;
+            z-index: 15;
+        }
+
         /* ================= TOAST ================= */
         .toast {
             position: fixed;
@@ -633,7 +667,7 @@
                                         <th style="width: 80px;" class="text-center">Satuan</th>
                                         <th style="width: 120px;" class="text-right">Harga Satuan</th>
                                         <th style="width: 130px;" class="text-right">Jumlah Biaya</th>
-                                        <th style="width: 150px;" class="text-center">Aksi / Urutan</th>
+                                        <th style="width: 160px;" class="text-center col-sticky-right" title="Tombol aksi dan pengatur urutan (menempel di kanan)">Aksi / Urutan</th>
                                     </tr>
                                 </thead>
                                 <tbody id="rab-items-body">

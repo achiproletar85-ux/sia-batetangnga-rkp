@@ -2208,7 +2208,7 @@ function renderRabItems() {
                         <div>Rp ${formatRupiah(subTotal)}</div>
                         ${isModePerubahan() ? `<div class="text-[10px] text-slate-500 font-normal">Semula: Rp ${formatRupiah(subTotalSemula)}</div>` : ''}
                     </td>
-                    <td></td>
+                    <td class="col-sticky-right"></td>
                 </tr>`;
 
             entry.items.forEach(({ item, idx }, subIdx) => {
@@ -2303,7 +2303,7 @@ function renderRabItems() {
                         <td class="text-center">${satCell}</td>
                         <td class="text-right">${hargaCell}</td>
                         <td class="text-right">${jumlahCell}</td>
-                        <td class="text-center whitespace-nowrap px-2 py-2">
+                        <td class="text-center whitespace-nowrap px-2 py-2 col-sticky-right">
                             <div class="inline-flex items-center gap-1">
                                 ${(isModePerubahan() && ref.isBaru) ? `<button type="button" class="btn-outline px-1.5 py-1 text-[11px] font-bold text-blue-700 hover:text-white hover:bg-blue-600 border-blue-300" onclick="pushItemToMurni(${idx})" title="Push item baru ini ke master RAB Murni"><i class="fas fa-arrow-up-from-bracket"></i></button>` : ''}
                                 <button type="button" class="btn-outline px-1.5 py-1 text-[11px] font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 ${isFirst ? 'opacity-40 cursor-not-allowed' : ''}" onclick="${isFirst ? '' : `moveRabItemUp(${idx})`}" title="Pindah urutan ke atas" ${isFirst ? 'disabled' : ''}>▲</button>
