@@ -5291,7 +5291,7 @@ app.post('/api/rab/sync-to-murni', async (req, res) => {
 
             // Update total anggaran Murni
             const totalMurni = murniItems.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0);
-            murniRecord.items = murniItems;
+            murniRecord.items = sortRabItems(murniItems);
             murniRecord.jumlah_anggaran = totalMurni;
             murniRecord.total_biaya = totalMurni;
             murniRecord.total_rab = totalMurni;
@@ -5326,7 +5326,7 @@ app.post('/api/rab/sync-to-murni', async (req, res) => {
                 pItems[pMatchIdx].uraian_murni = targetMurniItem.uraian;
                 pItems[pMatchIdx].id_referensi_murni = murniRecord.id;
                 pItems[pMatchIdx].item_baru = false;
-                perubahanRecord.items = pItems;
+                perubahanRecord.items = sortRabItems(pItems);
                 perubahanRecord.id_referensi_murni = murniRecord.id;
                 await saveRabToDb(perubahanRecord);
             }
