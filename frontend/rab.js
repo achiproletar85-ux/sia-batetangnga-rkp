@@ -2224,31 +2224,43 @@ function renderRabItems() {
                 const ref = getItemMurniRef(item, idx);
 
                 let uraianBadge = '';
-                let volCell = `<div class="font-bold text-slate-800">${(item.volume !== undefined && item.volume !== null && item.volume !== '') ? item.volume : '-'}</div>`;
-                let satCell = `<div>${item.satuan || '-'}</div>`;
-                let hargaCell = `<div class="font-bold text-slate-800">Rp ${formatRupiah(item.harga)}</div>`;
-                let jumlahCell = `<div class="font-extrabold text-slate-900">Rp ${formatRupiah(item.jumlah)}</div>`;
+                let volCell = `<div class="font-bold text-slate-800 whitespace-nowrap">${(item.volume !== undefined && item.volume !== null && item.volume !== '') ? item.volume : '-'}</div>`;
+                let satCell = `<div class="whitespace-nowrap">${item.satuan || '-'}</div>`;
+                let hargaCell = `<div class="font-bold text-slate-800 whitespace-nowrap">Rp ${formatRupiah(item.harga)}</div>`;
+                let jumlahCell = `<div class="font-extrabold text-slate-900 whitespace-nowrap">Rp ${formatRupiah(item.jumlah)}</div>`;
 
                 let sumberBadge = '';
                 const sText = normalizeSumberDana(item.sumber);
                 if (!sText) {
-                    sumberBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-red-100 text-red-700 border border-red-300 animate-pulse shadow-xs" title="Sumber Dana belum diisi! Wajib diisi saat simpan."><i class="fas fa-exclamation-triangle text-red-600"></i> [Belum Diisi]</span>`;
+                    sumberBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 border border-red-300 animate-pulse shadow-xs whitespace-nowrap" title="Sumber Dana belum diisi! Wajib diisi saat simpan."><i class="fas fa-exclamation-triangle text-red-600"></i> [Kosong]</span>`;
                     uraianBadge += `<div class="text-[10px] font-bold text-red-600 mt-0.5"><i class="fas fa-exclamation-circle"></i> Sumber Dana belum dipilih</div>`;
                 } else {
                     const sUpper = sText.toUpperCase();
                     let badgeClass = 'bg-slate-100 text-slate-800 border-slate-200';
+                    let shortCode = sText;
                     if (sUpper.includes('DDS') || sUpper.includes('DANA DESA') || sUpper === 'DD') {
                         badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                        shortCode = 'DDS';
                     } else if (sUpper.includes('ADD') || sUpper.includes('ALOKASI DANA')) {
                         badgeClass = 'bg-blue-100 text-blue-800 border-blue-300';
+                        shortCode = 'ADD';
                     } else if (sUpper.includes('PBH') || sUpper.includes('BAGI HASIL') || sUpper.includes('BHP')) {
                         badgeClass = 'bg-indigo-100 text-indigo-800 border-indigo-300';
+                        shortCode = 'PBH';
                     } else if (sUpper.includes('PAD') || sUpper.includes('PENDAPATAN ASLI')) {
                         badgeClass = 'bg-amber-100 text-amber-800 border-amber-300';
+                        shortCode = 'PAD';
+                    } else if (sUpper.includes('APBD TK. I') || sUpper.includes('PROVINSI')) {
+                        badgeClass = 'bg-purple-100 text-purple-800 border-purple-300';
+                        shortCode = 'APBD Prov';
+                    } else if (sUpper.includes('APBD TK. II') || sUpper.includes('KABUPATEN')) {
+                        badgeClass = 'bg-purple-100 text-purple-800 border-purple-300';
+                        shortCode = 'APBD Kab';
                     } else if (sUpper.includes('APBD')) {
                         badgeClass = 'bg-purple-100 text-purple-800 border-purple-300';
+                        shortCode = 'APBD';
                     }
-                    sumberBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}">${sText}</span>`;
+                    sumberBadge = `<span class="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-semibold border ${badgeClass} shadow-2xs whitespace-nowrap" title="${sText}">${shortCode}</span>`;
                 }
 
                 if (isModePerubahan()) {
@@ -2304,11 +2316,11 @@ function renderRabItems() {
                             ${uraianBadge}
                             ${item.keterangan ? `<div class="text-slate-400 text-xs mt-1">${item.keterangan}</div>` : ''}
                         </td>
-                        <td class="text-center">${sumberBadge}</td>
-                        <td class="text-center">${volCell}</td>
-                        <td class="text-center">${satCell}</td>
-                        <td class="text-right">${hargaCell}</td>
-                        <td class="text-right">${jumlahCell}</td>
+                        <td class="text-center px-2 py-2 whitespace-nowrap">${sumberBadge}</td>
+                        <td class="text-center px-2 py-2 whitespace-nowrap">${volCell}</td>
+                        <td class="text-center px-2 py-2 whitespace-nowrap">${satCell}</td>
+                        <td class="text-right px-3 py-2 whitespace-nowrap">${hargaCell}</td>
+                        <td class="text-right px-3 py-2 whitespace-nowrap">${jumlahCell}</td>
                         <td class="text-center whitespace-nowrap px-2 py-2 col-sticky-right">
                             <div class="inline-flex items-center gap-1">
                                 ${(isModePerubahan() && ref.isBaru) ? `<button type="button" class="btn-outline px-1.5 py-1 text-[11px] font-bold text-blue-700 hover:text-white hover:bg-blue-600 border-blue-300" onclick="pushItemToMurni(${idx})" title="Push item baru ini ke master RAB Murni"><i class="fas fa-arrow-up-from-bracket"></i></button>` : ''}
