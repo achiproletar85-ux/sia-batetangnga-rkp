@@ -275,6 +275,21 @@ console.log('\n11) Pengurutan Sub-Item Belanja SisKeuDes (sortRabItems)');
     check('item 4 memiliki no = 4', sortedItems[3].no, 4);
 }
 
+console.log('\n11b) Fitur Kustomisasi / Urutan Manual RAB Item (urutan_manual)');
+{
+    const manualItems = [
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Kertas f4', urutan_manual: 2 },
+        { group: 'Belanja Barang Perlengkapan', subgroup: 'Belanja Alat Tulis Kantor dan Benda Pos', uraian: 'Amplop', urutan_manual: 1 }
+    ];
+    const sortedManual = sortRabItems(manualItems);
+    check('Amplop di urutan 1 karena urutan_manual = 1', sortedManual[0].uraian, 'Amplop');
+    check('Amplop memiliki no = 1', sortedManual[0].no, 1);
+    check('Amplop memiliki urutan_manual = 1', sortedManual[0].urutan_manual, 1);
+    check('Kertas f4 di urutan 2 karena urutan_manual = 2', sortedManual[1].uraian, 'Kertas f4');
+    check('Kertas f4 memiliki no = 2', sortedManual[1].no, 2);
+    check('Kertas f4 memiliki urutan_manual = 2', sortedManual[1].urutan_manual, 2);
+}
+
 console.log('\n12) Pengurutan Cetak Hierarkis RAB Perubahan & Helper Universal getKode');
 {
     // Uji helper universal getKode

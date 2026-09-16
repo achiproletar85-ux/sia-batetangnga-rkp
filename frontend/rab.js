@@ -1050,10 +1050,20 @@ async function loadSavedRAB() {
             try { json = await res.json(); } catch (_) {}
         }
         if (json && json.success && json.data) {
-            rabItems = Array.isArray(json.data.items) ? json.data.items.map(it => ({
+            rabItems = Array.isArray(json.data.items) ? json.data.items.map((it, idx) => ({
                 ...it,
+                no: it.no !== undefined ? it.no : (idx + 1),
+                urutan: it.urutan !== undefined ? it.urutan : (idx + 1),
+                urutan_manual: it.urutan_manual !== undefined ? it.urutan_manual : (it.urutan !== undefined ? it.urutan : (idx + 1)),
                 sumber: normalizeSumberDana(it.sumber || it.sumber_dana)
             })) : [];
+            if (rabItems.some(it => it.urutan_manual !== undefined && it.urutan_manual !== null)) {
+                rabItems.sort((a, b) => {
+                    const uA = Number(a.urutan_manual !== undefined && a.urutan_manual !== null && a.urutan_manual !== '' ? a.urutan_manual : (a.urutan || a.no || 999999));
+                    const uB = Number(b.urutan_manual !== undefined && b.urutan_manual !== null && b.urutan_manual !== '' ? b.urutan_manual : (b.urutan || b.no || 999999));
+                    return uA - uB;
+                });
+            }
             currentRabId = json.data.id || null;
             currentRabRefMurni = json.data.id_referensi_murni || null;
         } else {
@@ -1109,7 +1119,10 @@ async function loadSavedRAB() {
                         jumlah_murni: jml,
                         id_referensi_murni: m.id_referensi_murni || currentRabRefMurni || null,
                         item_baru: false,
-                        item_dihapus: false
+                        item_dihapus: false,
+                        urutan_manual: m.urutan_manual !== undefined ? m.urutan_manual : (m.urutan || idx + 1),
+                        urutan: m.urutan || idx + 1,
+                        no: m.no || idx + 1
                     };
                 });
                 console.log(`[RAB Perubahan] Auto-fill ${rabItems.length} item dari versi MURNI untuk ${selectedRpjm.kode_unik_full}`);
@@ -1699,7 +1712,20 @@ function addRabItem() {
         }
     }
 
-    const item = { group, subgroup, uraian, volume: validVol, satuan, harga, jumlah, sumber, keterangan };
+    const item = {
+        group,
+        subgroup,
+        uraian,
+        volume: validVol,
+        satuan,
+        harga,
+        jumlah,
+        sumber,
+        keterangan,
+        urutan_manual: editIndex > -1 ? (rabItems[editIndex]?.urutan_manual || editIndex + 1) : (rabItems.length + 1),
+        urutan: editIndex > -1 ? (rabItems[editIndex]?.urutan || editIndex + 1) : (rabItems.length + 1),
+        no: editIndex > -1 ? (rabItems[editIndex]?.no || editIndex + 1) : (rabItems.length + 1)
+    };
 
     // RAB PERUBAHAN: pertahankan jejak penjajaran dari versi MURNI saat mengedit,
     // supaya SEMULA <-> MENJADI tetap berpasangan walau uraian diubah.
@@ -1737,6 +1763,11 @@ function addRabItem() {
         rabItems.push(item); // Tampilkan item baru di paling bawah (urutan input)
         showToast('Item RAB berhasil ditambahkan', 'success');
     }
+    rabItems.forEach((it, i) => {
+        it.no = i + 1;
+        it.urutan = i + 1;
+        it.urutan_manual = i + 1;
+    });
     renderRabItems();
     saveRAB();
     document.getElementById('input-uraian').value = '';
@@ -1806,8 +1837,169 @@ function editRabItem(index) {
 
 function removeRabItem(index) {
     rabItems.splice(index, 1);
+    rabItems.forEach((it, i) => {
+        it.no = i + 1;
+        it.urutan = i + 1;
+        it.urutan_manual = i + 1;
+    });
     renderRabItems();
     saveRAB();
+}
+
+function moveRabItemUp(idx) {
+    if (idx < 0 || idx >= rabItems.length) return;
+    const currentItem = rabItems[idx];
+    if (!currentItem) return;
+
+    const currentGrp = String(currentItem.group || '').trim();
+    const currentSub = String(currentItem.subgroup || '').trim();
+
+    // Cari item sebelumnya dalam sub-kelompok yang sama
+    let prevSubIdx = -1;
+    for (let i = idx - 1; i >= 0; i--) {
+        const it = rabItems[i];
+        if (it && String(it.group || '').trim() === currentGrp && String(it.subgroup || '').trim() === currentSub) {
+            prevSubIdx = i;
+            break;
+        }
+    }
+
+    if (prevSubIdx === -1) {
+        showToast('Item sudah berada di posisi teratas dalam kelompoknya', 'info');
+        return;
+    }
+
+    // Tukar posisi di array rabItems
+    const temp = rabItems[idx];
+    rabItems[idx] = rabItems[prevSubIdx];
+    rabItems[prevSubIdx] = temp;
+
+    // Normalisasi ulang nomor urut
+    rabItems.forEach((it, i) => {
+        it.no = i + 1;
+        it.urutan = i + 1;
+        it.urutan_manual = i + 1;
+    });
+
+    renderRabItems();
+    saveRAB();
+    showToast(`Urutan item "${temp.uraian || ''}" berhasil dinaikkan`, 'success');
+}
+
+function moveRabItemDown(idx) {
+    if (idx < 0 || idx >= rabItems.length) return;
+    const currentItem = rabItems[idx];
+    if (!currentItem) return;
+
+    const currentGrp = String(currentItem.group || '').trim();
+    const currentSub = String(currentItem.subgroup || '').trim();
+
+    // Cari item sesudahnya dalam sub-kelompok yang sama
+    let nextSubIdx = -1;
+    for (let i = idx + 1; i < rabItems.length; i++) {
+        const it = rabItems[i];
+        if (it && String(it.group || '').trim() === currentGrp && String(it.subgroup || '').trim() === currentSub) {
+            nextSubIdx = i;
+            break;
+        }
+    }
+
+    if (nextSubIdx === -1) {
+        showToast('Item sudah berada di posisi terbawah dalam kelompoknya', 'info');
+        return;
+    }
+
+    // Tukar posisi di array rabItems
+    const temp = rabItems[idx];
+    rabItems[idx] = rabItems[nextSubIdx];
+    rabItems[nextSubIdx] = temp;
+
+    // Normalisasi ulang nomor urut
+    rabItems.forEach((it, i) => {
+        it.no = i + 1;
+        it.urutan = i + 1;
+        it.urutan_manual = i + 1;
+    });
+
+    renderRabItems();
+    saveRAB();
+    showToast(`Urutan item "${temp.uraian || ''}" berhasil diturunkan`, 'success');
+}
+
+function changeRabItemOrder(idx, newPosVal) {
+    const targetNo = parseInt(newPosVal, 10);
+    if (!Number.isFinite(targetNo) || targetNo <= 0) {
+        renderRabItems();
+        return;
+    }
+
+    const currentItem = rabItems[idx];
+    if (!currentItem) return;
+
+    const currentGrp = String(currentItem.group || '').trim();
+    const currentSub = String(currentItem.subgroup || '').trim();
+
+    // Kumpulkan seluruh item dalam sub kelompok yang sama
+    const subgroupIndices = [];
+    rabItems.forEach((it, i) => {
+        if (it && String(it.group || '').trim() === currentGrp && String(it.subgroup || '').trim() === currentSub) {
+            subgroupIndices.push(i);
+        }
+    });
+
+    if (subgroupIndices.length <= 1) {
+        renderRabItems();
+        return;
+    }
+
+    const currentSubPos = subgroupIndices.indexOf(idx);
+    let targetSubPos = -1;
+
+    // Jika targetNo <= subgroupIndices.length, perlakukan sebagai 1-based relative index
+    if (targetNo <= subgroupIndices.length) {
+        targetSubPos = targetNo - 1;
+    } else {
+        targetSubPos = Math.min(targetNo - 1, subgroupIndices.length - 1);
+    }
+
+    if (targetSubPos < 0) targetSubPos = 0;
+    if (targetSubPos >= subgroupIndices.length) targetSubPos = subgroupIndices.length - 1;
+
+    if (targetSubPos === currentSubPos) {
+        renderRabItems();
+        return;
+    }
+
+    const [moved] = rabItems.splice(idx, 1);
+    const targetItemInSubgroup = rabItems.find((it, i) => {
+        if (it && String(it.group || '').trim() === currentGrp && String(it.subgroup || '').trim() === currentSub) {
+            const count = rabItems.slice(0, i + 1).filter(x => String(x.group || '').trim() === currentGrp && String(x.subgroup || '').trim() === currentSub).length - 1;
+            return count === targetSubPos;
+        }
+        return false;
+    });
+
+    if (targetItemInSubgroup) {
+        const insertIdx = rabItems.indexOf(targetItemInSubgroup);
+        if (targetSubPos > currentSubPos) {
+            rabItems.splice(insertIdx + 1, 0, moved);
+        } else {
+            rabItems.splice(insertIdx, 0, moved);
+        }
+    } else {
+        rabItems.splice(subgroupIndices[targetSubPos] || 0, 0, moved);
+    }
+
+    // Normalisasi ulang nomor urut
+    rabItems.forEach((it, i) => {
+        it.no = i + 1;
+        it.urutan = i + 1;
+        it.urutan_manual = i + 1;
+    });
+
+    renderRabItems();
+    saveRAB();
+    showToast(`Urutan item "${moved.uraian || ''}" dipindahkan ke nomor ${targetSubPos + 1}`, 'success');
 }
 
 // Salin semua field dari item RAB terakhir yang tersimpan ke form
@@ -1979,8 +2171,10 @@ function renderRabItems() {
                     <td></td>
                 </tr>`;
 
-            entry.items.forEach(({ item, idx }) => {
+            entry.items.forEach(({ item, idx }, subIdx) => {
                 runningNo += 1;
+                const isFirst = (subIdx === 0);
+                const isLast = (subIdx === entry.items.length - 1);
                 const ref = getItemMurniRef(item, idx);
 
                 let uraianBadge = '';
@@ -2041,7 +2235,13 @@ function renderRabItems() {
 
                 html += `
                     <tr class="rab-item-row">
-                        <td class="text-center">${runningNo}</td>
+                        <td class="text-center px-1">
+                            <input type="number" min="1" max="999" value="${runningNo}"
+                                   class="w-12 text-center text-xs font-bold border border-slate-300 rounded px-1 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white hover:border-slate-400 transition"
+                                   onchange="changeRabItemOrder(${idx}, this.value)"
+                                   onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+                                   title="Ketik nomor urut baru lalu tekan Enter untuk memindahkan baris">
+                        </td>
                         <td>
                             <div class="font-semibold text-slate-800">${item.uraian}</div>
                             ${uraianBadge}
@@ -2052,9 +2252,13 @@ function renderRabItems() {
                         <td class="text-center">${satCell}</td>
                         <td class="text-right">${hargaCell}</td>
                         <td class="text-right">${jumlahCell}</td>
-                        <td class="text-center">
-                            <button class="btn-outline" style="padding:6px 10px; margin-right:6px;" onclick="editRabItem(${idx})">Edit</button>
-                            <button class="btn-outline" style="padding:6px 10px;" onclick="removeRabItem(${idx})">Hapus</button>
+                        <td class="text-center whitespace-nowrap px-2 py-2">
+                            <div class="inline-flex items-center gap-1">
+                                <button type="button" class="btn-outline px-1.5 py-1 text-[11px] font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 ${isFirst ? 'opacity-40 cursor-not-allowed' : ''}" onclick="${isFirst ? '' : `moveRabItemUp(${idx})`}" title="Pindah urutan ke atas" ${isFirst ? 'disabled' : ''}>▲</button>
+                                <button type="button" class="btn-outline px-1.5 py-1 text-[11px] font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 ${isLast ? 'opacity-40 cursor-not-allowed' : ''}" onclick="${isLast ? '' : `moveRabItemDown(${idx})`}" title="Pindah urutan ke bawah" ${isLast ? 'disabled' : ''}>▼</button>
+                                <button type="button" class="btn-outline px-2 py-1 text-xs text-slate-700 hover:text-blue-700 hover:bg-blue-50" onclick="editRabItem(${idx})" title="Edit data item">Edit</button>
+                                <button type="button" class="btn-outline px-2 py-1 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-300" onclick="removeRabItem(${idx})" title="Hapus item">Hapus</button>
+                            </div>
                         </td>
                     </tr>`;
             });
@@ -3530,3 +3734,6 @@ window.simpanPaguForm = simpanPaguForm;
 window.tutupModalOverBudget = tutupModalOverBudget;
 window.fixRabData = fixRabData;
 window.pilihKegiatanDariForm = pilihKegiatanDariForm;
+window.moveRabItemUp = moveRabItemUp;
+window.moveRabItemDown = moveRabItemDown;
+window.changeRabItemOrder = changeRabItemOrder;

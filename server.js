@@ -638,10 +638,13 @@ async function saveRabToDb(record) {
     const safeKode = String(record.kode_unik || record.kode_unik_full || 'RAB-' + Date.now()).trim();
     const safeTahun = parseInt(record.tahun, 10) || 2027;
     const rawItemsArray = Array.isArray(record.items) ? record.items : [];
-    const itemsArray = rawItemsArray.map(it => {
+    const itemsArray = rawItemsArray.map((it, idx) => {
         if (it && typeof it === 'object') {
             return {
                 ...it,
+                no: it.no !== undefined ? it.no : (idx + 1),
+                urutan: it.urutan !== undefined ? it.urutan : (idx + 1),
+                urutan_manual: it.urutan_manual !== undefined ? it.urutan_manual : (it.urutan !== undefined ? it.urutan : (idx + 1)),
                 sumber: normalizeSumberDana(it.sumber || it.sumber_dana || record.sumber_dana)
             };
         }
@@ -1334,6 +1337,26 @@ function getSiskeudesItemIndex(uraian) {
 
 function sortRabItems(items) {
     if (!Array.isArray(items)) return [];
+    const hasManualOrder = items.some(it => it && it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '');
+    if (hasManualOrder) {
+        const sorted = [...items].sort((a, b) => {
+            const rekA = getRabItemRekening(a);
+            const rekB = getRabItemRekening(b);
+            const cmp = compareKodeUnikFull(rekA, rekB);
+            if (cmp !== 0) return cmp;
+
+            const uA = Number(a.urutan_manual !== undefined && a.urutan_manual !== null && a.urutan_manual !== '' ? a.urutan_manual : (a.urutan || a.no || 999999));
+            const uB = Number(b.urutan_manual !== undefined && b.urutan_manual !== null && b.urutan_manual !== '' ? b.urutan_manual : (b.urutan || b.no || 999999));
+            if (uA !== uB) return uA - uB;
+            return 0;
+        });
+        return sorted.map((it, idx) => ({
+            ...it,
+            no: idx + 1,
+            urutan: idx + 1,
+            urutan_manual: idx + 1
+        }));
+    }
     const sorted = [...items].sort((a, b) => {
         const rekA = getRabItemRekening(a);
         const rekB = getRabItemRekening(b);
@@ -5075,8 +5098,11 @@ app.post('/api/rab', async (req, res) => {
             lokasi: payload.lokasi || rpjm_data?.lokasi_kegiatan || rpjm_data?.lokasi || 'Desa Batetangnga',
             lokasi_kegiatan: payload.lokasi_kegiatan || rpjm_data?.lokasi_kegiatan || payload.lokasi || '',
             jenis_kegiatan: payload.jenis_kegiatan || rpjm_data?.jenis_kegiatan || rpjm_data?.nama_kegiatan || '',
-            items: Array.isArray(items) ? sortRabItems(items.map(it => ({
+            items: Array.isArray(items) ? sortRabItems(items.map((it, idx) => ({
                 ...it,
+                no: it.no !== undefined ? it.no : (idx + 1),
+                urutan: it.urutan !== undefined ? it.urutan : (idx + 1),
+                urutan_manual: it.urutan_manual !== undefined ? it.urutan_manual : (it.urutan !== undefined ? it.urutan : (idx + 1)),
                 sumber: normalizeSumberDana(it.sumber || it.sumber_dana || payload.sumber_dana)
             }))) : [],
             jumlah_anggaran: (payload.jumlah_anggaran !== undefined && payload.jumlah_anggaran !== null && payload.jumlah_anggaran !== '' && !isNaN(Number(payload.jumlah_anggaran)))
