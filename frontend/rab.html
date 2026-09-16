@@ -637,12 +637,15 @@
                                 </div>
                             </div>
 
-                            <div class="flex flex-col sm:flex-row gap-3 pt-2">
-                                <button id="btn-copy-item" onclick="salinDataItem()" class="btn-outline flex-1 justify-center">
-                                    <i class="fas fa-copy"></i> Salin Data Item
+                            <div class="flex flex-col sm:flex-row gap-2 pt-2">
+                                <button type="button" id="btn-cancel-edit-item" onclick="cancelEditRabItem()" class="btn-outline flex-1 justify-center hidden text-slate-600 hover:text-rose-600">
+                                    <i class="fas fa-times-circle text-rose-500 mr-1"></i> Batal Edit
                                 </button>
-                                <button id="btn-add-item" onclick="addRabItem()" class="btn-success flex-1 justify-center">
-                                    <i class="fas fa-plus-circle"></i> Tambah Item RAB
+                                <button type="button" id="btn-copy-item" onclick="salinDataItem()" class="btn-outline flex-1 justify-center">
+                                    <i class="fas fa-copy mr-1"></i> Salin Data Item
+                                </button>
+                                <button type="button" id="btn-add-item" onclick="addRabItem()" class="btn-success flex-1 justify-center">
+                                    <i class="fas fa-plus-circle mr-1"></i> Tambah Item RAB
                                 </button>
                             </div>
                         </div>

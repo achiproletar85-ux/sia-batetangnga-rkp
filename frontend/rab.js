@@ -595,11 +595,8 @@ async function loadInitialData() {
                 // selectRpjm will load the RAB details for the selected item
                 await selectRpjm();
 
-                // NEW: Auto-populate form with the first item for editing
-                if (rabItems && rabItems.length > 0) {
-                    editRabItem(0); // Load the first item into the form for editing
-                    showToast('RAB siap untuk diedit.', 'success');
-                }
+                // Siapkan form dalam mode Tambah Item Baru (bukan auto-edit item 0 yang memicu penimpaan)
+                resetRabItemForm();
             }
 
             const formPanel = document.getElementById('rab-form-panel');
@@ -1291,11 +1288,7 @@ async function loadSavedRAB() {
         }
 
         renderRabItems();
-        if (rabItems && rabItems.length > 0) {
-            editRabItem(0);
-        } else {
-            updateFormRefSemula(null);
-        }
+        resetRabItemForm();
         return;
     } catch (error) {
         console.warn('Gagal memuat RAB server', error);
@@ -1303,7 +1296,7 @@ async function loadSavedRAB() {
 
     rabItems = [];
     renderRabItems();
-    updateFormRefSemula(null);
+    resetRabItemForm();
 }
 
 function getCodeHierarchy(item) {
@@ -1582,17 +1575,14 @@ async function loadSavedRabItem(kode, year) {
 
     await selectRpjm();
 
-    // Auto-populate form untuk editing langsung tanpa perlu menekan tombol lain
-    if (rabItems && rabItems.length > 0) {
-        const formPanel = document.getElementById('rab-form-panel');
-        if (formPanel) {
-            formPanel.classList.remove('hidden');
-            formPanel.style.display = 'block';
-            if (typeof syncAccSection === 'function') syncAccSection('rab-form-panel');
-            setTimeout(() => formPanel.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-        }
-        editRabItem(0);
-        showToast('Form RAB siap diedit. Isi rincian langsung tanpa mencari.', 'success');
+    // Siapkan form dalam keadaan bersih (Tambah Item Baru), jangan auto-edit item 0
+    resetRabItemForm();
+    const formPanel = document.getElementById('rab-form-panel');
+    if (formPanel) {
+        formPanel.classList.remove('hidden');
+        formPanel.style.display = 'block';
+        if (typeof syncAccSection === 'function') syncAccSection('rab-form-panel');
+        setTimeout(() => formPanel.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
     }
 }
 
@@ -1864,10 +1854,40 @@ async function saveRAB() {
     }
 }
 
+function resetRabItemForm() {
+    editIndex = -1;
+    const uraian = document.getElementById('input-uraian');
+    const volume = document.getElementById('input-volume');
+    const satuan = document.getElementById('input-satuan');
+    const harga = document.getElementById('input-harga');
+    const ket = document.getElementById('input-keterangan');
+    if (uraian) uraian.value = '';
+    if (volume) volume.value = '';
+    if (satuan) satuan.value = '';
+    if (harga) harga.value = '';
+    if (ket) ket.value = '';
+
+    updateFormRefSemula(null);
+
+    const btnCancel = document.getElementById('btn-cancel-edit-item');
+    if (btnCancel) {
+        btnCancel.classList.add('hidden');
+    }
+    const btn = document.getElementById('btn-add-item');
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-plus-circle mr-1"></i> Tambah Item RAB';
+        btn.className = 'btn-success flex-1 justify-center';
+    }
+}
+
+function cancelEditRabItem() {
+    resetRabItemForm();
+    showToast('Batal edit item. Form siap untuk input item baru.', 'info');
+}
+
 function clearRabItems() {
     rabItems = [];
-    editIndex = -1;
-    updateFormRefSemula(null);
+    resetRabItemForm();
     renderRabItems();
 }
 
@@ -1915,6 +1935,7 @@ function addRabItem() {
     }
 
     const item = {
+        id_item: (editIndex > -1 && rabItems[editIndex]?.id_item) ? rabItems[editIndex].id_item : ('item_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9)),
         group,
         subgroup,
         uraian,
@@ -1957,23 +1978,15 @@ function addRabItem() {
 
     if (editIndex > -1) {
         rabItems.splice(editIndex, 1, item);
-        editIndex = -1;
-        const btn = document.getElementById('btn-add-item');
-        if (btn) btn.textContent = 'Tambah Item';
         showToast('Perubahan item disimpan', 'success');
     } else {
         rabItems.push(item); // Tampilkan item baru di paling bawah (urutan input)
         showToast('Item RAB berhasil ditambahkan', 'success');
     }
+    resetRabItemForm();
     reindexRabItemsBySubgroup(rabItems);
     renderRabItems();
     saveRAB();
-    document.getElementById('input-uraian').value = '';
-    document.getElementById('input-volume').value = '';
-    document.getElementById('input-satuan').value = ''; // Modified line
-    document.getElementById('input-harga').value = '';
-    document.getElementById('input-keterangan').value = '';
-    updateFormRefSemula(null);
 }
 
 function editRabItem(index) {
@@ -2019,8 +2032,18 @@ function editRabItem(index) {
     }
     editIndex = index;
     updateFormRefSemula(getItemMurniRef(item, index));
+
+    const btnCancel = document.getElementById('btn-cancel-edit-item');
+    if (btnCancel) {
+        btnCancel.classList.remove('hidden');
+    }
+
     const btn = document.getElementById('btn-add-item');
-    if (btn) btn.textContent = 'Simpan Perubahan';
+    if (btn) {
+        btn.innerHTML = `<i class="fas fa-save mr-1"></i> Simpan Perubahan Item #${item.no || (index + 1)}`;
+        btn.className = 'btn-warning flex-1 justify-center';
+    }
+
     // Gulir ke panel form input rincian RAB (bukan ke atas halaman)
     const formPanel = document.getElementById('rab-form-panel');
     if (formPanel) {
@@ -2250,6 +2273,9 @@ function salinDataItem() {
     const item = rabItems[rabItems.length - 1];
     if (!item) return;
 
+    // Reset mode edit terlebih dahulu agar form siap menambah item baru (bukan menimpa)
+    resetRabItemForm();
+
     const grp = document.getElementById('select-group');
     if (grp) grp.value = item.group || '';
     onGroupChange();
@@ -2261,7 +2287,7 @@ function salinDataItem() {
     const harga = document.getElementById('input-harga');
     const ket = document.getElementById('input-keterangan');
     const sumber = document.getElementById('select-sumber-dana');
-    const satuanInput = document.getElementById('input-satuan'); // Modified line
+    const satuanInput = document.getElementById('input-satuan');
 
     if (uraian) uraian.value = item.uraian || '';
     if (volume) volume.value = (item.volume !== undefined && item.volume !== null && item.volume !== '') ? item.volume : 0;
@@ -2279,17 +2305,9 @@ function salinDataItem() {
         }
     }
 
-    if (satuanInput) satuanInput.value = item.satuan || ''; // Modified line
+    if (satuanInput) satuanInput.value = item.satuan || '';
 
-    // Hentikan mode edit supaya tombol kembali normal
-    if (editIndex >= 0) {
-        editIndex = -1;
-        updateFormRefSemula(null);
-        const btn = document.getElementById('btn-add-item');
-        if (btn) btn.textContent = 'Tambah Item RAB';
-    }
-
-    showToast('Field item terakhir disalin ke form', 'success');
+    showToast('Field item terakhir disalin ke form (mode tambah item baru)', 'success');
     if (uraian) { uraian.focus(); uraian.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 }
 
@@ -4091,3 +4109,5 @@ window.moveRabItemDown = moveRabItemDown;
 window.changeRabItemOrder = changeRabItemOrder;
 window.pushItemToMurni = pushItemToMurni;
 window.reindexRabItemsBySubgroup = reindexRabItemsBySubgroup;
+window.resetRabItemForm = resetRabItemForm;
+window.cancelEditRabItem = cancelEditRabItem;
