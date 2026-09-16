@@ -576,6 +576,8 @@ async function loadInitialData() {
         });
     }
 
+    initUnsavedChangesTracker();
+
     // Handle redirect from pembiayaan page
     const kodeUnikFromUrl = urlParams.get('kode_unik');
 
@@ -831,11 +833,17 @@ function pilihKegiatanDariForm() {
     const formSelect = document.getElementById('select-kode-unik-form');
     if (!formSelect) return;
     const val = formSelect.value;
+    if (lastSelectedKode && val !== lastSelectedKode) {
+        if (!confirmUnsavedChanges('berpindah ke kegiatan lain')) {
+            formSelect.value = lastSelectedKode;
+            return;
+        }
+    }
     const topSelect = document.getElementById('select-kode-unik');
     if (topSelect) topSelect.value = val;
     const search = document.getElementById('search-rpjm');
     if (search) search.value = '';
-    selectRpjm();
+    selectRpjm(true);
 }
 
 function filterRpjmItems() {
@@ -866,7 +874,16 @@ function filterRpjmItems() {
 }
 
 async function onYearChange() { // Make it async
-    rabYear = parseInt(document.getElementById('select-year').value, 10) || getDefaultYear();
+    const targetYear = parseInt(document.getElementById('select-year')?.value, 10) || getDefaultYear();
+    if (targetYear !== rabYear) {
+        if (!confirmUnsavedChanges('mengganti tahun anggaran')) {
+            const sel = document.getElementById('select-year');
+            if (sel) sel.value = String(rabYear);
+            return;
+        }
+    }
+    isFormDirty = false;
+    rabYear = targetYear;
     try {
         localStorage.setItem('rab_tahun_anggaran', String(rabYear));
         localStorage.setItem('sia_tahun_anggaran', String(rabYear));
@@ -874,6 +891,7 @@ async function onYearChange() { // Make it async
     selectedRpjm = null;
     currentRabId = null;
     currentRabRefMurni = null;
+    lastSelectedKode = '';
     window.currentDataRPJMDES = null;
     if (document.getElementById('select-kode-unik')) document.getElementById('select-kode-unik').value = '';
     if (document.getElementById('rpjm-summary')) document.getElementById('rpjm-summary').innerHTML = '';
@@ -888,10 +906,21 @@ async function onYearChange() { // Make it async
     updateRabInfographicStats(); // Update the infographic with the new data
 }
 
-async function selectRpjm() {
+async function selectRpjm(skipConfirm = false) {
     const selectKode = document.getElementById('select-kode-unik');
     if (!selectKode) return;
     const selectedValue = String(selectKode.value || '').trim();
+
+    if (!skipConfirm && lastSelectedKode && selectedValue !== lastSelectedKode) {
+        if (!confirmUnsavedChanges('berpindah ke kegiatan lain')) {
+            selectKode.value = lastSelectedKode;
+            const formSelect = document.getElementById('select-kode-unik-form');
+            if (formSelect) formSelect.value = lastSelectedKode;
+            return;
+        }
+    }
+    lastSelectedKode = selectedValue;
+    isFormDirty = false;
 
     // Sinkronkan nilai dropdown kegiatan di dalam form rincian
     const formSelect = document.getElementById('select-kode-unik-form');
@@ -1318,6 +1347,8 @@ async function loadSavedRAB() {
 
         renderRabItems();
         resetRabItemForm();
+        setFormDirty(false);
+        setSaveStatusIndicator('saved');
         return;
     } catch (error) {
         console.warn('Gagal memuat RAB server', error);
@@ -1326,6 +1357,8 @@ async function loadSavedRAB() {
     rabItems = [];
     renderRabItems();
     resetRabItemForm();
+    setFormDirty(false);
+    setSaveStatusIndicator('saved');
 }
 
 function getCodeHierarchy(item) {
@@ -1552,6 +1585,15 @@ function renderSavedRabList() {
 }
 
 async function loadSavedRabItem(kode, year) {
+    const cleanTarget = String(kode || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
+    const cleanCurrent = String(lastSelectedKode || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
+    if (lastSelectedKode && cleanTarget !== cleanCurrent) {
+        if (!confirmUnsavedChanges('membuka kegiatan RAB lain')) {
+            return;
+        }
+    }
+    isFormDirty = false;
+
     if (year !== undefined && year !== null && String(year).trim() !== '') {
         const parsedYear = Number(year);
         if (!isNaN(parsedYear)) {
@@ -1567,8 +1609,6 @@ async function loadSavedRabItem(kode, year) {
     await loadRabActivities();
     const searchEl = document.getElementById('search-rpjm');
     if (searchEl) searchEl.value = '';
-
-    const cleanTarget = String(kode || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
 
     // Jika kode tidak ada di daftar kegiatan (mis. tahun berbeda / kode tak dikenal),
     // tambahkan ke daftar agar dropdown & form selalu bisa memuat RAB tersimpan tsb.
@@ -1747,6 +1787,73 @@ function getNamaSubBidangFull(item, kodeUnik) {
 
 let isSavingRab = false;
 let pendingSaveRab = false;
+let isFormDirty = false;
+let lastSelectedKode = '';
+let unsavedChangesTrackerInitialized = false;
+
+function setFormDirty(dirty) {
+    isFormDirty = !!dirty;
+    if (isFormDirty) {
+        setSaveStatusIndicator('unsaved');
+    }
+}
+
+function hasUnsavedInputInForm() {
+    const uraian = document.getElementById('input-uraian')?.value.trim();
+    const volume = document.getElementById('input-volume')?.value.trim();
+    const harga = document.getElementById('input-harga')?.value.trim();
+    return Boolean(uraian || volume || harga || (typeof editIndex === 'number' && editIndex > -1));
+}
+
+function confirmUnsavedChanges(actionName = 'berpindah kegiatan') {
+    if (isFormDirty || hasUnsavedInputInForm() || isSavingRab || pendingSaveRab) {
+        return confirm(
+            `⚠️ PERINGATAN: DATA BELUM DISIMPAN!\n\n` +
+            `Terdapat rincian belanja atau perubahan pada form RAB yang belum tersimpan ke Supabase.\n` +
+            `Jika Anda melanjutkan untuk ${actionName}, perubahan yang belum disimpan akan hilang.\n\n` +
+            `Klik 'OK' untuk tetap melanjutkan dan membuang perubahan,\n` +
+            `atau 'Batal' / 'Cancel' untuk tetap berada di halaman ini agar dapat menyimpan data terlebih dahulu.`
+        );
+    }
+    return true;
+}
+
+function initUnsavedChangesTracker() {
+    if (unsavedChangesTrackerInitialized) return;
+    unsavedChangesTrackerInitialized = true;
+
+    const fieldIds = [
+        'input-uraian',
+        'input-volume',
+        'input-satuan',
+        'select-satuan',
+        'input-satuan-manual',
+        'input-harga',
+        'input-keterangan',
+        'select-group',
+        'select-subgroup',
+        'select-sumber-dana'
+    ];
+    fieldIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', () => {
+                setFormDirty(true);
+            });
+            el.addEventListener('change', () => {
+                setFormDirty(true);
+            });
+        }
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+        if (isFormDirty || hasUnsavedInputInForm() || isSavingRab || pendingSaveRab) {
+            e.preventDefault();
+            e.returnValue = 'Perubahan data RAB belum disimpan ke database. Yakin ingin meninggalkan halaman?';
+            return e.returnValue;
+        }
+    });
+}
 
 function setSaveStatusIndicator(status) {
     const indicator = document.getElementById('rab-save-status');
@@ -1758,12 +1865,18 @@ function setSaveStatusIndicator(status) {
     } else if (status === 'saved') {
         indicator.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 transition';
         indicator.innerHTML = '<i class="fas fa-check-circle text-emerald-500"></i> Tersimpan di Supabase';
+    } else if (status === 'unsaved') {
+        indicator.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-300 transition animate-pulse';
+        indicator.innerHTML = '<i class="fas fa-exclamation-circle text-amber-600"></i> Belum Disimpan';
     } else if (status === 'error') {
         indicator.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 transition';
         indicator.innerHTML = '<i class="fas fa-exclamation-triangle text-rose-500"></i> Gagal menyimpan';
     }
 }
 window.setSaveStatusIndicator = setSaveStatusIndicator;
+window.setFormDirty = setFormDirty;
+window.isFormDirty = () => isFormDirty;
+window.confirmUnsavedChanges = confirmUnsavedChanges;
 
 async function executeSaveRAB() {
     const selectElem = document.getElementById('select-kode-unik');
@@ -1879,6 +1992,7 @@ async function executeSaveRAB() {
         if (json.data && json.data.id_referensi_murni) {
             currentRabRefMurni = json.data.id_referensi_murni;
         }
+        setFormDirty(false);
         showToast(`✅ Data RAB ${rabTipe} berhasil disimpan ke Supabase!`, 'success');
         await loadSavedRabList();
         await refreshLockStatus();
@@ -1888,6 +2002,7 @@ async function executeSaveRAB() {
         applyReadOnlyMode();
         await loadSavedRabList();
     } else {
+        setFormDirty(true);
         showToast((json && (json.error || json.message)) || `Gagal menyimpan RAB ke database (HTTP ${res.status})`, 'error');
         await loadSavedRabList();
     }
@@ -1907,9 +2022,11 @@ async function saveRAB() {
             pendingSaveRab = false;
             await executeSaveRAB();
         } while (pendingSaveRab);
+        setFormDirty(false);
         setSaveStatusIndicator('saved');
     } catch (error) {
         console.error('❌ Error saveRAB:', error);
+        setFormDirty(true);
         setSaveStatusIndicator('error');
         showToast('Gagal menyimpan RAB ke database', 'error');
         await loadSavedRabList();
@@ -1946,13 +2063,19 @@ function resetRabItemForm() {
 
 function cancelEditRabItem() {
     resetRabItemForm();
+    setFormDirty(false);
+    setSaveStatusIndicator('saved');
     showToast('Batal edit item. Form siap untuk input item baru.', 'info');
 }
 
 function clearRabItems() {
+    if (rabItems.length === 0) return;
+    if (!confirm('Yakin ingin mengosongkan seluruh item RAB pada kegiatan ini?')) return;
+    setFormDirty(true);
     rabItems = [];
     resetRabItemForm();
     renderRabItems();
+    saveRAB();
 }
 
 function addRabItem() {
@@ -2047,6 +2170,7 @@ function addRabItem() {
         rabItems.push(item); // Tampilkan item baru di paling bawah (urutan input)
         showToast('Item RAB berhasil ditambahkan', 'success');
     }
+    setFormDirty(true);
     resetRabItemForm();
     reindexRabItemsBySubgroup(rabItems);
     renderRabItems();
@@ -2056,6 +2180,7 @@ function addRabItem() {
 function editRabItem(index) {
     const item = rabItems[index];
     if (!item) return;
+    setFormDirty(true);
     const selectGroup = document.getElementById('select-group');
     if (selectGroup) {
         if (item.group && ![...selectGroup.options].some(o => o.value === item.group)) {
@@ -2137,6 +2262,7 @@ function reindexRabItemsBySubgroup(items) {
 }
 
 function removeRabItem(index) {
+    setFormDirty(true);
     rabItems.splice(index, 1);
     reindexRabItemsBySubgroup(rabItems);
     renderRabItems();
@@ -2174,6 +2300,7 @@ function moveRabItemUp(idx) {
     // Normalisasi ulang nomor urut per sub-kelompok
     reindexRabItemsBySubgroup(rabItems);
 
+    setFormDirty(true);
     renderRabItems();
     saveRAB();
     showToast(`Urutan item "${temp.uraian || ''}" berhasil dinaikkan`, 'success');
@@ -2210,6 +2337,7 @@ function moveRabItemDown(idx) {
     // Normalisasi ulang nomor urut per sub-kelompok
     reindexRabItemsBySubgroup(rabItems);
 
+    setFormDirty(true);
     renderRabItems();
     saveRAB();
     showToast(`Urutan item "${temp.uraian || ''}" berhasil diturunkan`, 'success');
@@ -2282,6 +2410,7 @@ function changeRabItemOrder(idx, newPosVal) {
     // Normalisasi ulang nomor urut per sub-kelompok
     reindexRabItemsBySubgroup(rabItems);
 
+    setFormDirty(true);
     renderRabItems();
     saveRAB();
     showToast(`Urutan item "${moved.uraian || ''}" dipindahkan ke nomor ${targetSubPos + 1}`, 'success');
@@ -2372,6 +2501,7 @@ function salinDataItem() {
     if (satuanInput) satuanInput.value = item.satuan || '';
 
     showToast('Field item terakhir disalin ke form (mode tambah item baru)', 'success');
+    setFormDirty(true);
     if (uraian) { uraian.focus(); uraian.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 }
 
@@ -3391,9 +3521,18 @@ function applyReadOnlyMode() {
 
 // Ganti versi anggaran (MURNI <-> PERUBAHAN) untuk tahun anggaran aktif.
 async function onTipeAnggaranChange(nilai) {
-    rabTipe = String(nilai || RAB_TIPE_MURNI).toUpperCase() === RAB_TIPE_PERUBAHAN
+    const targetTipe = String(nilai || RAB_TIPE_MURNI).toUpperCase() === RAB_TIPE_PERUBAHAN
         ? RAB_TIPE_PERUBAHAN
         : RAB_TIPE_MURNI;
+    if (targetTipe !== rabTipe) {
+        if (!confirmUnsavedChanges('mengganti versi anggaran (Murni ⇄ Perubahan)')) {
+            const sel = document.getElementById('select-tipe-anggaran');
+            if (sel) sel.value = rabTipe;
+            return;
+        }
+    }
+    isFormDirty = false;
+    rabTipe = targetTipe;
     try {
         localStorage.setItem('rab_tipe_anggaran', rabTipe);
         localStorage.setItem('sia_tipe_anggaran', rabTipe);
