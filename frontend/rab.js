@@ -2804,8 +2804,8 @@ async function cetakPdfByGroup() {
             const prefixClean = targetPrefix.replace(/\.+$/, '');
             let query = client
                 .from('rab')
-                .select('id, kode_unik, kode_unik_full, kode_kegiatan, tahun, nama_kegiatan, uraian, jenis_kegiatan, bidang, group_nama, lokasi, lokasi_kegiatan, volume, volume_rab, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items')
-                .or(`kode_unik.ilike.${targetPrefix}%,kode_unik_full.ilike.${targetPrefix}%,kode_kegiatan.ilike.${targetPrefix}%,kode_unik.ilike.${prefixClean}%,kode_unik_full.ilike.${prefixClean}%`)
+                .select('id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, jenis_kegiatan, bidang, group_nama, lokasi, lokasi_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items')
+                .or(`kode_unik.ilike.${targetPrefix}%,kode_unik_full.ilike.${targetPrefix}%,kode_unik.ilike.${prefixClean}%,kode_unik_full.ilike.${prefixClean}%`)
                 .limit(300);
 
             if (!isNaN(tahunNum)) {
@@ -2818,8 +2818,8 @@ async function cetakPdfByGroup() {
                 // Try without year restriction
                 const resNoYear = await client
                     .from('rab')
-                    .select('id, kode_unik, kode_unik_full, kode_kegiatan, tahun, nama_kegiatan, uraian, jenis_kegiatan, bidang, group_nama, lokasi, lokasi_kegiatan, volume, volume_rab, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items')
-                    .or(`kode_unik.ilike.${targetPrefix}%,kode_unik_full.ilike.${targetPrefix}%,kode_kegiatan.ilike.${targetPrefix}%,kode_unik.ilike.${prefixClean}%,kode_unik_full.ilike.${prefixClean}%`)
+                    .select('id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, jenis_kegiatan, bidang, group_nama, lokasi, lokasi_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items')
+                    .or(`kode_unik.ilike.${targetPrefix}%,kode_unik_full.ilike.${targetPrefix}%,kode_unik.ilike.${prefixClean}%,kode_unik_full.ilike.${prefixClean}%`)
                     .limit(300);
                 if (resNoYear.data && resNoYear.data.length > 0) data = resNoYear.data;
             }
@@ -2830,8 +2830,8 @@ async function cetakPdfByGroup() {
                 // Fallback to rkpdes table
                 let rkpRes = await client
                     .from('rkpdes')
-                    .select('id, kode_unik_full, kode_unik, tahun, jenis_kegiatan, bidang, lokasi, volume, satuan, prakiraan_biaya, sumber_pembiayaan, pola_pelaksanaan, waktu_pelaksanaan, stunting, updated_at')
-                    .or(`kode_unik.ilike.${targetPrefix}%,kode_unik_full.ilike.${targetPrefix}%,kode_kegiatan.ilike.${targetPrefix}%,kode_unik.ilike.${prefixClean}%,kode_unik_full.ilike.${prefixClean}%`)
+                    .select('id, kode_unik_full, kode_kegiatan, tahun, jenis_kegiatan, bidang, lokasi, volume, satuan, prakiraan_biaya, sumber_pembiayaan, pola_pelaksanaan, waktu_pelaksanaan, stunting, updated_at')
+                    .or(`kode_unik_full.ilike.${targetPrefix}%,kode_kegiatan.ilike.${targetPrefix}%,kode_unik_full.ilike.${prefixClean}%,kode_kegiatan.ilike.${prefixClean}%`)
                     .limit(300);
                 if (rkpRes.data && rkpRes.data.length > 0) {
                     matchedRows = rkpRes.data;

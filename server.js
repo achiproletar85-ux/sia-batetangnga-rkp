@@ -915,6 +915,34 @@ async function saveRabToDb(record) {
                 .insert([{ id: nextId, ...payload }])
                 .select('id, kode_unik_full, tahun, tipe_anggaran, id_referensi_murni, jumlah_anggaran, items');
             if (insErr) {
+                // RACE CONDITION / COMPOSITE UNIQUE KEY CONFLICT HANDLING:
+                // Jika terjadi benturan unique constraint (23505) pada (kode_unik_full, tahun, tipe_anggaran),
+                // cari row yang baru saja disimpan secara konkuren lalu update row tersebut!
+                if (insErr.code === '23505' || String(insErr.message).includes('rab_kode_unik_full_tahun_tipe_key') || String(insErr.message).includes('unique')) {
+                    console.log('🔄 Benturan composite unique key terdeteksi pada insert, beralih ke fallback update...');
+                    let confQ = supabase
+                        .from('rab')
+                        .select('id')
+                        .eq('kode_unik_full', payload.kode_unik_full)
+                        .eq('tahun', payload.tahun);
+                    if (payload.tipe_anggaran) {
+                        confQ = confQ.eq('tipe_anggaran', payload.tipe_anggaran);
+                    }
+                    const { data: conflictRows } = await confQ.order('id', { ascending: false }).limit(1);
+                    if (conflictRows && conflictRows.length > 0) {
+                        const targetId = conflictRows[0].id;
+                        const updatePayload = { ...payload };
+                        delete updatePayload.id;
+                        const { data: fallbackUpd, error: fallbackErr } = await supabase
+                            .from('rab')
+                            .update(updatePayload)
+                            .eq('id', targetId)
+                            .select('id, kode_unik_full, tahun, tipe_anggaran, id_referensi_murni, jumlah_anggaran, items');
+                        if (!fallbackErr && fallbackUpd && fallbackUpd.length > 0) {
+                            return fallbackUpd[0];
+                        }
+                    }
+                }
                 console.error("Supabase Error Details (insert):", insErr);
                 throw insErr;
             }
@@ -2402,8 +2430,30 @@ const RKPDES_COLUMNS = [
     'manfaat_l', 'manfaat_p', 'manfaat_rtm',
     'prakiraan_biaya', 'sumber_pembiayaan', 'pola_pelaksanaan', 'target_capaian',
     'waktu_pelaksanaan', 'status_rab', 'stunting', 'verifikasi_proposal',
-    'data_eksisting', 'mendukung_sdgs', 'updated_at', 'created_at'
+    'data_eksisting', 'mendukung_sdgs', 'sdgs', 'updated_at', 'created_at'
 ].join(', ');
+
+// Skema kolom tabel rkpdes di Supabase (untuk sanitasi payload insert/update agar bebas dari kolom hantu)
+const RKPDES_VALID_FIELDS = new Set([
+    'id', 'tahun', 'kode_bidang', 'kode_sub', 'kode_kegiatan', 'kode_unik_full',
+    'bidang', 'jenis_kegiatan', 'nama_kegiatan', 'lokasi', 'lokasi_kegiatan',
+    'volume', 'volume_kegiatan', 'satuan', 'sasaran_manfaat', 'penerima_manfaat',
+    'manfaat_l', 'manfaat_p', 'manfaat_rtm', 'total_manfaat', 'target_capaian',
+    'waktu_pelaksanaan', 'prakiraan_biaya', 'sumber_pembiayaan', 'pola_pelaksanaan',
+    'rencana_pelaksana', 'status_rab', 'data_eksisting', 'sdgs', 'mendukung_sdgs',
+    'verifikasi_proposal', 'stunting', 'created_at', 'updated_at'
+]);
+
+function sanitizeRkpdesPayload(row) {
+    if (!row || typeof row !== 'object') return row;
+    const sanitized = {};
+    for (const [k, v] of Object.entries(row)) {
+        if (RKPDES_VALID_FIELDS.has(k)) {
+            sanitized[k] = v;
+        }
+    }
+    return sanitized;
+}
 
 const VERIF_PROPOSAL_COLUMNS = [
     'id', 'tahun', 'bidang', 'kegiatan', 'lokasi', 'volume', 'dinas_instansi',
@@ -7298,7 +7348,7 @@ app.get('/api/rkpdes', async (req, res) => {
                             }
                         }
                         const items = Array.isArray(rb.items) ? rb.items : [];
-                        const totalBiaya = Number(rb.jumlah_anggaran || rb.total_biaya || 0) || items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+                        const totalBiaya = Number(rb.jumlah_anggaran || 0) || items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
                         return {
                             id: rb.id || code,
                             tahun: tahunInt,
@@ -7360,7 +7410,7 @@ app.get('/api/rkpdes', async (req, res) => {
                 if (rab) {
                     const items = Array.isArray(rab.items) ? rab.items : [];
                     const itemsSum = items.reduce((s, it) => s + (Number(it.jumlah || (it.volume * it.harga_satuan)) || 0), 0);
-                    const rabTotal = Number(rab.jumlah_anggaran || rab.total_biaya || 0) || itemsSum;
+                    const rabTotal = Number(rab.jumlah_anggaran || 0) || itemsSum;
                     if (rabTotal > 0) {
                         row.prakiraan_biaya = rabTotal;
                     }
@@ -8036,11 +8086,11 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     if (nama_kegiatan && String(nama_kegiatan).trim() !== '') {
                         rkpSemulaPayload.nama_kegiatan = String(nama_kegiatan).trim();
                     }
-                    await supabase.from('rkpdes').update(rkpSemulaPayload).eq('id', existingRkp.id).select('id');
+                    await supabase.from('rkpdes').update(sanitizeRkpdesPayload(rkpSemulaPayload)).eq('id', existingRkp.id).select('id');
                 } else if (kode) {
                     const { data: maxRkp } = await supabase.from('rkpdes').select('id').order('id', { ascending: false }).limit(1);
                     const nextRkpId = (maxRkp && maxRkp[0] && Number(maxRkp[0].id)) ? Number(maxRkp[0].id) + 1 : Date.now();
-                    await supabase.from('rkpdes').insert({
+                    await supabase.from('rkpdes').insert(sanitizeRkpdesPayload({
                         id: nextRkpId,
                         tahun: tahunInt,
                         kode_unik_full: kode,
@@ -8049,7 +8099,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                         bidang: bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
                         ...rkpSemulaPayload,
                         created_at: nowIso
-                    }).select('id');
+                    })).select('id');
                 }
             } catch (semRkpErr) {
                 console.warn('⚠️ Gagal update rkpdes semula:', semRkpErr.message);
@@ -8297,7 +8347,7 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
         const resolved = resolveRpjmStandar(code, rb.bidang, rb.jenis_bidang || rb.sub_bidang, rawNamaRab, rpjmLookup);
         const std = resolved.matchedStd;
         const items = Array.isArray(rb.items) ? rb.items : [];
-        const totalBiaya = Number(rb.jumlah_anggaran || rb.total_biaya || 0) || items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+        const totalBiaya = Number(rb.jumlah_anggaran || 0) || items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
 
         const dataEks = isValidVal(rpjmObj.data_existing) ? rpjmObj.data_existing :
                         isValidVal(rpjmObj.data_eksisting) ? rpjmObj.data_eksisting :
@@ -8323,7 +8373,6 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
             kode_kegiatan: resolved.kode_kegiatan,
             kode_unik_full: code,
             bidang: resolved.bidang,
-            jenis_bidang: resolved.jenis_bidang,
             jenis_kegiatan: resolved.jenis_kegiatan,
             nama_kegiatan: (rb.nama_kegiatan && String(rb.nama_kegiatan).trim() !== '' && String(rb.nama_kegiatan).trim() !== '-')
                 ? String(rb.nama_kegiatan).trim()
@@ -8383,7 +8432,7 @@ async function mergeRkpFromRab(tahunSync) {
         .map(r => String(r.kode_unik_full || '').trim()).filter(Boolean));
     const freshRows = rows.filter(r => !existingCodes.has(String(r.kode_unik_full || '').trim()));
     if (freshRows.length > 0) {
-        const { error } = await supabase.from('rkpdes').insert(freshRows);
+        const { error } = await supabase.from('rkpdes').insert(freshRows.map(sanitizeRkpdesPayload));
         if (error) throw error;
     }
     return { merged: freshRows.length, removed: staleIds.length };
@@ -8465,13 +8514,13 @@ app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
 
         const { error: insertError } = await supabase
             .from('rkpdes')
-            .insert(rkpdesPayload)
+            .insert(rkpdesPayload.map(sanitizeRkpdesPayload))
             .select('id');
 
         if (insertError) {
             // Pemulihan: kembalikan snapshot data lama agar tabel tidak terlanjur kosong
             if (Array.isArray(snapshotRows) && snapshotRows.length > 0) {
-                await supabase.from('rkpdes').insert(snapshotRows);
+                await supabase.from('rkpdes').insert(snapshotRows.map(sanitizeRkpdesPayload));
                 console.error('❌ Insert sinkronisasi gagal — data lama dikembalikan dari snapshot.');
             }
             throw insertError;
@@ -8720,18 +8769,18 @@ app.put('/api/stunting', async (req, res) => {
         };
         let result;
         if (rkpdesId) {
-            const { data, error } = await supabase.from('rkpdes').update(payload).eq('id', rkpdesId).select('id');
+            const { data, error } = await supabase.from('rkpdes').update(sanitizeRkpdesPayload(payload)).eq('id', rkpdesId).select('id');
             if (error) throw error;
             result = Array.isArray(data) && data.length > 0 ? data[0] : null;
         } else {
             const bidangText = BIDANG_RKPDES_TEXT[Number(item.bidang)] || BIDANG_RKPDES_TEXT[1];
-            const { data, error } = await supabase.from('rkpdes').insert([{
+            const { data, error } = await supabase.from('rkpdes').insert([sanitizeRkpdesPayload({
                 tahun: tahunInt,
                 kode_unik_full: item.kode_unik_full || `STUNTING.${Date.now()}`,
                 bidang: bidangText,
                 status_rab: 'Belum Dibuat',
                 ...payload
-            }]).select('id');
+            })]).select('id');
             if (error) throw error;
             result = Array.isArray(data) && data.length > 0 ? data[0] : null;
         }
@@ -8793,13 +8842,13 @@ app.post('/api/stunting/sync', async (req, res) => {
             if (rkpId) {
                 const { error } = await supabase
                     .from('rkpdes')
-                    .update(payload)
+                    .update(sanitizeRkpdesPayload(payload))
                     .eq('id', rkpId)
                     .select('id');
                 if (error) throw error;
                 updated++;
             } else {
-                const { error } = await supabase.from('rkpdes').insert(payload).select('id');
+                const { error } = await supabase.from('rkpdes').insert(sanitizeRkpdesPayload(payload)).select('id');
                 if (error) throw error;
                 inserted++;
             }
