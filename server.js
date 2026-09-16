@@ -701,13 +701,16 @@ async function saveRabToDb(record) {
 
     const firstItem = itemsArray[0] || {};
 
-    const totalBiaya = (record.jumlah_anggaran !== undefined && record.jumlah_anggaran !== null && record.jumlah_anggaran !== '' && !isNaN(Number(record.jumlah_anggaran)))
-        ? Number(record.jumlah_anggaran)
-        : ((record.total_biaya !== undefined && record.total_biaya !== null && record.total_biaya !== '' && !isNaN(Number(record.total_biaya)))
-            ? Number(record.total_biaya)
-            : ((record.total_rab !== undefined && record.total_rab !== null && record.total_rab !== '' && !isNaN(Number(record.total_rab)))
-                ? Number(record.total_rab)
-                : itemsArray.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0)));
+    const itemsSum = itemsArray.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0);
+    const totalBiaya = itemsSum > 0
+        ? itemsSum
+        : ((record.jumlah_anggaran !== undefined && record.jumlah_anggaran !== null && record.jumlah_anggaran !== '' && !isNaN(Number(record.jumlah_anggaran)))
+            ? Number(record.jumlah_anggaran)
+            : ((record.total_biaya !== undefined && record.total_biaya !== null && record.total_biaya !== '' && !isNaN(Number(record.total_biaya)))
+                ? Number(record.total_biaya)
+                : ((record.total_rab !== undefined && record.total_rab !== null && record.total_rab !== '' && !isNaN(Number(record.total_rab)))
+                    ? Number(record.total_rab)
+                    : 0)));
 
     const volumeVal = (record.volume !== undefined && record.volume !== null && record.volume !== '' && !isNaN(Number(record.volume)))
         ? Number(record.volume)
@@ -738,6 +741,7 @@ async function saveRabToDb(record) {
     const normFirstSumber = normalizeSumberDana(firstItem.sumber || firstItem.sumber_dana || record.sumber_dana);
     const normSumberDana = normalizeSumberDana(record.sumber_dana || record.sumber_dana_rab || rd.sumber_dana || normFirstSumber || 'DDS (Dana Desa)');
 
+    const dbTipe = normalizeRabTipe(record.tipe_anggaran);
     const dbPayload = {
         kode_unik: safeKode,
         kode_unik_full: String(record.kode_unik_full || safeKode).trim(),
@@ -760,8 +764,8 @@ async function saveRabToDb(record) {
         items: itemsArray,
         rpjm_data: record.rpjm_data || {},
         // Penanda versi RAB (RAB Perubahan): 'MURNI' | 'PERUBAHAN'
-        tipe_anggaran: normalizeRabTipe(record.tipe_anggaran),
-        id_referensi_murni: record.id_referensi_murni ? Number(record.id_referensi_murni) : null,
+        tipe_anggaran: dbTipe,
+        id_referensi_murni: (dbTipe === RAB_TIPE_PERUBAHAN && record.id_referensi_murni) ? Number(record.id_referensi_murni) : null,
         saved_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
     };
@@ -4992,11 +4996,14 @@ app.get('/api/rab', async (req, res) => {
         if (id) {
             const rabId = parseInt(id, 10);
             if (Number.isFinite(rabId)) {
-                const { data: rowById, error: errById } = await supabase
+                let q = supabase
                     .from(RAB_TABLE)
                     .select(RAB_FULL_COLUMNS)
-                    .eq('id', rabId)
-                    .maybeSingle();
+                    .eq('id', rabId);
+                if (req.query.tahun) {
+                    q = q.eq('tahun', parseInt(req.query.tahun, 10));
+                }
+                const { data: rowById, error: errById } = await q.maybeSingle();
                 if (!errById && rowById) {
                     return res.json({
                         success: true,
@@ -5150,16 +5157,59 @@ app.post('/api/rab', async (req, res) => {
             ? Number(payload.id_referensi_murni)
             : null;
 
-        if (tipeAnggaran === RAB_TIPE_PERUBAHAN && !refMurniId) {
-            try {
+        if (tipeAnggaran === RAB_TIPE_PERUBAHAN) {
+            let validMurni = null;
+            if (refMurniId) {
+                const { data: mCheck } = await supabase
+                    .from(RAB_TABLE)
+                    .select('id, tahun, kode_unik_full, kode_unik, tipe_anggaran')
+                    .eq('id', refMurniId)
+                    .maybeSingle();
+                if (mCheck && Number(mCheck.tahun) === Number(tahun) && (mCheck.tipe_anggaran === RAB_TIPE_MURNI || !mCheck.tipe_anggaran)) {
+                    validMurni = mCheck;
+                }
+            }
+            if (!validMurni) {
                 const murniRow = await getRabFromDb(targetKode, Number(tahun), RAB_TIPE_MURNI);
                 if (murniRow && murniRow.id) {
                     refMurniId = Number(murniRow.id);
+                } else {
+                    refMurniId = null;
                 }
-            } catch (_) {}
+            }
+        } else {
+            refMurniId = null;
         }
 
         // Formulir RAB Murni dibuka penuh agar pengguna dapat menyesuaikan rincian anggaran kapan saja
+
+        const mappedItems = Array.isArray(items) ? sortRabItems(items.map((it, idx) => {
+            const vol = (it.volume !== undefined && it.volume !== null && it.volume !== '' && !isNaN(Number(it.volume))) ? Number(it.volume) : 1;
+            const hrg = (it.harga !== undefined && it.harga !== null && it.harga !== '' && !isNaN(Number(it.harga))) ? Number(it.harga) : (it.harga_satuan !== undefined && it.harga_satuan !== null && it.harga_satuan !== '' && !isNaN(Number(it.harga_satuan)) ? Number(it.harga_satuan) : 0);
+            const jml = (it.jumlah !== undefined && it.jumlah !== null && it.jumlah !== '' && !isNaN(Number(it.jumlah))) ? Number(it.jumlah) : (it.jumlah_biaya !== undefined && it.jumlah_biaya !== null && it.jumlah_biaya !== '' && !isNaN(Number(it.jumlah_biaya)) ? Number(it.jumlah_biaya) : (vol * hrg));
+            const subNo = it.no_subgroup || it.urutan_subgroup || it.no || it.urutan || (idx + 1);
+            const uManual = (it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '' && !isNaN(Number(it.urutan_manual))) ? Number(it.urutan_manual) : subNo;
+
+            return {
+                ...it,
+                volume: vol,
+                harga: hrg,
+                jumlah: jml,
+                harga_satuan: hrg,
+                jumlah_biaya: jml,
+                no: subNo,
+                urutan: subNo,
+                no_subgroup: subNo,
+                urutan_subgroup: subNo,
+                urutan_manual: uManual,
+                sumber: normalizeSumberDana(it.sumber || it.sumber_dana || payload.sumber_dana),
+                sumber_dana: normalizeSumberDana(it.sumber || it.sumber_dana || payload.sumber_dana)
+            };
+        })) : [];
+
+        const itemsTotal = mappedItems.length > 0
+            ? mappedItems.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0)
+            : 0;
 
         const record = {
             id: (payload.id !== undefined && payload.id !== null && payload.id !== '') ? Number(payload.id) : undefined,
@@ -5176,36 +5226,16 @@ app.post('/api/rab', async (req, res) => {
             lokasi: payload.lokasi || rpjm_data?.lokasi_kegiatan || rpjm_data?.lokasi || 'Desa Batetangnga',
             lokasi_kegiatan: payload.lokasi_kegiatan || rpjm_data?.lokasi_kegiatan || payload.lokasi || '',
             jenis_kegiatan: payload.jenis_kegiatan || rpjm_data?.jenis_kegiatan || rpjm_data?.nama_kegiatan || '',
-            items: Array.isArray(items) ? sortRabItems(items.map((it, idx) => {
-                const vol = (it.volume !== undefined && it.volume !== null && it.volume !== '' && !isNaN(Number(it.volume))) ? Number(it.volume) : 1;
-                const hrg = (it.harga !== undefined && it.harga !== null && it.harga !== '' && !isNaN(Number(it.harga))) ? Number(it.harga) : (it.harga_satuan !== undefined && it.harga_satuan !== null && it.harga_satuan !== '' && !isNaN(Number(it.harga_satuan)) ? Number(it.harga_satuan) : 0);
-                const jml = (it.jumlah !== undefined && it.jumlah !== null && it.jumlah !== '' && !isNaN(Number(it.jumlah))) ? Number(it.jumlah) : (it.jumlah_biaya !== undefined && it.jumlah_biaya !== null && it.jumlah_biaya !== '' && !isNaN(Number(it.jumlah_biaya)) ? Number(it.jumlah_biaya) : (vol * hrg));
-                const subNo = it.no_subgroup || it.urutan_subgroup || it.no || it.urutan || (idx + 1);
-                const uManual = (it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '' && !isNaN(Number(it.urutan_manual))) ? Number(it.urutan_manual) : subNo;
-
-                return {
-                    ...it,
-                    volume: vol,
-                    harga: hrg,
-                    jumlah: jml,
-                    harga_satuan: hrg,
-                    jumlah_biaya: jml,
-                    no: subNo,
-                    urutan: subNo,
-                    no_subgroup: subNo,
-                    urutan_subgroup: subNo,
-                    urutan_manual: uManual,
-                    sumber: normalizeSumberDana(it.sumber || it.sumber_dana || payload.sumber_dana),
-                    sumber_dana: normalizeSumberDana(it.sumber || it.sumber_dana || payload.sumber_dana)
-                };
-            })) : [],
-            jumlah_anggaran: (payload.jumlah_anggaran !== undefined && payload.jumlah_anggaran !== null && payload.jumlah_anggaran !== '' && !isNaN(Number(payload.jumlah_anggaran)))
-                ? Number(payload.jumlah_anggaran)
-                : ((total_biaya !== undefined && total_biaya !== null && total_biaya !== '' && !isNaN(Number(total_biaya)))
-                    ? Number(total_biaya)
-                    : ((total_rab !== undefined && total_rab !== null && total_rab !== '' && !isNaN(Number(total_rab)))
-                        ? Number(total_rab)
-                        : 0)),
+            items: mappedItems,
+            jumlah_anggaran: itemsTotal > 0
+                ? itemsTotal
+                : ((payload.jumlah_anggaran !== undefined && payload.jumlah_anggaran !== null && payload.jumlah_anggaran !== '' && !isNaN(Number(payload.jumlah_anggaran)))
+                    ? Number(payload.jumlah_anggaran)
+                    : ((total_biaya !== undefined && total_biaya !== null && total_biaya !== '' && !isNaN(Number(total_biaya)))
+                        ? Number(total_biaya)
+                        : ((total_rab !== undefined && total_rab !== null && total_rab !== '' && !isNaN(Number(total_rab)))
+                            ? Number(total_rab)
+                            : 0))),
             volume: (payload.volume !== undefined && payload.volume !== null && payload.volume !== '' && !isNaN(Number(payload.volume)))
                 ? Number(payload.volume)
                 : ((payload.volume_rab !== undefined && payload.volume_rab !== null && payload.volume_rab !== '' && !isNaN(Number(payload.volume_rab)))
@@ -5259,6 +5289,7 @@ app.post('/api/rab/sync-to-murni', async (req, res) => {
                 .from(RAB_TABLE)
                 .select(RAB_FULL_COLUMNS)
                 .eq('id', id_referensi_murni)
+                .eq('tahun', tahunInt)
                 .limit(1);
             if (!mErr && mRows && mRows.length > 0) {
                 murniRecord = enrichRabDetail(mRows[0]);

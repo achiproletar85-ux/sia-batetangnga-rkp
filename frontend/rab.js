@@ -1223,15 +1223,15 @@ async function loadSavedRAB() {
         }
 
         // Jika dalam mode PERUBAHAN, tarik versi MURNI untuk referensi nilai 'SEMULA'
-        if (isModePerubahan() && (currentRabRefMurni || targetKode)) {
+        if (isModePerubahan() && targetKode) {
             try {
-                const urlMurni = currentRabRefMurni
-                    ? `${API_URL}/rab?id=${encodeURIComponent(currentRabRefMurni)}&tipe=MURNI`
-                    : `${API_URL}/rab?kode_unik_full=${encodeURIComponent(targetKode)}&tahun=${encodeURIComponent(rabYear)}&tipe=MURNI`;
+                // Selalu minta Murni berdasarkan targetKode dan rabYear aktif agar data Murni akurat dan mutakhir tanpa terpengaruh referensi ID lintas tahun
+                const urlMurni = `${API_URL}/rab?kode_unik_full=${encodeURIComponent(targetKode)}&tahun=${encodeURIComponent(rabYear)}&tipe=MURNI`;
                 const resMurni = await fetch(urlMurni);
                 if (resMurni.ok) {
                     const jsonMurni = await resMurni.json().catch(() => null);
                     if (jsonMurni && jsonMurni.success && jsonMurni.data) {
+                        currentRabRefMurni = jsonMurni.data.id || null;
                         let rawMurni = jsonMurni.data.items;
                         if (typeof rawMurni === 'string') {
                             try { rawMurni = JSON.parse(rawMurni); } catch (_) { rawMurni = []; }
@@ -1840,7 +1840,7 @@ async function executeSaveRAB() {
 
     const payload = {
         id: currentRabId || undefined,
-        id_referensi_murni: currentRabRefMurni || undefined,
+        id_referensi_murni: isModePerubahan() ? (currentRabRefMurni || undefined) : null,
         kode_unik_full: String(activity.kode_unik_full || kodeUnikFix).trim(),
         tahun: Number(rabYear),
         nama_kegiatan: activity.nama_kegiatan || '',
