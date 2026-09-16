@@ -5147,6 +5147,146 @@ app.post('/api/rab', async (req, res) => {
     }
 });
 
+// POST /api/rab/sync-to-murni
+// Mendorong (push) item baru dari RAB Perubahan ke master RAB Murni (Awal)
+app.post('/api/rab/sync-to-murni', async (req, res) => {
+    try {
+        const { kode_unik_full, tahun, item, id_referensi_murni, id_perubahan } = req.body || {};
+        if (!kode_unik_full || !item || !item.uraian) {
+            return res.status(400).json({ success: false, error: 'Parameter kode_unik_full dan item belanja wajib diisi' });
+        }
+
+        const tahunInt = parseInt(tahun, 10) || 2026;
+        let murniRecord = null;
+
+        // 1. Cari record RAB Murni
+        if (id_referensi_murni) {
+            const { data: mRows, error: mErr } = await supabase
+                .from(RAB_TABLE)
+                .select(RAB_FULL_COLUMNS)
+                .eq('id', id_referensi_murni)
+                .limit(1);
+            if (!mErr && mRows && mRows.length > 0) {
+                murniRecord = enrichRabDetail(mRows[0]);
+            }
+        }
+
+        if (!murniRecord) {
+            murniRecord = await getRabFromDb(kode_unik_full, tahunInt, RAB_TIPE_MURNI);
+        }
+
+        if (!murniRecord) {
+            return res.status(404).json({ success: false, error: 'Data master RAB Murni untuk kegiatan ini belum ditemukan' });
+        }
+
+        // 2. Olah array items di RAB Murni
+        const murniItems = parseRabItemsSafely(murniRecord.items);
+        const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+        const itemUraian = norm(item.uraian);
+        const itemSub = norm(item.subgroup);
+        const itemGrp = norm(item.group);
+
+        let existingIdx = murniItems.findIndex(m =>
+            norm(m.uraian) === itemUraian &&
+            norm(m.subgroup) === itemSub &&
+            (!itemGrp || !norm(m.group) || norm(m.group) === itemGrp)
+        );
+
+        let targetMurniItem = null;
+        let targetIdx = existingIdx;
+
+        if (existingIdx !== -1) {
+            // Item sudah ada di murni, gunakan item yang ada
+            targetMurniItem = murniItems[existingIdx];
+        } else {
+            // Tambahkan item baru ke RAB Murni
+            const vol = (item.volume !== undefined && item.volume !== null && item.volume !== '') ? Number(item.volume) : 1;
+            const hrg = (item.harga !== undefined && item.harga !== null && item.harga !== '') ? Number(item.harga) : 0;
+            const jml = (item.jumlah !== undefined && item.jumlah !== null && item.jumlah !== '') ? Number(item.jumlah) : (vol * hrg);
+
+            targetMurniItem = {
+                group: (item.group || '').trim(),
+                subgroup: (item.subgroup || '').trim(),
+                uraian: String(item.uraian || '').trim(),
+                volume: vol,
+                satuan: String(item.satuan || 'Paket').trim(),
+                harga: hrg,
+                jumlah: jml,
+                sumber: normalizeSumberDana(item.sumber || murniRecord.sumber_dana || 'DDS (Dana Desa)'),
+                keterangan: String(item.keterangan || '').trim(),
+                urutan_manual: murniItems.length + 1,
+                urutan: murniItems.length + 1,
+                no: murniItems.length + 1
+            };
+
+            murniItems.push(targetMurniItem);
+            targetIdx = murniItems.length - 1;
+
+            // Re-index urutan pada Murni
+            murniItems.forEach((it, i) => {
+                it.no = i + 1;
+                it.urutan = i + 1;
+                it.urutan_manual = i + 1;
+            });
+
+            // Update total anggaran Murni
+            const totalMurni = murniItems.reduce((sum, it) => sum + (Number(it.jumlah) || 0), 0);
+            murniRecord.items = murniItems;
+            murniRecord.jumlah_anggaran = totalMurni;
+            murniRecord.total_biaya = totalMurni;
+            murniRecord.total_rab = totalMurni;
+
+            await saveRabToDb(murniRecord);
+        }
+
+        // 3. Update status item di RAB Perubahan (jika id_perubahan atau record perubahan ada)
+        let perubahanRecord = null;
+        if (id_perubahan) {
+            const { data: pRows, error: pErr } = await supabase
+                .from(RAB_TABLE)
+                .select(RAB_FULL_COLUMNS)
+                .eq('id', id_perubahan)
+                .limit(1);
+            if (!pErr && pRows && pRows.length > 0) {
+                perubahanRecord = enrichRabDetail(pRows[0]);
+            }
+        }
+        if (!perubahanRecord) {
+            perubahanRecord = await getRabFromDb(kode_unik_full, tahunInt, RAB_TIPE_PERUBAHAN);
+        }
+
+        if (perubahanRecord) {
+            const pItems = parseRabItemsSafely(perubahanRecord.items);
+            const pMatchIdx = pItems.findIndex(p =>
+                norm(p.uraian) === itemUraian &&
+                norm(p.subgroup) === itemSub
+            );
+            if (pMatchIdx !== -1) {
+                pItems[pMatchIdx].urutan_murni = targetIdx;
+                pItems[pMatchIdx].uraian_murni = targetMurniItem.uraian;
+                pItems[pMatchIdx].id_referensi_murni = murniRecord.id;
+                pItems[pMatchIdx].item_baru = false;
+                perubahanRecord.items = pItems;
+                perubahanRecord.id_referensi_murni = murniRecord.id;
+                await saveRabToDb(perubahanRecord);
+            }
+        }
+
+        return res.json({
+            success: true,
+            message: `Item "${item.uraian}" berhasil disinkronkan ke master RAB Murni`,
+            data: {
+                murni_id: murniRecord.id,
+                item_index: targetIdx,
+                item: targetMurniItem
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error /api/rab/sync-to-murni:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // GET /api/rab/list?tahun=YYYY[&tipe=MURNI|PERUBAHAN]
 // Egress guard: selalu minta tahun aktif; versi ikut disaring di server.
 app.get('/api/rab/list', async (req, res) => {

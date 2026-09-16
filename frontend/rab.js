@@ -2002,6 +2002,46 @@ function changeRabItemOrder(idx, newPosVal) {
     showToast(`Urutan item "${moved.uraian || ''}" dipindahkan ke nomor ${targetSubPos + 1}`, 'success');
 }
 
+// Mendorong (push) item baru dari RAB Perubahan ke master RAB Murni (Awal)
+async function pushItemToMurni(idx) {
+    if (idx < 0 || idx >= rabItems.length) return;
+    const item = rabItems[idx];
+    if (!item) return;
+
+    const confirmed = confirm(`Simpan dan tambahkan item "${item.uraian}" secara otomatis ke master RAB Murni (Awal)?\n\nItem ini akan didorong ke master RAB Murni dengan rincian volume, satuan, dan harga yang sama.`);
+    if (!confirmed) return;
+
+    showToast(`Menyinkronkan item "${item.uraian}" ke RAB Murni...`, 'info');
+
+    try {
+        const payload = {
+            kode_unik_full: selectedRpjm?.kode_unik_full || document.getElementById('select-kode-unik')?.value || '',
+            tahun: Number(rabYear),
+            item: item,
+            id_referensi_murni: currentRabRefMurni || undefined,
+            id_perubahan: currentRabId || undefined
+        };
+
+        const res = await fetch(`${API_URL}/rab/sync-to-murni`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const json = await res.json().catch(() => null);
+        if (res.ok && json && json.success) {
+            showToast(`Berhasil! Item "${item.uraian}" telah disinkronkan ke RAB Murni.`, 'success');
+            // Reload saved RAB untuk memperbarui referensi murni dan kalkulasi semula/menjadi
+            await loadSavedRAB();
+        } else {
+            showToast(`Gagal menyinkronkan ke RAB Murni: ${json?.error || res.statusText}`, 'error');
+        }
+    } catch (err) {
+        console.error('Error pushItemToMurni:', err);
+        showToast(`Terjadi kesalahan jaringan: ${err.message}`, 'error');
+    }
+}
+
 // Salin semua field dari item RAB terakhir yang tersimpan ke form
 // agar tidak perlu menulis ulang saat nilainya sama.
 function salinDataItem() {
@@ -2207,7 +2247,18 @@ function renderRabItems() {
 
                 if (isModePerubahan()) {
                     if (ref.isBaru) {
-                        uraianBadge = `<div class="mt-1"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200"><i class="fas fa-plus-circle text-[9px]"></i> Item Baru (Semula: Rp 0)</span></div>` + uraianBadge;
+                        uraianBadge = `
+                            <div class="mt-1 flex items-center gap-1.5 flex-wrap">
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                    <i class="fas fa-plus-circle text-[9px]"></i> Item Baru (Semula: Rp 0)
+                                </span>
+                                <button type="button" 
+                                        onclick="pushItemToMurni(${idx})" 
+                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-300 hover:border-blue-600 transition shadow-2xs cursor-pointer"
+                                        title="Salin dan tambahkan item baru ini secara otomatis ke master RAB Murni (Awal)">
+                                    <i class="fas fa-arrow-up-from-bracket text-[9px]"></i> Push ke Murni
+                                </button>
+                            </div>` + uraianBadge;
                         volCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: 0</div>`;
                         hargaCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: Rp 0</div>`;
                         jumlahCell += `<div class="text-[10px] text-slate-400 font-medium whitespace-nowrap">Semula: Rp 0</div>`;
@@ -2254,6 +2305,7 @@ function renderRabItems() {
                         <td class="text-right">${jumlahCell}</td>
                         <td class="text-center whitespace-nowrap px-2 py-2">
                             <div class="inline-flex items-center gap-1">
+                                ${(isModePerubahan() && ref.isBaru) ? `<button type="button" class="btn-outline px-1.5 py-1 text-[11px] font-bold text-blue-700 hover:text-white hover:bg-blue-600 border-blue-300" onclick="pushItemToMurni(${idx})" title="Push item baru ini ke master RAB Murni"><i class="fas fa-arrow-up-from-bracket"></i></button>` : ''}
                                 <button type="button" class="btn-outline px-1.5 py-1 text-[11px] font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 ${isFirst ? 'opacity-40 cursor-not-allowed' : ''}" onclick="${isFirst ? '' : `moveRabItemUp(${idx})`}" title="Pindah urutan ke atas" ${isFirst ? 'disabled' : ''}>▲</button>
                                 <button type="button" class="btn-outline px-1.5 py-1 text-[11px] font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 ${isLast ? 'opacity-40 cursor-not-allowed' : ''}" onclick="${isLast ? '' : `moveRabItemDown(${idx})`}" title="Pindah urutan ke bawah" ${isLast ? 'disabled' : ''}>▼</button>
                                 <button type="button" class="btn-outline px-2 py-1 text-xs text-slate-700 hover:text-blue-700 hover:bg-blue-50" onclick="editRabItem(${idx})" title="Edit data item">Edit</button>
@@ -3737,3 +3789,4 @@ window.pilihKegiatanDariForm = pilihKegiatanDariForm;
 window.moveRabItemUp = moveRabItemUp;
 window.moveRabItemDown = moveRabItemDown;
 window.changeRabItemOrder = changeRabItemOrder;
+window.pushItemToMurni = pushItemToMurni;

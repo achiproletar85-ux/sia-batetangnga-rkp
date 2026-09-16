@@ -552,6 +552,21 @@ console.log('\n18) Konsistensi Penjumlahan Total Semula & Menjadi (Zero Loss Agg
     check('Item terhapus (Perbaikan StandInfografis) tetap terhitung di Total Semula', aligned.find(r => r.uraian === 'Perbaikan StandInfografis').semula.jumlah, 2000000);
 }
 
+// ============================================================
+// 19. Fitur Push Item Baru ke RAB Murni
+// ============================================================
+console.log('\n19) Fitur Push Item Baru ke RAB Murni (/api/rab/sync-to-murni)');
+{
+    const fs = require('fs');
+    const serverCode = fs.readFileSync(path.resolve(__dirname, '..', 'server.js'), 'utf8');
+    const rabJsCode = fs.readFileSync(path.resolve(__dirname, '..', 'frontend', 'rab.js'), 'utf8');
+
+    check('Endpoint POST /api/rab/sync-to-murni terdaftar di server.js', serverCode.includes("app.post('/api/rab/sync-to-murni'"), true);
+    check('Fungsi pushItemToMurni terdefinisi di frontend/rab.js', rabJsCode.includes('async function pushItemToMurni('), true);
+    check('window.pushItemToMurni diekspor di frontend/rab.js', rabJsCode.includes('window.pushItemToMurni = pushItemToMurni;'), true);
+    check('Tombol Push ke Murni terpasang pada badge Item Baru', rabJsCode.includes('Push ke Murni'), true);
+}
+
 console.log(`\n========================================`);
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
