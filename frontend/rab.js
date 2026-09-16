@@ -373,6 +373,21 @@ const SISKEUDES_ITEM_ORDER = [
     'amplop',
     'gunting',
     'lakban',
+    'tinta prind black',
+    'tinta print black',
+    'tinta prind warna',
+    'tinta print warna',
+    'tinta printer',
+    'tinta infus black',
+    'tinta infus warna',
+    'tinta refill black',
+    'tinta refill color',
+    'map plastik',
+    'map jepit',
+    'map binder file',
+    'notebook',
+    'karton manila',
+    'hekter',
     'lampu',
     'snack',
     'nasi dos',
@@ -1342,6 +1357,58 @@ async function loadSavedRAB() {
                         }
                     }
                 });
+
+                // REKONSILIASI ITEM MURNI YANG BELUM ADA DI PERUBAHAN:
+                // Pastikan seluruh item belanja dari master Murni dimuat utuh tanpa terpotong (misal setelah Lakban)
+                let itemsAdded = false;
+                rabMurniRefItems.forEach((m, mIdx) => {
+                    const mUraian = norm(m.uraian);
+                    const mSub = norm(m.subgroup || m.sub_kelompok).replace(/perlengkapan\s+/g, '');
+
+                    const found = rabItems.some(it => {
+                        if (it.urutan_murni === mIdx) return true;
+                        const itUraian = norm(it.uraian);
+                        const itUraianMurni = norm(it.uraian_murni);
+                        const itSub = norm(it.subgroup || it.sub_kelompok).replace(/perlengkapan\s+/g, '');
+                        return (itUraian === mUraian || itUraianMurni === mUraian) && (!mSub || !itSub || mSub === itSub);
+                    });
+
+                    if (!found) {
+                        const vol = (m.volume !== undefined && m.volume !== null && m.volume !== '' && !isNaN(Number(m.volume))) ? Number(m.volume) : 1;
+                        const hrg = Number(m.harga !== undefined && m.harga !== null && m.harga !== '' ? m.harga : (m.harga_satuan || 0));
+                        const jml = Number(m.jumlah !== undefined && m.jumlah !== null && m.jumlah !== '' ? m.jumlah : (vol * hrg));
+                        rabItems.push({
+                            group: (m.group || m.group_belanja || m.group_nama || '').trim(),
+                            subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
+                            uraian: m.uraian || '',
+                            volume: vol,
+                            satuan: m.satuan || 'Paket',
+                            harga: hrg,
+                            jumlah: jml,
+                            sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
+                            keterangan: m.keterangan || '',
+                            urutan_murni: mIdx,
+                            uraian_murni: m.uraian || '',
+                            volume_murni: vol,
+                            satuan_murni: m.satuan || '',
+                            harga_murni: hrg,
+                            jumlah_murni: jml,
+                            id_referensi_murni: m.id_referensi_murni || currentRabRefMurni || null,
+                            item_baru: false,
+                            item_dihapus: false,
+                            urutan_manual: m.urutan_manual !== undefined ? m.urutan_manual : (m.urutan || mIdx + 1),
+                            urutan: m.urutan || mIdx + 1,
+                            no: m.no || mIdx + 1
+                        });
+                        itemsAdded = true;
+                    }
+                });
+
+                if (itemsAdded) {
+                    rabItems = sortRabItems(rabItems);
+                    reindexRabItemsBySubgroup(rabItems);
+                    console.log(`[RAB Perubahan] Direkonsiliasi lengkap: sekarang memuat ${rabItems.length} item.`);
+                }
             }
         }
 
@@ -4340,8 +4407,39 @@ async function syncUrutanBerdasarkanMurni() {
     const kode = selectedRpjm.kode_unik_full || selectedRpjm.kode_unik;
     const tahun = Number(rabYear || selectedRpjm.tahun || 2026);
 
-    showToast('Memuat data acuan RAB Murni...', 'info');
+    showToast('Menyelaraskan seluruh item dengan acuan RAB Murni...', 'info');
 
+    // 1. Coba sinkronisasi langsung via server endpoint /api/rab/sync-basis-murni
+    try {
+        const payload = {
+            kode_unik_full: kode,
+            tahun: tahun
+        };
+
+        const res = await fetch(`${API_URL}/rab/sync-basis-murni`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const json = await res.json().catch(() => null);
+        if (res.ok && json && json.success && json.data && Array.isArray(json.data.items)) {
+            rabItems = sortRabItems(json.data.items);
+            currentRabId = json.data.id || currentRabId;
+            currentRabRefMurni = json.data.id_referensi_murni || currentRabRefMurni;
+            reindexRabItemsBySubgroup(rabItems);
+            renderRabItems();
+            resetRabItemForm();
+            setFormDirty(false);
+            tutupModalSyncDuaArah();
+            showToast('Seluruh item RAB Perubahan berhasil diselaraskan dan dimuat utuh sesuai acuan master RAB Murni!', 'success');
+            return;
+        }
+    } catch (eSync) {
+        console.warn('Gagal call /api/rab/sync-basis-murni, melakukan fallback sinkronisasi client-side:', eSync);
+    }
+
+    // 2. Fallback sinkronisasi client-side
     let murniItems = rabMurniRefItems;
     if (!Array.isArray(murniItems) || murniItems.length === 0) {
         try {
@@ -4383,8 +4481,48 @@ async function syncUrutanBerdasarkanMurni() {
             it.item_baru = false;
         } else {
             it.urutan_murni = null;
-            it.urutan_manual = 999990 + (it.urutan_manual || 1); // Tempatkan di bawah subgrup
+            it.urutan_manual = 999990 + (it.urutan_manual || 1);
             it.item_baru = true;
+        }
+    });
+
+    // Masukkan seluruh item dari Murni yang belum ada di Perubahan
+    murniItems.forEach((m, mIdx) => {
+        const key = norm(m.uraian) + '||' + norm(m.subgroup);
+        const exists = rabItems.some(it => {
+            if (it.urutan_murni === mIdx) return true;
+            const itKey = norm(it.uraian) + '||' + norm(it.subgroup);
+            const itKeyMurni = norm(it.uraian_murni) + '||' + norm(it.subgroup);
+            return itKey === key || itKeyMurni === key;
+        });
+
+        if (!exists) {
+            const vol = Number(m.volume || 1);
+            const hrg = Number(m.harga || m.harga_satuan || 0);
+            const jml = Number(m.jumlah !== undefined ? m.jumlah : (vol * hrg));
+            rabItems.push({
+                group: (m.group || m.group_belanja || m.group_nama || '').trim(),
+                subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
+                uraian: m.uraian || '',
+                volume: vol,
+                satuan: m.satuan || 'Paket',
+                harga: hrg,
+                jumlah: jml,
+                sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
+                keterangan: m.keterangan || '',
+                urutan_murni: mIdx,
+                uraian_murni: m.uraian || '',
+                volume_murni: vol,
+                satuan_murni: m.satuan || '',
+                harga_murni: hrg,
+                jumlah_murni: jml,
+                id_referensi_murni: m.id_referensi_murni || currentRabRefMurni || null,
+                item_baru: false,
+                item_dihapus: false,
+                urutan_manual: mIdx + 1,
+                urutan: mIdx + 1,
+                no: mIdx + 1
+            });
         }
     });
 
@@ -4394,7 +4532,7 @@ async function syncUrutanBerdasarkanMurni() {
     await saveRAB();
 
     tutupModalSyncDuaArah();
-    showToast('Urutan RAB Perubahan berhasil diselaraskan mengikuti acuan RAB Murni!', 'success');
+    showToast('Seluruh item RAB Perubahan berhasil diselaraskan dan dimuat utuh sesuai acuan master RAB Murni!', 'success');
 }
 
 // Basis 2: Sinkronkan Urutan Berdasarkan RAB Perubahan

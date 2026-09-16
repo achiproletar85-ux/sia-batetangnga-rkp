@@ -1380,6 +1380,21 @@ const SISKEUDES_ITEM_ORDER = [
     'amplop',
     'gunting',
     'lakban',
+    'tinta prind black',
+    'tinta print black',
+    'tinta prind warna',
+    'tinta print warna',
+    'tinta printer',
+    'tinta infus black',
+    'tinta infus warna',
+    'tinta refill black',
+    'tinta refill color',
+    'map plastik',
+    'map jepit',
+    'map binder file',
+    'notebook',
+    'karton manila',
+    'hekter',
     'lampu',
     'sapu',
     'sapu ijuk',
@@ -5149,6 +5164,68 @@ app.get('/api/rab', async (req, res) => {
                         };
                         isFallbackMurni = true;
                     }
+                } else {
+                    // Baris PERUBAHAN sudah ada di DB:
+                    // REKONSILIASI OTOMATIS: Pastikan seluruh item master MURNI terserap utuh tanpa terpotong
+                    try {
+                        let murni = await getRabFromDb(targetKode, tahunInt, RAB_TIPE_MURNI);
+                        if (murni && Array.isArray(murni.items) && murni.items.length > 0) {
+                            const murniItems = parseRabItemsSafely(murni.items);
+                            const perItems = parseRabItemsSafely(saved.items);
+                            const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+                            const normSubgroup = (v) => norm(v).replace(/perlengkapan\s+/g, '');
+
+                            let needsReconcile = false;
+                            murniItems.forEach((m, mIdx) => {
+                                const mKey = norm(m.uraian) + '||' + normSubgroup(m.subgroup);
+                                const found = perItems.some((p) => {
+                                    if (p.urutan_murni === mIdx) return true;
+                                    const pKey = norm(p.uraian) + '||' + normSubgroup(p.subgroup);
+                                    const pKeyMurni = norm(p.uraian_murni) + '||' + normSubgroup(p.subgroup);
+                                    return pKey === mKey || pKeyMurni === mKey;
+                                });
+                                if (!found) {
+                                    needsReconcile = true;
+                                    perItems.push({
+                                        group: (m.group || m.group_belanja || m.group_nama || '').trim(),
+                                        subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
+                                        uraian: (m.uraian || '').trim(),
+                                        volume: Number(m.volume || 1),
+                                        satuan: String(m.satuan || 'Paket').trim(),
+                                        harga: Number(m.harga || m.harga_satuan || 0),
+                                        jumlah: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
+                                        sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
+                                        keterangan: String(m.keterangan || '').trim(),
+                                        urutan_murni: mIdx,
+                                        uraian_murni: (m.uraian || '').trim(),
+                                        volume_murni: Number(m.volume || 1),
+                                        satuan_murni: String(m.satuan || '').trim(),
+                                        harga_murni: Number(m.harga || m.harga_satuan || 0),
+                                        jumlah_murni: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
+                                        id_referensi_murni: murni.id,
+                                        item_baru: false,
+                                        item_dihapus: false,
+                                        urutan_manual: m.urutan_manual || (mIdx + 1),
+                                        urutan: mIdx + 1,
+                                        no: mIdx + 1
+                                    });
+                                }
+                            });
+
+                            if (needsReconcile) {
+                                saved.items = sortRabItems(perItems);
+                                const totalPer = saved.items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+                                saved.jumlah_anggaran = totalPer;
+                                saved.total_biaya = totalPer;
+                                saved.total_rab = totalPer;
+                                saved.id_referensi_murni = murni.id;
+                                await saveRabToDb(saved);
+                                console.log(`[RECONCILE] Sukses rekonsiliasi ${saved.items.length} item untuk RAB Perubahan ${targetKode}`);
+                            }
+                        }
+                    } catch (reconErr) {
+                        console.warn('[RECONCILE WARNING] Gagal cek rekonsiliasi Murni-Perubahan:', reconErr.message);
+                    }
                 }
             }
 
@@ -5444,6 +5521,136 @@ app.post('/api/rab/sync-to-murni', async (req, res) => {
     }
 });
 
+// POST /api/rab/sync-basis-murni
+// Menyelaraskan RAB Perubahan agar mengikuti struktur master RAB Murni dan mengimpor item yang belum ada
+app.post('/api/rab/sync-basis-murni', async (req, res) => {
+    try {
+        const { kode_unik_full, tahun } = req.body || {};
+        const targetKode = String(kode_unik_full || '').trim();
+        const tahunInt = parseInt(tahun, 10);
+        if (!targetKode || !Number.isFinite(tahunInt)) {
+            return res.status(400).json({ success: false, error: 'Parameter kode_unik_full dan tahun wajib diisi' });
+        }
+
+        const murniRecord = await getRabFromDb(targetKode, tahunInt, RAB_TIPE_MURNI);
+        if (!murniRecord) {
+            return res.status(404).json({ success: false, error: 'Data master RAB Murni untuk kegiatan ini belum ditemukan' });
+        }
+
+        let perubahanRecord = await getRabFromDb(targetKode, tahunInt, RAB_TIPE_PERUBAHAN);
+        const murniItems = parseRabItemsSafely(murniRecord.items);
+        const perItems = perubahanRecord ? parseRabItemsSafely(perubahanRecord.items) : [];
+        const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+        const normSubgroup = (v) => norm(v).replace(/perlengkapan\s+/g, '');
+
+        // Gabungkan seluruh item Murni ke Perubahan
+        const updatedPerItems = [];
+        const usedPerIndices = new Set();
+
+        murniItems.forEach((m, mIdx) => {
+            const mKey = norm(m.uraian) + '||' + normSubgroup(m.subgroup);
+            let pMatchIdx = perItems.findIndex((p, idx) => {
+                if (usedPerIndices.has(idx)) return false;
+                if (p.urutan_murni === mIdx) return true;
+                const pKey = norm(p.uraian) + '||' + normSubgroup(p.subgroup);
+                const pKeyMurni = norm(p.uraian_murni) + '||' + normSubgroup(p.subgroup);
+                return pKey === mKey || pKeyMurni === mKey;
+            });
+
+            if (pMatchIdx >= 0) {
+                usedPerIndices.add(pMatchIdx);
+                const pMatch = perItems[pMatchIdx];
+                updatedPerItems.push({
+                    ...pMatch,
+                    group: (m.group || pMatch.group || '').trim(),
+                    subgroup: (m.subgroup || pMatch.subgroup || '').trim(),
+                    urutan_murni: mIdx,
+                    uraian_murni: (m.uraian || '').trim(),
+                    volume_murni: Number(m.volume || 1),
+                    satuan_murni: m.satuan || '',
+                    harga_murni: Number(m.harga || m.harga_satuan || 0),
+                    jumlah_murni: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
+                    id_referensi_murni: murniRecord.id,
+                    item_baru: false,
+                    urutan_manual: mIdx + 1,
+                    urutan: mIdx + 1,
+                    no: mIdx + 1
+                });
+            } else {
+                // Item murni baru/belum ada di Perubahan
+                updatedPerItems.push({
+                    group: (m.group || m.group_belanja || m.group_nama || '').trim(),
+                    subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
+                    uraian: (m.uraian || '').trim(),
+                    volume: Number(m.volume || 1),
+                    satuan: String(m.satuan || 'Paket').trim(),
+                    harga: Number(m.harga || m.harga_satuan || 0),
+                    jumlah: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
+                    sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
+                    keterangan: String(m.keterangan || '').trim(),
+                    urutan_murni: mIdx,
+                    uraian_murni: (m.uraian || '').trim(),
+                    volume_murni: Number(m.volume || 1),
+                    satuan_murni: String(m.satuan || '').trim(),
+                    harga_murni: Number(m.harga || m.harga_satuan || 0),
+                    jumlah_murni: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
+                    id_referensi_murni: murniRecord.id,
+                    item_baru: false,
+                    item_dihapus: false,
+                    urutan_manual: mIdx + 1,
+                    urutan: mIdx + 1,
+                    no: mIdx + 1
+                });
+            }
+        });
+
+        // Pertahankan item tambahan baru di Perubahan yang memang tidak ada di Murni
+        perItems.forEach((p, idx) => {
+            if (!usedPerIndices.has(idx)) {
+                updatedPerItems.push({
+                    ...p,
+                    urutan_manual: updatedPerItems.length + 1,
+                    urutan: updatedPerItems.length + 1,
+                    no: updatedPerItems.length + 1,
+                    item_baru: true
+                });
+            }
+        });
+
+        const sortedPerItems = sortRabItems(updatedPerItems);
+        const totalPer = sortedPerItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+
+        if (!perubahanRecord) {
+            perubahanRecord = {
+                ...murniRecord,
+                id: null,
+                tipe_anggaran: RAB_TIPE_PERUBAHAN,
+                id_referensi_murni: murniRecord.id,
+                items: sortedPerItems,
+                jumlah_anggaran: totalPer,
+                total_biaya: totalPer,
+                total_rab: totalPer
+            };
+        } else {
+            perubahanRecord.items = sortedPerItems;
+            perubahanRecord.jumlah_anggaran = totalPer;
+            perubahanRecord.total_biaya = totalPer;
+            perubahanRecord.total_rab = totalPer;
+            perubahanRecord.id_referensi_murni = murniRecord.id;
+        }
+
+        const savedPerubahan = await saveRabToDb(perubahanRecord);
+        return res.json({
+            success: true,
+            message: 'RAB Perubahan berhasil disinkronkan mengikuti master RAB Murni secara utuh',
+            data: savedPerubahan
+        });
+    } catch (error) {
+        console.error('❌ Error /api/rab/sync-basis-murni:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // POST /api/rab/sync-basis-perubahan
 // Menyelaraskan master RAB Murni agar mengikuti struktur dan urutan item di RAB Perubahan
 app.post('/api/rab/sync-basis-perubahan', async (req, res) => {
@@ -5462,19 +5669,20 @@ app.post('/api/rab/sync-basis-perubahan', async (req, res) => {
         }
 
         const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+        const normSubgroup = (v) => norm(v).replace(/perlengkapan\s+/g, '');
         const existingMurniItems = parseRabItemsSafely(murniRecord.items);
 
         // Map existing murni items by uraian + subgroup
         const murniMap = new Map();
         existingMurniItems.forEach((m) => {
-            const key = norm(m.uraian) + '||' + norm(m.subgroup);
+            const key = norm(m.uraian) + '||' + normSubgroup(m.subgroup);
             if (!murniMap.has(key)) murniMap.set(key, m);
         });
 
         // Bangun items murni baru berdasarkan urutan items perubahan
         const updatedMurniItems = [];
         items.forEach((pItem, idx) => {
-            const key = norm(pItem.uraian) + '||' + norm(pItem.subgroup);
+            const key = norm(pItem.uraian) + '||' + normSubgroup(pItem.subgroup);
             const mMatch = murniMap.get(key);
 
             const vol = (pItem.volume !== undefined && pItem.volume !== null && pItem.volume !== '') ? Number(pItem.volume) : 1;
