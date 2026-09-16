@@ -4089,6 +4089,141 @@ async function fixRabData() {
     }
 }
 
+function bukaModalSyncDuaArah() {
+    const modal = document.getElementById('modalSyncDuaArah');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function tutupModalSyncDuaArah() {
+    const modal = document.getElementById('modalSyncDuaArah');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+// Basis 1: Sinkronkan Urutan Berdasarkan RAB Murni
+async function syncUrutanBerdasarkanMurni() {
+    if (!selectedRpjm) {
+        showToast('Pilih kegiatan RPJMDes terlebih dahulu', 'warning');
+        return;
+    }
+
+    const kode = selectedRpjm.kode_unik_full || selectedRpjm.kode_unik;
+    const tahun = Number(rabYear || selectedRpjm.tahun || 2026);
+
+    showToast('Memuat data acuan RAB Murni...', 'info');
+
+    let murniItems = rabMurniRefItems;
+    if (!Array.isArray(murniItems) || murniItems.length === 0) {
+        try {
+            const res = await fetch(`${API_URL}/rab?kode_unik_full=${encodeURIComponent(kode)}&tahun=${tahun}&tipe=MURNI`);
+            const json = await res.json().catch(() => null);
+            if (res.ok && json && json.success && json.data && Array.isArray(json.data.items)) {
+                murniItems = sortRabItems(json.data.items);
+                rabMurniRefItems = murniItems;
+            }
+        } catch (e) {
+            console.warn('Gagal fetch RAB Murni:', e);
+        }
+    }
+
+    if (!Array.isArray(murniItems) || murniItems.length === 0) {
+        showToast('Data master RAB Murni belum tersedia untuk kegiatan ini', 'warning');
+        tutupModalSyncDuaArah();
+        return;
+    }
+
+    const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+
+    // Urutkan rabItems saat ini (Perubahan) mengikuti urutan di Murni
+    const murniOrderMap = new Map();
+    murniItems.forEach((m, idx) => {
+        const key = norm(m.uraian) + '||' + norm(m.subgroup);
+        if (!murniOrderMap.has(key)) {
+            murniOrderMap.set(key, { index: idx, manualOrder: Number(m.urutan_manual || m.urutan || idx + 1), murniItem: m });
+        }
+    });
+
+    rabItems.forEach(it => {
+        const key = norm(it.uraian) + '||' + norm(it.subgroup);
+        const keyMurni = norm(it.uraian_murni) + '||' + norm(it.subgroup);
+        const match = murniOrderMap.get(key) || murniOrderMap.get(keyMurni);
+        if (match) {
+            it.urutan_murni = match.index;
+            it.urutan_manual = match.manualOrder;
+            it.item_baru = false;
+        } else {
+            it.urutan_murni = null;
+            it.urutan_manual = 999990 + (it.urutan_manual || 1); // Tempatkan di bawah subgrup
+            it.item_baru = true;
+        }
+    });
+
+    rabItems = sortRabItems(rabItems);
+    reindexRabItemsBySubgroup(rabItems);
+    renderRabItems();
+    await saveRAB();
+
+    tutupModalSyncDuaArah();
+    showToast('Urutan RAB Perubahan berhasil diselaraskan mengikuti acuan RAB Murni!', 'success');
+}
+
+// Basis 2: Sinkronkan Urutan Berdasarkan RAB Perubahan
+async function syncUrutanBerdasarkanPerubahan() {
+    if (!selectedRpjm) {
+        showToast('Pilih kegiatan RPJMDes terlebih dahulu', 'warning');
+        return;
+    }
+
+    if (!rabItems || rabItems.length === 0) {
+        showToast('Belum ada item belanja di form untuk disinkronkan', 'warning');
+        return;
+    }
+
+    const kode = selectedRpjm.kode_unik_full || selectedRpjm.kode_unik;
+    const tahun = Number(rabYear || selectedRpjm.tahun || 2026);
+
+    const confirmed = confirm(`Sinkronkan master RAB Murni agar mengikuti urutan dan struktur item dari RAB Perubahan saat ini?\n\nPerubahan susunan item akan diperbarui ke master RAB Murni.`);
+    if (!confirmed) return;
+
+    showToast('Menyelaraskan master RAB Murni mengikuti RAB Perubahan...', 'info');
+
+    try {
+        const payload = {
+            kode_unik_full: kode,
+            tahun: tahun,
+            items: rabItems
+        };
+
+        const res = await fetch(`${API_URL}/rab/sync-basis-perubahan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const json = await res.json().catch(() => null);
+        if (res.ok && json && json.success) {
+            if (json.data && Array.isArray(json.data.items)) {
+                rabMurniRefItems = sortRabItems(json.data.items);
+                rabMurniRefTotal = Number(json.data.jumlah_anggaran || json.data.total_biaya || 0);
+            }
+            reindexRabItemsBySubgroup(rabItems);
+            renderRabItems();
+            await saveRAB();
+
+            tutupModalSyncDuaArah();
+            showToast('Master RAB Murni berhasil disinkronkan mengikuti susunan RAB Perubahan!', 'success');
+        } else {
+            showToast(`Gagal menyinkronkan: ${json?.error || res.statusText}`, 'error');
+        }
+    } catch (err) {
+        console.error('Error syncUrutanBerdasarkanPerubahan:', err);
+        showToast(`Terjadi kesalahan jaringan: ${err.message}`, 'error');
+    }
+}
+
 window.normalizeSumberDana = normalizeSumberDana;
 window.normalizeSumberCode = normalizeSumberCode;
 window.loadPaguAnggaran = loadPaguAnggaran;
@@ -4111,3 +4246,8 @@ window.pushItemToMurni = pushItemToMurni;
 window.reindexRabItemsBySubgroup = reindexRabItemsBySubgroup;
 window.resetRabItemForm = resetRabItemForm;
 window.cancelEditRabItem = cancelEditRabItem;
+window.bukaModalSyncDuaArah = bukaModalSyncDuaArah;
+window.tutupModalSyncDuaArah = tutupModalSyncDuaArah;
+window.syncUrutanBerdasarkanMurni = syncUrutanBerdasarkanMurni;
+window.syncUrutanBerdasarkanPerubahan = syncUrutanBerdasarkanPerubahan;
+

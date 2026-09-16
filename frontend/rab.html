@@ -667,6 +667,11 @@
                                 <span id="rab-save-status" class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 transition">
                                     <i class="fas fa-check-circle text-emerald-500"></i> Tersimpan
                                 </span>
+                                <button type="button" id="btn-sync-two-way" onclick="bukaModalSyncDuaArah()" class="btn-outline !px-3 !py-1.5 text-xs !bg-sky-50 !border-sky-300 text-sky-700 hover:!bg-sky-100 flex items-center gap-1.5 shadow-sm transition" title="Pilihan Basis Sinkronisasi Dua Arah (Murni ⇄ Perubahan)">
+                                    <i class="fas fa-arrows-rotate text-sky-600"></i>
+                                    <span class="hidden sm:inline">Sinkronkan Urutan</span>
+                                    <span class="sm:hidden">Sinkron</span>
+                                </button>
                                 <button onclick="clearRabItems()" class="btn-outline !px-3 !py-1.5 text-xs">
                                     <i class="fas fa-trash-alt text-red-500"></i> Kosongkan
                                 </button>
@@ -965,6 +970,75 @@
             <button onclick="tutupModalOverBudget()" class="w-full btn-danger text-xs font-bold py-2.5 rounded-xl shadow-lg shadow-red-500/20">
                 <i class="fas fa-shield-exclamation mr-1"></i> Mengerti, Koreksi Nominal RAB
             </button>
+        </div>
+    </div>
+
+    <!-- MODAL PILIHAN BASIS SINKRONISASI DUA ARAH (MURNI ⇄ PERUBAHAN) -->
+    <div id="modalSyncDuaArah" class="fixed inset-0 z-[2500] hidden items-center justify-center p-4" style="background: rgba(2,6,23,0.65); backdrop-filter: blur(8px);">
+        <div class="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-xl w-full p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200" onclick="event.stopPropagation()">
+            <!-- Header Modal -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center text-lg shadow-inner">
+                        <i class="fas fa-arrows-rotate"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-extrabold text-slate-800">Basis Sinkronisasi Dua Arah</h3>
+                        <p class="text-xs text-slate-500 font-medium">Pilih arah penyelarasan urutan & rincian item belanja (Murni ⇄ Perubahan)</p>
+                    </div>
+                </div>
+                <button type="button" onclick="tutupModalSyncDuaArah()" class="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Content Options -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Opsi 1: Acuan RAB Murni -->
+                <div class="rounded-2xl border-2 border-emerald-200 hover:border-emerald-500 bg-emerald-50/40 p-4.5 flex flex-col justify-between transition group cursor-pointer shadow-sm" onclick="syncUrutanBerdasarkanMurni()">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2 text-emerald-700 font-bold text-xs">
+                            <span class="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-[11px]">1</span>
+                            Acuan RAB Murni (Master)
+                        </div>
+                        <h4 class="text-sm font-extrabold text-slate-800 group-hover:text-emerald-700 transition">Perubahan ➔ Ikuti Murni</h4>
+                        <p class="text-[11px] text-slate-600 mt-2 leading-relaxed">
+                            Merapikan urutan item di <strong>RAB Perubahan</strong> agar persis mengikuti susunan master <strong>RAB Murni</strong>. Item baru/PAK tetap terjaga rapi di akhir sub-kelompok.
+                        </p>
+                    </div>
+                    <button type="button" class="mt-4 w-full btn-success !py-2 text-xs font-bold justify-center shadow-md shadow-emerald-600/20">
+                        <i class="fas fa-arrow-down-long mr-1.5"></i> Terapkan Acuan Murni
+                    </button>
+                </div>
+
+                <!-- Opsi 2: Acuan RAB Perubahan -->
+                <div class="rounded-2xl border-2 border-amber-200 hover:border-amber-500 bg-amber-50/40 p-4.5 flex flex-col justify-between transition group cursor-pointer shadow-sm" onclick="syncUrutanBerdasarkanPerubahan()">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2 text-amber-700 font-bold text-xs">
+                            <span class="w-6 h-6 rounded-lg bg-amber-600 text-white flex items-center justify-center text-[11px]">2</span>
+                            Acuan RAB Perubahan
+                        </div>
+                        <h4 class="text-sm font-extrabold text-slate-800 group-hover:text-amber-700 transition">Murni ➔ Ikuti Perubahan</h4>
+                        <p class="text-[11px] text-slate-600 mt-2 leading-relaxed">
+                            Memperbarui master <strong>RAB Murni</strong> agar diselaraskan mengikuti susunan nomor urut & penyesuaian belanja terkini di <strong>RAB Perubahan</strong>.
+                        </p>
+                    </div>
+                    <button type="button" class="mt-4 w-full btn-warning !py-2 text-xs font-bold justify-center shadow-md shadow-amber-600/20">
+                        <i class="fas fa-arrow-up-long mr-1.5"></i> Terapkan Acuan Perubahan
+                    </button>
+                </div>
+            </div>
+
+            <!-- Info Bar / Footer Modal -->
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                <div class="flex items-center gap-1.5">
+                    <i class="fas fa-shield-halved text-emerald-500"></i>
+                    <span>Tersimpan otomatis ke database Supabase</span>
+                </div>
+                <button type="button" onclick="tutupModalSyncDuaArah()" class="btn-outline !py-1.5 !px-3 text-xs text-slate-600">
+                    Batal
+                </button>
+            </div>
         </div>
     </div>
 
