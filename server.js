@@ -5238,8 +5238,7 @@ app.get('/api/rab', async (req, res) => {
                                 saved.total_biaya = totalPer;
                                 saved.total_rab = totalPer;
                                 saved.id_referensi_murni = murni.id;
-                                await saveRabToDb(saved);
-                                console.log(`[RECONCILE] Sukses rekonsiliasi ${saved.items.length} item untuk RAB Perubahan ${targetKode}`);
+                                console.log(`[RECONCILE] Rekonsiliasi in-memory ${saved.items.length} item untuk RAB Perubahan ${targetKode} (GET read-only, tanpa tulis DB)`);
                             }
                         }
                     } catch (reconErr) {
@@ -5355,7 +5354,7 @@ app.post('/api/rab', async (req, res) => {
             lokasi_kegiatan: payload.lokasi_kegiatan || rpjm_data?.lokasi_kegiatan || payload.lokasi || '',
             jenis_kegiatan: payload.jenis_kegiatan || rpjm_data?.jenis_kegiatan || rpjm_data?.nama_kegiatan || '',
             items: mappedItems,
-            jumlah_anggaran: itemsTotal > 0
+            jumlah_anggaran: mappedItems.length > 0
                 ? itemsTotal
                 : ((payload.jumlah_anggaran !== undefined && payload.jumlah_anggaran !== null && payload.jumlah_anggaran !== '' && !isNaN(Number(payload.jumlah_anggaran)))
                     ? Number(payload.jumlah_anggaran)
@@ -5395,6 +5394,107 @@ app.post('/api/rab', async (req, res) => {
         return res.json({ success: true, source: 'supabase', message: 'Data berhasil disimpan ke Supabase', data: saved });
     } catch (error) {
         console.log('❌ Error /api/rab POST:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// POST /api/rab/reconcile
+// Jalur POST eksplisit untuk rekonsiliasi Murni -> Perubahan dan persistensi ke database
+app.post('/api/rab/reconcile', async (req, res) => {
+    try {
+        const { kode_unik, kode_unik_full, tahun } = req.body || {};
+        const targetKode = String(kode_unik_full || kode_unik || '').trim();
+        const tahunInt = parseInt(tahun, 10);
+        if (!targetKode || !tahunInt) {
+            return res.status(400).json({ success: false, error: 'Parameter kode_unik dan tahun wajib diisi' });
+        }
+
+        const murni = await getRabFromDb(targetKode, tahunInt, RAB_TIPE_MURNI);
+        if (!murni) {
+            return res.status(404).json({ success: false, error: 'Data RAB Murni tidak ditemukan untuk rekonsiliasi' });
+        }
+
+        let perub = await getRabFromDb(targetKode, tahunInt, RAB_TIPE_PERUBAHAN);
+        const murniItems = parseRabItemsSafely(murni.items);
+
+        if (!perub) {
+            // Jika baris Perubahan belum ada, buat dari draf Murni
+            const newItems = murniItems.map((m, mIdx) => ({
+                ...m,
+                urutan_murni: mIdx,
+                id_referensi_murni: murni.id,
+                item_baru: false,
+                item_dihapus: false
+            }));
+            const totalPer = newItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+            perub = {
+                ...murni,
+                id: undefined,
+                tipe_anggaran: RAB_TIPE_PERUBAHAN,
+                id_referensi_murni: murni.id,
+                items: sortRabItems(newItems),
+                jumlah_anggaran: totalPer,
+                total_biaya: totalPer,
+                total_rab: totalPer,
+                status: 'perubahan',
+                saved_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+        } else {
+            // Baris Perubahan sudah ada, rekonsiliasi item yang hilang
+            const perItems = parseRabItemsSafely(perub.items);
+            const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+            const normSubgroup = (v) => norm(v).replace(/perlengkapan\s+/g, '');
+
+            murniItems.forEach((m, mIdx) => {
+                const mKey = norm(m.uraian) + '||' + normSubgroup(m.subgroup);
+                const found = perItems.some((p) => {
+                    if (p.urutan_murni === mIdx) return true;
+                    const pKey = norm(p.uraian) + '||' + normSubgroup(p.subgroup);
+                    const pKeyMurni = norm(p.uraian_murni) + '||' + normSubgroup(p.subgroup);
+                    return pKey === mKey || pKeyMurni === mKey;
+                });
+                if (!found) {
+                    perItems.push({
+                        group: (m.group || m.group_belanja || m.group_nama || '').trim(),
+                        subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
+                        uraian: (m.uraian || '').trim(),
+                        volume: Number(m.volume || 1),
+                        satuan: String(m.satuan || 'Paket').trim(),
+                        harga: Number(m.harga || m.harga_satuan || 0),
+                        jumlah: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
+                        sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
+                        keterangan: String(m.keterangan || '').trim(),
+                        urutan_murni: mIdx,
+                        uraian_murni: (m.uraian || '').trim(),
+                        volume_murni: Number(m.volume || 1),
+                        satuan_murni: String(m.satuan || '').trim(),
+                        harga_murni: Number(m.harga || m.harga_satuan || 0),
+                        jumlah_murni: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
+                        id_referensi_murni: murni.id,
+                        item_baru: false,
+                        item_dihapus: false,
+                        urutan_manual: m.urutan_manual || (mIdx + 1),
+                        urutan: mIdx + 1,
+                        no: mIdx + 1
+                    });
+                }
+            });
+
+            perub.items = sortRabItems(perItems);
+            const totalPer = perub.items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+            perub.jumlah_anggaran = totalPer;
+            perub.total_biaya = totalPer;
+            perub.total_rab = totalPer;
+            perub.id_referensi_murni = murni.id;
+            perub.updated_at = new Date().toISOString();
+        }
+
+        const saved = await saveRabToDb(perub);
+        console.log(`[RECONCILE POST] Berhasil rekonsiliasi dan simpan DB untuk RAB Perubahan ${targetKode}`);
+        return res.json({ success: true, message: 'Rekonsiliasi RAB Perubahan berhasil disimpan ke database', data: saved });
+    } catch (error) {
+        console.log('❌ Error /api/rab/reconcile POST:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });

@@ -160,7 +160,7 @@ async function main() {
         matchedPItems.push({
           ...targetP,
           id_referensi_murni: targetP.id_referensi_murni || mItem.id || null,
-          urutan_murni: mIdx + 1,
+          urutan_murni: mIdx,
           kode_rekening: targetP.kode_rekening || mItem.kode_rekening || (mRekening ? mRekening + '.' : undefined)
         });
       } else {
@@ -168,7 +168,7 @@ async function main() {
         matchedPItems.push({
           ...mItem,
           id_referensi_murni: mItem.id || null,
-          urutan_murni: mIdx + 1,
+          urutan_murni: mIdx,
           kode_rekening: mItem.kode_rekening || (mRekening ? mRekening + '.' : undefined)
         });
       }
