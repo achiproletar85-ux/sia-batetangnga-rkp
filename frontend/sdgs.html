@@ -3,79 +3,219 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Matriks SDGs Desa</title>
+    <title>Daftar Usulan SDGs Desa - SIA Batetangnga</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-@media print {
-    /* Sembunyikan elemen kontrol dan kolom aksi mutlak */
-    .no-print, .kolom-aksi, header, sidebar, nav, button, #kontrol-dokumen-container {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-        visibility: hidden !important;
-    }
-    
-    body {
-        background: white !important;
-        font-family: 'Times New Roman', Times, serif !important;
-        color: black !important;
-    }
+        @page {
+            size: A4 landscape;
+            margin: 8mm 6mm 8mm 6mm;
+        }
 
-    #livePreviewContainer, #sdgsContainer {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-        border: none !important;
-    }
+        @media print {
+            /* Sembunyikan elemen kontrol, banner, tombol, dan kolom aksi mutlak */
+            .no-print,
+            .kolom-aksi,
+            header,
+            sidebar,
+            nav,
+            button,
+            #navbar-container,
+            #title-banner,
+            #kontrol-dokumen-container,
+            #modalTarikData {
+                display: none !important;
+                width: 0 !important;
+                height: 0 !important;
+                visibility: hidden !important;
+            }
+            
+            body {
+                background: white !important;
+                font-family: 'Times New Roman', Times, serif !important;
+                color: black !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                font-size: 8.5pt !important;
+            }
 
-    table {
-        width: 100% !important;
-        border-collapse: collapse !important;
-        font-size: 9pt !important;
-    }
+            .container-main {
+                max-width: 100% !important;
+                width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
 
-    th, td {
-        border: 1px solid black !important;
-        padding: 4px 6px !important;
-    }
+            #sdgsContainer {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                background: transparent !important;
+            }
 
-    @page {
-        size: A4 landscape;
-        margin: 10mm;
-    }
-}
-</style>
+            .table-wrapper {
+                overflow: visible !important;
+                width: 100% !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+
+            table {
+                width: 100% !important;
+                min-width: 100% !important;
+                border-collapse: collapse !important;
+                font-size: 8pt !important;
+                table-layout: auto !important;
+                page-break-inside: auto !important;
+            }
+
+            thead {
+                display: table-header-group !important;
+            }
+
+            tbody {
+                display: table-row-group !important;
+            }
+
+            tr {
+                page-break-inside: avoid !important;
+                background: transparent !important;
+            }
+
+            th {
+                border: 1px solid #000 !important;
+                background: #f1f5f9 !important;
+                color: #000 !important;
+                padding: 4px 3px !important;
+                font-weight: bold !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            td {
+                border: 1px solid #000 !important;
+                color: #000 !important;
+                padding: 3px 4px !important;
+                background: transparent !important;
+            }
+
+            .print-signature {
+                page-break-inside: avoid !important;
+                display: flex !important;
+                justify-content: space-between !important;
+                margin-top: 20px !important;
+                padding: 0 10px !important;
+            }
+        }
+    </style>
 </head>
-<body class="bg-slate-100">
-    <div id="navbar-container"></div>
-    <div class="container mx-auto p-4">
-        <div class="bg-white p-4 rounded-lg shadow-md mb-4">
-            <div class="flex justify-between items-center mb-2">
-                <h1 class="text-xl font-bold">Kontrol Dokumen</h1>
-                <div class="flex items-center gap-2">
-                    <button onclick="bukaModalTarikData()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-sm no-print">📥 Tarik Program Urgen</button>
-                    <button id="print-btn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                        Cetak
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
+    <!-- NAVBAR COMPONENT CONTAINER -->
+    <div id="navbar-container" class="no-print"></div>
+
+    <!-- MAIN PAGE WRAPPER -->
+    <div class="container-main max-w-7xl mx-auto p-4 md:p-6">
+
+        <!-- 1. MODERN TITLE BANNER -->
+        <div id="title-banner" class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl shadow-md border border-slate-800 p-6 mb-6 text-white no-print relative overflow-hidden">
+            <!-- Decorative ambient glow -->
+            <div class="absolute -right-8 -bottom-8 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="absolute right-36 top-0 w-32 h-32 bg-amber-500/10 rounded-full blur-xl pointer-events-none"></div>
+            
+            <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 flex-shrink-0 text-xl">
+                        <i class="fas fa-bullseye"></i>
+                    </div>
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+                                <i class="fas fa-landmark text-[10px]"></i> Desa Batetangnga
+                            </span>
+                            <span id="badge-tahun-banner" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                                <i class="fas fa-calendar-check text-[10px]"></i> Tahun Anggaran: <strong id="banner-tahun-text" class="ml-1">2027</strong>
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                                <i class="fas fa-globe-asia text-[10px]"></i> 18 Tujuan SDGs Desa
+                            </span>
+                        </div>
+                        <h1 class="text-xl md:text-2xl font-black tracking-tight text-white uppercase">
+                            Daftar Usulan Masyarakat Dipilah Berdasarkan Tujuan SDGs Desa
+                        </h1>
+                        <p class="text-xs text-slate-300 mt-1 flex items-center gap-2">
+                            <span>Penyelarasan Aspirasi & Prioritas Kegiatan Pembangunan Desa Berkelanjutan</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Quick Stats Indicator -->
+                <div class="flex items-center gap-3 self-start md:self-center">
+                    <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl px-4 py-2.5 flex items-center gap-3 shadow-inner">
+                        <div class="text-right">
+                            <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Usulan</div>
+                            <div id="stat-total-usulan" class="text-lg font-black text-amber-400 leading-none mt-1">0</div>
+                        </div>
+                        <div class="h-8 w-px bg-slate-700"></div>
+                        <div class="text-right">
+                            <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Fokus SDGs</div>
+                            <div id="stat-total-fokus" class="text-lg font-black text-emerald-400 leading-none mt-1">0 / 18</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. PANEL KONTROL DOKUMEN & FILTER -->
+        <div id="kontrol-dokumen-container" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6 no-print">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 mb-5">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold">
+                        <i class="fas fa-sliders"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-base font-bold text-slate-800">Kontrol Dokumen & Parameter Cetak</h2>
+                        <p class="text-xs text-slate-500">Sesuaikan tanggal cetak, tim penyusun, dan tahun anggaran sasaran</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2.5">
+                    <button onclick="bukaModalTarikData()" class="bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer">
+                        <i class="fas fa-download"></i>
+                        <span>Tarik Program Urgen</span>
+                    </button>
+                    <button id="print-btn" class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer">
+                        <i class="fas fa-print"></i>
+                        <span>Cetak Dokumen / PDF</span>
                     </button>
                 </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
-                    <label for="tgl-cetak" class="block text-sm font-medium text-slate-700">Tanggal Cetak:</label>
-                    <input type="date" id="tgl-cetak" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    <label for="tgl-cetak" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center gap-1.5">
+                        <i class="far fa-calendar-alt text-slate-400"></i> Tanggal Cetak:
+                    </label>
+                    <input type="date" id="tgl-cetak" class="block w-full rounded-lg border-slate-300 bg-slate-50/50 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-3 py-2 border transition">
                 </div>
                 <div>
-                    <label for="tim-penyusun" class="block text-sm font-medium text-slate-700">Ketua Tim Penyusun:</label>
-                    <select id="tim-penyusun" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                        <option>ABDUL AZIS, S. Pd</option>
-                        <option>NAMA LAIN 1</option>
-                        <option>NAMA LAIN 2</option>
+                    <label for="tim-penyusun" class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center gap-1.5">
+                        <i class="fas fa-user-tie text-slate-400"></i> Ketua Tim Penyusun:
+                    </label>
+                    <select id="tim-penyusun" class="block w-full rounded-lg border-slate-300 bg-slate-50/50 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-3 py-2 border font-medium text-slate-800 transition">
+                        <option value="ABDUL AZIS, S. Pd">ABDUL AZIS, S. Pd</option>
+                        <option value="SYARIFUDDIN">SYARIFUDDIN (Sekdes)</option>
+                        <option value="MISBAHUDDIN">MISBAHUDDIN (Kaur Perencanaan)</option>
+                        <option value="WARMAN">WARMAN (Kaur Keuangan)</option>
                     </select>
                 </div>
                 <div>
-                    <label for="tahun-select" class="block text-sm font-medium text-slate-700">Tahun Target:</label>
-                    <select id="tahun-select" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    <label for="tahun-select" class="block text-xs font-bold uppercase tracking-wider text-indigo-700 mb-1.5 flex items-center gap-1.5">
+                        <i class="fas fa-calendar-days text-indigo-500"></i> Tahun Target Perencanaan:
+                    </label>
+                    <select id="tahun-select" class="block w-full rounded-lg border-indigo-300 bg-indigo-50/60 shadow-sm focus:border-indigo-600 focus:ring-indigo-600 text-sm px-3 py-2 border font-bold text-indigo-900 transition">
                         <option value="2022">2022</option>
                         <option value="2023">2023</option>
                         <option value="2024">2024</option>
@@ -90,75 +230,93 @@
             </div>
         </div>
 
+        <!-- 3. CONTAINER TABEL UTAMA SDGs -->
         <div id="sdgsContainer" class="overflow-x-auto">
-            <!-- Konten tabel dinamis akan dimuat di sini -->
-            <div class="text-center py-10">
-                <p class="text-slate-500">Memuat data...</p>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+                <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 mb-3 animate-pulse">
+                    <i class="fas fa-spinner fa-spin text-xl"></i>
+                </div>
+                <p class="text-sm font-semibold text-slate-700">Memuat data usulan SDGs Desa...</p>
+                <p class="text-xs text-slate-400 mt-1">Mengambil rincian usulan kegiatan dari basis data</p>
             </div>
         </div>
     </div>
 
-    <script src="sdgs.js?v=20260806-2"></script>
-
-    <div id="modalTarikData" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 font-sans no-print">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 text-slate-800 border border-slate-200">
-        <div class="flex justify-between items-center mb-4 border-b pb-3">
-            <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
-                📥 Tarik Program Urgen dari Tahun Lain
-            </h3>
-            <button onclick="tutupModalTarikData()" class="text-slate-400 hover:text-slate-600 font-bold text-xl">&times;</button>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4 mb-4 text-xs">
-            <div>
-                <label class="block font-bold text-slate-700 mb-1">Pilih Tahun Asal Program:</label>
-                <select id="select-tahun-asal" onchange="loadUsulanTahunAsal()" class="w-full border rounded px-2.5 py-1.5 font-bold text-indigo-700">
-                    <option value="2022">2022</option>
-                    <option value="2023">2023</option>
-                    <option value="2024">2024</option>
-                    <option value="2025">2025</option>
-                    <option value="2026">2026</option>
-                    <option value="2027">2027</option>
-                    <option value="2028">Tahun 2028</option>
-                    <option value="2029">Tahun 2029</option>
-                    <option value="2030">Tahun 2030</option>
-                </select>
+    <!-- MODAL: TARIK PROGRAM URGEN DARI TAHUN LAIN -->
+    <div id="modalTarikData" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 font-sans no-print">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 text-slate-800 border border-slate-200">
+            <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                        <i class="fas fa-download"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base text-slate-900">Tarik Program Urgen dari Tahun Lain</h3>
+                        <p class="text-[11px] text-slate-500">Salin atau geser usulan prioritas antar tahun perencanaan</p>
+                    </div>
+                </div>
+                <button onclick="tutupModalTarikData()" class="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center font-bold text-xl transition">&times;</button>
             </div>
-            <div>
-                <label class="block font-bold text-slate-700 mb-1">Mode Pergeseran Data:</label>
-                <div class="flex items-center gap-4 mt-2">
-                    <label class="flex items-center gap-1 cursor-pointer font-semibold">
-                        <input type="radio" name="modePergeseran" value="salin" checked class="text-indigo-600">
-                        <span>📋 Salin (Duplikasi)</span>
-                    </label>
-                    <label class="flex items-center gap-1 cursor-pointer font-semibold text-amber-700">
-                        <input type="radio" name="modePergeseran" value="pindah" class="text-amber-600">
-                        <span>🚚 Pindah Tahun</span>
-                    </label>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1.5">Pilih Tahun Asal Program:</label>
+                    <select id="select-tahun-asal" onchange="loadUsulanTahunAsal()" class="w-full border border-slate-300 rounded-lg px-3 py-2 font-bold text-indigo-700 bg-slate-50 focus:bg-white focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="2022">Tahun 2022</option>
+                        <option value="2023">Tahun 2023</option>
+                        <option value="2024">Tahun 2024</option>
+                        <option value="2025">Tahun 2025</option>
+                        <option value="2026">Tahun 2026</option>
+                        <option value="2027">Tahun 2027</option>
+                        <option value="2028" selected>Tahun 2028</option>
+                        <option value="2029">Tahun 2029</option>
+                        <option value="2030">Tahun 2030</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1.5">Mode Pergeseran Data:</label>
+                    <div class="flex items-center gap-4 mt-2">
+                        <label class="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
+                            <input type="radio" name="modePergeseran" value="salin" checked class="text-indigo-600 focus:ring-indigo-500">
+                            <span>📋 Salin (Duplikasi)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer font-semibold text-amber-700">
+                            <input type="radio" name="modePergeseran" value="pindah" class="text-amber-600 focus:ring-amber-500">
+                            <span>🚚 Pindah Tahun</span>
+                        </label>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="mb-2 flex justify-between items-center text-xs">
-            <span class="font-bold text-slate-700">Pilih Kegiatan yang Ingin Ditarik:</span>
-            <span class="text-slate-500 italic text-[11px]">*Ceklis program yang urgen</span>
-        </div>
+            <div class="mb-2 flex justify-between items-center text-xs">
+                <span class="font-bold text-slate-700">Pilih Kegiatan yang Ingin Ditarik:</span>
+                <span class="text-slate-500 italic text-[11px]">*Ceklis program yang urgen</span>
+            </div>
 
-        <div id="container-daftar-asal" class="max-h-64 overflow-y-auto border rounded-lg p-2 mb-4 text-xs space-y-2 bg-slate-50">
-            <!-- Daftar kegiatan di-load otomatis via JS -->
-        </div>
+            <div id="container-daftar-asal" class="max-h-64 overflow-y-auto border border-slate-200 rounded-xl p-3 mb-4 text-xs space-y-2 bg-slate-50/70">
+                <!-- Daftar kegiatan di-load otomatis via JS -->
+            </div>
 
-        <div class="flex justify-end gap-2 pt-3 border-t">
-            <button onclick="tutupModalTarikData()" class="px-4 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-300">Batal</button>
-            <button onclick="eksekusiTarikData()" class="px-4 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 shadow-sm">📥 Tarik ke Tahun Aktif</button>
+            <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button onclick="tutupModalTarikData()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition cursor-pointer">Batal</button>
+                <button onclick="eksekusiTarikData()" class="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fas fa-arrow-down"></i>
+                    <span>Tarik ke Tahun Sasaran</span>
+                </button>
+            </div>
         </div>
     </div>
-</div>
+
+    <!-- MAIN JAVASCRIPT CONTROLLER -->
+    <script src="sdgs.js?v=20260918-1"></script>
+
+    <!-- LOAD NAVBAR -->
     <script>
         fetch('/components/navbar.html')
             .then(res => res.text())
             .then(data => {
-                document.getElementById('navbar-container').innerHTML = data;
+                const navContainer = document.getElementById('navbar-container');
+                if (navContainer) navContainer.innerHTML = data;
             })
             .catch(err => console.error('Navbar error:', err));
     </script>

@@ -1,4 +1,4 @@
-﻿// ==========================================
+// ==========================================
 // FILE: frontend/sdgs.js
 // TAB: SDGs DESA (INDIKATOR/FOKUS SDGs — MENARIK DARI rancangan_rkpdes)
 // ==========================================
@@ -43,9 +43,13 @@ function updateFooterSDGs() {
 }
 
 async function loadSDGsData() {
-    try {
-        const activeYear = document.getElementById('tahun-select')?.value || 2027;
+    const activeYear = document.getElementById('tahun-select')?.value || 2027;
 
+    // Sinkronkan badge tahun di banner atas
+    const bannerTahun = document.getElementById('banner-tahun-text');
+    if (bannerTahun) bannerTahun.textContent = activeYear;
+
+    try {
         // Fetch data via endpoint Express lokal (sumber: rancangan_rkpdes)
         const res = await fetch(`/api/sdgs-rancangan?tahun=${activeYear}`);
         if (!res.ok) {
@@ -62,27 +66,55 @@ async function loadSDGsData() {
             rawData = result.data;
         }
 
-        const htmlTabel = renderTabelSDGs(rawData);
-        injectSDGsToDOM(htmlTabel);
+        // Perbarui ringkasan statistik pada banner atas
+        const totalUsulan = rawData.length;
+        const fokusSet = new Set();
+        rawData.forEach(r => {
+            if (r.sdgs_ke) fokusSet.add(parseInt(r.sdgs_ke));
+        });
+        const totalFokus = fokusSet.size;
+
+        const statUsulanEl = document.getElementById('stat-total-usulan');
+        if (statUsulanEl) statUsulanEl.textContent = totalUsulan;
+        const statFokusEl = document.getElementById('stat-total-fokus');
+        if (statFokusEl) statFokusEl.textContent = `${totalFokus} / 18`;
+
+        const htmlTabel = renderTabelSDGs(rawData, activeYear);
+        injectSDGsToDOM(htmlTabel, activeYear);
     } catch (err) {
         console.error("❌ Error loading usulan_sdgs:", err);
         const container = document.getElementById('livePreviewContainer') 
                        || document.getElementById('sdgsContainer');
         if (container) {
             container.innerHTML = `
-                <div class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg text-center my-6 text-xs font-sans">
-                    <p class="font-bold text-sm mb-1">⚠️ Gagal Memuat Data SDGs</p>
-                    <p class="mb-1">Pesan Error: <code class="bg-amber-100 px-1 py-0.5 rounded">${err.message}</code></p>
-                    <p>Pastikan server Express berjalan di <code>http://localhost:5500</code>.</p>
+                <div class="bg-amber-50 border border-amber-200 text-amber-800 p-6 rounded-xl text-center my-6 text-xs font-sans shadow-sm">
+                    <div class="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-2 text-base">
+                        <i class="fas fa-triangle-exclamation"></i>
+                    </div>
+                    <p class="font-bold text-sm mb-1 text-amber-900">Gagal Memuat Data SDGs</p>
+                    <p class="mb-2 text-slate-600">Pesan Error: <code class="bg-amber-100 px-1.5 py-0.5 rounded text-amber-900 font-mono">${err.message}</code></p>
+                    <p class="text-[11px] text-slate-500">Pastikan server backend SIA Batetangnga aktif di port yang sesuai.</p>
                 </div>
             `;
         }
     }
 }
 
-function renderTabelSDGs(rawData) {
+function renderTabelSDGs(rawData, activeYear) {
     if (!Array.isArray(rawData) || rawData.length === 0) {
-        return `<tr><td colspan="11" class="text-center py-4 italic text-slate-500">Tidak ada data usulan SDGs untuk tahun ini.</td></tr>`;
+        return `
+            <tr>
+                <td colspan="11" class="text-center py-12 bg-slate-50 text-slate-500 border border-slate-300 print:border-black">
+                    <div class="flex flex-col items-center justify-center gap-2">
+                        <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xl no-print">
+                            <i class="fas fa-inbox"></i>
+                        </div>
+                        <p class="font-bold text-sm text-slate-700">Tidak ada data usulan SDGs untuk tahun ${activeYear || ''}.</p>
+                        <p class="text-xs text-slate-400 max-w-md no-print">Klik tombol "Tarik Program Urgen" di bagian atas untuk mengimpor atau memindahkan usulan prioritas dari perencanaan tahun lain.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
     }
 
     // 1. Grouping Data berdasarkan sdgs_ke (1 - 18)
@@ -107,19 +139,26 @@ function renderTabelSDGs(rawData) {
             const isChecked = item.is_checked || false;
 
             html += `
-                <tr class="border border-slate-400 hover:bg-slate-50 ${isChecked ? 'bg-green-50' : ''}">
-                    ${isFirst ? `<td rowspan="${rowSpan}" class="border border-slate-400 text-center font-bold align-top py-2 bg-slate-50 text-slate-900">${sdgsKey}</td>` : ''}
-                    <td class="border border-slate-400 text-center py-1.5">${noUrut}</td>
-                    <td class="border border-slate-400 px-2 text-left font-medium text-slate-800">${esc(item.uraian_kegiatan) || '-'}</td>
-                    <td class="border border-slate-400 px-2 text-left">${esc(item.pengusul) || '-'}</td>
-                    <td class="border border-slate-400 px-2 text-left">${esc(item.lokasi_kegiatan) || 'Desa Batetangnga'}</td>
-                    <td class="border border-slate-400 text-center px-1">${esc(item.prakiraan_volume) || '-'}</td>
-                    <td class="border border-slate-400 text-center px-1">${item.penerima_l ?? 0}</td>
-                    <td class="border border-slate-400 text-center px-1">${item.penerima_p ?? 0}</td>
-                    <td class="border border-slate-400 text-center px-1">${item.penerima_rtm ?? 0}</td>
-                    <td class="border border-slate-400 px-2 text-left text-xs">${esc(item.keterangan) || esc(item.uraian_kegiatan) || '-'}</td>
-                    <td class="border border-slate-400 text-center px-1 py-1 kolom-aksi whitespace-nowrap">
-                        <button onclick="deleteUsulan('${item.id}')" title="Hapus" class="text-red-500 hover:text-red-700 mx-0.5">🗑️</button>
+                <tr class="border-b border-slate-200 hover:bg-indigo-50/40 transition-colors duration-150 ${isChecked ? 'bg-emerald-50/60' : (index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')} print:border-black print:bg-transparent">
+                    ${isFirst ? `
+                    <td rowspan="${rowSpan}" class="border border-slate-300 text-center font-bold align-middle py-3 px-2 bg-slate-50/90 text-slate-800 print:border-black print:bg-transparent print:p-1">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-extrabold border border-indigo-200 shadow-xs print:border-none print:bg-transparent print:text-black print:w-auto print:h-auto print:text-[8.5pt]">
+                            ${sdgsKey}
+                        </span>
+                    </td>` : ''}
+                    <td class="border border-slate-300 text-center py-2 px-1 text-slate-600 font-medium print:border-black print:text-black print:py-1">${noUrut}</td>
+                    <td class="border border-slate-300 px-3 py-2 text-left font-medium text-slate-900 leading-snug print:border-black print:text-black print:py-1">${esc(item.uraian_kegiatan) || '-'}</td>
+                    <td class="border border-slate-300 px-3 py-2 text-left text-slate-700 print:border-black print:text-black print:py-1">${esc(item.pengusul) || '-'}</td>
+                    <td class="border border-slate-300 px-3 py-2 text-left text-slate-700 print:border-black print:text-black print:py-1">${esc(item.lokasi_kegiatan) || 'Desa Batetangnga'}</td>
+                    <td class="border border-slate-300 text-center px-2 py-2 text-slate-700 font-medium print:border-black print:text-black print:py-1">${esc(item.prakiraan_volume) || '-'}</td>
+                    <td class="border border-slate-300 text-center px-2 py-2 text-slate-800 font-mono text-xs print:border-black print:text-black print:py-1">${item.penerima_l ?? 0}</td>
+                    <td class="border border-slate-300 text-center px-2 py-2 text-slate-800 font-mono text-xs print:border-black print:text-black print:py-1">${item.penerima_p ?? 0}</td>
+                    <td class="border border-slate-300 text-center px-2 py-2 text-slate-800 font-mono text-xs print:border-black print:text-black print:py-1">${item.penerima_rtm ?? 0}</td>
+                    <td class="border border-slate-300 px-3 py-2 text-left text-xs text-slate-600 print:border-black print:text-black print:py-1">${esc(item.keterangan) || esc(item.uraian_kegiatan) || '-'}</td>
+                    <td class="border border-slate-300 text-center px-1.5 py-2 kolom-aksi no-print whitespace-nowrap">
+                        <button onclick="deleteUsulan('${item.id}')" title="Hapus Usulan" class="p-1.5 text-rose-500 hover:text-white hover:bg-rose-600 rounded-md transition shadow-xs cursor-pointer">
+                            <i class="fas fa-trash-alt text-xs"></i>
+                        </button>
                     </td>
                 </tr>
             `;
@@ -129,87 +168,88 @@ function renderTabelSDGs(rawData) {
     return html;
 }
 
-function injectSDGsToDOM(htmlHasil) {
+function injectSDGsToDOM(htmlHasil, activeYear) {
     const container = document.getElementById('sdgsContainer');
     if (!container) return;
 
+    const displayYear = activeYear || document.getElementById('tahun-select')?.value || 2027;
+
     container.innerHTML = `
-        <style>
-            @media print {
-                body * { visibility: hidden; }
-                #sdgsContainer, #sdgsContainer * { visibility: visible; }
-                #sdgsContainer { position: absolute; left: 0; top: 0; width: 100%; }
-                .no-print { display: none; }
-            }
-        </style>
-        <div class="w-full bg-white p-6 shadow-sm border rounded-lg font-serif text-slate-900">
+        <div class="w-full bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 text-slate-900 font-sans print:border-none print:shadow-none print:p-0 print:m-0">
             <!-- HEADER JUDUL KOP -->
-            <div class="text-center font-bold text-base mb-6 tracking-wide uppercase">
-                DAFTAR USULAN MASYARAKAT DIPILAH BERDASARKAN TUJUAN SDGs DESA
+            <div class="text-center mb-6">
+                <div class="font-black text-base md:text-lg tracking-wide uppercase text-slate-900 print:text-black">
+                    DAFTAR USULAN MASYARAKAT DIPILAH BERDASARKAN TUJUAN SDGs DESA
+                </div>
+                <div class="text-xs md:text-sm font-bold text-indigo-700 mt-1 uppercase print:text-black">
+                    TAHUN ANGGARAN ${displayYear}
+                </div>
             </div>
 
             <!-- IDENTITAS DESA -->
-            <div class="mb-6 text-xs font-bold leading-relaxed space-y-1">
-                <div class="flex"><span class="w-28">DESA</span><span>: BATETANGNGA</span></div>
-                <div class="flex"><span class="w-28">KECAMATAN</span><span>: BINUANG</span></div>
-                <div class="flex"><span class="w-28">KABUPATEN</span><span>: POLEWALI MANDAR</span></div>
-                <div class="flex"><span class="w-28">PROVINSI</span><span>: SULAWESI BARAT</span></div>
+            <div class="mb-5 text-xs font-bold leading-relaxed">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200 text-slate-700 print:bg-transparent print:border-none print:p-0 print:text-black">
+                    <div class="flex items-center gap-1.5"><span class="text-slate-400 print:text-black">DESA:</span> <span class="text-slate-900 font-bold print:text-black">BATETANGNGA</span></div>
+                    <div class="flex items-center gap-1.5"><span class="text-slate-400 print:text-black">KECAMATAN:</span> <span class="text-slate-900 font-bold print:text-black">BINUANG</span></div>
+                    <div class="flex items-center gap-1.5"><span class="text-slate-400 print:text-black">KABUPATEN:</span> <span class="text-slate-900 font-bold print:text-black">POLEWALI MANDAR</span></div>
+                    <div class="flex items-center gap-1.5"><span class="text-slate-400 print:text-black">PROVINSI:</span> <span class="text-slate-900 font-bold print:text-black">SULAWESI BARAT</span></div>
+                </div>
             </div>
 
             <!-- TABEL MATRIKS USULAN SDGs -->
-            <div class="overflow-x-auto mb-8">
-                <table class="min-w-full border-collapse border border-slate-400 text-xs text-slate-800">
+            <div class="table-wrapper overflow-x-auto mb-8 rounded-lg border border-slate-300 print:border-none print:overflow-visible">
+                <table class="min-w-full border-collapse border border-slate-300 text-xs text-slate-800 print:border-black print:text-[8pt]">
                     <thead>
-                        <tr class="bg-slate-100 font-bold text-center border border-slate-400">
-                            <th rowspan="2" class="border border-slate-400 px-2 py-2 w-12">SDGs ke-</th>
-                            <th rowspan="2" class="border border-slate-400 px-2 py-2 w-10">No.</th>
-                            <th rowspan="2" class="border border-slate-400 px-2 py-2 w-64">Usulan Kegiatan</th>
-                            <th rowspan="2" class="border border-slate-400 px-2 py-2 w-32">Pengusul</th>
-                            <th rowspan="2" class="border border-slate-400 px-2 py-2 w-36">Lokasi Kegiatan</th>
-                            <th rowspan="2" class="border border-slate-400 px-2 py-2 w-28">Prakiraan Volume dan Satuan</th>
-                            <th colspan="3" class="border border-slate-400 px-2 py-1">Penerima Manfaat</th>
-                            <th rowspan="2" class="border border-slate-400 px-2 py-2 w-28">KET.</th>
-                            <th rowspan="2" class="border border-slate-400 px-2 py-2 w-20 no-print">Aksi</th>
+                        <tr class="bg-slate-800 text-white font-bold text-center border border-slate-700 print:bg-slate-100 print:text-black print:border-black">
+                            <th rowspan="2" class="border border-slate-700 px-3 py-3 w-14 text-center font-bold text-slate-100 uppercase tracking-wider text-[11px] print:border-black print:text-black print:py-1">SDGs ke-</th>
+                            <th rowspan="2" class="border border-slate-700 px-2 py-3 w-12 text-center font-bold text-slate-100 uppercase tracking-wider text-[11px] print:border-black print:text-black print:py-1">No.</th>
+                            <th rowspan="2" class="border border-slate-700 px-4 py-3 min-w-[240px] text-left font-bold text-slate-100 uppercase tracking-wider text-[11px] print:border-black print:text-black print:py-1">Usulan Kegiatan</th>
+                            <th rowspan="2" class="border border-slate-700 px-3 py-3 min-w-[130px] text-left font-bold text-slate-100 uppercase tracking-wider text-[11px] print:border-black print:text-black print:py-1">Pengusul</th>
+                            <th rowspan="2" class="border border-slate-700 px-3 py-3 min-w-[140px] text-left font-bold text-slate-100 uppercase tracking-wider text-[11px] print:border-black print:text-black print:py-1">Lokasi Kegiatan</th>
+                            <th rowspan="2" class="border border-slate-700 px-3 py-3 min-w-[130px] text-center font-bold text-slate-100 uppercase tracking-wider text-[11px] print:border-black print:text-black print:py-1">Prakiraan Volume & Satuan</th>
+                            <th colspan="3" class="border border-slate-700 px-2 py-1.5 text-center font-bold text-slate-100 uppercase tracking-wider text-[11px] print:border-black print:text-black print:py-1">Penerima Manfaat</th>
+                            <th rowspan="2" class="border border-slate-700 px-3 py-3 min-w-[140px] text-left font-bold text-slate-100 uppercase tracking-wider text-[11px] print:border-black print:text-black print:py-1">Keterangan</th>
+                            <th rowspan="2" class="border border-slate-700 px-2 py-3 w-16 text-center font-bold text-slate-100 uppercase tracking-wider text-[11px] no-print">Aksi</th>
                         </tr>
-                        <tr class="bg-slate-50 text-[11px] text-center border border-slate-400 font-bold">
-                            <th class="border border-slate-400 px-2 py-1 w-12">LK</th>
-                            <th class="border border-slate-400 px-2 py-1 w-12">PR</th>
-                            <th class="border border-slate-400 px-2 py-1 w-12">RTM</th>
+                        <tr class="bg-slate-700 text-slate-200 text-[10px] text-center font-bold border border-slate-600 print:bg-slate-100 print:text-black print:border-black">
+                            <th class="border border-slate-600 px-2 py-1 w-12 print:border-black">LK</th>
+                            <th class="border border-slate-600 px-2 py-1 w-12 print:border-black">PR</th>
+                            <th class="border border-slate-600 px-2 py-1 w-12 print:border-black">RTM</th>
                         </tr>
-                        <tr class="bg-slate-200 text-[10px] text-center italic border border-slate-400">
-                            <td class="border border-slate-400">a</td>
-                            <td class="border border-slate-400">b</td>
-                            <td class="border border-slate-400">c</td>
-                            <td class="border border-slate-400">d</td>
-                            <td class="border border-slate-400">e</td>
-                            <td class="border border-slate-400">f</td>
-                            <td class="border border-slate-400">g</td>
-                            <td class="border border-slate-400">h</td>
-                            <td class="border border-slate-400">i</td>
-                            <td class="border border-slate-400"></td>
-                            <td class="border border-slate-400 no-print"></td>
+                        <tr class="bg-slate-100 text-slate-600 text-[10px] text-center italic border border-slate-300 print:border-black print:text-black">
+                            <td class="border border-slate-300 py-0.5 print:border-black">a</td>
+                            <td class="border border-slate-300 py-0.5 print:border-black">b</td>
+                            <td class="border border-slate-300 py-0.5 print:border-black">c</td>
+                            <td class="border border-slate-300 py-0.5 print:border-black">d</td>
+                            <td class="border border-slate-300 py-0.5 print:border-black">e</td>
+                            <td class="border border-slate-300 py-0.5 print:border-black">f</td>
+                            <td class="border border-slate-300 py-0.5 print:border-black">g</td>
+                            <td class="border border-slate-300 py-0.5 print:border-black">h</td>
+                            <td class="border border-slate-300 py-0.5 print:border-black">i</td>
+                            <td class="border border-slate-300 py-0.5 print:border-black">j</td>
+                            <td class="border border-slate-300 py-0.5 no-print"></td>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="divide-y divide-slate-200 print:divide-black">
                         ${htmlHasil}
                     </tbody>
                 </table>
             </div>
 
             <!-- FOOTER TANDA TANGAN -->
-            <div class="flex justify-between items-start text-xs mt-6 px-4 font-sans">
+            <div class="print-signature flex justify-between items-start text-xs mt-8 px-6 font-sans">
                 <div class="text-center">
-                    <p class="mb-1 font-bold">Mengetahui,</p>
-                    <p class="font-bold">Kepala Desa Batetangnga</p>
+                    <p class="mb-1 font-bold text-slate-700 print:text-black">Mengetahui,</p>
+                    <p class="font-bold text-slate-900 print:text-black">Kepala Desa Batetangnga</p>
                     <div class="h-16"></div>
-                    <p class="font-bold underline uppercase">SUMAILA DAMANG</p>
+                    <p class="font-bold underline uppercase text-slate-900 print:text-black">SUMAILA DAMANG</p>
                 </div>
                 <div class="text-center">
-                    <p id="footer-sdgs-tgl" class="mb-1">Batetangnga, ....................</p>
-                    <p class="font-bold">Disusun oleh,</p>
-                    <p class="font-bold">Ketua Tim Penyusun RKPDesa</p>
+                    <p id="footer-sdgs-tgl" class="mb-1 text-slate-600 print:text-black">Batetangnga, ....................</p>
+                    <p class="font-bold text-slate-700 print:text-black">Disusun oleh,</p>
+                    <p class="font-bold text-slate-900 print:text-black">Ketua Tim Penyusun RKPDesa</p>
                     <div class="h-16"></div>
-                    <p id="footer-sdgs-tim" class="font-bold underline uppercase">( ABDUL AZIS, S. Pd )</p>
+                    <p id="footer-sdgs-tim" class="font-bold underline uppercase text-slate-900 print:text-black">( ABDUL AZIS, S. Pd )</p>
                 </div>
             </div>
         </div>
@@ -218,6 +258,22 @@ function injectSDGsToDOM(htmlHasil) {
     updateFooterSDGs();
 }
 
+// Handler penghapusan usulan SDGs
+window.deleteUsulan = async function(id) {
+    if (!confirm('Apakah Anda yakin ingin menghapus usulan SDGs ini?')) return;
+    try {
+        const res = await fetch(`/api/sdgs-rancangan/${id}`, { method: 'DELETE' });
+        const j = await res.json();
+        if (j.success) {
+            loadSDGsData();
+        } else {
+            alert('Gagal menghapus data: ' + (j.message || 'Error server'));
+        }
+    } catch (err) {
+        console.error("Error deleting usulan:", err);
+        alert('Terjadi kesalahan jaringan saat menghapus usulan.');
+    }
+};
 
 // Ensure modal functions are accessible globally in DOM
 window.bukaModalTarikData = function() {
