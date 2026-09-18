@@ -15,6 +15,12 @@
             margin: 8mm 6mm 8mm 6mm;
         }
 
+        /* Sembunyikan elemen kop cetak & tanda tangan saat di layar browser */
+        .print-header,
+        .print-signature {
+            display: none;
+        }
+
         @media print {
             body {
                 background: white !important;
@@ -24,32 +30,72 @@
                 color: black !important;
             }
 
-            .no-print {
+            /* Sembunyikan navbar, kontrol form, tombol, dan kolom aksi */
+            .no-print,
+            #navbar-placeholder,
+            header,
+            nav,
+            button,
+            .aksi-col {
                 display: none !important;
             }
 
-            .max-w-7xl {
-                max-width: 100% !important;
+            /* Tampilkan kop resmi & tanda tangan saat cetak */
+            .print-header {
+                display: block !important;
+                margin-bottom: 12px !important;
+                border-bottom: 2px solid #000 !important;
+                padding-bottom: 6px !important;
+            }
+
+            .print-signature {
+                display: flex !important;
+                justify-content: space-between !important;
+                margin-top: 24px !important;
+                page-break-inside: avoid !important;
+            }
+
+            /* Hilangkan scroll wrapper agar tabel tidak terpotong saat diprint */
+            .table-container,
+            .overflow-x-auto {
+                display: block !important;
+                overflow: visible !important;
                 width: 100% !important;
-                padding: 0 !important;
-                margin: 0 !important;
+                max-width: 100% !important;
                 border: none !important;
                 box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
             }
 
             table {
+                display: table !important;
                 width: 100% !important;
+                min-width: 100% !important;
                 border-collapse: collapse !important;
                 border: 1.5px solid #000 !important;
                 font-size: 9px !important;
                 table-layout: auto !important;
+                page-break-inside: auto;
+            }
+
+            thead {
+                display: table-header-group !important;
+            }
+
+            tbody {
+                display: table-row-group !important;
+            }
+
+            tr {
+                page-break-inside: avoid !important;
             }
 
             th {
                 border: 1px solid #000 !important;
                 background-color: #f1f5f9 !important;
                 color: #000 !important;
-                padding: 3px 2px !important;
+                padding: 4px 3px !important;
                 font-weight: bold !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
@@ -58,7 +104,7 @@
             td {
                 border: 1px solid #000 !important;
                 color: #000 !important;
-                padding: 3px 3px !important;
+                padding: 3px 4px !important;
                 word-wrap: break-word !important;
             }
 
@@ -73,10 +119,6 @@
                 color: black !important;
                 font-size: 9px !important;
             }
-
-            .overflow-x-auto table {
-                min-width: 100% !important;
-            }
         }
 
         .overflow-x-auto {
@@ -86,7 +128,7 @@
         }
 
         .overflow-x-auto table {
-            min-width: 1400px;
+            min-width: 1200px;
         }
 
         .overflow-x-auto th,
@@ -99,7 +141,7 @@
 <body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
 
     <!-- NAVIGATION BAR -->
-    <div id="navbar-placeholder"></div>
+    <div id="navbar-placeholder" class="no-print"></div>
 
     <!-- MAIN CONTAINER -->
     <div class="container-full">
@@ -145,8 +187,8 @@
                         <i class="fas fa-save"></i> Simpan ke Database
                     </button>
 
-                    <button onclick="printPDF()"
-                        class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow-sm flex items-center gap-1.5">
+                    <button id="btnCetakPdf" onclick="printPDF()"
+                        class="btn-cetak-pdf bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow-sm flex items-center gap-1.5 cursor-pointer">
                         <i class="fas fa-print"></i> Cetak PDF
                     </button>
                 </div>
@@ -163,11 +205,11 @@
         </div>
 
         <!-- PRINT HEADER (PRINT ONLY) -->
-        <div class="hidden print:block text-center mb-4">
-            <h1 class="text-sm font-bold uppercase tracking-wider">EVALUASI PELAKSANAAN RKP DESA</h1>
-            <h2 class="text-xs font-bold uppercase text-indigo-900 mt-1" id="print-header-subtitle">DESA BATETANGNGA
-                KECAMATAN BINUANG</h2>
-            <div class="grid grid-cols-4 text-[10px] font-bold mt-2 border-b border-black pb-1">
+        <div class="print-header text-center mb-4 border-b-2 border-black pb-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-black">PEMERINTAH KABUPATEN POLEWALI MANDAR</h3>
+            <h1 class="text-sm font-bold uppercase tracking-wider text-black mt-0.5">EVALUASI PELAKSANAAN RKP DESA TAHUN ANGGARAN <span id="print-header-year">2027</span></h1>
+            <h2 class="text-xs font-bold uppercase text-black mt-0.5" id="print-header-subtitle">DESA BATETANGNGA KECAMATAN BINUANG</h2>
+            <div class="grid grid-cols-4 text-[10px] font-bold mt-2 pt-1 border-t border-black text-black">
                 <span>DESA: BATETANGNGA</span>
                 <span>KECAMATAN: BINUANG</span>
                 <span>KABUPATEN: POLEWALI MANDAR</span>
@@ -176,7 +218,7 @@
         </div>
 
         <!-- MAIN DATA TABLE -->
-        <div class="bg-white rounded-xl shadow-md border border-slate-300 overflow-x-auto p-4">
+        <div class="table-container bg-white rounded-xl shadow-md border border-slate-300 overflow-x-auto p-4">
             <table class="w-full border-collapse border border-slate-400 text-xs">
                 <thead>
                     <tr class="bg-indigo-950 text-white uppercase text-center font-bold">
@@ -186,7 +228,7 @@
                         <th class="border border-slate-400 px-3 py-2.5 w-36">Nominal (Rp)</th>
                         <th class="border border-slate-400 px-2 py-2.5 w-24">Realisasi (√)</th>
                         <th class="border border-slate-400 px-3 py-2.5 min-w-[160px]">Keterangan</th>
-                        <th class="border border-slate-400 px-2 py-2.5 w-24 no-print">Aksi</th>
+                        <th class="border border-slate-400 px-2 py-2.5 w-24 no-print aksi-col">Aksi</th>
                     </tr>
                 </thead>
                 <tbody id="tabel-evaluasi-body" class="divide-y divide-slate-300">
@@ -196,17 +238,17 @@
         </div>
 
         <!-- SIGNATURE BOX (PRINT ONLY) -->
-        <div class="hidden print:flex justify-between items-start mt-8 text-[10px] font-bold page-break-inside-avoid">
+        <div class="print-signature justify-between items-start mt-8 text-[10px] font-bold page-break-inside-avoid text-black">
             <div class="text-center w-60">
                 <p>Mengetahui,</p>
                 <p>Kepala Desa Batetangnga</p>
-                <div class="h-16"></div>
+                <div class="h-14"></div>
                 <p class="underline font-extrabold">SUMAILA DAMANG</p>
             </div>
             <div class="text-center w-60">
                 <p id="print-footer-tgl">Batetangnga, 1 Agustus 2026</p>
                 <p>Disusun oleh,<br>Ketua Tim Penyusun RKPDesa</p>
-                <div class="h-16"></div>
+                <div class="h-14"></div>
                 <p class="underline font-extrabold" id="print-footer-ketua">ABDUL AZIS, S. Pd</p>
             </div>
         </div>

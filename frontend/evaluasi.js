@@ -112,6 +112,11 @@ function evalBidangNumRow(resolved) {
 async function loadEvaluasiData() {
     const rkpYear = parseInt(document.getElementById('select-year')?.value || '2027');
 
+    const headerYearEl = document.getElementById('print-header-year');
+    if (headerYearEl) headerYearEl.textContent = String(rkpYear);
+    const footerTglEl = document.getElementById('print-footer-tgl');
+    if (footerTglEl) footerTglEl.textContent = `Batetangnga, ${formatTanggalIndonesia()}`;
+
     console.log(`📡 Memuat Data Evaluasi RKP Tahun ${rkpYear}...`);
 
     try {
@@ -629,15 +634,29 @@ async function saveToDatabase() {
     }
 }
 
+let isPrinting = false;
+
 // 8. Cetak PDF / Print PDF Window
 function printPDF() {
+    if (isPrinting) return;
+    isPrinting = true;
+    setTimeout(() => { isPrinting = false; }, 1200);
+
     const rkpYear = parseInt(document.getElementById('select-year')?.value || '2027');
     const evalYear = rkpYear;
 
-    const printWindow = window.open('', '_blank', 'width=1200,height=800');
-    if (!printWindow) {
-        alert("⚠️ Izinkan pop-up browser untuk mencetak PDF!");
-        return;
+    // Sinkronkan elemen kop cetak pada DOM utama
+    const printHeaderYear = document.getElementById('print-header-year');
+    if (printHeaderYear) printHeaderYear.textContent = String(evalYear);
+    const printFooterTgl = document.getElementById('print-footer-tgl');
+    if (printFooterTgl) printFooterTgl.textContent = `Batetangnga, ${formatTanggalIndonesia()}`;
+
+    if (!Array.isArray(evaluasiList) || evaluasiList.length === 0) {
+        const domBody = document.getElementById('tabel-evaluasi-body');
+        if (!domBody || domBody.children.length === 0) {
+            alert("⚠️ Data evaluasi belum dimuat. Silakan tunggu atau klik Tarik dari RKPDes.");
+            return;
+        }
     }
 
     let tableRowsHtml = '';
@@ -645,7 +664,10 @@ function printPDF() {
 
     for (let b = 1; b <= 5; b++) {
         const namaBidang = NAMA_BIDANG_EVALUASI[b];
-        let itemsBidang = evaluasiList.filter(item => parseInt(item.bidang) === b);
+        let itemsBidang = evaluasiList.filter(item => {
+            const bNum = parseInt(item.bidang, 10);
+            return bNum === b || (!bNum && b === 1);
+        });
 
         itemsBidang.sort((a, b) => {
             const ka = String(a.kode_unik || a.kode_unik_full || '').trim();
@@ -760,6 +782,19 @@ function printPDF() {
         </tr>
     `;
 
+    let printWindow = null;
+    try {
+        printWindow = window.open('', '_blank', 'width=1200,height=800');
+    } catch (e) {
+        console.warn("⚠️ window.open popup diblokir:", e);
+    }
+
+    if (!printWindow) {
+        console.info("ℹ️ Popup window.open diblokir atau tidak tersedia, fallback ke window.print()");
+        window.print();
+        return;
+    }
+
     printWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -782,6 +817,13 @@ function printPDF() {
                     margin-bottom: 12px;
                     border-bottom: 2px solid #000;
                     padding-bottom: 6px;
+                }
+                .header h3 {
+                    font-size: 11px;
+                    margin: 1px 0;
+                    text-transform: uppercase;
+                    font-weight: bold;
+                    letter-spacing: 0.5px;
                 }
                 .header h1 {
                     font-size: 13px;
@@ -834,16 +876,19 @@ function printPDF() {
         </head>
         <body>
             <div class="header">
+                <h3>PEMERINTAH KABUPATEN POLEWALI MANDAR</h3>
                 <h1>EVALUASI PELAKSANAAN RKP DESA TAHUN ANGGARAN ${evalYear}</h1>
-                <h2>DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR</h2>
-                <table class="meta-table">
-                    <tr>
-                        <td width="25%">DESA: BATETANGNGA</td>
-                        <td width="25%">KECAMATAN: BINUANG</td>
-                        <td width="25%">KABUPATEN: POLEWALI MANDAR</td>
-                        <td width="25%">PROVINSI: SULAWESI BARAT</td>
-                    </tr>
-                </table>
+                <h2>DESA BATETANGNGA KECAMATAN BINUANG</h2>
+                <div style="border-top: 1.5px solid #000; border-bottom: 0.5px solid #000; padding: 3px 0; margin-top: 6px;">
+                    <table class="meta-table" style="width: 100%; border: none; font-weight: bold; font-size: 9px; margin: 0;">
+                        <tr>
+                            <td width="25%">DESA: BATETANGNGA</td>
+                            <td width="25%">KECAMATAN: BINUANG</td>
+                            <td width="25%">KABUPATEN: POLEWALI MANDAR</td>
+                            <td width="25%">PROVINSI: SULAWESI BARAT</td>
+                        </tr>
+                    </table>
+                </div>
             </div>
 
             <table class="data-table">
@@ -883,10 +928,29 @@ function printPDF() {
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => {
-        printWindow.print();
-    }, 500);
+        try {
+            printWindow.print();
+        } catch (err) {
+            console.error("Gagal printWindow.print():", err);
+            window.print();
+        }
+    }, 400);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     loadEvaluasiData();
+    const btnCetak = document.getElementById('btnCetakPdf');
+    if (btnCetak) {
+        btnCetak.addEventListener('click', (e) => {
+            e.preventDefault();
+            printPDF();
+        });
+    }
 });
+
+// Ekspos fungsi ke global window
+window.printPDF = printPDF;
+window.loadEvaluasiData = loadEvaluasiData;
+window.tarikDariRAB = tarikDariRAB;
+window.saveToDatabase = saveToDatabase;
+window.resolveNamaKegiatanSpesifik = resolveNamaKegiatanSpesifik;
