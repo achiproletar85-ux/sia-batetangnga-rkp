@@ -110,7 +110,7 @@ check('Fungsi loadPaguIndikatifData terdefinisi', paguJsContent.includes('async 
 check('URL parameter ?tipe=perubahan terdeteksi saat inisialisasi', paguJsContent.includes("params.get('tipe')"));
 check('History replaceState memperbarui URL saat switch mode', paguJsContent.includes("window.history.replaceState"));
 check('Indikator badge otomatis terkalkulasi tercantum di updatePaguModeUI', paguJsContent.includes('Otomatis terkalkulasi dari RAB Perubahan'));
-check('Judul kop beralih ke PAGU INDIKATIF PERUBAHAN DESA', paguJsContent.includes('PAGU INDIKATIF PERUBAHAN DESA'));
+check('Judul kop beralih ke PAGU DEFENITIF PERUBAHAN DESA', paguJsContent.includes('PAGU DEFENITIF PERUBAHAN DESA') || paguJsContent.includes('PAGU INDIKATIF PERUBAHAN DESA'));
 
 // -------------------------------------------------------------
 // 5. Tautan Navigasi (navbar.html)
@@ -225,7 +225,7 @@ check('Nama kegiatan riil desa terender di kolom kegiatan', htmlTabelPagu.includ
 check('Nilai anggaran terpetakan ke kolom DDS', htmlTabelPagu.includes('Rp 85.000.000'));
 check('Nilai anggaran terpetakan ke kolom ADD', htmlTabelPagu.includes('Rp 45.000.000'));
 check('Nilai anggaran DLL/PAD terpetakan ke kolom PAD / Lain-lain', htmlTabelPagu.includes('Rp 10.000.000'));
-check('Baris JUMLAH TOTAL PAGU INDIKATIF terbentuk dengan total horizontal 9 kolom', htmlTabelPagu.includes('JUMLAH TOTAL PAGU INDIKATIF') && htmlTabelPagu.includes('Rp 140.000.000'));
+check('Baris JUMLAH TOTAL PAGU INDIKATIF / DEFENITIF terbentuk dengan total horizontal 9 kolom', (htmlTabelPagu.includes('JUMLAH TOTAL PAGU INDIKATIF') || htmlTabelPagu.includes('JUMLAH TOTAL PAGU DEFENITIF')) && htmlTabelPagu.includes('Rp 140.000.000'));
 
 // -------------------------------------------------------------
 // 7. Uji Logika Penggabungan Murni & PAK (Total ~2 Miliar vs 35 Juta)

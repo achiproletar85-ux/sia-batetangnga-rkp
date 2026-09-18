@@ -35,6 +35,11 @@
             th { border: 1px solid #000 !important; background-color: #f1f5f9 !important; color: #000 !important; padding: 4px 3px !important; }
             td { border: 1px solid #000 !important; color: #000 !important; padding: 4px 4px !important; }
             tr { page-break-inside: avoid; }
+
+            /* Sembunyikan banner dan elemen komparasi analitis non-standar saat cetak PDF resmi */
+            #komparasi-container, .komparasi-banner, .pagu-banner-non-standar {
+                display: none !important;
+            }
         }
     </style>
 </head>
@@ -96,14 +101,14 @@
             </div>
         </div>
 
-        <!-- TAB CONTROL: Pagu Indikatif Asli (Murni) vs Pagu Indikatif Perubahan (PAK) -->
+        <!-- TAB CONTROL: Pagu Indikatif Asli (Murni) vs Pagu Defenitif Perubahan (PAK) -->
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
             <div class="inline-flex p-1 bg-slate-200/90 rounded-2xl border border-slate-300 shadow-inner">
                 <button type="button" id="tab-btn-pagu-murni" onclick="switchPaguMode('MURNI')" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm cursor-pointer">
                     <i class="fas fa-coins"></i> Pagu Indikatif Asli (Murni)
                 </button>
                 <button type="button" id="tab-btn-pagu-perubahan" onclick="switchPaguMode('PERUBAHAN')" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer">
-                    <i class="fas fa-calculator text-amber-600"></i> Pagu Indikatif Perubahan (PAK)
+                    <i class="fas fa-calculator text-amber-600"></i> Pagu Defenitif Perubahan (PAK)
                 </button>
             </div>
             <div class="flex items-center gap-3">
@@ -128,7 +133,7 @@
                     </div>
 
                     <!-- CONTAINER MATRIKS KOMPARASI (KHUSUS MODE PERUBAHAN) -->
-                    <div id="komparasi-container" class="hidden mb-8"></div>
+                    <div id="komparasi-container" class="hidden mb-8 no-print"></div>
 
                     <!-- IDENTITAS DESA -->
                     <div class="mb-6 text-xs font-bold leading-relaxed flex justify-between border-none">

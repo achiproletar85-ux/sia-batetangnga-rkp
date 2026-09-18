@@ -125,7 +125,7 @@ function updatePaguModeUI() {
             btnSync.classList.remove('hidden');
         }
         if (docTitle) {
-            docTitle.textContent = 'PAGU INDIKATIF PERUBAHAN DESA';
+            docTitle.textContent = 'PAGU DEFENITIF PERUBAHAN DESA';
         }
         if (komparasiContainer) {
             komparasiContainer.classList.remove('hidden');
@@ -162,7 +162,7 @@ async function refreshPaguPerubahan() {
     }
     try {
         await loadPaguIndikatifData();
-        showToast('Data Pagu Indikatif Perubahan berhasil disinkronkan dari RAB Perubahan!', 'success');
+        showToast('Data Pagu Defenitif Perubahan berhasil disinkronkan dari RAB Perubahan!', 'success');
     } catch (err) {
         showToast('Gagal menyinkronkan data: ' + err.message, 'error');
     } finally {
@@ -248,17 +248,17 @@ function renderMatriksKomparasiPagu(compData, activeYear) {
     return `
         <div class="space-y-6">
             <!-- NOTIFIKASI INFORMASI OTOMATIS -->
-            <div class="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-500 p-4 rounded-xl shadow-sm text-slate-800 no-print">
+            <div class="komparasi-banner pagu-banner-non-standar bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-500 p-4 rounded-xl shadow-sm text-slate-800 no-print">
                 <div class="flex items-start gap-3">
                     <div class="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
                         <i class="fas fa-calculator text-sm"></i>
                     </div>
                     <div class="flex-1 text-xs">
                         <div class="font-black text-sm text-amber-950 mb-0.5">
-                            Matriks Komparasi Pagu Indikatif Perubahan (Otomatis dari RAB Perubahan)
+                            Matriks Komparasi Pagu Defenitif Perubahan (Otomatis dari RAB Perubahan)
                         </div>
                         <p class="text-slate-600 leading-relaxed">
-                            Pagu Indikatif Perubahan ini <strong>terakumulasi otomatis</strong> dari seluruh rincian belanja pada tabel <code>rab</code> bertipe <code>PERUBAHAN</code>. Kegiatan yang tidak bergeser anggaran di PAK tetap mempertahankan alokasi aslinya dari penetapan Murni.
+                            Pagu Defenitif Perubahan ini <strong>terakumulasi otomatis</strong> dari seluruh rincian belanja pada tabel <code>rab</code> bertipe <code>PERUBAHAN</code>. Kegiatan yang tidak bergeser anggaran di PAK tetap mempertahankan alokasi aslinya dari penetapan Murni.
                         </p>
                     </div>
                 </div>
@@ -426,7 +426,7 @@ async function loadPaguIndikatifData() {
                                     <i class="fas fa-clipboard-question text-amber-500 text-3xl mb-2"></i>
                                     <p class="font-bold text-slate-700">Belum Ada Rincian Kegiatan RAB Perubahan Tahun ${activeYear}</p>
                                     <p class="text-xs text-slate-500 mt-1">
-                                        Data pagu indikatif perubahan terisi otomatis saat terdapat belanja kegiatan di menu <strong>RAB Desa (Perubahan)</strong>.
+                                        Data pagu defenitif perubahan terisi otomatis saat terdapat belanja kegiatan di menu <strong>RAB Desa (Perubahan)</strong>.
                                     </p>
                                 </div>
                             </td>
@@ -783,7 +783,8 @@ function renderTabelPaguIndikatif(rawData) {
     });
 
     if (hasAny(grand)) {
-        html += totalRow('JUMLAH TOTAL PAGU INDIKATIF', grand, 'font-black bg-slate-200');
+        const totalLabel = currentPaguMode === 'PERUBAHAN' ? 'JUMLAH TOTAL PAGU DEFENITIF' : 'JUMLAH TOTAL PAGU INDIKATIF';
+        html += totalRow(totalLabel, grand, 'font-black bg-slate-200');
     }
 
     return html;
@@ -800,7 +801,7 @@ function injectPaguIndikatifToDOM(htmlHasil) {
         <div class="w-full bg-white p-6 shadow-sm border rounded-lg font-serif text-slate-900">
             <!-- 1. JUDUL KOP ATAS RESMI -->
             <div id="pagu-doc-title" class="text-center font-bold text-base mb-6 tracking-wide uppercase">
-                ${currentPaguMode === 'PERUBAHAN' ? 'PAGU INDIKATIF PERUBAHAN DESA' : 'PAGU INDIKATIF DESA'}
+                ${currentPaguMode === 'PERUBAHAN' ? 'PAGU DEFENITIF PERUBAHAN DESA' : 'PAGU INDIKATIF DESA'}
             </div>
 
             <!-- 2. IDENTITAS DESA BERTIKAT KIRI -->
