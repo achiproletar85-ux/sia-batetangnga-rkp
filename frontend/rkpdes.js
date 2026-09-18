@@ -2436,7 +2436,9 @@ async function saveEditRkpPerubahanItem(event) {
     const sumberSemula = document.getElementById('edit-semula-sumber-biaya')?.value || 'DDS';
     const polaSemula = document.getElementById('edit-semula-pola')?.value || 'Swakelola';
     const sdgsSemula = document.getElementById('edit-semula-sdgs')?.value?.trim() || '';
-    const stuntingSemula = document.getElementById('edit-semula-stunting')?.value || 'Tidak';
+    const rawStuntingSemula = document.getElementById('edit-semula-stunting')?.value || item.stunting_semula || item.semula?.stunting || item.stunting || 'Tidak';
+    const stuntingSemulaStr = (rawStuntingSemula === 'Ya' || rawStuntingSemula === true || rawStuntingSemula === 'true') ? 'Ya' : 'Tidak';
+    const stuntingSemula = stuntingSemulaStr;
     const eksistingSemula = document.getElementById('edit-semula-data-eksisting')?.value?.trim() || '-';
     const mLSemula = document.getElementById('edit-semula-manfaat-l')?.value?.trim() || '-';
     const mPSemula = document.getElementById('edit-semula-manfaat-p')?.value?.trim() || '-';
@@ -2451,7 +2453,9 @@ async function saveEditRkpPerubahanItem(event) {
     const sumberMenjadi = document.getElementById('edit-perubahan-sumber-biaya')?.value || 'DDS';
     const polaMenjadi = document.getElementById('edit-perubahan-pola')?.value || 'Swakelola';
     const sdgsMenjadi = document.getElementById('edit-perubahan-sdgs')?.value?.trim() || '';
-    const stuntingMenjadi = document.getElementById('edit-perubahan-stunting')?.value || 'Tidak';
+    const rawStuntingMenjadi = document.getElementById('edit-perubahan-stunting')?.value || item.stunting_menjadi || item.menjadi?.stunting || item.stunting || 'Tidak';
+    const stuntingMenjadiStr = (rawStuntingMenjadi === 'Ya' || rawStuntingMenjadi === true || rawStuntingMenjadi === 'true') ? 'Ya' : 'Tidak';
+    const stuntingMenjadi = stuntingMenjadiStr;
     const eksistingMenjadi = document.getElementById('edit-perubahan-data-eksisting')?.value?.trim() || '-';
     const mLMenjadi = document.getElementById('edit-perubahan-manfaat-l')?.value?.trim() || '-';
     const mPMenjadi = document.getElementById('edit-perubahan-manfaat-p')?.value?.trim() || '-';

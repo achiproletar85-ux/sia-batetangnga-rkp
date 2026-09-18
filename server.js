@@ -8566,6 +8566,9 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
         const cleanSdgsMenjadi = cleanSdgsRaw(rawSdgsMenjadi);
         const sdgsMenjadiLabel = cleanSdgsMenjadi ? formatSdgsLabel(cleanSdgsMenjadi) : '-';
 
+        const rawStuntingMenjadi = men.stunting !== undefined ? men.stunting : (body.stunting !== undefined ? body.stunting : (body.stunting_menjadi !== undefined ? body.stunting_menjadi : (body.semula && body.semula.stunting)));
+        const stuntingMenjadiStr = (rawStuntingMenjadi === 'Ya' || rawStuntingMenjadi === true || rawStuntingMenjadi === 'true') ? 'Ya' : 'Tidak';
+
         const mLStr = String(men.manfaat_l || body.manfaat_l || '-');
         const mPStr = String(men.manfaat_p || body.manfaat_p || '-');
         const mRtmStr = String(men.manfaat_rtm || body.manfaat_rtm || '-');
@@ -8584,9 +8587,6 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 findQ = findQ.eq('id', Number(id));
             }
             const { data: existingRabPer } = await findQ.maybeSingle();
-
-            const rawStuntingMenjadi = men.stunting !== undefined ? men.stunting : (body.stunting !== undefined ? body.stunting : (body.semula && body.semula.stunting));
-            const stuntingMenjadiStr = (rawStuntingMenjadi === 'Ya' || rawStuntingMenjadi === true || rawStuntingMenjadi === 'true') ? 'Ya' : 'Tidak';
 
             const newRpjmData = {
                 ...((existingRabPer && existingRabPer.rpjm_data) || {}),
