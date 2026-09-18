@@ -86,25 +86,30 @@ function kodePrefixFor(kode) {
 }
 
 function enrichRowHierarchy(row) {
-    if (!row) return;
-    const resolved = resolveHierarchyFromKode(row.kode_unik);
-    if (!resolved) return;
-    if (!row.sub_bidang) row.sub_bidang = resolved.sub_bidang || '';
-    if (!row.jenis_kegiatan) row.jenis_kegiatan = resolved.jenis_kegiatan || '';
-    if ((!row.nama_kegiatan || row.nama_kegiatan === row.jenis_kegiatan) && resolved.nama_kegiatan) {
-        row.nama_kegiatan = resolved.nama_kegiatan;
+    if (!row || typeof row !== 'object') return row;
+    const kode = String(row.kode_unik || row.kode_unik_full || row.kode_bidang || '').trim();
+    const resolved = resolveHierarchyFromKode(kode);
+    if (resolved) {
+        if (!row.sub_bidang) row.sub_bidang = resolved.sub_bidang || '';
+        if (!row.jenis_kegiatan) row.jenis_kegiatan = resolved.jenis_kegiatan || '';
+        if ((!row.nama_kegiatan || row.nama_kegiatan === row.jenis_kegiatan) && resolved.nama_kegiatan) {
+            row.nama_kegiatan = resolved.nama_kegiatan;
+        }
+        if (!row.bidang) row.bidang = evalBidangNumRow(resolved);
     }
-    if (!String(row.bidang)) row.bidang = evalBidangNumRow(resolved);
+    if (!row.sub_bidang) row.sub_bidang = resolveJenisBidangFallback(row);
+    if (!row.jenis_kegiatan) row.jenis_kegiatan = resolveJenisKegiatanKelompokFallback(row);
+    if (!row.bidang) row.bidang = resolveBidangNum(row);
     return row;
 }
 
 function evalBidangNumRow(resolved) {
-    const t = String(resolved.bidang || '').toLowerCase();
-    if (t.includes('pemerintahan')) return 1;
+    const t = String(resolved?.bidang || '').toLowerCase();
+    if (t.includes('pemerintahan') || t.includes('pemerintah')) return 1;
     if (t.includes('pembangunan')) return 2;
     if (t.includes('kemasyarakatan')) return 3;
     if (t.includes('pemberdayaan')) return 4;
-    if (t.includes('bencana')) return 5;
+    if (t.includes('bencana') || t.includes('mendesak') || t.includes('darurat')) return 5;
     return 1;
 }
 
@@ -128,7 +133,7 @@ async function loadEvaluasiData() {
             evaluasiList = json.data.map(item => ({
                 id: item.id || null,
                 tahun: rkpYear,
-                bidang: parseInt(item.bidang) || 1,
+                bidang: parseInt(item.bidang) || resolveBidangNum(item),
                 kode_unik: item.kode_unik || item.kode_unik_full || item.kode_bidang || '',
                 sub_bidang: item.sub_bidang || '',
                 jenis_kegiatan: item.jenis_kegiatan || '',
@@ -138,13 +143,26 @@ async function loadEvaluasiData() {
                 nominal: parseNumber(item.nominal),
                 realisasi: Boolean(item.realisasi),
                 keterangan: item.keterangan || ''
-            }));
-            evaluasiList.forEach(row => enrichRowHierarchy(row));
+            })).map(row => enrichRowHierarchy(row)).filter(Boolean);
             renderEvaluasiTable();
             return;
         }
 
-        console.log(`⚠️ Data evaluasi tahun ${rkpYear} belum ada, menarik otomatis dari RKPDes...`);
+        // Cek cache lokal jika tabel evaluasi_rkpdes belum dimigrasikan ke Supabase
+        try {
+            const cached = localStorage.getItem(`evaluasi_list_${rkpYear}`);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    evaluasiList = parsed.map(row => enrichRowHierarchy(row)).filter(Boolean);
+                    renderEvaluasiTable();
+                    console.log(`📦 Memuat ${evaluasiList.length} data evaluasi tahun ${rkpYear} dari penyimpanan lokal`);
+                    return;
+                }
+            }
+        } catch (e) {}
+
+        console.log(`⚠️ Data evaluasi tahun ${rkpYear} belum ada, menarik otomatis dari RKPDes & RAB...`);
         await tarikDariRAB(false);
     } catch (err) {
         console.error("❌ Error loadEvaluasiData:", err);
@@ -512,9 +530,12 @@ async function tarikDariRAB(showAlert = true) {
                 });
             });
 
-            evaluasiList = mappedData.map(row => enrichRowHierarchy(row));
+            evaluasiList = mappedData.map(row => enrichRowHierarchy(row)).filter(Boolean);
+            try {
+                localStorage.setItem(`evaluasi_list_${tahunEvaluasi}`, JSON.stringify(evaluasiList));
+            } catch (e) {}
             renderEvaluasiTable();
-            if (showAlert) alert(`✅ Berhasil menarik ${mappedData.length} kegiatan RKPDes & RAB tahun ${tahunEvaluasi} (Termasuk penyesuaian PAK/Murni)`);
+            if (showAlert) alert(`✅ Berhasil menarik ${evaluasiList.length} kegiatan RKPDes & RAB tahun ${tahunEvaluasi} (Termasuk penyesuaian PAK/Murni)`);
         } else {
             evaluasiList = [];
             renderEvaluasiTable();
@@ -671,6 +692,9 @@ async function saveToDatabase() {
         }
 
         if (json.success) {
+            try {
+                localStorage.setItem(`evaluasi_list_${rkpYear}`, JSON.stringify(evaluasiList));
+            } catch (e) {}
             alert(`✅ ${json.message}`);
             loadEvaluasiData();
         } else {
