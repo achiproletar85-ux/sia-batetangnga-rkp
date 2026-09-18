@@ -8465,7 +8465,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             // A. Update tabel rab (tipe_anggaran: 'MURNI')
             try {
                 if (kode) {
-                    const { data: existingRabMurni } = await supabase
+                    const { data: existingRabMurni, error: findMurniErr } = await supabase
                         .from(RAB_TABLE)
                         .select('id, kode_unik_full, tahun, tipe_anggaran')
                         .eq('tahun', tahunInt)
@@ -8473,8 +8473,10 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                         .eq('kode_unik_full', kode)
                         .maybeSingle();
 
+                    if (findMurniErr) throw findMurniErr;
+
                     if (existingRabMurni && existingRabMurni.id) {
-                        await supabase.from(RAB_TABLE).update({
+                        const { error: updRabMurniErr } = await supabase.from(RAB_TABLE).update({
                             volume: volSemulaNum,
                             satuan: satSemulaStr,
                             jumlah_anggaran: biayaSemulaNum,
@@ -8484,10 +8486,12 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                             sumber_dana: sumberSemulaStr,
                             updated_at: nowIso
                         }).eq('id', existingRabMurni.id).select('id');
+                        if (updRabMurniErr) throw updRabMurniErr;
                     }
                 }
             } catch (semRabErr) {
-                console.warn('⚠️ Gagal update rab murni:', semRabErr.message);
+                console.error('❌ Gagal update rab murni:', semRabErr.message);
+                throw new Error(`Gagal update RAB murni: ${semRabErr.message}`);
             }
 
             // B. Update atau Insert tabel rkpdes (Semula/Murni)
@@ -8522,17 +8526,19 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 } else if (kode) {
                     rkpCheck = rkpCheck.eq('kode_unik_full', kode).eq('tahun', tahunInt);
                 }
-                const { data: existingRkp } = await rkpCheck.maybeSingle();
+                const { data: existingRkp, error: findRkpErr } = await rkpCheck.maybeSingle();
+                if (findRkpErr) throw findRkpErr;
 
                 if (existingRkp && existingRkp.id) {
                     if (nama_kegiatan && String(nama_kegiatan).trim() !== '') {
                         rkpSemulaPayload.nama_kegiatan = String(nama_kegiatan).trim();
                     }
-                    await supabase.from('rkpdes').update(sanitizeRkpdesPayload(rkpSemulaPayload)).eq('id', existingRkp.id).select('id');
+                    const { error: updRkpErr } = await supabase.from('rkpdes').update(sanitizeRkpdesPayload(rkpSemulaPayload)).eq('id', existingRkp.id).select('id');
+                    if (updRkpErr) throw updRkpErr;
                 } else if (kode) {
                     const { data: maxRkp } = await supabase.from('rkpdes').select('id').order('id', { ascending: false }).limit(1);
                     const nextRkpId = (maxRkp && maxRkp[0] && Number(maxRkp[0].id)) ? Number(maxRkp[0].id) + 1 : Date.now();
-                    await supabase.from('rkpdes').insert(sanitizeRkpdesPayload({
+                    const { error: insRkpErr } = await supabase.from('rkpdes').insert(sanitizeRkpdesPayload({
                         id: nextRkpId,
                         tahun: tahunInt,
                         kode_unik_full: kode,
@@ -8542,9 +8548,11 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                         ...rkpSemulaPayload,
                         created_at: nowIso
                     })).select('id');
+                    if (insRkpErr) throw insRkpErr;
                 }
             } catch (semRkpErr) {
-                console.warn('⚠️ Gagal update rkpdes semula:', semRkpErr.message);
+                console.error('❌ Gagal update rkpdes semula:', semRkpErr.message);
+                throw new Error(`Gagal update RKPDes semula: ${semRkpErr.message}`);
             }
         }
 
@@ -8737,10 +8745,10 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     updated_at: nowIso
                 })).select('id');
                 if (insErr) {
-                    console.warn('⚠️ Gagal insert rkpdes untuk kegiatan baru:', insErr.message);
-                } else {
-                    rkpUpdatedCount = 1;
+                    console.error('❌ Gagal insert rkpdes untuk kegiatan baru:', insErr.message);
+                    throw insErr;
                 }
+                rkpUpdatedCount = 1;
             }
         } catch (rkpUpdateErr) {
             console.error('❌ Gagal update rkpdes stunting/mendukung_sdgs:', rkpUpdateErr.message);
@@ -9456,34 +9464,40 @@ app.put('/api/stunting', async (req, res) => {
                 .eq('id', numRabId)
                 .maybeSingle();
             if (findRabErr) throw findRabErr;
-            if (rabRow) {
-                const currentRpjm = rabRow.rpjm_data || {};
-                const updatedRpjm = {
-                    ...currentRpjm,
-                    stunting: 'Ya',
-                    penerima_manfaat: item.sasaran || item.penerima_manfaat || currentRpjm.penerima_manfaat || '',
-                    manfaat_l: item.sasaran || item.penerima_manfaat || currentRpjm.manfaat_l || '',
-                    waktu_pelaksanaan: item.waktu_pelaksanaan || currentRpjm.waktu_pelaksanaan || '12 Bulan',
-                    pola_pelaksanaan: item.pola_pelaksanaan || currentRpjm.pola_pelaksanaan || 'Swakelola'
-                };
-                const rabUpdatePayload = {
-                    nama_kegiatan: item.jenis_kegiatan || item.nama_kegiatan || '',
-                    lokasi_kegiatan: item.lokasi || 'Desa Batetangnga',
-                    penerima_manfaat: item.sasaran || item.penerima_manfaat || '',
-                    sumber_dana: item.sumber_biaya || item.sumber_pembiayaan || 'DDS',
-                    jumlah_anggaran: Number(item.biaya || item.anggaran || 0),
-                    rpjm_data: updatedRpjm,
-                    updated_at: new Date().toISOString()
-                };
-                await supabase.from(RAB_TABLE).update(rabUpdatePayload).eq('id', rabRow.id).select('id');
-                if (rabRow.kode_unik_full && rabRow.tahun) {
-                    await supabase.from('rkpdes').update({
-                        jenis_kegiatan: item.jenis_kegiatan || item.nama_kegiatan || '',
-                        stunting: 'Ya',
-                        updated_at: new Date().toISOString()
-                    }).eq('kode_unik_full', rabRow.kode_unik_full).eq('tahun', rabRow.tahun).select('id');
-                }
+            if (!rabRow) {
+                return res.status(404).json({ success: false, error: 'Data kegiatan perubahan tidak ditemukan di tabel RAB.' });
             }
+
+            const currentRpjm = rabRow.rpjm_data || {};
+            const updatedRpjm = {
+                ...currentRpjm,
+                stunting: 'Ya',
+                penerima_manfaat: item.sasaran || item.penerima_manfaat || currentRpjm.penerima_manfaat || '',
+                manfaat_l: item.sasaran || item.penerima_manfaat || currentRpjm.manfaat_l || '',
+                waktu_pelaksanaan: item.waktu_pelaksanaan || currentRpjm.waktu_pelaksanaan || '12 Bulan',
+                pola_pelaksanaan: item.pola_pelaksanaan || currentRpjm.pola_pelaksanaan || 'Swakelola'
+            };
+            const rabUpdatePayload = {
+                nama_kegiatan: item.jenis_kegiatan || item.nama_kegiatan || '',
+                lokasi_kegiatan: item.lokasi || 'Desa Batetangnga',
+                penerima_manfaat: item.sasaran || item.penerima_manfaat || '',
+                sumber_dana: item.sumber_biaya || item.sumber_pembiayaan || 'DDS',
+                jumlah_anggaran: Number(item.biaya || item.anggaran || 0),
+                rpjm_data: updatedRpjm,
+                updated_at: new Date().toISOString()
+            };
+            const { error: updRabErr } = await supabase.from(RAB_TABLE).update(rabUpdatePayload).eq('id', rabRow.id).select('id');
+            if (updRabErr) throw updRabErr;
+
+            if (rabRow.kode_unik_full && rabRow.tahun) {
+                const { error: updRkpErr } = await supabase.from('rkpdes').update({
+                    jenis_kegiatan: item.jenis_kegiatan || item.nama_kegiatan || '',
+                    stunting: 'Ya',
+                    updated_at: new Date().toISOString()
+                }).eq('kode_unik_full', rabRow.kode_unik_full).eq('tahun', rabRow.tahun).select('id');
+                if (updRkpErr) throw updRkpErr;
+            }
+
             return res.json({ success: true, message: 'Data stunting perubahan berhasil disimpan.' });
         }
 
@@ -9503,9 +9517,19 @@ app.put('/api/stunting', async (req, res) => {
         };
         let result;
         if (rkpdesId && !isNaN(Number(rkpdesId))) {
-            const { data, error } = await supabase.from('rkpdes').update(sanitizeRkpdesPayload(payload)).eq('id', Number(rkpdesId)).select('id');
+            const { data, error } = await supabase.from('rkpdes').update(sanitizeRkpdesPayload(payload)).eq('id', Number(rkpdesId)).select('id, kode_unik_full, tahun');
             if (error) throw error;
             result = Array.isArray(data) && data.length > 0 ? data[0] : null;
+
+            // Sinkronisasi dua arah ke RAB Murni jika memiliki kode_unik_full & tahun cocok
+            if (result && result.kode_unik_full && result.tahun) {
+                const { data: rabMurniRow } = await supabase.from(RAB_TABLE).select('id, rpjm_data').eq('kode_unik_full', result.kode_unik_full).eq('tahun', result.tahun).eq('tipe_anggaran', RAB_TIPE_MURNI).maybeSingle();
+                if (rabMurniRow && rabMurniRow.id) {
+                    const updatedRpjm = { ...(rabMurniRow.rpjm_data || {}), stunting: 'Ya' };
+                    const { error: updRabMurniErr } = await supabase.from(RAB_TABLE).update({ rpjm_data: updatedRpjm, updated_at: new Date().toISOString() }).eq('id', rabMurniRow.id).select('id');
+                    if (updRabMurniErr) console.warn('⚠️ Gagal sync stunting ke rab murni:', updRabMurniErr.message);
+                }
+            }
         } else {
             const bidangText = BIDANG_RKPDES_TEXT[Number(item.bidang)] || BIDANG_RKPDES_TEXT[1];
             const { data, error } = await supabase.from('rkpdes').insert([sanitizeRkpdesPayload({
@@ -9541,22 +9565,45 @@ app.post('/api/stunting/toggle', async (req, res) => {
                 .eq('id', numRabId)
                 .maybeSingle();
             if (findRabErr) throw findRabErr;
-            if (rabRow) {
-                const updatedRpjm = { ...(rabRow.rpjm_data || {}), stunting: stuntingVal };
-                await supabase.from(RAB_TABLE).update({ rpjm_data: updatedRpjm, updated_at: new Date().toISOString() }).eq('id', rabRow.id).select('id');
-                if (rabRow.kode_unik_full && rabRow.tahun) {
-                    await supabase.from('rkpdes').update({ stunting: stuntingVal, updated_at: new Date().toISOString() }).eq('kode_unik_full', rabRow.kode_unik_full).eq('tahun', rabRow.tahun).select('id');
-                }
+            if (!rabRow) {
+                return res.status(404).json({ success: false, error: 'Data kegiatan perubahan tidak ditemukan di tabel RAB.' });
             }
+
+            const updatedRpjm = { ...(rabRow.rpjm_data || {}), stunting: stuntingVal };
+            const { error: updRabErr } = await supabase.from(RAB_TABLE).update({ rpjm_data: updatedRpjm, updated_at: new Date().toISOString() }).eq('id', rabRow.id).select('id');
+            if (updRabErr) throw updRabErr;
+
+            if (rabRow.kode_unik_full && rabRow.tahun) {
+                const { error: updRkpErr } = await supabase.from('rkpdes').update({ stunting: stuntingVal, updated_at: new Date().toISOString() }).eq('kode_unik_full', rabRow.kode_unik_full).eq('tahun', rabRow.tahun).select('id');
+                if (updRkpErr) throw updRkpErr;
+            }
+
             return res.json({ success: true, message: `Status stunting kegiatan perubahan berhasil diubah menjadi: ${stuntingVal}`, stunting: stuntingVal });
         } else if (id && !isNaN(Number(id))) {
             const numId = Number(id);
+            const { data: rkpRow, error: findRkpErr } = await supabase.from('rkpdes').select('id, kode_unik_full, tahun').eq('id', numId).maybeSingle();
+            if (findRkpErr) throw findRkpErr;
+            if (!rkpRow) {
+                return res.status(404).json({ success: false, error: 'Data kegiatan murni tidak ditemukan di tabel RKPDes.' });
+            }
+
             const { error: updErr } = await supabase
                 .from('rkpdes')
                 .update({ stunting: stuntingVal, updated_at: new Date().toISOString() })
                 .eq('id', numId)
                 .select('id');
             if (updErr) throw updErr;
+
+            // Sinkronisasi dua arah ke RAB Murni jika memiliki relasi
+            if (rkpRow.kode_unik_full && rkpRow.tahun) {
+                const { data: rabMurniRow } = await supabase.from(RAB_TABLE).select('id, rpjm_data').eq('kode_unik_full', rkpRow.kode_unik_full).eq('tahun', rkpRow.tahun).eq('tipe_anggaran', RAB_TIPE_MURNI).maybeSingle();
+                if (rabMurniRow && rabMurniRow.id) {
+                    const updatedRpjm = { ...(rabMurniRow.rpjm_data || {}), stunting: stuntingVal };
+                    const { error: updRabMurniErr } = await supabase.from(RAB_TABLE).update({ rpjm_data: updatedRpjm, updated_at: new Date().toISOString() }).eq('id', rabMurniRow.id).select('id');
+                    if (updRabMurniErr) console.warn('⚠️ Gagal sync stunting ke rab murni:', updRabMurniErr.message);
+                }
+            }
+
             return res.json({ success: true, message: `Status stunting kegiatan murni berhasil diubah menjadi: ${stuntingVal}`, stunting: stuntingVal });
         } else {
             return res.status(400).json({ success: false, error: 'ID tidak valid' });
@@ -9582,22 +9629,44 @@ app.delete('/api/stunting', async (req, res) => {
                 .eq('id', numRabId)
                 .maybeSingle();
             if (findRabErr) throw findRabErr;
-            if (rabRow) {
-                const updatedRpjm = { ...(rabRow.rpjm_data || {}), stunting: 'Tidak' };
-                await supabase.from(RAB_TABLE).update({ rpjm_data: updatedRpjm, updated_at: new Date().toISOString() }).eq('id', rabRow.id).select('id');
-                if (rabRow.kode_unik_full && rabRow.tahun) {
-                    await supabase.from('rkpdes').update({ stunting: 'Tidak', updated_at: new Date().toISOString() }).eq('kode_unik_full', rabRow.kode_unik_full).eq('tahun', rabRow.tahun).select('id');
-                }
+            if (!rabRow) {
+                return res.status(404).json({ success: false, error: 'Data kegiatan perubahan tidak ditemukan.' });
             }
+
+            const updatedRpjm = { ...(rabRow.rpjm_data || {}), stunting: 'Tidak' };
+            const { error: updRabErr } = await supabase.from(RAB_TABLE).update({ rpjm_data: updatedRpjm, updated_at: new Date().toISOString() }).eq('id', rabRow.id).select('id');
+            if (updRabErr) throw updRabErr;
+
+            if (rabRow.kode_unik_full && rabRow.tahun) {
+                const { error: updRkpErr } = await supabase.from('rkpdes').update({ stunting: 'Tidak', updated_at: new Date().toISOString() }).eq('kode_unik_full', rabRow.kode_unik_full).eq('tahun', rabRow.tahun).select('id');
+                if (updRkpErr) throw updRkpErr;
+            }
+
             return res.json({ success: true, message: 'Kegiatan Perubahan dihapus dari laporan stunting.' });
         } else {
             const numId = parseInt(id, 10);
+            const { data: rkpRow, error: findRkpErr } = await supabase.from('rkpdes').select('id, kode_unik_full, tahun').eq('id', numId).maybeSingle();
+            if (findRkpErr) throw findRkpErr;
+            if (!rkpRow) {
+                return res.status(404).json({ success: false, error: 'Data kegiatan murni tidak ditemukan.' });
+            }
+
             const { error } = await supabase
                 .from('rkpdes')
                 .update({ stunting: 'Tidak', updated_at: new Date().toISOString() })
                 .eq('id', numId)
                 .select('id');
             if (error) throw error;
+
+            if (rkpRow.kode_unik_full && rkpRow.tahun) {
+                const { data: rabMurniRow } = await supabase.from(RAB_TABLE).select('id, rpjm_data').eq('kode_unik_full', rkpRow.kode_unik_full).eq('tahun', rkpRow.tahun).eq('tipe_anggaran', RAB_TIPE_MURNI).maybeSingle();
+                if (rabMurniRow && rabMurniRow.id) {
+                    const updatedRpjm = { ...(rabMurniRow.rpjm_data || {}), stunting: 'Tidak' };
+                    const { error: updRabMurniErr } = await supabase.from(RAB_TABLE).update({ rpjm_data: updatedRpjm, updated_at: new Date().toISOString() }).eq('id', rabMurniRow.id).select('id');
+                    if (updRabMurniErr) console.warn('⚠️ Gagal sync non-stunting ke rab murni:', updRabMurniErr.message);
+                }
+            }
+
             return res.json({ success: true, message: 'Kegiatan dihapus dari laporan stunting (tetap tersimpan di RKPDes).' });
         }
     } catch (err) {
@@ -9606,7 +9675,7 @@ app.delete('/api/stunting', async (req, res) => {
     }
 });
 
-// POST /api/stunting/sync — batch simpan seluruh baris stunting ke rpdes
+// POST /api/stunting/sync — batch simpan seluruh baris stunting ke rpdes / rab
 app.post('/api/stunting/sync', async (req, res) => {
     try {
         const { tahun, data: rows } = req.body || {};
@@ -9614,10 +9683,55 @@ app.post('/api/stunting/sync', async (req, res) => {
             return res.status(400).json({ success: false, error: '`data` harus berupa array kegiatan.' });
         }
         const tahunInt = parseInt(tahun || 2027, 10) || 2027;
+        const nowIso = new Date().toISOString();
         let updated = 0;
         let inserted = 0;
+
         for (const item of rows) {
-            const rkpId = item.rkpdes_id || item.id || null;
+            const isPerubahan = (item.tipe_anggaran || '').toUpperCase() === 'PERUBAHAN' || String(item.id || '').startsWith('per_');
+            const targetRabId = item.rab_id || (String(item.id || '').startsWith('per_') ? String(item.id).replace('per_', '') : null);
+
+            // Jika baris berasal dari Perubahan (RAB Perubahan / PAK)
+            if (isPerubahan && targetRabId && !isNaN(Number(targetRabId))) {
+                const numRabId = Number(targetRabId);
+                const { data: rabRow, error: findRabErr } = await supabase
+                    .from(RAB_TABLE)
+                    .select('id, rpjm_data, kode_unik_full, tahun')
+                    .eq('id', numRabId)
+                    .maybeSingle();
+                if (findRabErr) throw findRabErr;
+
+                if (rabRow) {
+                    const currentRpjm = rabRow.rpjm_data || {};
+                    const updatedRpjm = {
+                        ...currentRpjm,
+                        stunting: 'Ya',
+                        manfaat_l: item.sasaran || item.penerima_manfaat || currentRpjm.manfaat_l || '',
+                        pola_pelaksanaan: item.pola_pelaksanaan || currentRpjm.pola_pelaksanaan || 'Swakelola',
+                        waktu_pelaksanaan: item.waktu_pelaksanaan || currentRpjm.waktu_pelaksanaan || '12 Bulan'
+                    };
+                    const { error: upRabErr } = await supabase.from(RAB_TABLE).update({
+                        rpjm_data: updatedRpjm,
+                        jumlah_anggaran: Number(item.biaya || 0),
+                        sumber_dana: item.sumber_biaya || item.sumber_pembiayaan || 'DDS',
+                        updated_at: nowIso
+                    }).eq('id', rabRow.id).select('id');
+                    if (upRabErr) throw upRabErr;
+
+                    if (rabRow.kode_unik_full && rabRow.tahun) {
+                        const { error: upRkpErr } = await supabase.from('rkpdes').update({
+                            stunting: 'Ya',
+                            updated_at: nowIso
+                        }).eq('kode_unik_full', rabRow.kode_unik_full).eq('tahun', rabRow.tahun).select('id');
+                        if (upRkpErr) throw upRkpErr;
+                    }
+                    updated++;
+                }
+                continue;
+            }
+
+            // Jika baris berasal dari Murni (RKPDes)
+            const rkpId = item.rkpdes_id || (!String(item.id).startsWith('per_') ? item.id : null);
             const payload = {
                 tahun: tahunInt,
                 kode_unik_full: item.kode_unik_full || `STUNT-${tahunInt}-${Date.now()}-${updated + inserted}`,
@@ -9633,13 +9747,14 @@ app.post('/api/stunting/sync', async (req, res) => {
                 pola_pelaksanaan: item.pola_pelaksanaan || 'Swakelola',
                 status_rab: 'Belum Dibuat',
                 stunting: 'Ya',
-                updated_at: new Date().toISOString()
+                updated_at: nowIso
             };
-            if (rkpId) {
+
+            if (rkpId && !isNaN(Number(rkpId))) {
                 const { error } = await supabase
                     .from('rkpdes')
                     .update(sanitizeRkpdesPayload(payload))
-                    .eq('id', rkpId)
+                    .eq('id', Number(rkpId))
                     .select('id');
                 if (error) throw error;
                 updated++;

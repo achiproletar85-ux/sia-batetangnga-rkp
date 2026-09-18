@@ -180,6 +180,113 @@ async function runDeepAudit() {
     const hasWildcard = RAB_COMPARE_COLUMNS.includes('*') || RAB_LIST_COLUMNS.includes('*');
     recordResult('Zero-Wildcard Select Policy pada Konstanta Query RAB', !hasWildcard, 'Bebas dari select(*)');
 
+    // --- 7. AUDIT ROUNDTRIP PERSISTENSI MUTASI STUNTING & PAK (ACID & INTEGRITAS MUTASI) ---
+    console.log('\n--- 7. AUDIT ROUNDTRIP PERSISTENSI MUTASI STUNTING & PAK (ACID & INTEGRITAS MUTASI) ---');
+    await new Promise((resolve) => {
+        const server = app.listen(0, async () => {
+            const port = server.address().port;
+            try {
+                // A. Roundtrip Toggle Stunting Murni (RKPDes)
+                const { data: sampleRkp } = await supabase
+                    .from('rkpdes')
+                    .select('id, stunting, kode_unik_full, tahun')
+                    .eq('stunting', 'Ya')
+                    .limit(1);
+
+                if (sampleRkp && sampleRkp[0]) {
+                    const row = sampleRkp[0];
+                    const origSt = row.stunting || 'Ya';
+                    const newSt = origSt === 'Ya' ? 'Tidak' : 'Ya';
+
+                    // 1. Toggle ke status baru
+                    const toggleRes = await fetch(`http://localhost:${port}/api/stunting/toggle`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: row.id, stunting: newSt, tipe_anggaran: 'MURNI', tahun: row.tahun })
+                    });
+                    const toggleJson = await toggleRes.json();
+
+                    // 2. Verifikasi langsung ke basis data Supabase (direct query)
+                    const { data: dbVerify } = await supabase
+                        .from('rkpdes')
+                        .select('id, stunting')
+                        .eq('id', row.id)
+                        .maybeSingle();
+
+                    const isPersisted = toggleJson.success && dbVerify && dbVerify.stunting === newSt;
+
+                    // 3. Kembalikan ke status semula (restore)
+                    await fetch(`http://localhost:${port}/api/stunting/toggle`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: row.id, stunting: origSt, tipe_anggaran: 'MURNI', tahun: row.tahun })
+                    });
+
+                    recordResult('Roundtrip Persistence Toggle Stunting RKPDes (Mutasi -> Verifikasi DB -> Restore)', isPersisted, `ID: ${row.id}, Persisted: ${dbVerify?.stunting}`);
+                } else {
+                    recordResult('Roundtrip Persistence Toggle Stunting RKPDes', true, 'Tidak ada baris sampel Ya untuk diuji');
+                }
+
+                // B. Roundtrip Toggle Stunting Perubahan / PAK (RAB)
+                const { data: sampleRabPer } = await supabase
+                    .from('rab')
+                    .select('id, rpjm_data, kode_unik_full, tahun')
+                    .eq('tipe_anggaran', 'PERUBAHAN')
+                    .limit(1);
+
+                if (sampleRabPer && sampleRabPer[0]) {
+                    const rRow = sampleRabPer[0];
+                    const origRabSt = (rRow.rpjm_data && rRow.rpjm_data.stunting) || 'Tidak';
+                    const newRabSt = origRabSt === 'Ya' ? 'Tidak' : 'Ya';
+
+                    // 1. Toggle ke status baru
+                    const rabToggleRes = await fetch(`http://localhost:${port}/api/stunting/toggle`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: `per_${rRow.id}`, rab_id: rRow.id, stunting: newRabSt, tipe_anggaran: 'PERUBAHAN', tahun: rRow.tahun })
+                    });
+                    const rabToggleJson = await rabToggleRes.json();
+
+                    // 2. Verifikasi langsung ke tabel RAB
+                    const { data: dbRabVerify } = await supabase
+                        .from('rab')
+                        .select('id, rpjm_data')
+                        .eq('id', rRow.id)
+                        .maybeSingle();
+
+                    const isRabPersisted = rabToggleJson.success && dbRabVerify && dbRabVerify.rpjm_data?.stunting === newRabSt;
+
+                    // 3. Restore ke status semula
+                    await fetch(`http://localhost:${port}/api/stunting/toggle`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: `per_${rRow.id}`, rab_id: rRow.id, stunting: origRabSt, tipe_anggaran: 'PERUBAHAN', tahun: rRow.tahun })
+                    });
+
+                    recordResult('Roundtrip Persistence Toggle Stunting RAB Perubahan (Mutasi JSON -> Verifikasi DB -> Restore)', isRabPersisted, `ID: ${rRow.id}, Persisted: ${dbRabVerify?.rpjm_data?.stunting}`);
+                } else {
+                    recordResult('Roundtrip Persistence Toggle Stunting RAB Perubahan', true, 'Tidak ada baris sampel PAK untuk diuji');
+                }
+
+                // C. Error-First Handling (HTTP 404 pada ID invalid)
+                const notFoundRes = await fetch(`http://localhost:${port}/api/stunting/toggle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: 999999999, stunting: 'Ya', tipe_anggaran: 'MURNI' })
+                });
+                const notFoundJson = await notFoundRes.json();
+                const is404Pass = notFoundRes.status === 404 && notFoundJson.success === false;
+                recordResult('Error-First Handling (HTTP 404 pada Target Record Tidak Ditemukan)', is404Pass, `HTTP ${notFoundRes.status} -> ${notFoundJson.error}`);
+
+            } catch (err) {
+                recordResult('Audit Roundtrip Persistensi Mutasi Stunting & PAK', false, err.message);
+            } finally {
+                server.close();
+                resolve();
+            }
+        });
+    });
+
     console.log('\n========================================================================');
     console.log(` HASIL AUDIT TINGKAT LANJUT:`);
     console.log(` Total Pengujian     : ${totalChecks}`);

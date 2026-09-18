@@ -207,6 +207,19 @@ assert(jsCode.includes('stunting: stuntingMenjadi') && jsCode.includes('stunting
 assert(serverCode.includes('stuntingSemulaStr') && serverCode.includes('stuntingMenjadiStr'), 'Backend PUT /api/rkpdes/perubahan mengekstraksi dan memvalidasi flag stunting');
 assert(serverCode.includes('stunting: stuntingSemulaStr') && serverCode.includes('stunting: stuntingMenjadiStr'), 'Backend PUT /api/rkpdes/perubahan menyimpan stunting ke rkpdes');
 
+// 12. HARDENING & VERIFIKASI INTEGRITAS PERSISTENSI MUTASI (STUNTING & PAK)
+console.log('\n--- HARDENING & VERIFIKASI INTEGRITAS PERSISTENSI MUTASI (STUNTING & PAK) ---\n');
+assert(serverCode.includes('throw new Error(`Gagal update RAB murni:'), 'PUT /api/rkpdes/perubahan melempar error saat update RAB murni gagal');
+assert(serverCode.includes('throw new Error(`Gagal update RKPDes semula:'), 'PUT /api/rkpdes/perubahan melempar error saat update RKPDes semula gagal');
+assert(serverCode.includes('throw new Error(`Gagal update tabel RKPDES:'), 'PUT /api/rkpdes/perubahan melempar error saat update RKPDes Menjadi gagal');
+assert(serverCode.includes("app.post('/api/stunting/toggle'"), 'Endpoint POST /api/stunting/toggle terdaftar di server.js');
+assert(serverCode.includes('Data kegiatan perubahan tidak ditemukan di tabel RAB.'), 'POST /api/stunting/toggle mengembalikan 404 jika target RAB tidak ditemukan');
+assert(serverCode.includes('Data kegiatan murni tidak ditemukan di tabel RKPDes.'), 'POST /api/stunting/toggle mengembalikan 404 jika target RKPDes tidak ditemukan');
+assert(serverCode.includes('updRabErr') && serverCode.includes('updRkpErr'), 'POST /api/stunting/toggle memverifikasi error pada kedua tabel (RAB & RKPDes)');
+assert(serverCode.includes("app.delete('/api/stunting'"), 'Endpoint DELETE /api/stunting terdaftar di server.js');
+assert(serverCode.includes("app.post('/api/stunting/sync'"), 'Endpoint POST /api/stunting/sync terdaftar di server.js');
+assert(serverCode.includes("eq('tipe_anggaran', RAB_TIPE_MURNI)"), 'Bidirectional sync ke RAB Murni terpasang di endpoint stunting');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
