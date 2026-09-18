@@ -2660,7 +2660,9 @@ const RPJM_LOOKUP_COLUMNS = [
     'updated_at'
 ].join(', ');
 
-// Cache in-memory + TTL utk lookup rpjmdes_standar (data referensi, jarang berubah).
+const MASTER_KLASIFIKASI_LOOKUP_COLUMNS = 'id, bidang, sub_bidang, jenis_kegiatan, kode_klasifikasi, kode_bidang, kode_sub, kode_kegiatan';
+
+// Cache in-memory + TTL utk lookup rpjmdes_standar & master_klasifikasi (data referensi, jarang berubah).
 let rpjmLookupCache = null;
 let rpjmLookupCacheTs = 0;
 const RPJM_LOOKUP_TTL_MS = 30 * 60 * 1000; // 30 menit
@@ -2669,12 +2671,15 @@ async function loadRpjmLookup() {
     if (rpjmLookupCache && (Date.now() - rpjmLookupCacheTs) < RPJM_LOOKUP_TTL_MS) {
         return rpjmLookupCache;
     }
-    const { data, error } = await supabase
-        .from('rpjmdes_standar')
-        .select(RPJM_LOOKUP_COLUMNS)
-        .limit(2000);
-    if (error) {
-        console.warn('⚠️ Gagal memuat rpjmdes_standar:', error.message);
+    const [resRpjm, resMaster] = await Promise.all([
+        supabase.from('rpjmdes_standar').select(RPJM_LOOKUP_COLUMNS).limit(2000),
+        supabase.from('master_klasifikasi').select(MASTER_KLASIFIKASI_LOOKUP_COLUMNS).limit(500)
+    ]);
+    const data = resRpjm.data || [];
+    const masterData = resMaster.data || [];
+
+    if (resRpjm.error && resMaster.error) {
+        console.warn('⚠️ Gagal memuat rpjmdes_standar & master_klasifikasi:', resRpjm.error?.message, resMaster.error?.message);
         if (rpjmLookupCache) return rpjmLookupCache;
         const emptyMap = new Map();
         emptyMap.byFull = new Map();
@@ -2716,6 +2721,39 @@ async function loadRpjmLookup() {
         if (rec.nama_kegiatan) byName.set(String(rec.nama_kegiatan).trim().toLowerCase(), rec);
         if (rec.jenis_kegiatan && !byName.has(String(rec.jenis_kegiatan).trim().toLowerCase())) {
             byName.set(String(rec.jenis_kegiatan).trim().toLowerCase(), rec);
+        }
+    });
+
+    // Master klasifikasi sebagai acuan mutlak (overrides / enriches standard codes)
+    (masterData || []).forEach(m => {
+        const fullClean = String(m.kode_klasifikasi || m.kode_kegiatan || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
+        const exactFull = String(m.kode_klasifikasi || m.kode_kegiatan || '').trim();
+        const baseKey = exactFull.replace(/\.+$/, '');
+
+        const entry = {
+            ...m,
+            kode_unik_full: exactFull,
+            jenis_bidang: m.sub_bidang || m.jenis_bidang
+        };
+
+        if (baseKey) map.set(baseKey, entry);
+        if (exactFull) byFull.set(exactFull, entry);
+        if (fullClean) byFull.set(fullClean, entry);
+
+        const kegClean = String(m.kode_kegiatan || m.kode_klasifikasi || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
+        if (kegClean) byKeg.set(kegClean, entry);
+        if (m.kode_kegiatan) byKeg.set(String(m.kode_kegiatan).trim(), entry);
+
+        const subClean = String(m.kode_sub || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
+        if (subClean && (!bySub.has(subClean) || m.sub_bidang)) bySub.set(subClean, entry);
+        if (m.kode_sub && (!bySub.has(String(m.kode_sub).trim()) || m.sub_bidang)) bySub.set(String(m.kode_sub).trim(), entry);
+
+        const bidClean = String(m.kode_bidang || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
+        if (bidClean && (!byBid.has(bidClean) || m.bidang)) byBid.set(bidClean, entry);
+        if (m.kode_bidang && (!byBid.has(String(m.kode_bidang).trim()) || m.bidang)) byBid.set(String(m.kode_bidang).trim(), entry);
+
+        if (m.jenis_kegiatan) {
+            byName.set(String(m.jenis_kegiatan).trim().toLowerCase(), entry);
         }
     });
 
@@ -2772,9 +2810,9 @@ function resolveRpjmStandar(kode, currentBidang, currentJenisBidang, currentNama
                    (currentBidang && String(currentBidang).trim() !== '' && String(currentBidang).trim() !== '-' ? String(currentBidang).trim() : 'Bidang Penyelenggaraan Pemerintah Desa');
 
     // 2. Sub Bidang / jenis_bidang (Level 2)
-    const jenis_bidang = (matched && matched.jenis_bidang) ||
-                         (matchedKeg && matchedKeg.jenis_bidang) ||
-                         (matchedSub && matchedSub.jenis_bidang) ||
+    const jenis_bidang = (matched && (matched.sub_bidang || matched.jenis_bidang)) ||
+                         (matchedKeg && (matchedKeg.sub_bidang || matchedKeg.jenis_bidang)) ||
+                         (matchedSub && (matchedSub.sub_bidang || matchedSub.jenis_bidang)) ||
                          RAB_SUB_BIDANG_MAP[subKey] ||
                          (currentJenisBidang && String(currentJenisBidang).trim() !== '' && String(currentJenisBidang).trim() !== '-' ? String(currentJenisBidang).trim() : 'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa');
 

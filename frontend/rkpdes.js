@@ -377,13 +377,16 @@ function resolveJenisKegiatanKelompokFallback(item) {
     } else if (typeof item.rpjm_data === 'object' && item.rpjm_data !== null) {
         rpjmObj = item.rpjm_data;
     }
-    const val = (item.jenis_kegiatan_kelompok || (item.jenis_kegiatan && item.jenis_kegiatan !== item.nama_kegiatan ? item.jenis_kegiatan : '') || rpjmObj.jenis_kegiatan || '').trim();
+    const val = (item.jenis_kegiatan_kelompok || item.jenis_kegiatan || rpjmObj.jenis_kegiatan || '').trim();
     if (val && val !== 'Kelompok Kegiatan Umum' && val !== '-') return val;
     const kode = String(item.kode_unik_full || item.kode_unik || '').trim();
     if (kode.startsWith('01.01.01.') || kode.startsWith('1.1.1.')) return 'Penyediaan Penghasilan Tetap dan Tunjangan Kepala Desa';
     if (kode.startsWith('01.01.02.') || kode.startsWith('1.1.2.')) return 'Penyediaan Penghasilan Tetap dan Tunjangan Perangkat Desa';
     if (kode.startsWith('01.01.03.') || kode.startsWith('1.1.3.')) return 'Penyediaan Jaminan Sosial bagi Kepala Desa dan Perangkat Desa';
     if (kode.startsWith('01.01.04.') || kode.startsWith('1.1.4.')) return 'Penyediaan Operasional Pemerintah Desa (ATK, Honor PKPKD dan PPKD dll)';
+    if (kode.startsWith('01.01.05.') || kode.startsWith('1.1.5.')) return 'Penyediaan Tunjangan BPD';
+    if (kode.startsWith('01.01.06.') || kode.startsWith('1.1.6.')) return 'Penyediaan Operasional BPD (rapat, ATK, Makan Minum, Pakaian Seragam, Listrik dll)';
+    if (kode.startsWith('01.01.08.') || kode.startsWith('1.1.8.')) return 'Penyediaan Operasional Pemerintah Desa yang bersumber dari Dana Desa';
     if (kode.startsWith('01.02.01.') || kode.startsWith('1.2.1.')) return 'Penyediaan Sarana (Aset Tetap) Perkantoran/Pemerintahan';
     if (kode.startsWith('01.02.02.') || kode.startsWith('1.2.2.')) return 'Pemeliharaan Gedung/Prasarana Kantor Desa';
     if (kode.startsWith('01.04.01.') || kode.startsWith('1.4.1.')) return 'Penyelenggaraan Musyawarah Perencanaan Desa/Pembahasan APBDes (Reguler)';
