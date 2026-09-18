@@ -1194,6 +1194,7 @@ function buildRkpdesPerubahanHtml() {
                     <td colspan="20" class="align-top border border-slate-400 font-extrabold bg-slate-200 text-slate-900 px-3 py-2 leading-snug uppercase text-xs">
                         ${bidang.key}. ${bidang.name}
                     </td>
+                    <td class="border border-slate-400 bg-slate-200 no-print"></td>
                 </tr>
             `;
 
@@ -1206,6 +1207,7 @@ function buildRkpdesPerubahanHtml() {
                             <td colspan="20" class="align-top border border-slate-400 px-4 py-1 text-xs text-indigo-950 font-extrabold uppercase tracking-wide bg-indigo-50/90">
                                 <i class="fas fa-folder-open text-indigo-600 mr-1.5"></i> ${subName}
                             </td>
+                            <td class="border border-slate-400 bg-indigo-50/90 no-print"></td>
                         </tr>
                     `;
                 }
@@ -1221,6 +1223,7 @@ function buildRkpdesPerubahanHtml() {
                                 <td colspan="20" class="align-top border border-slate-400 px-6 py-1 text-[11px] text-slate-800 font-bold italic bg-slate-100/90">
                                     <i class="fas fa-caret-right text-slate-500 mr-1.5"></i> ${kegName}
                                 </td>
+                                <td class="border border-slate-400 bg-slate-100/90 no-print"></td>
                             </tr>
                         `;
                     }
@@ -1309,7 +1312,7 @@ function buildRkpdesPerubahanHtml() {
                         else if (diff < 0) selisihColor = 'text-rose-700 font-bold';
 
                         tableBodyHtml += `
-                            <tr class="hover:bg-slate-50/80 transition-colors cursor-pointer" data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}" title="Klik untuk edit rincian kegiatan perubahan">
+                            <tr class="hover:bg-slate-50/80 transition-colors" data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}">
                                 <!-- 1. Identifikasi Umum -->
                                 <td class="text-center align-top border border-slate-300 text-slate-500 py-1.5 px-1">${index + 1}</td>
                                 <td class="align-top border border-slate-300 px-3 py-1.5 text-slate-900 font-semibold pl-6">
@@ -1347,6 +1350,13 @@ function buildRkpdesPerubahanHtml() {
                                 
                                 <!-- 4. Blok SELISIH -->
                                 <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap ${selisihColor}">${formatSelisihRupiah(diff)}</td>
+
+                                <!-- 5. Kolom AKSI (Screen only) -->
+                                <td class="text-center align-middle border border-slate-300 px-2 py-1.5 whitespace-nowrap no-print">
+                                    <button type="button" class="btn-edit-perubahan px-2.5 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded text-xs font-semibold shadow transition-all inline-flex items-center gap-1.5 cursor-pointer" data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}" onclick="openEditRkpPerubahanModal('${itemKeyEscaped}')" title="Edit RKPDes Perubahan">
+                                        <i class="fas fa-edit text-white"></i> Edit
+                                    </button>
+                                </td>
                             </tr>
                         `;
                     });
@@ -1364,6 +1374,7 @@ function buildRkpdesPerubahanHtml() {
                     <td class="text-right border border-slate-400 px-2 py-1.5 font-extrabold text-indigo-900 whitespace-nowrap">${formatRupiah(subMenjadi)}</td>
                     <td class="border border-slate-400 bg-slate-50"></td>
                     <td class="text-right border border-slate-400 px-2 py-1.5 font-extrabold ${subSelisih > 0 ? 'text-emerald-700' : (subSelisih < 0 ? 'text-rose-700' : 'text-slate-700')} whitespace-nowrap">${formatSelisihRupiah(subSelisih)}</td>
+                    <td class="border border-slate-400 bg-slate-100 no-print"></td>
                 </tr>
             `;
         }
@@ -1439,6 +1450,9 @@ function buildRkpdesPerubahanHtml() {
                         
                         <!-- 4. Blok SELISIH -->
                         <th class="border border-slate-400 align-middle py-2 px-2 bg-slate-200 text-slate-900 font-extrabold" rowspan="3" style="width: 105px; min-width: 95px;">Selisih Anggaran / Volume</th>
+
+                        <!-- 5. Kolom AKSI (Screen only) -->
+                        <th class="border border-slate-400 align-middle py-2 px-2 bg-slate-100 text-slate-900 font-bold no-print" rowspan="3" style="width: 75px; min-width: 70px;">Aksi</th>
                     </tr>
                     <tr class="text-center text-[10px]">
                         <!-- Sub-kolom SEMULA -->
@@ -1497,6 +1511,7 @@ function buildRkpdesPerubahanHtml() {
                         <td class="border border-slate-400 py-0.5">19</td>
                         <td class="border border-slate-400 py-0.5">20</td>
                         <td class="border border-slate-400 py-0.5">21</td>
+                        <td class="border border-slate-400 py-0.5 no-print text-slate-400">-</td>
                     </tr>
                 </thead>
                 <tbody>
@@ -1513,6 +1528,7 @@ function buildRkpdesPerubahanHtml() {
                         <td class="text-right border border-slate-400 py-2 px-1.5 whitespace-nowrap text-slate-900 font-extrabold bg-white">${formatRupiah(grandTotalMenjadi)}</td>
                         <td class="border border-slate-400 bg-white"></td>
                         <td class="text-right border border-slate-400 py-2 px-1.5 whitespace-nowrap text-slate-900 font-extrabold bg-white">${formatSelisihRupiah(grandTotalSelisih)}</td>
+                        <td class="border border-slate-400 bg-white no-print"></td>
                     </tr>
                 </tfoot>
             </table>

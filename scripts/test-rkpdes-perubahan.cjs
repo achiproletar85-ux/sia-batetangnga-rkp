@@ -172,7 +172,8 @@ const buildPerubahanBody = buildPerubahanMatch ? buildPerubahanMatch[1] : '';
 
 assert(!jsCode.includes('btn-edit-manfaat text-slate-400'), 'Tombol redundan "Manfaat" telah disingkirkan dari baris tabel RKPDes Perubahan');
 assert(!jsCode.includes('pointer-events-none"><i class="fas fa-pen"></i></span>'), 'Seluruh ikon pensil duplikat telah dibersihkan dari sel tabel RKPDes Perubahan');
-assert(!buildPerubahanBody.includes('btn-edit-perubahan'), 'Tombol teks [✎ Edit] inline telah dibersihkan dari baris kegiatan');
+assert(buildPerubahanBody.includes('btn-edit-perubahan'), 'Tombol Edit berkelas btn-edit-perubahan terpasang pada kolom Aksi baris kegiatan');
+assert(buildPerubahanBody.includes('openEditRkpPerubahanModal'), 'Tombol Edit memicu openEditRkpPerubahanModal');
 assert(!buildPerubahanBody.includes('Tetap</span>'), 'Label Tetap telah disingkirkan dari baris kegiatan');
 assert(!jsCode.includes('<td class="cell-edit-sdgs'), 'Sel SDGs bersih dari interaksi per-sel yang redundan');
 assert(!jsCode.includes('<td class="cell-edit-manfaat'), 'Sel Manfaat bersih dari interaksi per-sel yang redundan');
