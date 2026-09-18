@@ -778,12 +778,12 @@ function renderTabelPembiayaan(rawData) {
             <td class="text-right px-2 py-2 font-mono font-bold border border-slate-400">${totalLainnya > 0 ? formatRupiah(totalLainnya) : '-'}</td>
             <td class="border border-slate-400 no-print print:hidden"></td>
         </tr>
-        <tr class="bg-indigo-900 text-white font-extrabold border-2 border-indigo-950">
-            <td colspan="3" class="text-center py-2.5 px-3 uppercase tracking-wider font-extrabold border border-indigo-950">TOTAL KESELURUHAN ANGGARAN PEMBIAYAAN</td>
-            <td colspan="7" class="text-center px-4 py-2.5 font-mono text-sm font-black border border-indigo-950 text-amber-300">
+        <tr class="row-total-pembiayaan bg-slate-900 text-white font-extrabold border-2 border-slate-900" style="background-color: #0f172a !important; color: #ffffff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+            <td colspan="3" class="text-center py-3 px-3 uppercase tracking-wider font-extrabold border border-slate-700" style="background-color: #0f172a !important; color: #ffffff !important; font-weight: 800 !important; font-size: 11.5px !important; letter-spacing: 0.5px;">TOTAL KESELURUHAN ANGGARAN PEMBIAYAAN</td>
+            <td colspan="7" class="text-center px-4 py-3 font-mono text-sm font-black border border-slate-700 text-amber-300" style="background-color: #0f172a !important; color: #fef08a !important; font-weight: 900 !important; font-size: 13.5px !important;">
                 ${formatRupiah(totalSemua)}
             </td>
-            <td class="border border-indigo-950 no-print print:hidden"></td>
+            <td class="border border-slate-700 no-print print:hidden" style="background-color: #0f172a !important;"></td>
         </tr>
     `;
 
@@ -803,9 +803,23 @@ function injectToDOM(htmlHasil) {
     // karena hasil cetak jadi tanpa judul/header/tanda tangan.
     container.innerHTML = `
         <style>
+            .row-total-pembiayaan, .row-total-pembiayaan td {
+                background-color: #0f172a !important;
+                color: #ffffff !important;
+                font-weight: bold !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
             @media print {
                 .no-print, .no-print * {
                     display: none !important;
+                }
+                .row-total-pembiayaan, .row-total-pembiayaan td {
+                    background-color: #0f172a !important;
+                    color: #ffffff !important;
+                    font-weight: bold !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
                 }
             }
         </style>
