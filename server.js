@@ -1446,6 +1446,18 @@ const SISKEUDES_ITEM_ORDER = [
     'perbaikan standinfografis'
 ];
 
+function canonicalRabKey(str) {
+    if (!str) return '';
+    let s = String(str).toLowerCase();
+    s = s.replace(/[.,\-_:;/\\()]/g, ' ');
+    s = s.replace(/\bsekdes\b/g, 'sekretaris desa');
+    s = s.replace(/\bkadus\b/g, 'kepala dusun');
+    s = s.replace(/\bperencanaa\b/g, 'perencanaan');
+    s = s.replace(/\btu\b/g, 'dan tu');
+    s = s.replace(/\s+/g, ' ').trim();
+    return s;
+}
+
 function getSiskeudesItemIndex(uraian) {
     if (!uraian) return -1;
     const norm = String(uraian).trim().toLowerCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ');
@@ -1552,6 +1564,9 @@ function alignRabItems(murniItems, perubahanItems) {
         const mSub = norm(m && (m.subgroup || m.sub_kelompok));
         const mRek = getRabItemRekening(m);
 
+        const mCanon = canonicalRabKey(m && m.uraian);
+        const mCanonMurni = canonicalRabKey(m && m.uraian_murni);
+
         // Helper untuk memastikan pasangan berada dalam rekening / sub-grup yang sama
         const isSameSubgroup = (p) => {
             if (!p) return false;
@@ -1565,40 +1580,60 @@ function alignRabItems(murniItems, perubahanItems) {
             return !mGroup || !pGrp || mGroup === pGrp;
         };
 
-        // Prioritas 1: Cocokkan via urutan_murni bila dalam rekening/subgroup yang sama
-        pIdx = perArr.findIndex((p, idx) => {
-            if (usedPer.has(idx)) return false;
-            if (p && (p.item_baru === true || p.item_baru === 'true')) return false;
-            const urut = Number(p && p.urutan_murni);
-            if (!Number.isInteger(urut) || urut !== mIdx) return false;
-            return isSameSubgroup(p);
-        });
-
-        // Prioritas 2: Exact match: uraian + rekening/subgroup
-        if (pIdx < 0 && mUraian) {
+        // Prioritas 1: Exact canonical match pada uraian dalam rekening/subgroup yang sama
+        if (mCanon) {
             pIdx = perArr.findIndex((p, idx) =>
                 !usedPer.has(idx) &&
                 isSameSubgroup(p) &&
-                norm(p.uraian) === mUraian
+                canonicalRabKey(p.uraian) === mCanon
             );
         }
 
-        // Prioritas 3: Match: uraian_murni cocok dengan uraian murni asli dalam rekening yang sama
-        if (pIdx < 0 && mUraian) {
+        // Prioritas 2: Match via uraian_murni dalam rekening/subgroup yang sama
+        if (pIdx < 0 && mCanon) {
             pIdx = perArr.findIndex((p, idx) =>
                 !usedPer.has(idx) &&
                 isSameSubgroup(p) &&
-                norm(p.uraian_murni) === mUraian
+                canonicalRabKey(p.uraian_murni) === mCanon
             );
         }
 
-        // Prioritas 4: Fallback bila tidak ada rekening ketat tapi uraian dan group sama
-        if (pIdx < 0 && mUraian) {
+        // Prioritas 3: Match canonical uraian pada tingkat kegiatan (bila nama subgroup sedikit berbeda)
+        if (pIdx < 0 && mCanon) {
             pIdx = perArr.findIndex((p, idx) =>
                 !usedPer.has(idx) &&
-                norm(p.uraian) === mUraian &&
-                (!mGroup || norm(p.group || p.group_belanja) === mGroup)
+                canonicalRabKey(p.uraian) === mCanon
             );
+        }
+
+        // Prioritas 4: Cek via urutan_murni bila ada item yang direvisi/direname di Perubahan
+        if (pIdx < 0) {
+            pIdx = perArr.findIndex((p, idx) => {
+                if (usedPer.has(idx)) return false;
+                if (p && (p.item_baru === true || p.item_baru === 'true')) return false;
+                const urut = Number(p && p.urutan_murni);
+                if (!Number.isInteger(urut) || urut !== mIdx) return false;
+                if (!isSameSubgroup(p)) return false;
+
+                const pCanon = canonicalRabKey(p.uraian);
+                const pCanonMurni = canonicalRabKey(p.uraian_murni);
+
+                if (pCanon === mCanon || (pCanonMurni && pCanonMurni === mCanon)) return true;
+
+                // Tolak jika p.uraian adalah nama item murni lain (mencegah salah pasang jabatan)
+                const pBelongsToOtherMurni = murniArr.some((otherM, oIdx) =>
+                    oIdx !== mIdx && canonicalRabKey(otherM && otherM.uraian) === pCanon
+                );
+                if (pBelongsToOtherMurni) return false;
+
+                // Tolak jika mCanon masih punya padanan pasti di sisa perArr
+                const mHasExactMatchInPer = perArr.some((otherP, oIdx) =>
+                    !usedPer.has(oIdx) && canonicalRabKey(otherP && otherP.uraian) === mCanon
+                );
+                if (mHasExactMatchInPer) return false;
+
+                return true;
+            });
         }
 
         if (pIdx >= 0) {
@@ -5196,12 +5231,17 @@ app.get('/api/rab', async (req, res) => {
 
                             let needsReconcile = false;
                             murniItems.forEach((m, mIdx) => {
-                                const mKey = norm(m.uraian) + '||' + normSubgroup(m.subgroup);
+                                const mCanon = canonicalRabKey(m.uraian);
+                                const mSub = norm(m.subgroup);
                                 const found = perItems.some((p) => {
-                                    if (p.urutan_murni === mIdx) return true;
-                                    const pKey = norm(p.uraian) + '||' + normSubgroup(p.subgroup);
-                                    const pKeyMurni = norm(p.uraian_murni) + '||' + normSubgroup(p.subgroup);
-                                    return pKey === mKey || pKeyMurni === mKey;
+                                    const pCanon = canonicalRabKey(p.uraian);
+                                    const pCanonMurni = canonicalRabKey(p.uraian_murni);
+                                    const pSub = norm(p.subgroup);
+                                    if (pCanon === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
+                                    if (pCanonMurni && pCanonMurni === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
+                                    if (pCanon === mCanon) return true;
+                                    if (p.urutan_murni === mIdx && (pCanon === mCanon || pCanonMurni === mCanon)) return true;
+                                    return false;
                                 });
                                 if (!found) {
                                     needsReconcile = true;
@@ -5447,12 +5487,17 @@ app.post('/api/rab/reconcile', async (req, res) => {
             const normSubgroup = (v) => norm(v).replace(/perlengkapan\s+/g, '');
 
             murniItems.forEach((m, mIdx) => {
-                const mKey = norm(m.uraian) + '||' + normSubgroup(m.subgroup);
+                const mCanon = canonicalRabKey(m.uraian);
+                const mSub = norm(m.subgroup);
                 const found = perItems.some((p) => {
-                    if (p.urutan_murni === mIdx) return true;
-                    const pKey = norm(p.uraian) + '||' + normSubgroup(p.subgroup);
-                    const pKeyMurni = norm(p.uraian_murni) + '||' + normSubgroup(p.subgroup);
-                    return pKey === mKey || pKeyMurni === mKey;
+                    const pCanon = canonicalRabKey(p.uraian);
+                    const pCanonMurni = canonicalRabKey(p.uraian_murni);
+                    const pSub = norm(p.subgroup);
+                    if (pCanon === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
+                    if (pCanonMurni && pCanonMurni === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
+                    if (pCanon === mCanon) return true;
+                    if (p.urutan_murni === mIdx && (pCanon === mCanon || pCanonMurni === mCanon)) return true;
+                    return false;
                 });
                 if (!found) {
                     perItems.push({
@@ -5667,13 +5712,18 @@ app.post('/api/rab/sync-basis-murni', async (req, res) => {
         const usedPerIndices = new Set();
 
         murniItems.forEach((m, mIdx) => {
-            const mKey = norm(m.uraian) + '||' + normSubgroup(m.subgroup);
+            const mCanon = canonicalRabKey(m.uraian);
+            const mSub = norm(m.subgroup);
             let pMatchIdx = perItems.findIndex((p, idx) => {
                 if (usedPerIndices.has(idx)) return false;
-                if (p.urutan_murni === mIdx) return true;
-                const pKey = norm(p.uraian) + '||' + normSubgroup(p.subgroup);
-                const pKeyMurni = norm(p.uraian_murni) + '||' + normSubgroup(p.subgroup);
-                return pKey === mKey || pKeyMurni === mKey;
+                const pCanon = canonicalRabKey(p.uraian);
+                const pCanonMurni = canonicalRabKey(p.uraian_murni);
+                const pSub = norm(p.subgroup);
+                if (pCanon === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
+                if (pCanonMurni && pCanonMurni === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
+                if (pCanon === mCanon) return true;
+                if (p.urutan_murni === mIdx && (pCanon === mCanon || pCanonMurni === mCanon)) return true;
+                return false;
             });
 
             if (pMatchIdx >= 0) {
