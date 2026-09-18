@@ -32,8 +32,9 @@ function parseNumber(str) {
 
 // 1. Load Data Stunting dari Database
 function loadStuntingData() {
-    const tahun = document.getElementById('select-tahun')?.value || '2027';
-    document.getElementById('judul-tahun').innerText = tahun;
+    const tahun = document.getElementById('select-tahun')?.value || '2026';
+    const elJudulTahun = document.getElementById('judul-tahun');
+    if (elJudulTahun) elJudulTahun.innerText = tahun;
     
     console.log(`📥 Loading stunting data for tahun ${tahun}...`);
 
@@ -46,15 +47,51 @@ function loadStuntingData() {
                 stuntingList = [];
             }
             renderStuntingTable();
+            updateEmptyIndicator(tahun);
         })
         .catch(err => {
             console.error('❌ Error loading stunting data:', err);
             stuntingList = [];
             renderStuntingTable();
+            updateEmptyIndicator(tahun);
         });
 }
 
-// 2. Render Tabel Stunting 2 Bidang
+function updateEmptyIndicator(tahun) {
+    const indicator = document.getElementById('stunting-empty-indicator');
+    const badgeTahun = document.getElementById('badge-tahun-empty');
+    if (badgeTahun) badgeTahun.innerText = tahun;
+    if (indicator) {
+        if (stuntingList.length === 0) {
+            indicator.classList.remove('hidden');
+        } else {
+            indicator.classList.add('hidden');
+        }
+    }
+}
+
+async function sinkronkanStuntingOtomatis() {
+    const tahun = document.getElementById('select-tahun')?.value || '2026';
+    try {
+        const res = await fetch('/api/stunting/auto-tag', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tahun: parseInt(tahun, 10) })
+        });
+        const json = await res.json();
+        if (json.success) {
+            alert(`✅ ${json.message}`);
+            loadStuntingData();
+        } else {
+            alert(`❌ Gagal: ${json.error || 'Terjadi kesalahan'}`);
+        }
+    } catch (err) {
+        console.error('❌ Error sinkronkanStuntingOtomatis:', err);
+        alert('❌ Gagal menghubungi server: ' + err.message);
+    }
+}
+
+// 2. Render Tabel Stunting 5 Bidang
 function renderStuntingTable() {
     const tbody = document.getElementById('stunting-table-body');
     if (!tbody) return;
@@ -149,11 +186,30 @@ function renderStuntingTable() {
             });
         }
     });
+
+    // Baris Total Keseluruhan Anggaran Stunting
+    const totalBiayaStunting = stuntingList.reduce((acc, item) => acc + (parseInt(item.biaya || 0) || 0), 0);
+    const tahunAktif = document.getElementById('select-tahun')?.value || '2026';
+    const trTotal = document.createElement('tr');
+    trTotal.className = "bg-rose-900 text-white font-black text-xs border-t-2 border-rose-950";
+    trTotal.innerHTML = `
+        <td colspan="7" class="p-2.5 text-center uppercase tracking-wider font-extrabold border border-rose-950">
+            TOTAL KESELURUHAN ANGGARAN PENCEGAHAN STUNTING (${stuntingList.length} KEGIATAN)
+        </td>
+        <td class="p-2.5 text-right font-black text-amber-300 border border-rose-950 whitespace-nowrap text-sm">
+            ${formatRupiah(totalBiayaStunting)}
+        </td>
+        <td colspan="2" class="p-2.5 text-center border border-rose-950 font-bold text-rose-200">
+            APBDES TAHUN ${tahunAktif}
+        </td>
+        <td class="p-2.5 border border-rose-950 no-print"></td>
+    `;
+    tbody.appendChild(trTotal);
 }
 
 // 3. Modal Checklist RAB
 function bukaModalRAB() {
-    const tahun = document.getElementById('select-tahun')?.value || '2027';
+    const tahun = document.getElementById('select-tahun')?.value || '2026';
     console.log(`📥 Fetching RAB checklist for stunting tahun ${tahun}...`);
 
     fetch(`/api/stunting/tarik-rab?tahun=${tahun}`)
@@ -255,6 +311,23 @@ function toggleCheckAllRAB(el) {
     const checkboxes = document.querySelectorAll('.rab-item-checkbox');
     checkboxes.forEach(cb => cb.checked = el.checked);
     updateSelectedCount();
+}
+
+function selectSemuaRekomendasi() {
+    const checkboxes = document.querySelectorAll('.rab-item-checkbox');
+    let count = 0;
+    checkboxes.forEach(cb => {
+        const idx = parseInt(cb.getAttribute('data-idx'), 10);
+        const item = rawRabList[idx];
+        if (item && (item.is_rekomendasi || item.stunting_selected)) {
+            cb.checked = true;
+            count++;
+        }
+    });
+    updateSelectedCount();
+    if (count === 0) {
+        alert('Tidak ditemukan kegiatan rekomendasi stunting pada daftar ini.');
+    }
 }
 
 function updateSelectedCount() {

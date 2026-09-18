@@ -9023,15 +9023,16 @@ function mapStuntingBidang(item) {
 function mapRkpdesToStunting(rp) {
     const biaya = Number(rp.prakiraan_biaya || 0);
     const manfaat = rp.penerima_manfaat || rp.sasaran_manfaat || '';
+    const namaKeg = rp.nama_kegiatan || rp.jenis_kegiatan || '';
     return {
         id: String(rp.id),
         rkpdes_id: rp.id,
         kode_unik_full: rp.kode_unik_full || '',
         tahun: rp.tahun,
         bidang: mapStuntingBidang(rp),
-        jenis_kegiatan: rp.jenis_kegiatan || '',
-        nama_kegiatan: rp.jenis_kegiatan || '',
-        kegiatan: rp.jenis_kegiatan || '',
+        jenis_kegiatan: namaKeg,
+        nama_kegiatan: namaKeg,
+        kegiatan: namaKeg,
         lokasi: rp.lokasi || 'Desa Batetangnga',
         volume: rp.volume || rp.volume_satuan || '',
         volume_satuan: rp.volume_satuan || rp.volume || '',
@@ -9097,23 +9098,71 @@ function findRpjmByKode(rpjmMap, kode) {
 }
 
 // ------------------------------------------------------------------
-// STUNTING API — sumber: rkpdes (stunting = 'Ya')
+// STUNTING API — sumber: rkpdes (Pengecekan Ganda Flag & Konvergensi)
 // ------------------------------------------------------------------
 
-// GET /api/stunting?tahun=2027 — semua kegiatan ber-stunting di rkpdes
+const STUNTING_CONVERGENCE_KEYWORDS = [
+    'stunting', 'posyandu', 'pmt', 'gizi',
+    'makanan tambahan', 'mkn tambahan',
+    'ibu hamil', 'bumil', 'balita', 'baduta',
+    'sanitasi', 'air bersih', 'jamban'
+];
+
+function isStuntingMatch(rp) {
+    if (!rp) return false;
+    const flag = String(rp.stunting || '').trim().toLowerCase();
+    if (flag === 'ya' || flag === 'true' || rp.stunting === true) {
+        return true;
+    }
+    const teks = `${rp.nama_kegiatan || ''} ${rp.jenis_kegiatan || ''} ${rp.sasaran_manfaat || ''} ${rp.penerima_manfaat || ''}`.toLowerCase();
+    if (teks.includes('jaminan sosial') || teks.includes('bpjs')) {
+        return false;
+    }
+    return STUNTING_CONVERGENCE_KEYWORDS.some(k => teks.includes(k));
+}
+
+// GET /api/stunting?tahun=YYYY — semua kegiatan pencegahan stunting di rkpdes
 app.get('/api/stunting', async (req, res) => {
     try {
         const { tahun } = req.query;
-        const tahunInt = parseInt(tahun) || 2027;
+        const tahunInt = parseInt(tahun, 10) || 2026;
+
+        // Ambil data rkpdes untuk tahun terkait (Zero-Wildcard compliant)
         const { data, error } = await supabase
             .from('rkpdes')
             .select(RKPDES_COLUMNS)
             .eq('tahun', tahunInt)
-            .eq('stunting', 'Ya')
             .order('kode_unik_full', { ascending: true });
+
         if (error) throw error;
-        const rows = (data || []).map(mapRkpdesToStunting);
-        return res.json({ success: true, data: rows, total: rows.length, source: 'rkpdes' });
+
+        // Pengecekan ganda stunting: boolean flag / string 'Ya' / 'true' ATAU kata kunci konvergensi stunting
+        const matchedRows = (data || []).filter(isStuntingMatch);
+
+        // Tandai flag stunting 'Ya' di database jika terdeteksi kegiatan konvergensi stunting yang belum ber-flag
+        const unflaggedIds = matchedRows.filter(rp => {
+            const flag = String(rp.stunting || '').trim().toLowerCase();
+            return flag !== 'ya' && flag !== 'true' && rp.stunting !== true;
+        }).map(rp => rp.id);
+
+        if (unflaggedIds.length > 0) {
+            supabase
+                .from('rkpdes')
+                .update({ stunting: 'Ya', updated_at: new Date().toISOString() })
+                .in('id', unflaggedIds)
+                .select('id')
+                .then(() => {})
+                .catch(e => console.error('Error background auto-flagging stunting:', e.message));
+        }
+
+        const rows = matchedRows.map(mapRkpdesToStunting);
+        return res.json({ 
+            success: true, 
+            data: rows, 
+            total: rows.length, 
+            source: 'rkpdes',
+            total_rkpdes: (data || []).length
+        });
     } catch (err) {
         console.error('❌ Error GET /api/stunting:', err.message);
         return res.json({ success: true, data: [], total: 0, source: 'rkpdes_fallback', error: err.message });
@@ -9124,37 +9173,87 @@ app.get('/api/stunting', async (req, res) => {
 app.get('/api/stunting/tarik-rab', async (req, res) => {
     try {
         const { tahun } = req.query;
-        const tahunInt = parseInt(tahun) || 2027;
+        const tahunInt = parseInt(tahun, 10) || 2026;
         const { data, error } = await supabase
             .from('rkpdes')
             .select(RKPDES_COLUMNS)
             .eq('tahun', tahunInt)
-            .not('jenis_kegiatan', 'is', null)
             .order('kode_unik_full', { ascending: true });
+
         if (error) throw error;
-        const out = (data || []).map(rp => ({
-            id: rp.id,
-            rkpdes_id: rp.id,
-            kode_unik: rp.kode_unik_full || '',
-            kode: rp.kode_unik_full || '',
-            kode_unik_full: rp.kode_unik_full || '',
-            bidang: rp.bidang || '',
-            sub_bidang: rp.bidang || '',
-            uraian: rp.jenis_kegiatan || rp.nama_kegiatan || '',
-            nama_kegiatan: rp.jenis_kegiatan || rp.nama_kegiatan || '',
-            kegiatan: rp.jenis_kegiatan || rp.nama_kegiatan || '',
-            jenis_kegiatan: rp.jenis_kegiatan || '',
-            lokasi: rp.lokasi || 'Desa Batetangnga',
-            volume: rp.volume || '',
-            volume_satuan: rp.volume || '',
-            biaya: Number(rp.prakiraan_biaya || 0),
-            jumlah_anggaran: Number(rp.prakiraan_biaya || 0),
-            stunting_selected: rp.stunting === 'Ya'
-        }));
+
+        const out = (data || []).map(rp => {
+            const flag = String(rp.stunting || '').trim().toLowerCase();
+            const teks = `${rp.nama_kegiatan || ''} ${rp.jenis_kegiatan || ''} ${rp.sasaran_manfaat || ''}`.toLowerCase();
+            const isRec = STUNTING_CONVERGENCE_KEYWORDS.some(k => teks.includes(k)) && !teks.includes('jaminan sosial') && !teks.includes('bpjs');
+            const isSelected = flag === 'ya' || flag === 'true' || rp.stunting === true || isRec;
+            const namaKeg = rp.nama_kegiatan || rp.jenis_kegiatan || '';
+
+            return {
+                id: rp.id,
+                rkpdes_id: rp.id,
+                kode_unik: rp.kode_unik_full || '',
+                kode: rp.kode_unik_full || '',
+                kode_unik_full: rp.kode_unik_full || '',
+                bidang: rp.bidang || '',
+                sub_bidang: rp.bidang || '',
+                uraian: namaKeg,
+                nama_kegiatan: namaKeg,
+                kegiatan: namaKeg,
+                jenis_kegiatan: rp.jenis_kegiatan || namaKeg,
+                lokasi: rp.lokasi || 'Desa Batetangnga',
+                volume: rp.volume || '',
+                volume_satuan: rp.volume || '',
+                biaya: Number(rp.prakiraan_biaya || 0),
+                jumlah_anggaran: Number(rp.prakiraan_biaya || 0),
+                stunting_selected: isSelected,
+                is_rekomendasi: isRec
+            };
+        });
         return res.json({ success: true, data: out });
     } catch (err) {
         console.error('❌ Error GET /api/stunting/tarik-rab:', err.message);
         return res.json({ success: true, data: [], error: err.message });
+    }
+});
+
+// POST /api/stunting/auto-tag — Otomatis deteksi & tandai kegiatan stunting di RKPDes
+app.post('/api/stunting/auto-tag', async (req, res) => {
+    try {
+        const { tahun } = req.body || req.query || {};
+        const tahunInt = parseInt(tahun, 10) || 2026;
+
+        const { data, error } = await supabase
+            .from('rkpdes')
+            .select(RKPDES_COLUMNS)
+            .eq('tahun', tahunInt);
+
+        if (error) throw error;
+
+        const toTagIds = (data || []).filter(rp => {
+            const teks = `${rp.nama_kegiatan || ''} ${rp.jenis_kegiatan || ''}`.toLowerCase();
+            if (teks.includes('jaminan sosial') || teks.includes('bpjs')) return false;
+            return STUNTING_CONVERGENCE_KEYWORDS.some(k => teks.includes(k));
+        }).map(rp => rp.id);
+
+        if (toTagIds.length > 0) {
+            const { error: updErr } = await supabase
+                .from('rkpdes')
+                .update({ stunting: 'Ya', updated_at: new Date().toISOString() })
+                .in('id', toTagIds)
+                .select('id');
+            if (updErr) throw updErr;
+        }
+
+        return res.json({
+            success: true,
+            message: `Berhasil mendeteksi dan menandai ${toTagIds.length} kegiatan pencegahan stunting untuk tahun ${tahunInt}.`,
+            tagged_count: toTagIds.length,
+            ids: toTagIds
+        });
+    } catch (err) {
+        console.error('❌ Error POST /api/stunting/auto-tag:', err.message);
+        return res.status(500).json({ success: false, error: err.message });
     }
 });
 
