@@ -110,7 +110,7 @@ function evalBidangNumRow(resolved) {
 
 // 1. Load Data Evaluasi
 async function loadEvaluasiData() {
-    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2027');
+    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2026', 10);
 
     const headerYearEl = document.getElementById('print-header-year');
     if (headerYearEl) headerYearEl.textContent = String(rkpYear);
@@ -253,7 +253,7 @@ function renderEvaluasiTable() {
     const tbody = document.getElementById('tabel-evaluasi-body');
     if (!tbody) return;
 
-    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2027');
+    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2026', 10);
 
     let html = '';
     let grandTotalNominal = 0;
@@ -437,12 +437,12 @@ function toggleRealisasiByItem(idOrKode, isChecked) {
     }
 }
 
-// 3. Tarik Data dari RKPDes Tahun Terpilih (Urut Berdasarkan Kode Unik)
+// 3. Tarik Data dari RKPDes & RAB Tahun Terpilih (Urut Berdasarkan Kode Unik)
 async function tarikDariRAB(showAlert = true) {
-    const tahunTarget = document.getElementById('select-year')?.value || '2027';
-    const tahunEvaluasi = parseInt(tahunTarget);
+    const tahunTarget = document.getElementById('select-year')?.value || '2026';
+    const tahunEvaluasi = parseInt(tahunTarget, 10);
 
-    console.log(`📥 Menarik data RKPDes tahun ${tahunEvaluasi}...`);
+    console.log(`📥 Menarik data RKPDes & RAB tahun ${tahunEvaluasi}...`);
 
     try {
         await ensureMasterHierarchy();
@@ -450,10 +450,18 @@ async function tarikDariRAB(showAlert = true) {
         const data = await res.json();
 
         if (data.success && data.data && data.data.length > 0) {
+            // Peta data saat ini untuk menjaga isian manual user (realisasi, keterangan, lokasi)
+            const existingMap = new Map();
+            (Array.isArray(evaluasiList) ? evaluasiList : []).forEach(row => {
+                if (!row) return;
+                const k = String(row.kode_unik || row.kode_unik_full || row.kode_bidang || '').trim();
+                if (k) existingMap.set(k, row);
+            });
+
             // ✅ URUTKAN DATA BERDASARKAN KODE_UNIK
             const sortedData = data.data.sort((a, b) => {
-                const kodeA = a.kode_unik || a.kode_unik_full || '';
-                const kodeB = b.kode_unik || b.kode_unik_full || '';
+                const kodeA = String(a.kode_unik || a.kode_unik_full || '');
+                const kodeB = String(b.kode_unik || b.kode_unik_full || '');
                 return kodeA.localeCompare(kodeB);
             });
 
@@ -467,23 +475,37 @@ async function tarikDariRAB(showAlert = true) {
             });
 
             const mappedData = [];
-            Object.keys(grouped).sort((a, b) => parseInt(a) - parseInt(b)).forEach(bidang => {
+            Object.keys(grouped).sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).forEach(bidang => {
                 grouped[bidang].forEach((item) => {
-                    const kodeUnik = item.kode_unik || item.kode_unik_full || '';
-                    const namaKeg = item.nama_kegiatan || item.sub_kegiatan || item.kegiatan || item.uraian || '';
+                    const kodeUnik = String(item.kode_unik || item.kode_unik_full || '').trim();
+                    const namaKeg = String(item.nama_kegiatan || item.sub_kegiatan || item.kegiatan || item.uraian || '').trim();
+                    const jenisKeg = String(item.jenis_kegiatan || item.group_nama || '').trim();
+                    const prev = existingMap.get(kodeUnik);
+
+                    let nominalVal = 0;
+                    if (item.total_biaya !== undefined && item.total_biaya !== null) {
+                        nominalVal = parseNumber(item.total_biaya);
+                    } else if (item.jumlah_anggaran !== undefined && item.jumlah_anggaran !== null) {
+                        nominalVal = parseNumber(item.jumlah_anggaran);
+                    } else if (item.nominal !== undefined && item.nominal !== null) {
+                        nominalVal = parseNumber(item.nominal);
+                    } else if (item.pagu !== undefined && item.pagu !== null) {
+                        nominalVal = parseNumber(item.pagu);
+                    }
+
                     mappedData.push({
-                        id: null,
+                        id: prev?.id || null,
                         tahun: tahunEvaluasi,
-                        bidang: parseInt(bidang),
+                        bidang: parseInt(bidang, 10) || 1,
                         kode_unik: kodeUnik,
-                        sub_bidang: item.sub_bidang || '',
-                        jenis_kegiatan: item.jenis_kegiatan || '',
-                        nama_kegiatan: namaKeg,
-                        sub_kegiatan: namaKeg,
-                        lokasi: item.lokasi || item.lokasi_kegiatan || 'Desa Batetangnga',
-                        nominal: parseNumber(item.total_biaya || item.jumlah_anggaran || item.pagu || item.nominal || 0),
-                        realisasi: false,
-                        keterangan: '',
+                        sub_bidang: item.sub_bidang || prev?.sub_bidang || '',
+                        jenis_kegiatan: jenisKeg || prev?.jenis_kegiatan || '',
+                        nama_kegiatan: namaKeg || jenisKeg || 'Kegiatan',
+                        sub_kegiatan: namaKeg || jenisKeg || 'Kegiatan',
+                        lokasi: prev?.lokasi || item.lokasi || item.lokasi_kegiatan || 'Desa Batetangnga',
+                        nominal: nominalVal,
+                        realisasi: prev ? Boolean(prev.realisasi) : false,
+                        keterangan: prev ? (prev.keterangan || '') : '',
                         kode_unik_full: kodeUnik,
                         kode_bidang: kodeUnik
                     });
@@ -492,11 +514,11 @@ async function tarikDariRAB(showAlert = true) {
 
             evaluasiList = mappedData.map(row => enrichRowHierarchy(row));
             renderEvaluasiTable();
-            if (showAlert) alert(`✅ Berhasil menarik ${mappedData.length} data dari RKPDes tahun ${tahunEvaluasi} (Urut Kode Unik)`);
+            if (showAlert) alert(`✅ Berhasil menarik ${mappedData.length} kegiatan RKPDes & RAB tahun ${tahunEvaluasi} (Termasuk penyesuaian PAK/Murni)`);
         } else {
             evaluasiList = [];
             renderEvaluasiTable();
-            if (showAlert) alert(`📭 Tidak ada data RKPDes untuk tahun ${tahunEvaluasi}`);
+            if (showAlert) alert(`📭 Tidak ada data RKPDes/RAB untuk tahun ${tahunEvaluasi}`);
         }
     } catch (error) {
         console.error('❌ Error tarikDariRAB:', error);
@@ -547,7 +569,7 @@ function toggleRealisasi(bidangNum, idxInBidang, isChecked) {
 
 // 6. Tambah, Edit, Hapus Row
 function addRow(bidangNum) {
-    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2027');
+    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2026', 10);
 
     evaluasiList.push({
         id: null,
@@ -627,7 +649,7 @@ async function deleteRow(id) {
 
 // 7. Simpan ke Database (Batch Sync 50)
 async function saveToDatabase() {
-    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2027');
+    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2026', 10);
 
     console.log(`📡 Memanggil endpoint: /api/evaluasi/sync untuk tahun ${rkpYear} dengan ${evaluasiList.length} data...`);
 
@@ -668,7 +690,7 @@ function printPDF() {
     isPrinting = true;
     setTimeout(() => { isPrinting = false; }, 1200);
 
-    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2027');
+    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2026', 10);
     const evalYear = rkpYear;
 
     // Sinkronkan elemen kop cetak pada DOM utama
@@ -967,6 +989,21 @@ function printPDF() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Sinkronisasi tahun aktif dari URL param atau localStorage
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramYear = urlParams.get('tahun');
+    const storedYear = localStorage.getItem('active_tahun') || localStorage.getItem('tahun_anggaran');
+    const selectYear = document.getElementById('select-year');
+    if (selectYear) {
+        if (paramYear && selectYear.querySelector(`option[value="${paramYear}"]`)) {
+            selectYear.value = paramYear;
+        } else if (storedYear && selectYear.querySelector(`option[value="${storedYear}"]`)) {
+            selectYear.value = storedYear;
+        } else if (!selectYear.value) {
+            selectYear.value = '2026';
+        }
+    }
+
     loadEvaluasiData();
     const btnCetak = document.getElementById('btnCetakPdf');
     if (btnCetak) {

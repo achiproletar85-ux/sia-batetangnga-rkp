@@ -6548,30 +6548,91 @@ app.get('/api/evaluasi/tarik-rab', async (req, res) => {
         if (!tahunInt) {
             return res.status(400).json({ success: false, error: 'Parameter tahun diperlukan.' });
         }
-        const { data, error } = await supabase
+        const { data: rkpData, error: rkpError } = await supabase
             .from('rkpdes')
             .select(RKPDES_COLUMNS)
             .eq('tahun', tahunInt)
             .order('kode_unik_full', { ascending: true });
-        if (error) throw error;
+        if (rkpError) throw rkpError;
 
-        const rows = (data || []).map(item => {
-            const k = item.kode_unik_full || item.kode_unik || '';
-            const namaKegiatanSpesifik = String(item.nama_kegiatan || item.sub_kegiatan || item.kegiatan || item.uraian || '').trim();
-            const jenisKegiatanKelompok = String(item.jenis_kegiatan || '').trim();
-            return {
+        // Tarik data RAB untuk sinkronisasi penyesuaian anggaran & kegiatan baru PAK/Murni
+        const { data: rabData, error: rabError } = await supabase
+            .from('rab')
+            .select(RAB_SYNC_COLUMNS)
+            .eq('tahun', tahunInt);
+        if (rabError) {
+            console.warn('⚠️ Gagal mengambil data RAB untuk sinkronisasi evaluasi:', rabError.message);
+        }
+
+        const rabMap = new Map();
+        if (Array.isArray(rabData)) {
+            const pakRows = rabData.filter(r => r.tipe_anggaran === 'PERUBAHAN');
+            const murniRows = rabData.filter(r => r.tipe_anggaran === 'MURNI' || !r.tipe_anggaran);
+            murniRows.forEach(r => {
+                const k = String(r.kode_unik_full || r.kode_unik || '').trim();
+                if (k) rabMap.set(k, r);
+            });
+            pakRows.forEach(r => {
+                const k = String(r.kode_unik_full || r.kode_unik || '').trim();
+                if (k) rabMap.set(k, r);
+            });
+        }
+
+        const rows = [];
+        const seenCodes = new Set();
+
+        (rkpData || []).forEach(item => {
+            const k = String(item.kode_unik_full || item.kode_unik || '').trim();
+            if (k) seenCodes.add(k);
+            const rabItem = k ? rabMap.get(k) : null;
+
+            const namaKegiatanSpesifik = String(item.nama_kegiatan || rabItem?.nama_kegiatan || item.sub_kegiatan || item.kegiatan || item.uraian || '').trim();
+            const jenisKegiatanKelompok = String(item.jenis_kegiatan || rabItem?.jenis_kegiatan || '').trim();
+
+            let nominalVal = 0;
+            if (rabItem && rabItem.jumlah_anggaran !== null && rabItem.jumlah_anggaran !== undefined) {
+                nominalVal = Number(rabItem.jumlah_anggaran);
+            } else {
+                nominalVal = Number(item.prakiraan_biaya || item.jumlah_anggaran || 0);
+            }
+
+            rows.push({
                 kode_unik: k,
                 kode_unik_full: k,
                 nama_kegiatan: namaKegiatanSpesifik || jenisKegiatanKelompok || '-',
                 jenis_kegiatan: jenisKegiatanKelompok,
                 sub_kegiatan: namaKegiatanSpesifik || jenisKegiatanKelompok || '-',
                 bidang: evalBidangNum(item),
-                lokasi: item.lokasi || item.lokasi_kegiatan || 'Desa Batetangnga',
-                jumlah_anggaran: Number(item.prakiraan_biaya || item.jumlah_anggaran || 0),
-                nominal: Number(item.prakiraan_biaya || item.jumlah_anggaran || 0),
-                total_biaya: Number(item.prakiraan_biaya || item.jumlah_anggaran || 0)
-            };
+                lokasi: item.lokasi || rabItem?.lokasi || item.lokasi_kegiatan || 'Desa Batetangnga',
+                jumlah_anggaran: nominalVal,
+                nominal: nominalVal,
+                total_biaya: nominalVal
+            });
         });
+
+        // Masukkan kegiatan baru dari RAB (misal penambahan kegiatan di PAK) yang belum tercatat di RKPDes
+        rabMap.forEach((rabItem, k) => {
+            if (!seenCodes.has(k)) {
+                seenCodes.add(k);
+                const namaKeg = String(rabItem.nama_kegiatan || rabItem.uraian || rabItem.jenis_kegiatan || '-').trim();
+                const jenisKeg = String(rabItem.jenis_kegiatan || rabItem.group_nama || '').trim();
+                const nom = Number(rabItem.jumlah_anggaran || 0);
+                rows.push({
+                    kode_unik: k,
+                    kode_unik_full: k,
+                    nama_kegiatan: namaKeg || jenisKeg || '-',
+                    jenis_kegiatan: jenisKeg,
+                    sub_kegiatan: namaKeg || jenisKeg || '-',
+                    bidang: evalBidangNum(rabItem),
+                    lokasi: rabItem.lokasi || rabItem.lokasi_kegiatan || 'Desa Batetangnga',
+                    jumlah_anggaran: nom,
+                    nominal: nom,
+                    total_biaya: nom
+                });
+            }
+        });
+
+        rows.sort((a, b) => (a.kode_unik_full || a.kode_unik || '').localeCompare(b.kode_unik_full || b.kode_unik || ''));
 
         res.json({ success: true, data: rows });
     } catch (error) {
