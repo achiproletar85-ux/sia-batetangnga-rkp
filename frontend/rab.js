@@ -547,6 +547,102 @@ function sortRabItems(items) {
 window.sortRabItems = sortRabItems;
 window.getRabItemRekening = getRabItemRekening;
 
+// STRICT BASELINE CLONE & STRICT APPEND HELPER
+// Menjamin array items Perubahan menjiplak 1:1 urutan index Murni (0 s.d. N),
+// dan uraian/item baru murni diletakkan di indeks paling bawah array (append at bottom).
+function buildPerubahanItemsFromBaseline(murniItems, perItems, murniId) {
+    const mArr = Array.isArray(murniItems) ? murniItems : [];
+    const pArr = Array.isArray(perItems) ? perItems : [];
+    const usedP = new Set();
+    const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+
+    const updated = [];
+
+    // 1. BASELINE CLONE: Kloning 1:1 mengikuti urutan index Murni (0 s.d. N)
+    mArr.forEach((m, mIdx) => {
+        const mCanon = canonicalRabKey(m.uraian);
+        const mSub = norm(m.subgroup || m.sub_kelompok);
+
+        let pMatchIdx = pArr.findIndex((p, idx) => {
+            if (usedP.has(idx)) return false;
+            const pCanon = canonicalRabKey(p.uraian);
+            const pCanonMurni = canonicalRabKey(p.uraian_murni);
+            const pSub = norm(p.subgroup || p.sub_kelompok);
+            if (pCanon === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
+            if (pCanonMurni && pCanonMurni === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
+            if (pCanon === mCanon) return true;
+            if (p.urutan_murni === mIdx && (pCanon === mCanon || pCanonMurni === mCanon)) return true;
+            return false;
+        });
+
+        if (pMatchIdx >= 0) {
+            usedP.add(pMatchIdx);
+            const pMatch = pArr[pMatchIdx];
+            updated.push({
+                ...pMatch,
+                group: (m.group || pMatch.group || '').trim(),
+                subgroup: (m.subgroup || pMatch.subgroup || '').trim(),
+                urutan_murni: mIdx,
+                uraian_murni: (m.uraian || '').trim(),
+                volume_murni: Number(m.volume || 1),
+                satuan_murni: m.satuan || pMatch.satuan || '',
+                harga_murni: Number(m.harga || m.harga_satuan || 0),
+                jumlah_murni: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
+                id_referensi_murni: murniId || m.id_referensi_murni || null,
+                item_baru: false,
+                urutan_manual: mIdx + 1,
+                urutan: mIdx + 1,
+                no: mIdx + 1
+            });
+        } else {
+            // Item murni belum tersimpan di perubahan -> drafkan persis
+            const vol = Number(m.volume || 1);
+            const hrg = Number(m.harga || m.harga_satuan || 0);
+            const jml = Number(m.jumlah !== undefined ? m.jumlah : (vol * hrg));
+            updated.push({
+                group: (m.group || m.group_belanja || m.group_nama || '').trim(),
+                subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
+                uraian: (m.uraian || '').trim(),
+                volume: vol,
+                satuan: String(m.satuan || 'Paket').trim(),
+                harga: hrg,
+                jumlah: jml,
+                sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
+                keterangan: String(m.keterangan || '').trim(),
+                urutan_murni: mIdx,
+                uraian_murni: (m.uraian || '').trim(),
+                volume_murni: vol,
+                satuan_murni: String(m.satuan || '').trim(),
+                harga_murni: hrg,
+                jumlah_murni: jml,
+                id_referensi_murni: murniId || m.id_referensi_murni || null,
+                item_baru: false,
+                item_dihapus: false,
+                urutan_manual: mIdx + 1,
+                urutan: mIdx + 1,
+                no: mIdx + 1
+            });
+        }
+    });
+
+    // 2. STRICT APPEND: Penambahan uraian/item baru diletakkan di indeks paling bawah array
+    pArr.forEach((p, idx) => {
+        if (!usedP.has(idx)) {
+            updated.push({
+                ...p,
+                urutan_murni: null,
+                item_baru: true,
+                urutan_manual: updated.length + 1,
+                urutan: updated.length + 1,
+                no: updated.length + 1
+            });
+        }
+    });
+
+    return updated;
+}
+window.buildPerubahanItemsFromBaseline = buildPerubahanItemsFromBaseline;
+
 function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
     const msg = document.getElementById('toast-msg');
@@ -1356,7 +1452,7 @@ async function loadSavedRAB() {
                             ...it,
                             sumber: normalizeSumberDana(it.sumber || it.sumber_dana)
                         })) : [];
-                        rabMurniRefItems = sortRabItems(mappedMurni);
+                        rabMurniRefItems = mappedMurni;
                         const itemsSum = rabMurniRefItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
                         rabMurniRefTotal = itemsSum || Number(jsonMurni.data.jumlah_anggaran || jsonMurni.data.total_biaya || 0);
                     }
@@ -1365,116 +1461,16 @@ async function loadSavedRAB() {
                 console.warn('Gagal memuat referensi Murni:', eMurni);
             }
 
-            // AUTO-FILL FALLBACK: Jika di mode PERUBAHAN belum pernah disimpan (currentRabId null) dan rincian items masih kosong,
-            // otomatis isi rabItems dari referensi MURNI sebagai draf awal perubahan
+            // AUTO-FILL & REKONSILIASI BASELINE CLONE:
+            // 1. Jika di mode PERUBAHAN belum pernah disimpan (currentRabId null) dan rincian items masih kosong,
+            // otomatis isi rabItems menjiplak 1:1 identik dari Murni (0 s.d. N).
+            // 2. Jika sudah ada data Perubahan, sinkronkan struktur 1:1 baseline Murni di atas dan item baru di paling bawah.
             if ((!rabItems || rabItems.length === 0) && rabMurniRefItems.length > 0 && !currentRabId) {
-                rabItems = rabMurniRefItems.map((m, idx) => {
-                    const vol = (m.volume !== undefined && m.volume !== null && m.volume !== '' && !isNaN(Number(m.volume))) ? Number(m.volume) : 1;
-                    const hrg = Number(m.harga !== undefined && m.harga !== null && m.harga !== '' ? m.harga : (m.harga_satuan !== undefined && m.harga_satuan !== null && m.harga_satuan !== '' ? m.harga_satuan : 0));
-                    const jml = Number(m.jumlah !== undefined && m.jumlah !== null && m.jumlah !== '' ? m.jumlah : (vol * hrg));
-                    return {
-                        group: (m.group || m.group_belanja || m.group_nama || '').trim(),
-                        subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
-                        uraian: m.uraian || '',
-                        volume: vol,
-                        satuan: m.satuan || 'Paket',
-                        harga: hrg,
-                        jumlah: jml,
-                        sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
-                        keterangan: m.keterangan || '',
-                        urutan_murni: m.urutan_murni !== undefined ? m.urutan_murni : idx,
-                        uraian_murni: m.uraian || '',
-                        volume_murni: vol,
-                        satuan_murni: m.satuan || '',
-                        harga_murni: hrg,
-                        jumlah_murni: jml,
-                        id_referensi_murni: m.id_referensi_murni || currentRabRefMurni || null,
-                        item_baru: false,
-                        item_dihapus: false,
-                        urutan_manual: m.urutan_manual !== undefined ? m.urutan_manual : (m.urutan || idx + 1),
-                        urutan: m.urutan || idx + 1,
-                        no: m.no || idx + 1
-                    };
-                });
-                reindexRabItemsBySubgroup(rabItems);
-                console.log(`[RAB Perubahan] Auto-fill ${rabItems.length} item dari versi MURNI untuk ${targetKode}`);
+                rabItems = buildPerubahanItemsFromBaseline(rabMurniRefItems, [], currentRabRefMurni);
+                console.log(`[RAB Perubahan] Auto-fill baseline 1:1 ${rabItems.length} item dari versi MURNI untuk ${targetKode}`);
             } else if (rabItems.length > 0 && rabMurniRefItems.length > 0) {
-                // Pastikan urutan_murni terisi HANYA jika item memang cocok secara kanonikal dengan murni
-                rabItems.forEach((it, idx) => {
-                    const pCanon = canonicalRabKey(it.uraian);
-                    const pCanonMurni = canonicalRabKey(it.uraian_murni);
-
-                    // Verifikasi apakah urutan_murni yang tersimpan masih valid
-                    if (it.urutan_murni !== undefined && it.urutan_murni !== null) {
-                        const target = rabMurniRefItems[it.urutan_murni];
-                        const tCanon = canonicalRabKey(target && target.uraian);
-                        if (!target || (tCanon !== pCanon && (!pCanonMurni || tCanon !== pCanonMurni))) {
-                            it.urutan_murni = null;
-                        }
-                    }
-
-                    if (it.urutan_murni === undefined || it.urutan_murni === null) {
-                        const mIdx = rabMurniRefItems.findIndex(m =>
-                            canonicalRabKey(m.uraian) === pCanon
-                        );
-                        if (mIdx >= 0) {
-                            it.urutan_murni = mIdx;
-                            it.urutan_manual = mIdx + 1;
-                        }
-                    }
-                });
-
-                // REKONSILIASI ITEM MURNI YANG BELUM ADA DI PERUBAHAN:
-                // Pastikan seluruh item belanja dari master Murni dimuat utuh tanpa terpotong (misal setelah Lakban)
-                let itemsAdded = false;
-                rabMurniRefItems.forEach((m, mIdx) => {
-                    const mCanon = canonicalRabKey(m.uraian);
-                    const mSub = norm(m.subgroup || m.sub_kelompok).replace(/perlengkapan\s+/g, '');
-
-                    const found = rabItems.some(it => {
-                        const itCanon = canonicalRabKey(it.uraian);
-                        const itCanonMurni = canonicalRabKey(it.uraian_murni);
-                        if (itCanon === mCanon || itCanonMurni === mCanon) return true;
-                        if (it.urutan_murni === mIdx && (itCanon === mCanon || itCanonMurni === mCanon)) return true;
-                        return false;
-                    });
-
-                    if (!found) {
-                        const vol = (m.volume !== undefined && m.volume !== null && m.volume !== '' && !isNaN(Number(m.volume))) ? Number(m.volume) : 1;
-                        const hrg = Number(m.harga !== undefined && m.harga !== null && m.harga !== '' ? m.harga : (m.harga_satuan || 0));
-                        const jml = Number(m.jumlah !== undefined && m.jumlah !== null && m.jumlah !== '' ? m.jumlah : (vol * hrg));
-                        rabItems.push({
-                            group: (m.group || m.group_belanja || m.group_nama || '').trim(),
-                            subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
-                            uraian: m.uraian || '',
-                            volume: vol,
-                            satuan: m.satuan || 'Paket',
-                            harga: hrg,
-                            jumlah: jml,
-                            sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
-                            keterangan: m.keterangan || '',
-                            urutan_murni: mIdx,
-                            uraian_murni: m.uraian || '',
-                            volume_murni: vol,
-                            satuan_murni: m.satuan || '',
-                            harga_murni: hrg,
-                            jumlah_murni: jml,
-                            id_referensi_murni: m.id_referensi_murni || currentRabRefMurni || null,
-                            item_baru: false,
-                            item_dihapus: false,
-                            urutan_manual: m.urutan_manual !== undefined ? m.urutan_manual : (m.urutan || mIdx + 1),
-                            urutan: m.urutan || mIdx + 1,
-                            no: m.no || mIdx + 1
-                        });
-                        itemsAdded = true;
-                    }
-                });
-
-                if (itemsAdded) {
-                    rabItems = sortRabItems(rabItems);
-                    reindexRabItemsBySubgroup(rabItems);
-                    console.log(`[RAB Perubahan] Direkonsiliasi lengkap: sekarang memuat ${rabItems.length} item.`);
-                }
+                rabItems = buildPerubahanItemsFromBaseline(rabMurniRefItems, rabItems, currentRabRefMurni);
+                console.log(`[RAB Perubahan] Direkonsiliasi baseline 1:1: sekarang memuat ${rabItems.length} item.`);
             }
         }
 
@@ -2295,19 +2291,30 @@ function addRabItem() {
         // sehingga nilai SEMULA otomatis 0 pada laporan perbandingan.
         item.urutan_murni = null;
         item.uraian_murni = null;
+        item.item_baru = true;
     }
 
     if (editIndex > -1) {
         rabItems.splice(editIndex, 1, item);
         showToast('Perubahan item disimpan', 'success');
     } else {
+        if (isModePerubahan()) {
+            item.item_baru = true;
+            item.urutan_murni = null;
+            item.urutan_manual = rabItems.length + 1;
+            item.urutan = rabItems.length + 1;
+            item.no = rabItems.length + 1;
+        }
         rabItems.push(item);
         showToast('Item RAB berhasil ditambahkan', 'success');
     }
-    rabItems = sortRabItems(rabItems);
+
+    if (!isModePerubahan()) {
+        rabItems = sortRabItems(rabItems);
+        reindexRabItemsBySubgroup(rabItems);
+    }
     setFormDirty(true);
     resetRabItemForm();
-    reindexRabItemsBySubgroup(rabItems);
     renderRabItems();
     saveRAB();
 }
@@ -2777,6 +2784,24 @@ function renderRabItems() {
             entry.items.sort((a, b) => {
                 const itA = a.item;
                 const itB = b.item;
+                if (isModePerubahan()) {
+                    const isNewA = !!(itA.item_baru || itA.urutan_murni === null || itA.urutan_murni === undefined);
+                    const isNewB = !!(itB.item_baru || itB.urutan_murni === null || itB.urutan_murni === undefined);
+                    // 1. Item baseline Murni selalu berada di atas item baru
+                    if (!isNewA && isNewB) return -1;
+                    if (isNewA && !isNewB) return 1;
+                    if (!isNewA && !isNewB) {
+                        // Keduanya baseline: kunci mutlak mengikuti urutan Murni (0..N)
+                        const mA = Number(itA.urutan_murni !== undefined && itA.urutan_murni !== null ? itA.urutan_murni : (itA.urutan_manual || 0));
+                        const mB = Number(itB.urutan_murni !== undefined && itB.urutan_murni !== null ? itB.urutan_murni : (itB.urutan_manual || 0));
+                        if (mA !== mB) return mA - mB;
+                    } else {
+                        // Keduanya item baru: urutkan sesuai posisi append / urutan_manual
+                        const uA = Number(itA.urutan_manual || a.idx || 0);
+                        const uB = Number(itB.urutan_manual || b.idx || 0);
+                        if (uA !== uB) return uA - uB;
+                    }
+                }
                 const uA = Number(itA.urutan_manual !== undefined && itA.urutan_manual !== null && itA.urutan_manual !== '' 
                     ? itA.urutan_manual 
                     : (itA.urutan_murni !== undefined && itA.urutan_murni !== null && itA.urutan_murni !== '' 
@@ -4572,14 +4597,14 @@ async function syncUrutanBerdasarkanMurni() {
         console.warn('Gagal call /api/rab/sync-basis-murni, melakukan fallback sinkronisasi client-side:', eSync);
     }
 
-    // 2. Fallback sinkronisasi client-side
+    // 2. Fallback sinkronisasi client-side dengan STRICT BASELINE CLONE & STRICT APPEND BAWAH
     let murniItems = rabMurniRefItems;
     if (!Array.isArray(murniItems) || murniItems.length === 0) {
         try {
             const res = await fetch(`${API_URL}/rab?kode_unik_full=${encodeURIComponent(kode)}&tahun=${tahun}&tipe=MURNI`);
             const json = await res.json().catch(() => null);
             if (res.ok && json && json.success && json.data && Array.isArray(json.data.items)) {
-                murniItems = sortRabItems(json.data.items);
+                murniItems = json.data.items;
                 rabMurniRefItems = murniItems;
             }
         } catch (e) {
@@ -4593,98 +4618,8 @@ async function syncUrutanBerdasarkanMurni() {
         return;
     }
 
-    const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
-
-    // Urutkan rabItems saat ini (Perubahan) mengikuti urutan di Murni
-    const murniOrderMap = new Map();
-    murniItems.forEach((m, idx) => {
-        const cKey = canonicalRabKey(m.uraian);
-        const subKey = cKey + '||' + norm(m.subgroup);
-        const info = { index: idx, manualOrder: Number(m.urutan_manual || m.urutan || idx + 1), murniItem: m };
-        if (!murniOrderMap.has(subKey)) murniOrderMap.set(subKey, info);
-        if (!murniOrderMap.has(cKey)) murniOrderMap.set(cKey, info);
-    });
-
-    const usedMIndicesInPer = new Set();
-    rabItems.forEach((it, idx) => {
-        const cKey = canonicalRabKey(it.uraian);
-        const cKeyMurni = canonicalRabKey(it.uraian_murni);
-        const subKey = cKey + '||' + norm(it.subgroup);
-        const subKeyMurni = cKeyMurni + '||' + norm(it.subgroup);
-
-        const match = murniOrderMap.get(subKey) || murniOrderMap.get(subKeyMurni) || murniOrderMap.get(cKey) || murniOrderMap.get(cKeyMurni);
-        if (match && !usedMIndicesInPer.has(match.index)) {
-            usedMIndicesInPer.add(match.index);
-            it.urutan_murni = match.index;
-            it.urutan_manual = match.manualOrder;
-            it.uraian_murni = match.murniItem.uraian;
-            it.volume_murni = Number(match.murniItem.volume || 1);
-            it.satuan_murni = match.murniItem.satuan || it.satuan || '';
-            it.harga_murni = Number(match.murniItem.harga || match.murniItem.harga_satuan || 0);
-            it.jumlah_murni = Number(match.murniItem.jumlah !== undefined ? match.murniItem.jumlah : (Number(match.murniItem.volume || 1) * Number(match.murniItem.harga || 0)));
-            it.item_baru = false;
-        } else if (match && usedMIndicesInPer.has(match.index)) {
-            // Duplikat item yang sama persis
-            it.urutan_murni = match.index;
-            it.urutan_manual = match.manualOrder;
-            it.item_baru = false;
-        } else {
-            it.urutan_murni = null;
-            it.urutan_manual = 999990 + (idx + 1);
-            it.item_baru = true;
-        }
-    });
-
-    // Masukkan seluruh item dari Murni yang belum ada di Perubahan
-    murniItems.forEach((m, mIdx) => {
-        const mCanon = canonicalRabKey(m.uraian);
-        const exists = rabItems.some(it => {
-            const itCanon = canonicalRabKey(it.uraian);
-            const itCanonMurni = canonicalRabKey(it.uraian_murni);
-            if (itCanon === mCanon || itCanonMurni === mCanon) return true;
-            if (it.urutan_murni === mIdx && (itCanon === mCanon || itCanonMurni === mCanon)) return true;
-            return false;
-        });
-
-        if (!exists) {
-            const vol = Number(m.volume || 1);
-            const hrg = Number(m.harga || m.harga_satuan || 0);
-            const jml = Number(m.jumlah !== undefined ? m.jumlah : (vol * hrg));
-            rabItems.push({
-                group: (m.group || m.group_belanja || m.group_nama || '').trim(),
-                subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
-                uraian: m.uraian || '',
-                volume: vol,
-                satuan: m.satuan || 'Paket',
-                harga: hrg,
-                jumlah: jml,
-                sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
-                keterangan: m.keterangan || '',
-                urutan_murni: mIdx,
-                uraian_murni: m.uraian || '',
-                volume_murni: vol,
-                satuan_murni: m.satuan || '',
-                harga_murni: hrg,
-                jumlah_murni: jml,
-                id_referensi_murni: m.id_referensi_murni || currentRabRefMurni || null,
-                item_baru: false,
-                item_dihapus: false,
-                urutan_manual: mIdx + 1,
-                urutan: mIdx + 1,
-                no: mIdx + 1
-            });
-        }
-    });
-
-    // Urutkan item secara presisi mengikuti hierarki Murni
-    rabItems.sort((a, b) => {
-        const uA = Number(a.urutan_manual !== undefined && a.urutan_manual !== null && a.urutan_manual !== '' ? a.urutan_manual : 999999);
-        const uB = Number(b.urutan_manual !== undefined && b.urutan_manual !== null && b.urutan_manual !== '' ? b.urutan_manual : 999999);
-        return uA - uB;
-    });
-
-    rabItems = sortRabItems(rabItems);
-    reindexRabItemsBySubgroup(rabItems);
+    // STRICT BASELINE CLONE (0..N) + STRICT APPEND ITEM BARU DI BAWAH
+    rabItems = buildPerubahanItemsFromBaseline(murniItems, rabItems, currentRabRefMurni);
     renderRabItems();
     await saveRAB();
 

@@ -14,7 +14,7 @@
  */
 const path = require('path');
 const app = require(path.resolve(__dirname, '..', 'server.js'));
-const { alignRabItems, parseRabItemsSafely, rabItemJumlah, normalizeRabTipe, sortRabItems, compareKodeUnikFull, sortHierarchical, getKode, getRabGroupCode, getRabSubgroupCode, getRabItemRekening } = app.rabPerubahan;
+const { alignRabItems, parseRabItemsSafely, rabItemJumlah, normalizeRabTipe, sortRabItems, compareKodeUnikFull, sortHierarchical, getKode, getRabGroupCode, getRabSubgroupCode, getRabItemRekening, buildPerubahanItemsFromBaseline } = app.rabPerubahan;
 
 let pass = 0;
 let fail = 0;
@@ -607,6 +607,59 @@ console.log('\n20) Sinkronisasi Mutlak Urutan Tampilan Web & Cetak PDF');
 
     // 5. Verifikasi server.js /api/rab/perbandingan mendukung hasManualOrder
     check('server.js mendukung hasManualOrder pada GET /api/rab/perbandingan', serverCode.includes('const hasManualOrder = mItems.some('), true);
+}
+
+// ============================================================
+// 21. Strict Baseline Clone 1:1 & Strict Append for New Items
+// ============================================================
+console.log('\n21) Strict Baseline Clone 1:1 & Strict Append for New Items');
+{
+    const murniMaster = [
+        { uraian: 'Sekretaris Desa', volume: 12, satuan: 'OB', harga: 2250000, group: 'Belanja Pegawai', subgroup: 'Penghasilan Tetap Perangkat Desa' },
+        { uraian: 'Kasi Pemerintahan', volume: 12, satuan: 'OB', harga: 2050000, group: 'Belanja Pegawai', subgroup: 'Penghasilan Tetap Perangkat Desa' },
+        { uraian: 'Kasi Kesejahteraan', volume: 12, satuan: 'OB', harga: 2050000, group: 'Belanja Pegawai', subgroup: 'Penghasilan Tetap Perangkat Desa' },
+        { uraian: 'Kaur Keuangan', volume: 12, satuan: 'OB', harga: 2050000, group: 'Belanja Pegawai', subgroup: 'Penghasilan Tetap Perangkat Desa' },
+        { uraian: 'Kadus Batetangnga', volume: 12, satuan: 'OB', harga: 2050000, group: 'Belanja Pegawai', subgroup: 'Penghasilan Tetap Perangkat Desa' }
+    ];
+
+    // 1. Kloning dari nol (draf pertama Perubahan)
+    const cloned = buildPerubahanItemsFromBaseline(murniMaster, [], 101);
+    check('Cloned items length persis 5', cloned.length, 5);
+    check('Cloned item 0 adalah Sekretaris Desa di urutan_murni 0', cloned[0].uraian, 'Sekretaris Desa');
+    check('Cloned item 0 urutan_murni = 0', cloned[0].urutan_murni, 0);
+    check('Cloned item 0 urutan_manual = 1', cloned[0].urutan_manual, 1);
+    check('Cloned item 1 adalah Kasi Pemerintahan di urutan_murni 1', cloned[1].uraian, 'Kasi Pemerintahan');
+    check('Cloned item 2 adalah Kasi Kesejahteraan di urutan_murni 2', cloned[2].uraian, 'Kasi Kesejahteraan');
+    check('Cloned item 3 adalah Kaur Keuangan di urutan_murni 3', cloned[3].uraian, 'Kaur Keuangan');
+    check('Cloned item 4 adalah Kadus Batetangnga di urutan_murni 4', cloned[4].uraian, 'Kadus Batetangnga');
+    check('Seluruh cloned item berstatus bukan item baru', cloned.every(it => it.item_baru === false), true);
+
+    // 2. Simulasi penambahan item baru di Perubahan (misal Staf Pembantu)
+    const perDraft = [
+        ...cloned,
+        { uraian: 'Staf Pembantu Desa (Baru)', volume: 6, satuan: 'OB', harga: 1500000, group: 'Belanja Pegawai', subgroup: 'Penghasilan Tetap Perangkat Desa', item_baru: true }
+    ];
+
+    // Jalankan rekonsiliasi ulang
+    const reconciled = buildPerubahanItemsFromBaseline(murniMaster, perDraft, 101);
+    check('Total baris setelah append = 6', reconciled.length, 6);
+    check('5 baris pertama tetap utuh 1:1 identik Murni', reconciled.slice(0, 5).map(it => it.uraian), [
+        'Sekretaris Desa',
+        'Kasi Pemerintahan',
+        'Kasi Kesejahteraan',
+        'Kaur Keuangan',
+        'Kadus Batetangnga'
+    ]);
+    check('Item baru diletakkan di indeks paling bawah (indeks 5)', reconciled[5].uraian, 'Staf Pembantu Desa (Baru)');
+    check('Item baru memiliki item_baru = true', reconciled[5].item_baru, true);
+    check('Item baru memiliki urutan_murni = null', reconciled[5].urutan_murni, null);
+    check('Item baru memiliki urutan_manual = 6', reconciled[5].urutan_manual, 6);
+
+    // 3. Verifikasi frontend/rab.js memiliki buildPerubahanItemsFromBaseline
+    const fs = require('fs');
+    const rabJsCode = fs.readFileSync(path.resolve(__dirname, '..', 'frontend', 'rab.js'), 'utf8');
+    check('frontend/rab.js memiliki fungsi buildPerubahanItemsFromBaseline', rabJsCode.includes('function buildPerubahanItemsFromBaseline('), true);
+    check('frontend/rab.js auto-fill memanggil buildPerubahanItemsFromBaseline', rabJsCode.includes('buildPerubahanItemsFromBaseline(rabMurniRefItems'), true);
 }
 
 console.log(`\n========================================`);

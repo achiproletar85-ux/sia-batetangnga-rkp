@@ -1712,6 +1712,101 @@ function alignRabItems(murniItems, perubahanItems) {
     return rows;
 }
 
+// STRICT BASELINE CLONE & STRICT APPEND HELPER
+// Menjamin array items Perubahan menjiplak 1:1 urutan index Murni (0 s.d. N),
+// dan uraian/item baru murni diletakkan di indeks paling bawah array (append at bottom).
+function buildPerubahanItemsFromBaseline(murniItems, perItems, murniId) {
+    const mArr = parseRabItemsSafely(murniItems);
+    const pArr = parseRabItemsSafely(perItems);
+    const usedP = new Set();
+    const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+
+    const updated = [];
+
+    // 1. BASELINE CLONE: Kloning 1:1 mengikuti urutan index Murni (0 s.d. N)
+    mArr.forEach((m, mIdx) => {
+        const mCanon = canonicalRabKey(m.uraian);
+        const mSub = norm(m.subgroup);
+
+        let pMatchIdx = pArr.findIndex((p, idx) => {
+            if (usedP.has(idx)) return false;
+            const pCanon = canonicalRabKey(p.uraian);
+            const pCanonMurni = canonicalRabKey(p.uraian_murni);
+            const pSub = norm(p.subgroup);
+            if (pCanon === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
+            if (pCanonMurni && pCanonMurni === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
+            if (pCanon === mCanon) return true;
+            if (p.urutan_murni === mIdx && (pCanon === mCanon || pCanonMurni === mCanon)) return true;
+            return false;
+        });
+
+        if (pMatchIdx >= 0) {
+            usedP.add(pMatchIdx);
+            const pMatch = pArr[pMatchIdx];
+            updated.push({
+                ...pMatch,
+                group: (m.group || pMatch.group || '').trim(),
+                subgroup: (m.subgroup || pMatch.subgroup || '').trim(),
+                urutan_murni: mIdx,
+                uraian_murni: (m.uraian || '').trim(),
+                volume_murni: Number(m.volume || 1),
+                satuan_murni: m.satuan || pMatch.satuan || '',
+                harga_murni: Number(m.harga || m.harga_satuan || 0),
+                jumlah_murni: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
+                id_referensi_murni: murniId || m.id_referensi_murni || null,
+                item_baru: false,
+                urutan_manual: mIdx + 1,
+                urutan: mIdx + 1,
+                no: mIdx + 1
+            });
+        } else {
+            // Item murni belum tersimpan di perubahan -> drafkan persis
+            const vol = Number(m.volume || 1);
+            const hrg = Number(m.harga || m.harga_satuan || 0);
+            const jml = Number(m.jumlah !== undefined ? m.jumlah : (vol * hrg));
+            updated.push({
+                group: (m.group || m.group_belanja || m.group_nama || '').trim(),
+                subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
+                uraian: (m.uraian || '').trim(),
+                volume: vol,
+                satuan: String(m.satuan || 'Paket').trim(),
+                harga: hrg,
+                jumlah: jml,
+                sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
+                keterangan: String(m.keterangan || '').trim(),
+                urutan_murni: mIdx,
+                uraian_murni: (m.uraian || '').trim(),
+                volume_murni: vol,
+                satuan_murni: String(m.satuan || '').trim(),
+                harga_murni: hrg,
+                jumlah_murni: jml,
+                id_referensi_murni: murniId || m.id_referensi_murni || null,
+                item_baru: false,
+                item_dihapus: false,
+                urutan_manual: mIdx + 1,
+                urutan: mIdx + 1,
+                no: mIdx + 1
+            });
+        }
+    });
+
+    // 2. STRICT APPEND: Penambahan uraian/item baru diletakkan di indeks paling bawah array
+    pArr.forEach((p, idx) => {
+        if (!usedP.has(idx)) {
+            updated.push({
+                ...p,
+                urutan_murni: null,
+                item_baru: true,
+                urutan_manual: updated.length + 1,
+                urutan: updated.length + 1,
+                no: updated.length + 1
+            });
+        }
+    });
+
+    return updated;
+}
+
 // Berapa banyak baris PERUBAHAN untuk satu kegiatan+tahun (dipakai kunci MURNI).
 async function countPerubahanFor(tahun, kode_unik_full) {
     const tahunInt = parseInt(tahun, 10);
@@ -5202,13 +5297,9 @@ app.get('/api/rab', async (req, res) => {
                 if (!saved) {
                     let murni = await getRabFromDb(targetKode, tahunInt, RAB_TIPE_MURNI);
                     if (murni && Array.isArray(murni.items) && murni.items.length > 0) {
-                        const murniItems = murni.items.map((it, idx) => ({
-                            ...it,
-                            urutan_murni: it.urutan_murni !== undefined ? it.urutan_murni : idx,
-                            id_referensi_murni: it.id_referensi_murni || murni.id
-                        }));
+                        const murniItems = buildPerubahanItemsFromBaseline(murni.items, [], murni.id);
 
-                        // Belum ada baris PERUBAHAN di DB -> buat objek draf dari Murni
+                        // Belum ada baris PERUBAHAN di DB -> buat objek draf dari Murni (exact 1:1 clone 0..N)
                         saved = {
                             ...murni,
                             id: null, // Tandai draf baru
@@ -5221,64 +5312,20 @@ app.get('/api/rab', async (req, res) => {
                 } else {
                     // Baris PERUBAHAN sudah ada di DB:
                     // REKONSILIASI OTOMATIS: Pastikan seluruh item master MURNI terserap utuh tanpa terpotong
+                    // dan urutan baseline Murni tetap 1:1 dengan item baru di-append di paling bawah
                     try {
                         let murni = await getRabFromDb(targetKode, tahunInt, RAB_TIPE_MURNI);
                         if (murni && Array.isArray(murni.items) && murni.items.length > 0) {
-                            const murniItems = parseRabItemsSafely(murni.items);
-                            const perItems = parseRabItemsSafely(saved.items);
-                            const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
-                            const normSubgroup = (v) => norm(v).replace(/perlengkapan\s+/g, '');
-
-                            let needsReconcile = false;
-                            murniItems.forEach((m, mIdx) => {
-                                const mCanon = canonicalRabKey(m.uraian);
-                                const mSub = norm(m.subgroup);
-                                const found = perItems.some((p) => {
-                                    const pCanon = canonicalRabKey(p.uraian);
-                                    const pCanonMurni = canonicalRabKey(p.uraian_murni);
-                                    const pSub = norm(p.subgroup);
-                                    if (pCanon === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
-                                    if (pCanonMurni && pCanonMurni === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
-                                    if (pCanon === mCanon) return true;
-                                    if (p.urutan_murni === mIdx && (pCanon === mCanon || pCanonMurni === mCanon)) return true;
-                                    return false;
-                                });
-                                if (!found) {
-                                    needsReconcile = true;
-                                    perItems.push({
-                                        group: (m.group || m.group_belanja || m.group_nama || '').trim(),
-                                        subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
-                                        uraian: (m.uraian || '').trim(),
-                                        volume: Number(m.volume || 1),
-                                        satuan: String(m.satuan || 'Paket').trim(),
-                                        harga: Number(m.harga || m.harga_satuan || 0),
-                                        jumlah: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
-                                        sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
-                                        keterangan: String(m.keterangan || '').trim(),
-                                        urutan_murni: mIdx,
-                                        uraian_murni: (m.uraian || '').trim(),
-                                        volume_murni: Number(m.volume || 1),
-                                        satuan_murni: String(m.satuan || '').trim(),
-                                        harga_murni: Number(m.harga || m.harga_satuan || 0),
-                                        jumlah_murni: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
-                                        id_referensi_murni: murni.id,
-                                        item_baru: false,
-                                        item_dihapus: false,
-                                        urutan_manual: m.urutan_manual || (mIdx + 1),
-                                        urutan: mIdx + 1,
-                                        no: mIdx + 1
-                                    });
-                                }
-                            });
-
-                            if (needsReconcile) {
-                                saved.items = sortRabItems(perItems);
+                            const updatedItems = buildPerubahanItemsFromBaseline(murni.items, saved.items, murni.id);
+                            const wasChanged = JSON.stringify(updatedItems) !== JSON.stringify(saved.items);
+                            if (wasChanged) {
+                                saved.items = updatedItems;
                                 const totalPer = saved.items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
                                 saved.jumlah_anggaran = totalPer;
                                 saved.total_biaya = totalPer;
                                 saved.total_rab = totalPer;
                                 saved.id_referensi_murni = murni.id;
-                                console.log(`[RECONCILE] Rekonsiliasi in-memory ${saved.items.length} item untuk RAB Perubahan ${targetKode} (GET read-only, tanpa tulis DB)`);
+                                console.log(`[RECONCILE] Rekonsiliasi in-memory baseline 1:1 ${saved.items.length} item untuk RAB Perubahan ${targetKode} (GET read-only, tanpa tulis DB)`);
                             }
                         }
                     } catch (reconErr) {
@@ -5456,23 +5503,18 @@ app.post('/api/rab/reconcile', async (req, res) => {
 
         let perub = await getRabFromDb(targetKode, tahunInt, RAB_TIPE_PERUBAHAN);
         const murniItems = parseRabItemsSafely(murni.items);
+        const perItems = perub ? parseRabItemsSafely(perub.items) : [];
+
+        const updatedItems = buildPerubahanItemsFromBaseline(murniItems, perItems, murni.id);
+        const totalPer = updatedItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
 
         if (!perub) {
-            // Jika baris Perubahan belum ada, buat dari draf Murni
-            const newItems = murniItems.map((m, mIdx) => ({
-                ...m,
-                urutan_murni: mIdx,
-                id_referensi_murni: murni.id,
-                item_baru: false,
-                item_dihapus: false
-            }));
-            const totalPer = newItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
             perub = {
                 ...murni,
                 id: undefined,
                 tipe_anggaran: RAB_TIPE_PERUBAHAN,
                 id_referensi_murni: murni.id,
-                items: sortRabItems(newItems),
+                items: updatedItems,
                 jumlah_anggaran: totalPer,
                 total_biaya: totalPer,
                 total_rab: totalPer,
@@ -5481,53 +5523,7 @@ app.post('/api/rab/reconcile', async (req, res) => {
                 updated_at: new Date().toISOString()
             };
         } else {
-            // Baris Perubahan sudah ada, rekonsiliasi item yang hilang
-            const perItems = parseRabItemsSafely(perub.items);
-            const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
-            const normSubgroup = (v) => norm(v).replace(/perlengkapan\s+/g, '');
-
-            murniItems.forEach((m, mIdx) => {
-                const mCanon = canonicalRabKey(m.uraian);
-                const mSub = norm(m.subgroup);
-                const found = perItems.some((p) => {
-                    const pCanon = canonicalRabKey(p.uraian);
-                    const pCanonMurni = canonicalRabKey(p.uraian_murni);
-                    const pSub = norm(p.subgroup);
-                    if (pCanon === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
-                    if (pCanonMurni && pCanonMurni === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
-                    if (pCanon === mCanon) return true;
-                    if (p.urutan_murni === mIdx && (pCanon === mCanon || pCanonMurni === mCanon)) return true;
-                    return false;
-                });
-                if (!found) {
-                    perItems.push({
-                        group: (m.group || m.group_belanja || m.group_nama || '').trim(),
-                        subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
-                        uraian: (m.uraian || '').trim(),
-                        volume: Number(m.volume || 1),
-                        satuan: String(m.satuan || 'Paket').trim(),
-                        harga: Number(m.harga || m.harga_satuan || 0),
-                        jumlah: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
-                        sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
-                        keterangan: String(m.keterangan || '').trim(),
-                        urutan_murni: mIdx,
-                        uraian_murni: (m.uraian || '').trim(),
-                        volume_murni: Number(m.volume || 1),
-                        satuan_murni: String(m.satuan || '').trim(),
-                        harga_murni: Number(m.harga || m.harga_satuan || 0),
-                        jumlah_murni: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
-                        id_referensi_murni: murni.id,
-                        item_baru: false,
-                        item_dihapus: false,
-                        urutan_manual: m.urutan_manual || (mIdx + 1),
-                        urutan: mIdx + 1,
-                        no: mIdx + 1
-                    });
-                }
-            });
-
-            perub.items = sortRabItems(perItems);
-            const totalPer = perub.items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+            perub.items = updatedItems;
             perub.jumlah_anggaran = totalPer;
             perub.total_biaya = totalPer;
             perub.total_rab = totalPer;
@@ -5707,87 +5703,9 @@ app.post('/api/rab/sync-basis-murni', async (req, res) => {
         const norm = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
         const normSubgroup = (v) => norm(v).replace(/perlengkapan\s+/g, '');
 
-        // Gabungkan seluruh item Murni ke Perubahan
-        const updatedPerItems = [];
-        const usedPerIndices = new Set();
-
-        murniItems.forEach((m, mIdx) => {
-            const mCanon = canonicalRabKey(m.uraian);
-            const mSub = norm(m.subgroup);
-            let pMatchIdx = perItems.findIndex((p, idx) => {
-                if (usedPerIndices.has(idx)) return false;
-                const pCanon = canonicalRabKey(p.uraian);
-                const pCanonMurni = canonicalRabKey(p.uraian_murni);
-                const pSub = norm(p.subgroup);
-                if (pCanon === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
-                if (pCanonMurni && pCanonMurni === mCanon && (!mSub || !pSub || mSub === pSub)) return true;
-                if (pCanon === mCanon) return true;
-                if (p.urutan_murni === mIdx && (pCanon === mCanon || pCanonMurni === mCanon)) return true;
-                return false;
-            });
-
-            if (pMatchIdx >= 0) {
-                usedPerIndices.add(pMatchIdx);
-                const pMatch = perItems[pMatchIdx];
-                updatedPerItems.push({
-                    ...pMatch,
-                    group: (m.group || pMatch.group || '').trim(),
-                    subgroup: (m.subgroup || pMatch.subgroup || '').trim(),
-                    urutan_murni: mIdx,
-                    uraian_murni: (m.uraian || '').trim(),
-                    volume_murni: Number(m.volume || 1),
-                    satuan_murni: m.satuan || '',
-                    harga_murni: Number(m.harga || m.harga_satuan || 0),
-                    jumlah_murni: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
-                    id_referensi_murni: murniRecord.id,
-                    item_baru: false,
-                    urutan_manual: mIdx + 1,
-                    urutan: mIdx + 1,
-                    no: mIdx + 1
-                });
-            } else {
-                // Item murni baru/belum ada di Perubahan
-                updatedPerItems.push({
-                    group: (m.group || m.group_belanja || m.group_nama || '').trim(),
-                    subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
-                    uraian: (m.uraian || '').trim(),
-                    volume: Number(m.volume || 1),
-                    satuan: String(m.satuan || 'Paket').trim(),
-                    harga: Number(m.harga || m.harga_satuan || 0),
-                    jumlah: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
-                    sumber: normalizeSumberDana(m.sumber || m.sumber_dana || 'ADD (Alokasi Dana Desa)'),
-                    keterangan: String(m.keterangan || '').trim(),
-                    urutan_murni: mIdx,
-                    uraian_murni: (m.uraian || '').trim(),
-                    volume_murni: Number(m.volume || 1),
-                    satuan_murni: String(m.satuan || '').trim(),
-                    harga_murni: Number(m.harga || m.harga_satuan || 0),
-                    jumlah_murni: Number(m.jumlah !== undefined ? m.jumlah : (Number(m.volume || 1) * Number(m.harga || 0))),
-                    id_referensi_murni: murniRecord.id,
-                    item_baru: false,
-                    item_dihapus: false,
-                    urutan_manual: mIdx + 1,
-                    urutan: mIdx + 1,
-                    no: mIdx + 1
-                });
-            }
-        });
-
-        // Pertahankan item tambahan baru di Perubahan yang memang tidak ada di Murni
-        perItems.forEach((p, idx) => {
-            if (!usedPerIndices.has(idx)) {
-                updatedPerItems.push({
-                    ...p,
-                    urutan_manual: updatedPerItems.length + 1,
-                    urutan: updatedPerItems.length + 1,
-                    no: updatedPerItems.length + 1,
-                    item_baru: true
-                });
-            }
-        });
-
-        const sortedPerItems = sortRabItems(updatedPerItems);
-        const totalPer = sortedPerItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
+        // Gabungkan seluruh item Murni ke Perubahan dengan STRICT BASELINE CLONE & STRICT APPEND BAWAH
+        const updatedPerItems = buildPerubahanItemsFromBaseline(murniRecord.items, perItems, murniRecord.id);
+        const totalPer = updatedPerItems.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
 
         if (!perubahanRecord) {
             perubahanRecord = {
@@ -5795,13 +5713,13 @@ app.post('/api/rab/sync-basis-murni', async (req, res) => {
                 id: null,
                 tipe_anggaran: RAB_TIPE_PERUBAHAN,
                 id_referensi_murni: murniRecord.id,
-                items: sortedPerItems,
+                items: updatedPerItems,
                 jumlah_anggaran: totalPer,
                 total_biaya: totalPer,
                 total_rab: totalPer
             };
         } else {
-            perubahanRecord.items = sortedPerItems;
+            perubahanRecord.items = updatedPerItems;
             perubahanRecord.jumlah_anggaran = totalPer;
             perubahanRecord.total_biaya = totalPer;
             perubahanRecord.total_rab = totalPer;
@@ -11324,6 +11242,8 @@ module.exports.rabPerubahan = {
     getRabGroupCode,
     getRabSubgroupCode,
     getRabItemRekening,
+    canonicalRabKey,
+    buildPerubahanItemsFromBaseline,
     RAB_TIPE_MURNI,
     RAB_TIPE_PERUBAHAN,
     RAB_COMPARE_COLUMNS,
