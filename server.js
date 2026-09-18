@@ -553,32 +553,36 @@ async function getRabFromDb(kode_unik_full, tahun, tipeAnggaran = RAB_TIPE_MURNI
         }
     }
 
-    // 3. Fallback jika belum ketemu dengan filter tipe spesifik: cari baris kegiatan manapun untuk tahun tersebut
-    const allCodes = [rawKode, ...fallbacks];
-    for (const tryKode of allCodes) {
-        const { data: anyData, error: anyErr } = await supabase
-            .from(RAB_TABLE)
-            .select(RAB_FULL_COLUMNS)
-            .or(`kode_unik_full.eq.${tryKode},kode_unik.eq.${tryKode}`)
-            .eq('tahun', tahun)
-            .order('id', { ascending: false })
-            .limit(1);
-        if (!anyErr && anyData && anyData.length > 0) {
-            return enrichRabDetail(anyData[0]);
+    // 3. Fallback jika belum ketemu untuk tipe MURNI (mencakup baris legacy dengan tipe_anggaran NULL)
+    if (tipe === RAB_TIPE_MURNI) {
+        const allCodes = [rawKode, ...fallbacks];
+        for (const tryKode of allCodes) {
+            const { data: anyData, error: anyErr } = await supabase
+                .from(RAB_TABLE)
+                .select(RAB_FULL_COLUMNS)
+                .or(`kode_unik_full.eq.${tryKode},kode_unik.eq.${tryKode}`)
+                .eq('tahun', tahun)
+                .or(`tipe_anggaran.eq.${RAB_TIPE_MURNI},tipe_anggaran.is.null`)
+                .order('id', { ascending: false })
+                .limit(1);
+            if (!anyErr && anyData && anyData.length > 0) {
+                return enrichRabDetail(anyData[0]);
+            }
         }
-    }
 
-    // 4. Fallback lintas tahun jika kegiatan tersimpan di tahun berbeda
-    for (const tryKode of allCodes) {
-        const { data: anyYrData, error: anyYrErr } = await supabase
-            .from(RAB_TABLE)
-            .select(RAB_FULL_COLUMNS)
-            .or(`kode_unik_full.eq.${tryKode},kode_unik.eq.${tryKode}`)
-            .order('tahun', { ascending: false })
-            .order('id', { ascending: false })
-            .limit(1);
-        if (!anyYrErr && anyYrData && anyYrData.length > 0) {
-            return enrichRabDetail(anyYrData[0]);
+        // 4. Fallback lintas tahun jika kegiatan tersimpan di tahun berbeda (hanya untuk MURNI)
+        for (const tryKode of allCodes) {
+            const { data: anyYrData, error: anyYrErr } = await supabase
+                .from(RAB_TABLE)
+                .select(RAB_FULL_COLUMNS)
+                .or(`kode_unik_full.eq.${tryKode},kode_unik.eq.${tryKode}`)
+                .or(`tipe_anggaran.eq.${RAB_TIPE_MURNI},tipe_anggaran.is.null`)
+                .order('tahun', { ascending: false })
+                .order('id', { ascending: false })
+                .limit(1);
+            if (!anyYrErr && anyYrData && anyYrData.length > 0) {
+                return enrichRabDetail(anyYrData[0]);
+            }
         }
     }
 
@@ -591,19 +595,26 @@ async function getRabFromDb(kode_unik_full, tahun, tipeAnggaran = RAB_TIPE_MURNI
 // sedangkan nilai anggaran (volume, satuan, harga, jumlah, sumber_dana)
 // ditarik dari tabel `rab`. Cocokkan berdasarkan kode_unik_full + tahun.
 // ============================================
-async function getMergedRkpRows(tahunInt, extraRabFields) {
+async function getMergedRkpRows(tahunInt, extraRabFields, tipeAnggaran = RAB_TIPE_MURNI) {
     // ============================================================
     // SUMBER DATA UTAMA ADALAH TABEL `rab`
     // Sesuai permintaan pengguna, data tidak lagi digabung dari `rancangan_rkpdes`
     // untuk mencegah data "siluman" atau tidak konsisten.
     // Fungsi ini sekarang hanya mengambil data dari `rab` dan memformatnya.
     // ============================================================
-    console.log(`[INFO] getMergedRkpRows dipanggil untuk tahun ${tahunInt}, hanya mengambil dari tabel 'rab'.`);
+    const tipe = normalizeRabTipe(tipeAnggaran);
+    console.log(`[INFO] getMergedRkpRows dipanggil untuk tahun ${tahunInt}, tipe ${tipe}, hanya mengambil dari tabel 'rab'.`);
 
-    const { data: rabData, error: rabError } = await supabase
+    let q = supabase
         .from(RAB_TABLE)
         .select(RAB_SYNC_COLUMNS)
         .eq('tahun', tahunInt);
+    if (tipe === RAB_TIPE_MURNI) {
+        q = q.or(`tipe_anggaran.eq.${RAB_TIPE_MURNI},tipe_anggaran.is.null`);
+    } else {
+        q = q.eq('tipe_anggaran', tipe);
+    }
+    const { data: rabData, error: rabError } = await q;
 
     if (rabError) {
         console.error(`[ERROR] Gagal mengambil data dari tabel 'rab':`, rabError.message);
@@ -6266,17 +6277,25 @@ app.get('/api/verifikasi-proposal', async (req, res) => {
     }
 });
 
-// GET /api/verifikasi-proposal/rab-list?tahun=YYYY -> daftar kegiatan RAB utk dropdown tarik
+// GET /api/verifikasi-proposal/rab-list?tahun=YYYY[&tipe=MURNI|PERUBAHAN] -> daftar kegiatan RAB utk dropdown tarik
 app.get('/api/verifikasi-proposal/rab-list', async (req, res) => {
     try {
-        const { tahun } = req.query;
+        const { tahun, tipe } = req.query;
         const tahunInt = parseInt(tahun, 10) || 2027;
+        const tipeAnggaran = normalizeRabTipe(tipe || RAB_TIPE_MURNI);
         const rpjmLookup = await loadRpjmLookup();
-        const { data, error } = await supabase
+        let q = supabase
             .from('rab')
             .select(VERIF_RAB_DROPDOWN_COLUMNS)
-            .eq('tahun', tahunInt)
-            .order('nama_kegiatan', { ascending: true });
+            .eq('tahun', tahunInt);
+        if (tipe !== 'ALL') {
+            if (tipeAnggaran === RAB_TIPE_MURNI) {
+                q = q.or(`tipe_anggaran.eq.${RAB_TIPE_MURNI},tipe_anggaran.is.null`);
+            } else {
+                q = q.eq('tipe_anggaran', tipeAnggaran);
+            }
+        }
+        const { data, error } = await q.order('nama_kegiatan', { ascending: true });
         if (error) throw error;
         const items = (data || []).map(r => {
             const rawKode = String(r.kode_unik_full || '').trim();
@@ -7601,7 +7620,7 @@ app.get('/api/rkpdes', async (req, res) => {
             try {
                 let { data: rabData } = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt).eq('tipe_anggaran', 'MURNI');
                 if (!rabData || rabData.length === 0) {
-                    const fallbackAny = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt);
+                    const fallbackAny = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt).is('tipe_anggaran', null);
                     rabData = fallbackAny.data || [];
                 }
 
@@ -7653,10 +7672,13 @@ app.get('/api/rkpdes', async (req, res) => {
                 console.error('❌ Error during RKPDes fallback generation:', fallbackErr.message);
             }
         }
-
         try {
             const rpjmLookup = await loadRpjmLookup();
-            const { data: enrichRab } = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt);
+            let { data: enrichRab } = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt).eq('tipe_anggaran', 'MURNI');
+            if (!enrichRab || enrichRab.length === 0) {
+                const fallbackAny = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt).is('tipe_anggaran', null);
+                enrichRab = fallbackAny.data || [];
+            }
             const rabMap = new Map();
             const rabNameMap = new Map();
             if (Array.isArray(enrichRab)) {
@@ -8590,7 +8612,7 @@ async function buildRkpPayLoadFromRAB(tahunInt, preloadedRab = null) {
         if (error) throw error;
         rabData = data || [];
         if (rabData.length === 0) {
-            const fallbackAny = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt);
+            const fallbackAny = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt).is('tipe_anggaran', null);
             rabData = fallbackAny.data || [];
         }
     }
@@ -8744,10 +8766,17 @@ app.post('/api/rkpdes/clear-and-sync', async (req, res) => {
         // 1. Bangun payload dari RAB DULU — sebelum menghapus apa pun — agar
         //    kegagalan query/transformasi TIDAK pernah meninggalkan tabel
         //    RKPDes kosong (bug "hapus dulu, insert gagal").
-        const { data: rabData, error: rabError } = await supabase
+        //    Sinkronisasi RKPDes Murni HANYA mengambil data dari RAB MURNI (bukan Perubahan).
+        let rabQ = supabase
             .from('rab')
             .select(RAB_SYNC_COLUMNS)
-            .eq('tahun', tahunInt);
+            .eq('tahun', tahunInt)
+            .eq('tipe_anggaran', 'MURNI');
+        let { data: rabData, error: rabError } = await rabQ;
+        if (!rabError && (!rabData || rabData.length === 0)) {
+            const fb = await supabase.from('rab').select(RAB_SYNC_COLUMNS).eq('tahun', tahunInt).is('tipe_anggaran', null);
+            if (fb.data && fb.data.length > 0) rabData = fb.data;
+        }
 
         if (rabError) throw rabError;
 
@@ -9887,17 +9916,26 @@ app.post('/api/pembiayaan', async (req, res) => {
 // POST /api/rkpdes-data/import - Sinkronisasi data RKPDes dari RAB (dipakai tombol Sinkronisasi pembiayaan)
 app.post('/api/rkpdes-data/import', async (req, res) => {
     try {
-        const { tahun } = req.body;
+        const { tahun, tipe } = req.body;
         const tahunInt = parseInt(tahun);
+        const tipeAnggaran = normalizeRabTipe(tipe || RAB_TIPE_MURNI);
 
         if (!tahunInt) {
             return res.status(400).json({ success: false, error: 'Tahun anggaran valid diperlukan.' });
         }
 
-        const { data: rabData, error: rabError } = await supabase
+        let rabQ = supabase
             .from('rab')
             .select(RAB_SYNC_COLUMNS)
             .eq('tahun', tahunInt);
+        if (tipe !== 'ALL') {
+            if (tipeAnggaran === RAB_TIPE_MURNI) {
+                rabQ = rabQ.or(`tipe_anggaran.eq.${RAB_TIPE_MURNI},tipe_anggaran.is.null`);
+            } else {
+                rabQ = rabQ.eq('tipe_anggaran', tipeAnggaran);
+            }
+        }
+        const { data: rabData, error: rabError } = await rabQ;
 
         if (rabError) throw rabError;
 

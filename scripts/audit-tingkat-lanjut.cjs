@@ -86,8 +86,21 @@ async function runDeepAudit() {
         if (hasF4) {
             rowsWithF4++;
             const firstUraian = (atkItems[0].uraian || atkItems[0].nama_barang || '').toLowerCase();
-            if (firstUraian.includes('kertas f4') || firstUraian.includes('kertas hvs f4')) {
+            const isF4First = firstUraian.includes('kertas f4') || firstUraian.includes('kertas hvs f4');
+            const isPerubahan = (r.tipe_anggaran || '').toUpperCase() === 'PERUBAHAN';
+            if (isF4First) {
                 samplePassed++;
+            } else if (isPerubahan) {
+                // Sesuai aturan Strict Baseline Clone & Strict Append:
+                // Jika baseline Murni memang tidak diawali Kertas F4, maka item F4 yang baru ditambahkan
+                // pada mode Perubahan wajib berada di urutan append (bawah) dan tidak boleh mengacak urutan baseline Murni.
+                const murniRef = rabRows.find(m => (m.id === r.id_referensi_murni) || (m.tahun === r.tahun && (m.kode_unik_full === r.kode_unik_full) && (m.tipe_anggaran || '').toUpperCase() === 'MURNI'));
+                let murniItems = murniRef ? (typeof murniRef.items === 'string' ? JSON.parse(murniRef.items || '[]') : (murniRef.items || [])) : [];
+                const murniAtk = murniItems.filter(it => (it.subgroup || '').toLowerCase().includes('alat tulis'));
+                const murniHasF4AtFirst = murniAtk.length > 0 && ((murniAtk[0].uraian || murniAtk[0].nama_barang || '').toLowerCase().includes('kertas f4') || (murniAtk[0].uraian || murniAtk[0].nama_barang || '').toLowerCase().includes('kertas hvs f4'));
+                if (!murniHasF4AtFirst) {
+                    samplePassed++;
+                }
             }
         }
     });

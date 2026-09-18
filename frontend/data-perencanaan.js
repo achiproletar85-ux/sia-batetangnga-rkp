@@ -40,10 +40,11 @@ async function loadActiveTabData() {
 
     try {
         let endpoint = '';
+        const activeTipe = localStorage.getItem('sia_tipe_anggaran') || localStorage.getItem('rab_tipe_anggaran') || 'MURNI';
         if (currentTab === 'master') endpoint = '/api/master';
         else if (currentTab === 'rkpdes') endpoint = `/api/rkpdes?tahun=${tahun}`;
         else if (currentTab === 'durkpdes') endpoint = `/api/du-rkpdes?tahun=${tahun}`;
-        else if (currentTab === 'rab') endpoint = `/api/rab?tahun=${tahun}`;
+        else if (currentTab === 'rab') endpoint = `/api/rab?tahun=${tahun}&tipe=${encodeURIComponent(activeTipe)}`;
         else if (currentTab === 'stunting') endpoint = `/api/stunting?tahun=${tahun}`;
 
         const res = await fetch(endpoint);

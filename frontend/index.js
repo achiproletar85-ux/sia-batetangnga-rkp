@@ -68,7 +68,8 @@ async function loadDashboardMetrics() {
         
         // 3. RAB
         try {
-            const rabRes = await fetch(`/api/rab?tahun=${tahun}`);
+            const activeTipe = localStorage.getItem('sia_tipe_anggaran') || localStorage.getItem('rab_tipe_anggaran') || 'MURNI';
+            const rabRes = await fetch(`/api/rab?tahun=${tahun}&tipe=${encodeURIComponent(activeTipe)}`);
             if (rabRes.ok) {
                 const rabData = await rabRes.json();
                 console.log('✅ RAB data:', rabData.data?.length || 0);

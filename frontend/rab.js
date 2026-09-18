@@ -3154,16 +3154,23 @@ async function cetakPdfByGroup() {
             if (!isNaN(tahunNum)) {
                 query = query.eq('tahun', tahunNum);
             }
+            if (typeof rabTipe === 'string' && rabTipe) {
+                query = query.eq('tipe_anggaran', rabTipe);
+            }
 
             let { data, error } = await query;
             
             if ((!data || data.length === 0) && !error) {
                 // Try without year restriction
-                const resNoYear = await client
+                let queryNoYear = client
                     .from('rab')
                     .select('id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, jenis_kegiatan, bidang, group_nama, lokasi, lokasi_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items')
                     .or(`kode_unik.ilike.${targetPrefix}%,kode_unik_full.ilike.${targetPrefix}%,kode_unik.ilike.${prefixClean}%,kode_unik_full.ilike.${prefixClean}%`)
                     .limit(300);
+                if (typeof rabTipe === 'string' && rabTipe) {
+                    queryNoYear = queryNoYear.eq('tipe_anggaran', rabTipe);
+                }
+                const resNoYear = await queryNoYear;
                 if (resNoYear.data && resNoYear.data.length > 0) data = resNoYear.data;
             }
 
@@ -3189,12 +3196,13 @@ async function cetakPdfByGroup() {
     // 2B. JIKA MASIH BELUM MEMILIKI ITEMS (DITARIK DARI SUMMARY LIST), FETCH DETAIL PER ITEM
     if (!matchedRows.some(r => r.items && (Array.isArray(r.items) ? r.items.length > 0 : true)) && matchedRows.length > 0) {
         try {
+            const activePrintTipe = (typeof rabTipe === 'string' && rabTipe) ? rabTipe : 'MURNI';
             const enriched = await Promise.all(matchedRows.map(async (row) => {
                 if (row.items && Array.isArray(row.items) && row.items.length > 0) return row;
                 try {
                     const targetK = row.kode_unik_full || row.kode_unik;
                     if (targetK) {
-                        const res = await fetch(`/api/rab?kode_unik_full=${encodeURIComponent(targetK)}&tahun=${tahunNum}`);
+                        const res = await fetch(`/api/rab?kode_unik_full=${encodeURIComponent(targetK)}&tahun=${tahunNum}&tipe=${encodeURIComponent(activePrintTipe)}`);
                         const json = await res.json();
                         if (json.success && json.data && json.data.items) {
                             return { ...row, items: json.data.items, rpjm_data: json.data.rpjm_data || row.rpjm_data };
