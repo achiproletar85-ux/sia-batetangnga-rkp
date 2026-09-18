@@ -2194,6 +2194,7 @@ function openEditRkpPerubahanModal(itemKey) {
     const semSumber = document.getElementById('edit-semula-sumber-biaya');
     const semPola = document.getElementById('edit-semula-pola');
     const semSdgs = document.getElementById('edit-semula-sdgs');
+    const semStunting = document.getElementById('edit-semula-stunting');
     const semEksisting = document.getElementById('edit-semula-data-eksisting');
     const semL = document.getElementById('edit-semula-manfaat-l');
     const semP = document.getElementById('edit-semula-manfaat-p');
@@ -2220,6 +2221,8 @@ function openEditRkpPerubahanModal(itemKey) {
 
     if (semPola) semPola.value = semula.pola_pelaksanaan || 'Swakelola';
     if (semSdgs) semSdgs.value = cleanSdgsDisplay ? cleanSdgsDisplay(semula.sdgs || '') : (semula.sdgs || '');
+    const sStuntingVal = semula.stunting || item.stunting_semula || item.stunting || 'Tidak';
+    if (semStunting) semStunting.value = (sStuntingVal === 'Ya' || sStuntingVal === true || sStuntingVal === 'true') ? 'Ya' : 'Tidak';
     if (semEksisting) semEksisting.value = (semula.data_eksisting && semula.data_eksisting !== '-') ? semula.data_eksisting : '';
     if (semL) semL.value = (semula.manfaat_l && semula.manfaat_l !== '-') ? semula.manfaat_l : '';
     if (semP) semP.value = (semula.manfaat_p && semula.manfaat_p !== '-') ? semula.manfaat_p : '';
@@ -2242,6 +2245,7 @@ function openEditRkpPerubahanModal(itemKey) {
     const inSumber = document.getElementById('edit-perubahan-sumber-biaya');
     const inPola = document.getElementById('edit-perubahan-pola');
     const inSdgs = document.getElementById('edit-perubahan-sdgs');
+    const inStunting = document.getElementById('edit-perubahan-stunting');
     const inEksisting = document.getElementById('edit-perubahan-data-eksisting');
     const inL = document.getElementById('edit-perubahan-manfaat-l');
     const inP = document.getElementById('edit-perubahan-manfaat-p');
@@ -2281,6 +2285,8 @@ function openEditRkpPerubahanModal(itemKey) {
 
     const curSdgs = menjadi.sdgs || item.mendukung_sdgs || semula.sdgs || '';
     if (inSdgs) inSdgs.value = cleanSdgsDisplay ? cleanSdgsDisplay(curSdgs) : curSdgs;
+    const mStuntingVal = menjadi.stunting || item.stunting_menjadi || item.stunting || semula.stunting || 'Tidak';
+    if (inStunting) inStunting.value = (mStuntingVal === 'Ya' || mStuntingVal === true || mStuntingVal === 'true') ? 'Ya' : 'Tidak';
 
     if (inEksisting) inEksisting.value = (menjadi.data_eksisting && menjadi.data_eksisting !== '-') ? menjadi.data_eksisting : (semula.data_eksisting || '');
 
@@ -2318,6 +2324,7 @@ function copyAllFromSemulaToMenjadi() {
     const semSumber = document.getElementById('edit-semula-sumber-biaya')?.value;
     const semPola = document.getElementById('edit-semula-pola')?.value;
     const semSdgs = document.getElementById('edit-semula-sdgs')?.value?.trim();
+    const semStunting = document.getElementById('edit-semula-stunting')?.value;
     const semEksisting = document.getElementById('edit-semula-data-eksisting')?.value?.trim();
     const semL = document.getElementById('edit-semula-manfaat-l')?.value?.trim();
     const semP = document.getElementById('edit-semula-manfaat-p')?.value?.trim();
@@ -2331,6 +2338,7 @@ function copyAllFromSemulaToMenjadi() {
     const inSumber = document.getElementById('edit-perubahan-sumber-biaya');
     const inPola = document.getElementById('edit-perubahan-pola');
     const inSdgs = document.getElementById('edit-perubahan-sdgs');
+    const inStunting = document.getElementById('edit-perubahan-stunting');
     const inEksisting = document.getElementById('edit-perubahan-data-eksisting');
     const inL = document.getElementById('edit-perubahan-manfaat-l');
     const inP = document.getElementById('edit-perubahan-manfaat-p');
@@ -2344,6 +2352,7 @@ function copyAllFromSemulaToMenjadi() {
     if (inSumber && semSumber !== undefined) inSumber.value = semSumber;
     if (inPola && semPola !== undefined) inPola.value = semPola;
     if (inSdgs && semSdgs !== undefined) inSdgs.value = semSdgs;
+    if (inStunting && semStunting !== undefined) inStunting.value = semStunting;
     if (inEksisting && semEksisting !== undefined) inEksisting.value = semEksisting;
     if (inL && semL !== undefined) inL.value = semL;
     if (inP && semP !== undefined) inP.value = semP;
@@ -2390,6 +2399,7 @@ async function saveEditRkpPerubahanItem(event) {
     const sumberSemula = document.getElementById('edit-semula-sumber-biaya')?.value || 'DDS';
     const polaSemula = document.getElementById('edit-semula-pola')?.value || 'Swakelola';
     const sdgsSemula = document.getElementById('edit-semula-sdgs')?.value?.trim() || '';
+    const stuntingSemula = document.getElementById('edit-semula-stunting')?.value || 'Tidak';
     const eksistingSemula = document.getElementById('edit-semula-data-eksisting')?.value?.trim() || '-';
     const mLSemula = document.getElementById('edit-semula-manfaat-l')?.value?.trim() || '-';
     const mPSemula = document.getElementById('edit-semula-manfaat-p')?.value?.trim() || '-';
@@ -2404,6 +2414,7 @@ async function saveEditRkpPerubahanItem(event) {
     const sumberMenjadi = document.getElementById('edit-perubahan-sumber-biaya')?.value || 'DDS';
     const polaMenjadi = document.getElementById('edit-perubahan-pola')?.value || 'Swakelola';
     const sdgsMenjadi = document.getElementById('edit-perubahan-sdgs')?.value?.trim() || '';
+    const stuntingMenjadi = document.getElementById('edit-perubahan-stunting')?.value || 'Tidak';
     const eksistingMenjadi = document.getElementById('edit-perubahan-data-eksisting')?.value?.trim() || '-';
     const mLMenjadi = document.getElementById('edit-perubahan-manfaat-l')?.value?.trim() || '-';
     const mPMenjadi = document.getElementById('edit-perubahan-manfaat-p')?.value?.trim() || '-';
@@ -2425,6 +2436,7 @@ async function saveEditRkpPerubahanItem(event) {
             waktu_pelaksanaan: waktuSemula,
             pola_pelaksanaan: polaSemula,
             sdgs: sdgsSemula,
+            stunting: stuntingSemula,
             data_eksisting: eksistingSemula,
             manfaat_l: mLSemula,
             manfaat_p: mPSemula,
@@ -2440,12 +2452,14 @@ async function saveEditRkpPerubahanItem(event) {
             waktu_pelaksanaan: waktuMenjadi,
             pola_pelaksanaan: polaMenjadi,
             sdgs: sdgsMenjadi,
+            stunting: stuntingMenjadi,
             data_eksisting: eksistingMenjadi,
             manfaat_l: mLMenjadi,
             manfaat_p: mPMenjadi,
             manfaat_rtm: mRtmMenjadi
         },
         // Fallback properti flat untuk kompatibilitas
+        stunting: stuntingMenjadi,
         volume: volMenjadi,
         satuan: satMenjadi,
         biaya: biayaMenjadi,
@@ -2478,6 +2492,8 @@ async function saveEditRkpPerubahanItem(event) {
             item.semula.sumber_biaya = sumberSemula;
             item.semula.waktu_pelaksanaan = waktuSemula;
             item.semula.pola_pelaksanaan = polaSemula;
+            item.semula.stunting = stuntingSemula;
+            item.stunting_semula = stuntingSemula;
             item.semula.data_eksisting = eksistingSemula;
             if (sdgsSemula) {
                 const cleanSem = cleanSdgsDisplay ? cleanSdgsDisplay(sdgsSemula) : sdgsSemula;
@@ -2500,6 +2516,9 @@ async function saveEditRkpPerubahanItem(event) {
             item.menjadi.sumber_biaya = sumberMenjadi;
             item.menjadi.waktu_pelaksanaan = waktuMenjadi;
             item.menjadi.pola_pelaksanaan = polaMenjadi;
+            item.menjadi.stunting = stuntingMenjadi;
+            item.stunting_menjadi = stuntingMenjadi;
+            item.stunting = stuntingMenjadi;
             item.menjadi.data_eksisting = eksistingMenjadi;
             if (sdgsMenjadi) {
                 const cleanMen = cleanSdgsDisplay ? cleanSdgsDisplay(sdgsMenjadi) : sdgsMenjadi;

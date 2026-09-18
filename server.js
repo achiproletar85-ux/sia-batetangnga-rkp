@@ -8139,6 +8139,8 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             const dataEksistingMenjadi = pRpjm.data_eksisting || dataEksistingVal;
             const waktuMenjadi = pRpjm.waktu_pelaksanaan || m.waktu_pelaksanaan || '12 Bulan';
             const polaMenjadi = pRpjm.pola_pelaksanaan || m.pola_pelaksanaan || 'Swakelola';
+            const stuntingSemula = m.stunting || 'Tidak';
+            const stuntingMenjadi = (pRpjm && pRpjm.stunting) || m.stunting || 'Tidak';
 
             combinedMap.set(code, {
                 id: m.id,
@@ -8155,8 +8157,12 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                 penerima_l_menjadi: lpRtmMenjadi.l,
                 penerima_p_menjadi: lpRtmMenjadi.p,
                 penerima_rtm_menjadi: lpRtmMenjadi.rtm,
+                stunting: stuntingMenjadi,
+                stunting_semula: stuntingSemula,
+                stunting_menjadi: stuntingMenjadi,
                 semula: {
                     sdgs: sdgsSemulaLabel,
+                    stunting: stuntingSemula,
                     data_eksisting: dataEksistingVal,
                     lokasi: m.lokasi || 'Desa Batetangnga',
                     volume: volSemula,
@@ -8173,6 +8179,7 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                 },
                 menjadi: {
                     sdgs: sdgsMenjadiSaved || sdgsMenjadiLabel,
+                    stunting: stuntingMenjadi,
                     data_eksisting: dataEksistingMenjadi,
                     lokasi: lokasiVal,
                     volume: volMenjadi,
@@ -8207,6 +8214,7 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                     p: resolved.manfaat_p ? `${resolved.manfaat_p} Org` : '-',
                     rtm: resolved.manfaat_rtm ? `${resolved.manfaat_rtm} KK` : '-'
                 };
+                const stuntingBaru = (p.rpjm_data && p.rpjm_data.stunting) || 'Tidak';
 
                 combinedMap.set(code, {
                     id: p.id,
@@ -8223,8 +8231,12 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                     penerima_l_menjadi: lpRtmBaru.l,
                     penerima_p_menjadi: lpRtmBaru.p,
                     penerima_rtm_menjadi: lpRtmBaru.rtm,
+                    stunting: stuntingBaru,
+                    stunting_semula: 'Tidak',
+                    stunting_menjadi: stuntingBaru,
                     semula: {
                         sdgs: '-',
+                        stunting: 'Tidak',
                         data_eksisting: '-',
                         lokasi: '-',
                         volume: '0',
@@ -8241,6 +8253,7 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                     },
                     menjadi: {
                         sdgs: resolved.sdgs || '-',
+                        stunting: stuntingBaru,
                         data_eksisting: resolved.data_eksisting || '-',
                         lokasi: p.lokasi || 'Desa Batetangnga',
                         volume: volMenjadi,
@@ -8479,6 +8492,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
 
             // B. Update atau Insert tabel rkpdes (Semula/Murni)
             try {
+                const stuntingSemulaStr = (sem.stunting === 'Ya' || sem.stunting === true || sem.stunting === 'true') ? 'Ya' : 'Tidak';
                 const rkpSemulaPayload = {
                     volume: String((sem.volume !== undefined && sem.volume !== null && sem.volume !== '' && !isNaN(Number(sem.volume))) ? sem.volume : 1),
                     satuan: satSemulaStr,
@@ -8487,6 +8501,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     sumber_pembiayaan: sumberSemulaStr,
                     waktu_pelaksanaan: waktuSemulaStr,
                     pola_pelaksanaan: polaSemulaStr,
+                    stunting: stuntingSemulaStr,
                     data_eksisting: eksistingSemulaStr,
                     sdgs: cleanSdgsSem || '-',
                     updated_at: nowIso
@@ -8570,12 +8585,16 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             }
             const { data: existingRabPer } = await findQ.maybeSingle();
 
+            const rawStuntingMenjadi = men.stunting !== undefined ? men.stunting : (body.stunting !== undefined ? body.stunting : (body.semula && body.semula.stunting));
+            const stuntingMenjadiStr = (rawStuntingMenjadi === 'Ya' || rawStuntingMenjadi === true || rawStuntingMenjadi === 'true') ? 'Ya' : 'Tidak';
+
             const newRpjmData = {
                 ...((existingRabPer && existingRabPer.rpjm_data) || {}),
                 waktu_pelaksanaan: waktuStr,
                 pola_pelaksanaan: polaStr,
                 data_eksisting: eksistingStr,
                 sdgs: sdgsMenjadiLabel,
+                stunting: stuntingMenjadiStr,
                 manfaat_l: (mLStr && mLStr !== '-') ? (mLStr.includes('Org') ? mLStr : `${mLStr} Org`) : '-',
                 manfaat_p: (mPStr && mPStr !== '-') ? (mPStr.includes('Org') ? mPStr : `${mPStr} Org`) : '-',
                 manfaat_rtm: (mRtmStr && mRtmStr !== '-') ? (mRtmStr.includes('KK') ? mRtmStr : `${mRtmStr} KK`) : '-'
@@ -8647,22 +8666,24 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             console.warn('⚠️ Gagal update tabel RAB perubahan (tetap lanjut ke rkpdes):', rabErr.message);
         }
 
-        // B. Koordinasi Penyimpanan ke Tabel RKPDES (mendukung_sdgs untuk Menjadi)
-        if (cleanSdgsMenjadi) {
-            try {
-                let rkpQ = supabase.from('rkpdes').update({
-                    mendukung_sdgs: sdgsMenjadiLabel,
-                    updated_at: nowIso
-                });
-                if (id && !isNaN(Number(id))) {
-                    rkpQ = rkpQ.eq('id', Number(id));
-                } else if (kode) {
-                    rkpQ = rkpQ.eq('kode_unik_full', kode).eq('tahun', tahunInt);
-                }
-                await rkpQ.select('id');
-            } catch (sdgsErr) {
-                console.warn('⚠️ Gagal update rkpdes mendukung_sdgs:', sdgsErr.message);
+        // B. Koordinasi Penyimpanan ke Tabel RKPDES (stunting & mendukung_sdgs untuk Menjadi)
+        try {
+            const rkpPerubahanUpdate = {
+                stunting: stuntingMenjadiStr,
+                updated_at: nowIso
+            };
+            if (cleanSdgsMenjadi) {
+                rkpPerubahanUpdate.mendukung_sdgs = sdgsMenjadiLabel;
             }
+            let rkpQ = supabase.from('rkpdes').update(sanitizeRkpdesPayload(rkpPerubahanUpdate));
+            if (id && !isNaN(Number(id))) {
+                rkpQ = rkpQ.eq('id', Number(id));
+            } else if (kode) {
+                rkpQ = rkpQ.eq('kode_unik_full', kode).eq('tahun', tahunInt);
+            }
+            await rkpQ.select('id');
+        } catch (rkpUpdateErr) {
+            console.warn('⚠️ Gagal update rkpdes stunting/mendukung_sdgs:', rkpUpdateErr.message);
         }
 
         return res.json({
@@ -8672,7 +8693,10 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 tahun: tahunInt,
                 kode_unik_full: kode,
                 id: id || rabPerId,
-                semula: body.semula || null,
+                semula: body.semula ? {
+                    ...body.semula,
+                    stunting: (body.semula.stunting === 'Ya' || body.semula.stunting === true || body.semula.stunting === 'true') ? 'Ya' : 'Tidak'
+                } : null,
                 menjadi: {
                     volume: volNum,
                     satuan: satStr,
@@ -8683,10 +8707,12 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     pola_pelaksanaan: polaStr,
                     data_eksisting: eksistingStr,
                     sdgs: sdgsMenjadiLabel,
+                    stunting: stuntingMenjadiStr,
                     manfaat_l: mLStr,
                     manfaat_p: mPStr,
                     manfaat_rtm: mRtmStr
                 },
+                stunting: stuntingMenjadiStr,
                 volume: volNum,
                 satuan: satStr,
                 biaya: biayaNum,

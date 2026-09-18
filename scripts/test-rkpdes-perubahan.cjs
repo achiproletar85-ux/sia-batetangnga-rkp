@@ -197,6 +197,15 @@ assert(jsCode.includes('edit-semula-volume') && jsCode.includes('edit-semula-bia
 assert(serverCode.includes('body.semula') && serverCode.includes('RAB_TIPE_MURNI'), 'Persistensi sisi Semula ke rab murni & rkpdes terdaftar di server.js');
 assert(serverCode.includes('const RAB_PERUBAHAN_COLUMNS'), 'Konstanta RAB_PERUBAHAN_COLUMNS dengan kolom eksplisit terdaftar di server.js');
 
+// 11. SINKRONISASI FLAG STUNTING PADA MODAL EDIT RKPDES PERUBAHAN & PERSISTENSI
+console.log('\n--- SINKRONISASI FLAG STUNTING PADA MODAL EDIT RKPDES PERUBAHAN & PERSISTENSI ---\n');
+assert(htmlCode.includes('id="edit-semula-stunting"'), 'Dropdown Stunting Semula ada di modal rkpdes.html');
+assert(htmlCode.includes('id="edit-perubahan-stunting"'), 'Dropdown Stunting Menjadi ada di modal rkpdes.html');
+assert(jsCode.includes('edit-semula-stunting') && jsCode.includes('edit-perubahan-stunting'), 'Pra-isi nilai Stunting Semula & Menjadi terpasang pada openEditRkpPerubahanModal');
+assert(jsCode.includes('stunting: stuntingMenjadi') && jsCode.includes('stunting: stuntingSemula'), 'Payload saveEditRkpPerubahanItem menyertakan stunting Semula & Menjadi');
+assert(serverCode.includes('stuntingSemulaStr') && serverCode.includes('stuntingMenjadiStr'), 'Backend PUT /api/rkpdes/perubahan mengekstraksi dan memvalidasi flag stunting');
+assert(serverCode.includes('stunting: stuntingSemulaStr') && serverCode.includes('stunting: stuntingMenjadiStr'), 'Backend PUT /api/rkpdes/perubahan menyimpan stunting ke rkpdes');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
