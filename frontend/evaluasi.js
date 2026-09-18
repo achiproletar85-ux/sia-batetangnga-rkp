@@ -67,14 +67,15 @@ function resolveHierarchyFromKode(kode) {
     const prefix3 = parts.slice(0, 3).join('.') + '.';
     const prefix2 = parts.slice(0, 2).join('.') + '.';
 
-    let hit = masterHierarchy.find(m => String(m.kode_unik_full || '').trim() === prefix4)
-        || masterHierarchy.find(m => String(m.kode_unik_full || '').trim() === prefix3)
-        || masterHierarchy.find(m => String(m.kode_unik_full || '').trim() === prefix2);
+    let hit = masterHierarchy.find(m => String(m.kode_unik_full || '').trim() === prefix4 || String(m.kode_unik || '').trim() === prefix4)
+        || masterHierarchy.find(m => String(m.kode_unik_full || '').trim() === prefix3 || String(m.kode_unik || '').trim() === prefix3)
+        || masterHierarchy.find(m => String(m.kode_unik_full || '').trim() === prefix2 || String(m.kode_unik || '').trim() === prefix2);
     if (!hit) return null;
     return {
         bidang: hit.bidang || '',
         sub_bidang: hit.jenis_bidang || '',
-        jenis_kegiatan: hit.jenis_kegiatan || ''
+        jenis_kegiatan: hit.jenis_kegiatan || '',
+        nama_kegiatan: hit.nama_kegiatan || ''
     };
 }
 
@@ -90,6 +91,9 @@ function enrichRowHierarchy(row) {
     if (!resolved) return;
     if (!row.sub_bidang) row.sub_bidang = resolved.sub_bidang || '';
     if (!row.jenis_kegiatan) row.jenis_kegiatan = resolved.jenis_kegiatan || '';
+    if ((!row.nama_kegiatan || row.nama_kegiatan === row.jenis_kegiatan) && resolved.nama_kegiatan) {
+        row.nama_kegiatan = resolved.nama_kegiatan;
+    }
     if (!String(row.bidang)) row.bidang = evalBidangNumRow(resolved);
     return row;
 }
@@ -123,7 +127,8 @@ async function loadEvaluasiData() {
                 kode_unik: item.kode_unik || item.kode_unik_full || item.kode_bidang || '',
                 sub_bidang: item.sub_bidang || '',
                 jenis_kegiatan: item.jenis_kegiatan || '',
-                sub_kegiatan: item.sub_kegiatan || item.kegiatan || '',
+                nama_kegiatan: item.nama_kegiatan || item.sub_kegiatan || item.kegiatan || '',
+                sub_kegiatan: item.nama_kegiatan || item.sub_kegiatan || item.kegiatan || '',
                 lokasi: item.lokasi || 'Desa Batetangnga',
                 nominal: parseNumber(item.nominal),
                 realisasi: Boolean(item.realisasi),
@@ -193,6 +198,29 @@ function resolveJenisKegiatanKelompokFallback(item) {
     if (kode.startsWith('01.01.03.') || kode.startsWith('1.1.3.')) return 'Penyediaan Jaminan Sosial bagi Kepala Desa dan Perangkat Desa';
     if (kode.startsWith('01.01.04.') || kode.startsWith('1.1.4.')) return 'Penyediaan Operasional Pemerintah Desa (ATK, Honor PKPKD dan PPKD dll)';
     return val || 'Kelompok Kegiatan Utama';
+}
+
+function resolveNamaKegiatanSpesifik(item, kelName, subName) {
+    if (!item) return '-';
+    let nama = String(item.nama_kegiatan || '').trim();
+    const kel = String(kelName || item.jenis_kegiatan || '').trim();
+    const sub = String(subName || item.sub_bidang || '').trim();
+
+    if (!nama || nama === kel || nama === sub) {
+        const resH = resolveHierarchyFromKode(item.kode_unik || item.kode_unik_full);
+        if (resH && resH.nama_kegiatan && resH.nama_kegiatan !== kel && resH.nama_kegiatan !== sub) {
+            nama = resH.nama_kegiatan;
+        } else if (item.sub_kegiatan && item.sub_kegiatan !== kel && item.sub_kegiatan !== sub) {
+            nama = item.sub_kegiatan;
+        } else if (item.kegiatan && item.kegiatan !== kel && item.kegiatan !== sub) {
+            nama = item.kegiatan;
+        } else if (item.uraian && item.uraian !== kel && item.uraian !== sub) {
+            nama = item.uraian;
+        } else {
+            nama = item.nama_kegiatan || item.sub_kegiatan || item.kegiatan || item.jenis_kegiatan || '-';
+        }
+    }
+    return String(nama || '-').trim();
 }
 
 // 2. Render Tabel Evaluasi (5 Bidang Wajib, Ultra-Fast < 40ms)
@@ -276,13 +304,17 @@ function renderEvaluasiTable() {
                         subTotalNominal += nominalVal;
                         const itemKey = item.id || item.kode_unik || globalItemNo;
                         const isEditing = editingRowId && String(editingRowId) === String(item.id);
-                        const namaKegiatan = item.nama_kegiatan || item.sub_kegiatan || item.jenis_kegiatan || '-';
+                        const namaKegiatan = resolveNamaKegiatanSpesifik(item, kelName, subName);
 
                         html += `
                             <tr data-id="${item.id || ''}" class="border border-slate-300 ${isEditing ? 'bg-amber-50/80 border-indigo-500 font-semibold' : 'hover:bg-slate-50'} transition">
                                 <td class="border border-slate-300 text-center font-bold text-slate-500 py-1.5 text-xs">${globalItemNo++}</td>
                                 <td class="border border-slate-300 p-2 font-semibold text-slate-900 text-xs pl-8">
-                                    <div class="font-bold text-slate-900 text-xs">${escHtml(namaKegiatan)}</div>
+                                    ${isEditing ? `
+                                        <input type="text" value="${escAttr(namaKegiatan)}" oninput="updateFieldDataByItem('${itemKey}', 'nama_kegiatan', this.value); updateFieldDataByItem('${itemKey}', 'sub_kegiatan', this.value);" placeholder="Nama Kegiatan..." class="w-full p-1 bg-white border border-indigo-300 focus:bg-amber-50 rounded text-xs font-bold text-slate-900" />
+                                    ` : `
+                                        <div class="font-bold text-slate-900 text-xs">${escHtml(namaKegiatan)}</div>
+                                    `}
                                 </td>
                                 <td class="border border-slate-300 p-1">
                                     <input type="text" value="${escAttr(item.lokasi || '')}" oninput="updateFieldDataByItem('${itemKey}', 'lokasi', this.value)" placeholder="Dusun / RT / RW..." class="w-full p-1.5 bg-transparent border border-slate-200 focus:bg-amber-50 rounded text-xs" />
@@ -417,14 +449,16 @@ async function tarikDariRAB(showAlert = true) {
             Object.keys(grouped).sort((a, b) => parseInt(a) - parseInt(b)).forEach(bidang => {
                 grouped[bidang].forEach((item) => {
                     const kodeUnik = item.kode_unik || item.kode_unik_full || '';
+                    const namaKeg = item.nama_kegiatan || item.sub_kegiatan || item.kegiatan || item.uraian || '';
                     mappedData.push({
                         id: null,
                         tahun: tahunEvaluasi,
                         bidang: parseInt(bidang),
                         kode_unik: kodeUnik,
                         sub_bidang: item.sub_bidang || '',
-                        jenis_kegiatan: item.jenis_kegiatan || item.nama_kegiatan || item.kegiatan || '',
-                        sub_kegiatan: item.nama_kegiatan || item.kegiatan || item.jenis_kegiatan || item.sub_kegiatan || item.uraian || '',
+                        jenis_kegiatan: item.jenis_kegiatan || '',
+                        nama_kegiatan: namaKeg,
+                        sub_kegiatan: namaKeg,
                         lokasi: item.lokasi || item.lokasi_kegiatan || 'Desa Batetangnga',
                         nominal: parseNumber(item.total_biaya || item.jumlah_anggaran || item.pagu || item.nominal || 0),
                         realisasi: false,
@@ -491,6 +525,7 @@ function addRow(bidangNum) {
         kode_unik: '',
         sub_bidang: '',
         jenis_kegiatan: '',
+        nama_kegiatan: '',
         sub_kegiatan: '',
         lokasi: 'Desa Batetangnga',
         nominal: 0,
@@ -677,7 +712,7 @@ function printPDF() {
                     items.forEach((item) => {
                         const nom = parseNumber(item.nominal) || 0;
                         subTotal += nom;
-                        const namaKegiatan = item.nama_kegiatan || item.sub_kegiatan || item.jenis_kegiatan || '-';
+                        const namaKegiatan = resolveNamaKegiatanSpesifik(item, kelName, subName);
 
                         tableRowsHtml += `
                             <tr>
