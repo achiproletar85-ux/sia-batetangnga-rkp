@@ -40,3 +40,5 @@ Thumbs.db
 .vercel/sync-surat-tanah/
 sync-surat-tanah
 scripts/backup_migration/data/
+scratch/
+
