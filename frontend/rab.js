@@ -1902,7 +1902,7 @@ const RAB_SUB_BIDANG_MAP = {
 
 function getNamaSubBidangFull(item, kodeUnik) {
     if (item) {
-        const raw = item.jenis_bid || item.jenis_bidang || item.sub_bidang || item.jenis_sub_bidang || item.sub_group_nama;
+        const raw = item.jenis_bid || item.jenis_bidang || item.sub_bidang || item.jenis_sub_bidang || item.rpjm_data?.jenis_bidang || item.rpjm_data?.sub_bidang;
         if (raw && String(raw).trim() !== '' && String(raw).trim() !== '-') return String(raw).trim();
     }
     const targetKode = String(kodeUnik || item?.kode_unik_full || item?.kode_unik || '').replace(/^PEM\./i, '').trim();
@@ -3049,6 +3049,11 @@ async function populateGroupCetakDropdown() {
         // Options standar utama
         groupMap.set('01.01.01.', 'Penyediaan Penghasilan Tetap dan Tunjangan Kepala Desa');
         groupMap.set('01.01.02.', 'Penyediaan Penghasilan Tetap dan Tunjangan Perangkat Desa');
+        groupMap.set('01.01.03.', 'Penyediaan Jaminan Sosial bagi Kepala Desa dan Perangkat Desa');
+        groupMap.set('01.01.04.', 'Penyediaan Operasional Pemerintah Desa (ATK, Honor PKPKD dan PPKD dll)');
+        groupMap.set('01.01.05.', 'Penyediaan Tunjangan BPD');
+        groupMap.set('01.01.06.', 'Penyediaan Operasional BPD');
+        groupMap.set('01.01.08.', 'Penyediaan Operasional Pemerintah Desa yang bersumber dari Dana Desa');
 
         items.forEach(item => {
             const kode = String(item.kode_unik_full || item.kode_unik || '').trim();
@@ -3404,7 +3409,15 @@ function executePrintRAB(itemsToPrint, prefixKode, selectedJenisKegiatan, tahunF
     const namaPelaksana = getSelectedPelaksanaKegiatan();
     const teksLokasiTanggal = getFormattedTanggalDokumen();
 
-    const kegiatanTitle = selectedJenisKegiatan || (prefixKode.includes('01.01.01') ? 'Penyediaan Penghasilan Tetap dan Tunjangan Kepala Desa' : (prefixKode.includes('01.01.02') ? 'Penyediaan Penghasilan Tetap dan Tunjangan Perangkat Desa' : 'Rencana Anggaran Biaya Desa'));
+    const kegiatanTitle = selectedJenisKegiatan || (
+        prefixKode.includes('01.01.01') ? 'Penyediaan Penghasilan Tetap dan Tunjangan Kepala Desa' :
+        prefixKode.includes('01.01.02') ? 'Penyediaan Penghasilan Tetap dan Tunjangan Perangkat Desa' :
+        prefixKode.includes('01.01.03') ? 'Penyediaan Jaminan Sosial bagi Kepala Desa dan Perangkat Desa' :
+        prefixKode.includes('01.01.04') ? 'Penyediaan Operasional Pemerintah Desa (ATK, Honor PKPKD dan PPKD dll)' :
+        prefixKode.includes('01.01.05') ? 'Penyediaan Tunjangan BPD' :
+        prefixKode.includes('01.01.06') ? 'Penyediaan Operasional BPD' :
+        'Rencana Anggaran Biaya Desa'
+    );
 
 function getGroupKey(row, item) {
     // 1. Ambil dari item.group (Prioritas Utama)
@@ -3429,6 +3442,9 @@ function getGroupKey(row, item) {
 
     // 4. Fallback ke HANYA NAMA TEKS KEGIATAN (JANGAN PERNAH MENGAMBIL KODE UNIK SEPERTI 01.01.01.)
     if (row && row.rpjm_data && typeof row.rpjm_data === 'object') {
+        if (row.rpjm_data.group_nama && !/^\d[\d.]*$/.test(row.rpjm_data.group_nama.trim())) {
+            return row.rpjm_data.group_nama.trim();
+        }
         if (row.rpjm_data.jenis_kegiatan && !/^\d[\d.]*$/.test(row.rpjm_data.jenis_kegiatan.trim())) {
             return row.rpjm_data.jenis_kegiatan.trim();
         }
@@ -3437,7 +3453,13 @@ function getGroupKey(row, item) {
         }
     }
 
-    // 5. Default Nama Group Resmi jika data kosong
+    // 5. Default Nama Group Resmi jika data kosong (berdasarkan prefix kode kegiatan)
+    const kodeStr = String((row && (row.kode_unik_full || row.kode_unik)) || (item && (item.kode_unik_full || item.kode_unik)) || '').trim();
+    if (kodeStr.startsWith('01.01.05')) return 'Tunjangan BPD';
+    if (kodeStr.startsWith('01.01.06')) return 'Operasional BPD';
+    if (kodeStr.startsWith('01.01.04')) return 'Belanja Barang Perlengkapan';
+    if (kodeStr.startsWith('01.01.03')) return 'Jaminan Sosial Kepala Desa dan Perangkat Desa';
+    if (kodeStr.startsWith('01.01.02')) return 'Penghasilan Tetap dan Tunjangan Perangkat Desa';
     return 'Penghasilan Tetap dan Tunjangan Kepala Desa';
 }
 

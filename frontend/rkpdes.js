@@ -464,8 +464,7 @@ function buildRkpdesMurniHtml() {
             subMap.forEach((kelMap, subName) => {
                 if (subName) totalRowsInBidang++;
                 kelMap.forEach((items, kelName) => {
-                    const isDupHeader = (kelName.trim().toLowerCase() === subName.trim().toLowerCase()) ||
-                        (items.length === 1 && String(items[0].nama_kegiatan || items[0].jenis_kegiatan || '').trim().toLowerCase() === kelName.trim().toLowerCase());
+                    const isDupHeader = (kelName.trim().toLowerCase() === subName.trim().toLowerCase());
                     if (kelName && !isDupHeader) totalRowsInBidang++;
                     totalRowsInBidang += items.length;
                 });
@@ -491,8 +490,7 @@ function buildRkpdesMurniHtml() {
                 }
 
                 kelMap.forEach((items, kelName) => {
-                    const isDupHeader = (kelName.trim().toLowerCase() === subName.trim().toLowerCase()) ||
-                        (items.length === 1 && String(items[0].nama_kegiatan || items[0].jenis_kegiatan || '').trim().toLowerCase() === kelName.trim().toLowerCase());
+                    const isDupHeader = (kelName.trim().toLowerCase() === subName.trim().toLowerCase());
 
                     // Render Kelompok / Jenis Kegiatan Header Row (Level 3 - dicegah dari duplikasi teks)
                     if (kelName && !isDupHeader) {
@@ -1213,8 +1211,7 @@ function buildRkpdesPerubahanHtml() {
                 }
 
                 kegMap.forEach((items, kegName) => {
-                    const isDupHeader = (kegName.trim().toLowerCase() === subName.trim().toLowerCase()) ||
-                        (items.length === 1 && String(items[0].nama_kegiatan || items[0].jenis_kegiatan || '').trim().toLowerCase() === kegName.trim().toLowerCase());
+                    const isDupHeader = (kegName.trim().toLowerCase() === subName.trim().toLowerCase());
 
                     // Level 3: Jenis Kegiatan Header Row (hanya jika tidak redundan/duplikat teks)
                     if (kegName && !isDupHeader) {
