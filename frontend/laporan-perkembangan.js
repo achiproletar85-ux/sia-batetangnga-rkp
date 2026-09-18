@@ -117,11 +117,12 @@ function buildLaporanItemFromRkp(item, tahun, bulan) {
 }
 
 // 1. Load Laporan Perkembangan — selalu menarik dari RKPDes (tahun terpilih − 1)
+// 1. Load Laporan Perkembangan — selalu menarik dari RKPDes (tahun terpilih − 1)
 // sebagai sumber kebenaran, lalu menggabungkan kolom manual yang sudah tersimpan di DB.
 async function loadLaporanData() {
     const tahun = document.getElementById('select-tahun')?.value || '2027';
     const bulan = document.getElementById('select-bulan')?.value || 'Agustus';
-    const tahunTarik = (parseInt(tahun) || 2027) - 1;
+    const tahunTarik = (parseInt(tahun, 10) || 2027) - 1;
 
     updateJudul();
     console.log(`📡 Load Laporan Perkembangan — sumber RKPDes ${tahunTarik} (periode ${tahun} ${bulan})...`);
@@ -129,28 +130,55 @@ async function loadLaporanData() {
     try {
         // 1) Baris kanonik dari RKPDes(tahun−1)
         const rkpRes = await fetch(`/api/laporan-perkembangan/tarik-rab?tahun=${tahunTarik}`);
-        const rkpJson = await rkpRes.json();
+        let rkpJson = { success: false, data: [] };
+        try {
+            rkpJson = await rkpRes.json();
+        } catch (e) {
+            console.warn("⚠️ Respon rkpdes bukan JSON:", e);
+        }
 
         // 2) Kolom manual yang sudah tersimpan utk periode terpilih
         let savedMap = new Map();
         try {
             const savedRes = await fetch(`/api/laporan-perkembangan?tahun=${tahun}&bulan=${encodeURIComponent(bulan)}`);
-            const savedJson = await savedRes.json();
-            if (savedJson.success && Array.isArray(savedJson.data)) {
-                for (const r of savedJson.data) {
-                    const key = String(r.nama_kegiatan || '').trim();
-                    if (key) savedMap.set(key, r);
+            if (savedRes.ok) {
+                const savedJson = await savedRes.json();
+                if (savedJson.success && Array.isArray(savedJson.data)) {
+                    for (const r of savedJson.data) {
+                        const key = String(r.nama_kegiatan || '').trim();
+                        if (key) savedMap.set(key, r);
+                    }
                 }
+            } else {
+                console.warn(`⚠️ Gagal memuat data tersimpan (${savedRes.status}), fallback ke cache lokal`);
             }
-        } catch (e) { /* abaikan — hanya bonus manual */ }
+        } catch (e) {
+            console.warn("⚠️ Exception memuat data tersimpan:", e);
+        }
+
+        // Cek localStorage cache jika savedMap kosong
+        if (savedMap.size === 0) {
+            try {
+                const localSaved = localStorage.getItem(`laporan_perkembangan_${tahun}_${bulan}`);
+                if (localSaved) {
+                    const parsed = JSON.parse(localSaved);
+                    if (Array.isArray(parsed)) {
+                        parsed.forEach(r => {
+                            const key = String(r.nama_kegiatan || '').trim();
+                            if (key) savedMap.set(key, r);
+                        });
+                    }
+                }
+            } catch (e) {}
+        }
 
         if (rkpJson.success && Array.isArray(rkpJson.data) && rkpJson.data.length > 0) {
             laporanList = rkpJson.data.map(item => {
                 const row = buildLaporanItemFromRkp(item, tahun, bulan);
-                // id fresh diisi dari DB oleh refreshIdsFromServer() setelah replace-sync
                 row.id = null;
                 const saved = savedMap.get(String(item.nama_kegiatan || item.jenis_kegiatan || '').trim());
                 if (saved) {
+                    row.id = saved.id || null;
                     row.rencana_hari = Number(saved.rencana_hari || 0);
                     row.tgl_mulai = saved.tgl_mulai || '';
                     row.progres_fisik = Number(saved.progres_fisik || 0);
@@ -160,18 +188,43 @@ async function loadLaporanData() {
                 return row;
             });
             renderLaporanTable();
-            // Sinkronkan (replace) agar isi laporan_perkembangan persis = RKPDes sumber,
-            // lalu segarkan ID dari DB (id lama basi setelah replace).
-            const okSync = await syncToSupabase(tahun, bulan, null, true);
-            if (okSync) await refreshIdsFromServer(tahun, bulan);
+
+            // Cache lokal
+            try {
+                localStorage.setItem(`laporan_perkembangan_${tahun}_${bulan}`, JSON.stringify(laporanList));
+            } catch (e) {}
+
+            // Sinkronkan (replace) secara aman di latar belakang
+            try {
+                const okSync = await syncToSupabase(tahun, bulan, null, true);
+                if (okSync) await refreshIdsFromServer(tahun, bulan);
+            } catch (errSync) {
+                console.warn("⚠️ Sinkronisasi latar belakang tertunda:", errSync.message);
+            }
         } else {
+            // Jika rkp kosong / gagal, coba pulihkan dari cache lokal
+            try {
+                const localSaved = localStorage.getItem(`laporan_perkembangan_${tahun}_${bulan}`);
+                if (localSaved) {
+                    const parsed = JSON.parse(localSaved);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        laporanList = parsed;
+                        renderLaporanTable();
+                        console.log(`📦 Memuat ${laporanList.length} data laporan perkembangan dari cache lokal`);
+                        return;
+                    }
+                }
+            } catch (e) {}
+
             console.log(`📭 Tidak ada data RKPDes ${tahunTarik}. Kolom dibiarkan kosong utk isi manual.`);
             laporanList = [];
             renderLaporanTable();
         }
     } catch (err) {
         console.error("❌ Error loadLaporanData:", err);
-        laporanList = [];
+        if (!Array.isArray(laporanList) || laporanList.length === 0) {
+            laporanList = [];
+        }
         renderLaporanTable();
     }
 }
@@ -538,33 +591,53 @@ async function saveToDatabase() {
 // replace=true → hapus baris lama periode tsb dulu (laporan persis = RKPDes sumber).
 async function syncToSupabase(tahun, bulan, notify, replace = false) {
     console.log(`📡 Simpan data Laporan Perkembangan tahun ${tahun} bulan ${bulan} (${laporanList.length} items, replace=${replace})...`);
+    // Selalu simpan ke localStorage sebagai pertahanan pertama
+    try {
+        localStorage.setItem(`laporan_perkembangan_${tahun}_${bulan}`, JSON.stringify(laporanList));
+    } catch (e) {}
+
     try {
         const res = await fetch('/api/laporan-perkembangan/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tahun: tahun, bulan: bulan, replace: replace, data: laporanList })
         });
+
+        if (!res.ok) {
+            let errorText = `HTTP ${res.status} (${res.statusText})`;
+            try {
+                const errJson = await res.json();
+                if (errJson && (errJson.error || errJson.message)) {
+                    errorText = errJson.error || errJson.message;
+                }
+            } catch (_) {}
+            console.warn(`⚠️ Server mengembalikan respon ${errorText}. Data tetap diamankan di browser lokal.`);
+            if (notify) notify(`⚠️ Data tersimpan di browser lokal. Catatan server: ${errorText}`);
+            return false;
+        }
+
         const textResponse = await res.text();
         let json;
         try {
             json = JSON.parse(textResponse);
         } catch (e) {
-            const errMsg = "❌ Gagal menyimpan: Respon dari server bukan JSON.";
+            const errMsg = "⚠️ Data tersimpan di browser lokal. Respon dari server bukan JSON format.";
             console.error(errMsg, textResponse.substring(0, 150));
             if (notify) notify(errMsg);
             return false;
         }
+
         if (json.success) {
             if (notify) notify(`✅ ${json.message}`);
             return true;
         } else {
-            const errMsg = "❌ Gagal menyimpan: " + (json.error || json.message);
+            const errMsg = "⚠️ Gagal sinkronisasi server: " + (json.error || json.message) + ". Data aman di penyimpanan lokal.";
             if (notify) notify(errMsg);
             return false;
         }
     } catch (err) {
         console.error("❌ Exception syncToSupabase:", err);
-        if (notify) notify("❌ Error koneksi: " + err.message);
+        if (notify) notify("⚠️ Mode offline aktif: data tersimpan di browser lokal.");
         return false;
     }
 }
