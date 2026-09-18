@@ -11,6 +11,8 @@ const BIDANG_STUNTING = [
 ];
 
 let stuntingList = [];
+let allStuntingData = [];
+let currentTipeFilter = 'SEMUA';
 let rawRabList = [];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -30,6 +32,41 @@ function parseNumber(str) {
     return parseInt(str.toString().replace(/[^0-9]/g, '')) || 0;
 }
 
+// Filter Tipe Sumber (SEMUA / MURNI / PERUBAHAN)
+function setTipeFilter(tipe) {
+    currentTipeFilter = String(tipe || 'SEMUA').toUpperCase();
+
+    const btnSemua = document.getElementById('btn-filter-semua');
+    const btnMurni = document.getElementById('btn-filter-murni');
+    const btnPerubahan = document.getElementById('btn-filter-perubahan');
+    const selectTipe = document.getElementById('select-tipe');
+
+    const activeClass = 'filter-tipe-btn px-2.5 py-1 rounded-md font-bold text-xs bg-rose-600 text-white shadow-sm transition cursor-pointer';
+    const inactiveClass = 'filter-tipe-btn px-2.5 py-1 rounded-md font-bold text-xs bg-transparent text-slate-600 hover:text-slate-900 transition cursor-pointer';
+
+    if (btnSemua) btnSemua.className = currentTipeFilter === 'SEMUA' ? activeClass : inactiveClass;
+    if (btnMurni) btnMurni.className = currentTipeFilter === 'MURNI' ? activeClass : inactiveClass;
+    if (btnPerubahan) btnPerubahan.className = currentTipeFilter === 'PERUBAHAN' ? activeClass : inactiveClass;
+    if (selectTipe && selectTipe.value !== currentTipeFilter) {
+        selectTipe.value = currentTipeFilter;
+    }
+
+    applyFilterAndRender();
+}
+
+function applyFilterAndRender() {
+    const tahun = document.getElementById('select-tahun')?.value || '2026';
+    if (currentTipeFilter === 'MURNI') {
+        stuntingList = allStuntingData.filter(i => (i.tipe_anggaran || 'MURNI').toUpperCase() === 'MURNI');
+    } else if (currentTipeFilter === 'PERUBAHAN') {
+        stuntingList = allStuntingData.filter(i => (i.tipe_anggaran || '').toUpperCase() === 'PERUBAHAN');
+    } else {
+        stuntingList = [...allStuntingData];
+    }
+    renderStuntingTable();
+    updateEmptyIndicator(tahun);
+}
+
 // 1. Load Data Stunting dari Database
 function loadStuntingData() {
     const tahun = document.getElementById('select-tahun')?.value || '2026';
@@ -38,22 +75,20 @@ function loadStuntingData() {
     
     console.log(`📥 Loading stunting data for tahun ${tahun}...`);
 
-    fetch(`/api/stunting?tahun=${tahun}`)
+    fetch(`/api/stunting?tahun=${tahun}&tipe=SEMUA`)
         .then(res => res.json())
         .then(data => {
             if (data.success && Array.isArray(data.data)) {
-                stuntingList = data.data;
+                allStuntingData = data.data;
             } else {
-                stuntingList = [];
+                allStuntingData = [];
             }
-            renderStuntingTable();
-            updateEmptyIndicator(tahun);
+            applyFilterAndRender();
         })
         .catch(err => {
             console.error('❌ Error loading stunting data:', err);
-            stuntingList = [];
-            renderStuntingTable();
-            updateEmptyIndicator(tahun);
+            allStuntingData = [];
+            applyFilterAndRender();
         });
 }
 
@@ -133,6 +168,7 @@ function renderStuntingTable() {
                 tr.className = "hover:bg-rose-50/40 transition bg-white border-b border-slate-200 text-xs";
                 if (item.id) tr.setAttribute('data-id', item.id);
 
+                const isPerubahan = (item.tipe_anggaran || '').toUpperCase() === 'PERUBAHAN' || String(item.id || '').startsWith('per_');
                 const jenisKeg = String(item.jenis_kegiatan || '').replace(/"/g, '&quot;');
                 const lokasi = String(item.lokasi || '-').replace(/"/g, '&quot;');
                 const volume = String(item.volume_satuan || item.volume || '-').replace(/"/g, '&quot;');
@@ -144,7 +180,12 @@ function renderStuntingTable() {
 
                 tr.innerHTML = `
                     <td class="p-1.5 text-center font-bold text-slate-600 border border-slate-300">${globalNo++}</td>
-                    <td class="p-1.5 text-center text-slate-600 font-semibold border border-slate-300">${bidang.name.split(':')[1]?.trim() || bidang.name}</td>
+                    <td class="p-1.5 text-center text-slate-600 font-semibold border border-slate-300">
+                        <div class="leading-tight">${bidang.name.split(':')[1]?.trim() || bidang.name}</div>
+                        ${isPerubahan 
+                            ? `<span class="inline-block mt-1 px-1.5 py-0.5 text-[9px] font-black rounded bg-amber-100 text-amber-800 border border-amber-300 shadow-xs no-print"><i class="fas fa-file-invoice mr-0.5"></i>PAK</span>`
+                            : `<span class="inline-block mt-1 px-1.5 py-0.5 text-[9px] font-bold rounded bg-blue-100 text-blue-800 border border-blue-300 shadow-xs no-print"><i class="fas fa-check-circle mr-0.5"></i>Murni</span>`}
+                    </td>
                     <td class="p-1 border border-slate-300">
                         <textarea onchange="updateFieldData(${bidang.id}, ${idx}, 'jenis_kegiatan', this.value)" class="w-full px-1.5 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-rose-500 rounded outline-none resize-y font-medium text-slate-800 min-h-[34px]" placeholder="Nama / Jenis Kegiatan Stunting...">${jenisKeg}</textarea>
                     </td>
@@ -175,8 +216,17 @@ function renderStuntingTable() {
                     </td>
                     <td class="p-1 text-center border border-slate-300 no-print">
                         <div class="flex justify-center items-center gap-1">
-                            ${item.id ? `<button onclick="editRow('${item.id}')" class="text-indigo-600 hover:text-indigo-800 p-1 font-bold text-xs" title="Edit Baris Ini"><i class="fas fa-edit"></i></button>` : ''}
-                            <button onclick="deleteRow(${bidang.id}, ${idx})" class="text-rose-600 hover:text-rose-800 p-1 font-bold text-xs" title="Hapus Baris">
+                            ${item.id ? `
+                                <button onclick="editRow('${item.id}')" class="text-indigo-600 hover:text-indigo-800 p-1 font-bold text-xs" title="Edit Baris Ini">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="quickToggleStunting('${item.id}', '${item.stunting}', '${item.tipe_anggaran || 'MURNI'}')" 
+                                    class="p-1 font-bold text-xs ${item.stunting === 'Ya' ? 'text-emerald-600 hover:text-emerald-800' : 'text-slate-400 hover:text-slate-600'}" 
+                                    title="Toggle Status Stunting (Saat ini: ${item.stunting === 'Ya' ? 'Aktif Stunting' : 'Non-Stunting'})">
+                                    <i class="fas ${item.stunting === 'Ya' ? 'fa-toggle-on text-emerald-600' : 'fa-toggle-off text-slate-400'} text-base"></i>
+                                </button>
+                            ` : ''}
+                            <button onclick="deleteRow(${bidang.id}, ${idx})" class="text-rose-600 hover:text-rose-800 p-1 font-bold text-xs" title="Hapus dari Rekap Stunting">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>
@@ -421,17 +471,26 @@ async function deleteRow(bidangNum, idxInBidang) {
     const targetItem = itemsInBidang[idxInBidang];
 
     if (!targetItem) return;
-    if (!confirm(`Hapus kegiatan "${targetItem.jenis_kegiatan || 'Baris ini'}"?`)) return;
+    if (!confirm(`Hapus kegiatan "${targetItem.jenis_kegiatan || 'Baris ini'}" dari laporan stunting?`)) return;
 
     const id = targetItem.id;
-    const globalIdx = stuntingList.indexOf(targetItem);
+    const isPerubahan = (targetItem.tipe_anggaran || '').toUpperCase() === 'PERUBAHAN' || String(id || '').startsWith('per_');
+
+    const globalIdx = allStuntingData.indexOf(targetItem);
     if (globalIdx > -1) {
-        stuntingList.splice(globalIdx, 1);
+        allStuntingData.splice(globalIdx, 1);
+    }
+    const listIdx = stuntingList.indexOf(targetItem);
+    if (listIdx > -1) {
+        stuntingList.splice(listIdx, 1);
     }
 
     if (id) {
         try {
-            const res = await fetch(`/api/stunting?id=${id}`, { method: 'DELETE' });
+            const deleteUrl = isPerubahan
+                ? `/api/stunting?id=${encodeURIComponent(id)}&tipe_anggaran=PERUBAHAN&rab_id=${encodeURIComponent(targetItem.rab_id || '')}`
+                : `/api/stunting?id=${encodeURIComponent(id)}`;
+            const res = await fetch(deleteUrl, { method: 'DELETE' });
             const json = await res.json();
             if (json.success) {
                 console.log("✅ Data deleted from DB:", id);
@@ -441,6 +500,7 @@ async function deleteRow(bidangNum, idxInBidang) {
         }
     }
     renderStuntingTable();
+    updateEmptyIndicator(document.getElementById('select-tahun')?.value || '2026');
 }
 
 // 5b. Edit & Save Manual Per Baris
@@ -514,8 +574,15 @@ function saveRow(id) {
     const inputs = tr.querySelectorAll('input, select');
     if (inputs.length < 9) return;
 
+    const existingItem = allStuntingData.find(i => String(i.id) === String(id)) || stuntingList.find(i => String(i.id) === String(id)) || {};
+
     const updatedData = {
         id: id,
+        rab_id: existingItem.rab_id || null,
+        rkpdes_id: existingItem.rkpdes_id || null,
+        kode_unik_full: existingItem.kode_unik_full || '',
+        tahun: existingItem.tahun || parseInt(document.getElementById('select-tahun')?.value || '2026', 10),
+        tipe_anggaran: existingItem.tipe_anggaran || 'MURNI',
         bidang: parseInt(inputs[0].value) || 1,
         jenis_kegiatan: inputs[1].value,
         lokasi: inputs[2].value,
@@ -524,7 +591,8 @@ function saveRow(id) {
         waktu_pelaksanaan: inputs[5].value,
         biaya: parseInt(inputs[6].value) || 0,
         sumber_biaya: inputs[7].value,
-        pola_pelaksanaan: inputs[8].value
+        pola_pelaksanaan: inputs[8].value,
+        stunting: 'Ya'
     };
 
     fetch('/api/stunting', {
@@ -535,9 +603,13 @@ function saveRow(id) {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            const index = stuntingList.findIndex(i => String(i.id) === String(id));
-            if (index !== -1) {
-                stuntingList[index] = { ...stuntingList[index], ...updatedData };
+            const indexAll = allStuntingData.findIndex(i => String(i.id) === String(id));
+            if (indexAll !== -1) {
+                allStuntingData[indexAll] = { ...allStuntingData[indexAll], ...updatedData };
+            }
+            const indexList = stuntingList.findIndex(i => String(i.id) === String(id));
+            if (indexList !== -1) {
+                stuntingList[indexList] = { ...stuntingList[indexList], ...updatedData };
             }
             renderStuntingTable();
             alert('✅ Data berhasil diupdate ke database!');
@@ -549,6 +621,41 @@ function saveRow(id) {
         console.error('❌ Error saveRow:', err);
         alert('❌ Gagal update data');
     });
+}
+
+// 5c. Quick Toggle Stunting Status (Ya <-> Tidak)
+async function quickToggleStunting(id, currentStatus, tipeAnggaran) {
+    const targetItem = allStuntingData.find(i => String(i.id) === String(id)) || stuntingList.find(i => String(i.id) === String(id));
+    const isCurrentlyActive = (currentStatus === 'Ya' || currentStatus === true || currentStatus === 'true');
+    const newStatus = isCurrentlyActive ? 'Tidak' : 'Ya';
+    const msg = isCurrentlyActive
+        ? 'Nonaktifkan status stunting untuk kegiatan ini? (Kegiatan akan dinonaktifkan dari rekapitulasi stunting)'
+        : 'Aktifkan status stunting untuk kegiatan ini?';
+
+    if (!confirm(msg)) return;
+
+    try {
+        const res = await fetch('/api/stunting/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: id,
+                rab_id: targetItem?.rab_id || null,
+                stunting: newStatus,
+                tipe_anggaran: tipeAnggaran || targetItem?.tipe_anggaran || 'MURNI',
+                tahun: targetItem?.tahun || parseInt(document.getElementById('select-tahun')?.value || '2026', 10)
+            })
+        });
+        const json = await res.json();
+        if (json.success) {
+            loadStuntingData();
+        } else {
+            alert(`❌ Gagal: ${json.error || 'Terjadi kesalahan'}`);
+        }
+    } catch (err) {
+        console.error('❌ Error quickToggleStunting:', err);
+        alert('❌ Gagal menghubungi server: ' + err.message);
+    }
 }
 
 // 6. Simpan Ke Database (Batch Sync 50)
@@ -688,7 +795,7 @@ function printPDF() {
             <div class="text-center">
                 <h2 style="margin: 0; font-size: 14px;" class="font-bold uppercase">LAPORAN RINCIAN KEGIATAN PENCEGAHAN STUNTING DALAM RKPDESA</h2>
                 <p style="margin: 4px 0;" class="font-bold">DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR PROVINSI SULAWESI BARAT</p>
-                <p style="margin: 2px 0;" class="font-bold">TAHUN ANGGARAN ${tahun}</p>
+                <p style="margin: 2px 0;" class="font-bold">TAHUN ANGGARAN ${tahun}${currentTipeFilter === 'MURNI' ? ' (RKPDES MURNI)' : (currentTipeFilter === 'PERUBAHAN' ? ' (RKPDES PERUBAHAN / PAK)' : '')}</p>
             </div>
 
             <table>

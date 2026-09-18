@@ -93,6 +93,25 @@
                         </select>
                     </div>
 
+                    <!-- FILTER TIPE SUMBER (SEMUA, MURNI, PERUBAHAN / PAK) -->
+                    <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-300 text-xs">
+                        <span class="text-[11px] font-bold text-slate-500 uppercase px-1.5 hidden sm:inline">Sumber:</span>
+                        <button type="button" onclick="setTipeFilter('SEMUA')" id="btn-filter-semua" class="filter-tipe-btn px-2.5 py-1 rounded-md font-bold text-xs bg-rose-600 text-white shadow-sm transition cursor-pointer" title="Tampilkan seluruh data (Murni & Perubahan)">
+                            Semua
+                        </button>
+                        <button type="button" onclick="setTipeFilter('MURNI')" id="btn-filter-murni" class="filter-tipe-btn px-2.5 py-1 rounded-md font-bold text-xs bg-transparent text-slate-600 hover:text-slate-900 transition cursor-pointer" title="Tampilkan data RKPDes Murni saja">
+                            Murni Saja
+                        </button>
+                        <button type="button" onclick="setTipeFilter('PERUBAHAN')" id="btn-filter-perubahan" class="filter-tipe-btn px-2.5 py-1 rounded-md font-bold text-xs bg-transparent text-slate-600 hover:text-slate-900 transition cursor-pointer" title="Tampilkan data Perubahan / PAK saja">
+                            Perubahan / PAK Saja
+                        </button>
+                        <select id="select-tipe" onchange="setTipeFilter(this.value)" class="sm:hidden border-none bg-transparent text-xs font-bold text-slate-700 outline-none ml-1">
+                            <option value="SEMUA" selected>Semua</option>
+                            <option value="MURNI">Murni Saja</option>
+                            <option value="PERUBAHAN">Perubahan / PAK Saja</option>
+                        </select>
+                    </div>
+
                     <button onclick="sinkronkanStuntingOtomatis()" class="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs px-3.5 py-2 rounded-lg shadow transition flex items-center gap-1.5 cursor-pointer" title="Auto-deteksi kegiatan Posyandu, PMT, dan Sanitasi dari RKPDes">
                         <i class="fas fa-magic"></i> Auto-Deteksi Stunting
                     </button>
