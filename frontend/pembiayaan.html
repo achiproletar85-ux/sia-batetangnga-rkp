@@ -59,7 +59,7 @@
                     <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
                         <i class="fas fa-wallet text-indigo-600"></i> Rencana Pembiayaan Pembangunan Desa
                     </h2>
-                    <p class="text-xs text-slate-500">Informasi Rencana Sumber Pembiayaan dan Indikator Alokasi Anggaran</p>
+                    <p class="text-xs text-slate-500">Informasi Rencana Sumber Pembiayaan dan Alokasi Anggaran Defenitif</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
                     <div>
@@ -119,6 +119,26 @@
             </div>
         </div>
 
+        <!-- TAB CONTROL: Pembiayaan Asli (Murni) vs Pembiayaan Defenitif Perubahan (PAK) -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
+            <div class="inline-flex p-1 bg-slate-200/90 rounded-2xl border border-slate-300 shadow-inner">
+                <button type="button" id="tab-btn-pembiayaan-murni" onclick="switchPembiayaanMode('MURNI')" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm cursor-pointer">
+                    <i class="fas fa-coins"></i> Pembiayaan Asli (Murni)
+                </button>
+                <button type="button" id="tab-btn-pembiayaan-perubahan" onclick="switchPembiayaanMode('PERUBAHAN')" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer">
+                    <i class="fas fa-calculator text-amber-600"></i> Pembiayaan Defenitif Perubahan (PAK)
+                </button>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="pembiayaan-mode-badge" class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                    <i class="fas fa-info-circle text-indigo-500"></i> Mode: Pembiayaan Asli (Murni)
+                </span>
+                <button type="button" id="btn-sync-rab-perubahan" onclick="loadPembiayaanData()" class="hidden bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-md shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer" title="Muat ulang dan sinkronkan RAB">
+                    <i class="fas fa-rotate"></i> Muat Ulang RAB Perubahan
+                </button>
+            </div>
+        </div>
+
         <!-- TABLE DATA LIVE MATRIKS PEMBIAYAAN -->
         <div class="glass rounded-2xl shadow-lg p-6 mb-8 overflow-hidden">
             <div id="livePreviewContainer" class="overflow-x-auto">
@@ -167,7 +187,7 @@
                         <input type="number" id="tambah-uraian-biaya" class="input-field" min="0" step="any" placeholder="0" required />
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Sumber Dana (Indikatif):</label>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Sumber Dana (Defenitif):</label>
                         <select id="tambah-uraian-sumber-biaya" class="input-field" required>
                             <option value="ADD" selected>ADD (Alokasi Dana Desa)</option>
                             <option value="DDS">DDS (Dana Desa / APBN)</option>
@@ -201,9 +221,14 @@
                         <p class="text-[11px] text-slate-400">SILPA, Dana Cadangan, & Penyertaan Modal BUMDes</p>
                     </div>
                 </div>
-                <button onclick="tutupModalKelolaPembiayaan()" class="text-slate-400 hover:text-white text-sm w-7 h-7 rounded-lg flex items-center justify-center hover:bg-slate-800">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div class="flex items-center gap-2">
+                    <span id="modal-pembiayaan-tipe-badge" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-indigo-500/30 text-indigo-300 border border-indigo-500/40">
+                        MODE: MURNI
+                    </span>
+                    <button onclick="tutupModalKelolaPembiayaan()" class="text-slate-400 hover:text-white text-sm w-7 h-7 rounded-lg flex items-center justify-center hover:bg-slate-800">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">

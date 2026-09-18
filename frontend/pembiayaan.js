@@ -4,6 +4,8 @@ function switchTab(tab) {
 
 let pembiayaanList = [];
 let activeYear = 2027;
+let currentPembiayaanMode = 'MURNI'; // 'MURNI' | 'PERUBAHAN'
+let pembiayaanKomparasiData = null;
 
 const masterBidangList = [
     { key: 1, name: 'Bidang Penyelenggaraan Pemerintahan Desa' },
@@ -34,6 +36,170 @@ function escAttr(str) {
 function formatRupiah(num) {
     if (!num || num === 0) return 'Rp 0';
     return 'Rp ' + Math.round(num).toLocaleString('id-ID');
+}
+
+function formatSelisih(num) {
+    if (!num || num === 0) return 'Rp 0';
+    const sign = num > 0 ? '+ ' : '- ';
+    return sign + 'Rp ' + Math.abs(Math.round(num)).toLocaleString('id-ID');
+}
+
+function formatPersen(pct) {
+    if (pct === null || pct === undefined || isNaN(pct)) return '0,00%';
+    const sign = pct > 0 ? '+' : '';
+    return sign + Number(pct).toFixed(2).replace('.', ',') + '%';
+}
+
+function switchPembiayaanMode(mode) {
+    currentPembiayaanMode = (mode || '').toUpperCase() === 'PERUBAHAN' ? 'PERUBAHAN' : 'MURNI';
+    const btnMurni = document.getElementById('tab-btn-pembiayaan-murni');
+    const btnPerubahan = document.getElementById('tab-btn-pembiayaan-perubahan');
+    const badge = document.getElementById('pembiayaan-mode-badge');
+    const btnSync = document.getElementById('btn-sync-rab-perubahan');
+
+    if (currentPembiayaanMode === 'PERUBAHAN') {
+        if (btnMurni) {
+            btnMurni.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer";
+        }
+        if (btnPerubahan) {
+            btnPerubahan.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md cursor-pointer";
+        }
+        if (badge) {
+            badge.className = "bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm";
+            badge.innerHTML = `<i class="fas fa-calculator text-amber-600"></i> Mode: Pembiayaan Defenitif Perubahan (PAK)`;
+        }
+        if (btnSync) btnSync.classList.remove('hidden');
+    } else {
+        if (btnMurni) {
+            btnMurni.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm cursor-pointer";
+        }
+        if (btnPerubahan) {
+            btnPerubahan.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-700 hover:text-slate-900 cursor-pointer";
+        }
+        if (badge) {
+            badge.className = "bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm";
+            badge.innerHTML = `<i class="fas fa-info-circle text-indigo-500"></i> Mode: Pembiayaan Asli (Murni)`;
+        }
+        if (btnSync) btnSync.classList.add('hidden');
+    }
+
+    loadPembiayaanData();
+}
+
+function renderKomparasiPembiayaanHtml(komp) {
+    if (!komp || !komp.penerimaan || !komp.pengeluaran || !komp.netto) return '';
+    return `
+        <div class="mb-8 p-5 bg-gradient-to-br from-amber-50/90 via-orange-50/70 to-slate-50 border border-amber-200/90 rounded-2xl shadow-sm no-print">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-amber-200 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-600 text-sm">
+                        <i class="fas fa-scale-balanced"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-900">Matriks Komparasi Pembiayaan Netto Perubahan (PAK APBDes)</h4>
+                        <p class="text-[11px] text-slate-500">Perbandingan Rencana Pembiayaan Semula (Murni) vs Menjadi (Defenitif Perubahan)</p>
+                    </div>
+                </div>
+                <span class="text-xs font-bold px-3 py-1 rounded-lg bg-amber-200/70 text-amber-900 border border-amber-300 shadow-2xs">
+                    Tahun Anggaran ${activeYear}
+                </span>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+                <table class="min-w-full text-xs border-collapse">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-800 font-bold border-b border-slate-200">
+                            <th class="p-2.5 text-center w-10 border-r border-slate-200">No</th>
+                            <th class="p-2.5 text-left border-r border-slate-200">Uraian Pembiayaan</th>
+                            <th class="p-2.5 text-right w-40 border-r border-slate-200">Semula (Murni)</th>
+                            <th class="p-2.5 text-right w-44 border-r border-slate-200 bg-amber-50/60 text-amber-950">Menjadi (Perubahan)</th>
+                            <th class="p-2.5 text-right w-40 border-r border-slate-200">Selisih (Rp)</th>
+                            <th class="p-2.5 text-center w-24">Deviasi (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 font-sans">
+                        <!-- 1. Penerimaan Pembiayaan -->
+                        <tr class="bg-indigo-50/80 font-bold text-indigo-950">
+                            <td class="p-2 text-center border-r border-slate-200">1</td>
+                            <td colspan="5" class="p-2 uppercase tracking-wide">PENERIMAAN PEMBIAYAAN</td>
+                        </tr>
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-2 text-center text-slate-500 border-r border-slate-200">1.1</td>
+                            <td class="p-2 text-slate-800 border-r border-slate-200 font-medium">Sisa Lebih Perhitungan Anggaran (SiLPA) Tahun Sebelumnya</td>
+                            <td class="p-2 text-right font-mono text-slate-700 border-r border-slate-200">${formatRupiah(komp.penerimaan.silpa.semula)}</td>
+                            <td class="p-2 text-right font-mono font-bold text-indigo-900 border-r border-slate-200 bg-amber-50/40">${formatRupiah(komp.penerimaan.silpa.menjadi)}</td>
+                            <td class="p-2 text-right font-mono font-bold border-r border-slate-200 ${komp.penerimaan.silpa.selisih >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatSelisih(komp.penerimaan.silpa.selisih)}</td>
+                            <td class="p-2 text-center font-mono font-bold ${komp.penerimaan.silpa.persen >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatPersen(komp.penerimaan.silpa.persen)}</td>
+                        </tr>
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-2 text-center text-slate-500 border-r border-slate-200">1.2</td>
+                            <td class="p-2 text-slate-800 border-r border-slate-200 font-medium">Pencairan Dana Cadangan</td>
+                            <td class="p-2 text-right font-mono text-slate-700 border-r border-slate-200">${formatRupiah(komp.penerimaan.pencairan_cadangan.semula)}</td>
+                            <td class="p-2 text-right font-mono font-bold text-indigo-900 border-r border-slate-200 bg-amber-50/40">${formatRupiah(komp.penerimaan.pencairan_cadangan.menjadi)}</td>
+                            <td class="p-2 text-right font-mono font-bold border-r border-slate-200 ${komp.penerimaan.pencairan_cadangan.selisih >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatSelisih(komp.penerimaan.pencairan_cadangan.selisih)}</td>
+                            <td class="p-2 text-center font-mono font-bold ${komp.penerimaan.pencairan_cadangan.persen >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatPersen(komp.penerimaan.pencairan_cadangan.persen)}</td>
+                        </tr>
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-2 text-center text-slate-500 border-r border-slate-200">1.3</td>
+                            <td class="p-2 text-slate-800 border-r border-slate-200 font-medium">Hasil Penjualan Kekayaan Desa yang Dipisahkan</td>
+                            <td class="p-2 text-right font-mono text-slate-700 border-r border-slate-200">${formatRupiah(komp.penerimaan.penjualan_kekayaan.semula)}</td>
+                            <td class="p-2 text-right font-mono font-bold text-indigo-900 border-r border-slate-200 bg-amber-50/40">${formatRupiah(komp.penerimaan.penjualan_kekayaan.menjadi)}</td>
+                            <td class="p-2 text-right font-mono font-bold border-r border-slate-200 ${komp.penerimaan.penjualan_kekayaan.selisih >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatSelisih(komp.penerimaan.penjualan_kekayaan.selisih)}</td>
+                            <td class="p-2 text-center font-mono font-bold ${komp.penerimaan.penjualan_kekayaan.persen >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatPersen(komp.penerimaan.penjualan_kekayaan.persen)}</td>
+                        </tr>
+                        <tr class="bg-indigo-100/60 font-bold text-indigo-950">
+                            <td class="p-2 border-r border-slate-200"></td>
+                            <td class="p-2 uppercase tracking-wide border-r border-slate-200">JUMLAH PENERIMAAN PEMBIAYAAN</td>
+                            <td class="p-2 text-right font-mono border-r border-slate-200">${formatRupiah(komp.penerimaan.total.semula)}</td>
+                            <td class="p-2 text-right font-mono font-black text-indigo-900 border-r border-slate-200 bg-amber-100/50">${formatRupiah(komp.penerimaan.total.menjadi)}</td>
+                            <td class="p-2 text-right font-mono font-bold border-r border-slate-200 ${komp.penerimaan.total.selisih >= 0 ? 'text-emerald-700' : 'text-rose-700'}">${formatSelisih(komp.penerimaan.total.selisih)}</td>
+                            <td class="p-2 text-center font-mono font-bold ${komp.penerimaan.total.persen >= 0 ? 'text-emerald-700' : 'text-rose-700'}">${formatPersen(komp.penerimaan.total.persen)}</td>
+                        </tr>
+
+                        <!-- 2. Pengeluaran Pembiayaan -->
+                        <tr class="bg-rose-50/80 font-bold text-rose-950">
+                            <td class="p-2 text-center border-r border-slate-200">2</td>
+                            <td colspan="5" class="p-2 uppercase tracking-wide">PENGELUARAN PEMBIAYAAN</td>
+                        </tr>
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-2 text-center text-slate-500 border-r border-slate-200">2.1</td>
+                            <td class="p-2 text-slate-800 border-r border-slate-200 font-medium">Pembentukan Dana Cadangan</td>
+                            <td class="p-2 text-right font-mono text-slate-700 border-r border-slate-200">${formatRupiah(komp.pengeluaran.pembentukan_cadangan.semula)}</td>
+                            <td class="p-2 text-right font-mono font-bold text-rose-900 border-r border-slate-200 bg-amber-50/40">${formatRupiah(komp.pengeluaran.pembentukan_cadangan.menjadi)}</td>
+                            <td class="p-2 text-right font-mono font-bold border-r border-slate-200 ${komp.pengeluaran.pembentukan_cadangan.selisih >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatSelisih(komp.pengeluaran.pembentukan_cadangan.selisih)}</td>
+                            <td class="p-2 text-center font-mono font-bold ${komp.pengeluaran.pembentukan_cadangan.persen >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatPersen(komp.pengeluaran.pembentukan_cadangan.persen)}</td>
+                        </tr>
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-2 text-center text-slate-500 border-r border-slate-200">2.2</td>
+                            <td class="p-2 text-slate-800 border-r border-slate-200 font-medium">Penyertaan Modal Desa / BUMDes</td>
+                            <td class="p-2 text-right font-mono text-slate-700 border-r border-slate-200">${formatRupiah(komp.pengeluaran.penyertaan_modal.semula)}</td>
+                            <td class="p-2 text-right font-mono font-bold text-rose-900 border-r border-slate-200 bg-amber-50/40">${formatRupiah(komp.pengeluaran.penyertaan_modal.menjadi)}</td>
+                            <td class="p-2 text-right font-mono font-bold border-r border-slate-200 ${komp.pengeluaran.penyertaan_modal.selisih >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatSelisih(komp.pengeluaran.penyertaan_modal.selisih)}</td>
+                            <td class="p-2 text-center font-mono font-bold ${komp.pengeluaran.penyertaan_modal.persen >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatPersen(komp.pengeluaran.penyertaan_modal.persen)}</td>
+                        </tr>
+                        <tr class="bg-rose-100/60 font-bold text-rose-950">
+                            <td class="p-2 border-r border-slate-200"></td>
+                            <td class="p-2 uppercase tracking-wide border-r border-slate-200">JUMLAH PENGELUARAN PEMBIAYAAN</td>
+                            <td class="p-2 text-right font-mono border-r border-slate-200">${formatRupiah(komp.pengeluaran.total.semula)}</td>
+                            <td class="p-2 text-right font-mono font-black text-rose-900 border-r border-slate-200 bg-amber-100/50">${formatRupiah(komp.pengeluaran.total.menjadi)}</td>
+                            <td class="p-2 text-right font-mono font-bold border-r border-slate-200 ${komp.pengeluaran.total.selisih >= 0 ? 'text-emerald-700' : 'text-rose-700'}">${formatSelisih(komp.pengeluaran.total.selisih)}</td>
+                            <td class="p-2 text-center font-mono font-bold ${komp.pengeluaran.total.persen >= 0 ? 'text-emerald-700' : 'text-rose-700'}">${formatPersen(komp.pengeluaran.total.persen)}</td>
+                        </tr>
+
+                        <!-- 3. Pembiayaan Netto -->
+                        <tr class="bg-amber-100/90 font-extrabold text-slate-900 text-xs border-t-2 border-amber-300">
+                            <td class="p-2.5 text-center border-r border-slate-300">3</td>
+                            <td class="p-2.5 uppercase tracking-wide border-r border-slate-300">PEMBIAYAAN NETTO (PENERIMAAN - PENGELUARAN)</td>
+                            <td class="p-2.5 text-right font-mono border-r border-slate-300">${formatRupiah(komp.netto.semula)}</td>
+                            <td class="p-2.5 text-right font-mono text-amber-950 font-black border-r border-slate-300 bg-amber-200/60">${formatRupiah(komp.netto.menjadi)}</td>
+                            <td class="p-2.5 text-right font-mono font-black border-r border-slate-300 ${komp.netto.selisih >= 0 ? 'text-emerald-700' : 'text-rose-700'}">${formatSelisih(komp.netto.selisih)}</td>
+                            <td class="p-2.5 text-center font-mono font-black ${komp.netto.persen >= 0 ? 'text-emerald-700' : 'text-rose-700'}">${formatPersen(komp.netto.persen)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
 }
 
 function showToast(msg, type = 'success') {
@@ -647,11 +813,14 @@ function injectToDOM(htmlHasil) {
         <div class="w-full bg-white p-6 shadow-sm border rounded-lg font-serif text-slate-900">
             <!-- HEADER KOP JUDUL -->
             <div class="text-center font-bold text-base mb-1 tracking-wide uppercase">
-                DATA DAN INFORMASI TENTANG RENCANA PEMBIAYAAN PEMBANGUNAN DESA
+                ${currentPembiayaanMode === 'PERUBAHAN' ? 'DATA DAN INFORMASI TENTANG RENCANA PEMBIAYAAN DEFENITIF PERUBAHAN DESA' : 'DATA DAN INFORMASI TENTANG RENCANA PEMBIAYAAN DEFENITIF DESA'}
             </div>
             <div class="text-center font-bold text-sm mb-6">
                 TAHUN ANGGARAN ${activeYear || 2027}
             </div>
+
+            <!-- CONTAINER MATRIKS KOMPARASI (KHUSUS MODE PERUBAHAN) -->
+            ${(currentPembiayaanMode === 'PERUBAHAN' && pembiayaanKomparasiData) ? renderKomparasiPembiayaanHtml(pembiayaanKomparasiData) : ''}
 
             <!-- IDENTITAS DESA -->
             <div class="mb-6 text-xs font-bold leading-relaxed flex justify-between border-none">
@@ -673,7 +842,7 @@ function injectToDOM(htmlHasil) {
                             <th rowspan="2" class="border border-slate-400 px-2 py-1.5 w-8">No</th>
                             <th rowspan="2" class="border border-slate-400 px-2 py-1.5 w-48">Bidang</th>
                             <th rowspan="2" class="border border-slate-400 px-2 py-1.5">Nama Program / Kegiatan</th>
-                            <th colspan="6" class="border border-slate-400 px-2 py-1">Jumlah Dana Indikatif</th>
+                            <th colspan="6" class="border border-slate-400 px-2 py-1">Jumlah Dana Defenitif</th>
                             <th rowspan="2" class="border border-slate-400 px-2 py-1.5 w-32">Sumber Keuangan Lainnya</th>
                             <th rowspan="2" class="border border-slate-400 px-2 py-1.5 w-20 no-print print:hidden">Aksi</th>
                         </tr>
@@ -946,22 +1115,35 @@ async function loadPembiayaanData() {
     container.innerHTML = `
         <div class="text-center py-12 text-slate-400">
             <i class="fas fa-circle-notch animate-spin text-3xl mb-4"></i>
-            <p>Mengambil Data Pembiayaan Pembangunan Desa Tahun ${activeYear}...</p>
+            <p>Mengambil Data Pembiayaan Pembangunan Desa (${currentPembiayaanMode}) Tahun ${activeYear}...</p>
         </div>
     `;
 
     try {
-        let rawData = [];
-
-        // SUMBER DATA KHUSUS PEMBIAYAAN NETTO: Memuat baris RAB dengan rincian items per jabatan
+        // 1. Ambil Pembiayaan Netto & Komparasi
         try {
-            const res = await fetch(`/api/pembiayaan-netto/rab?tahun=${activeYear}`, { cache: 'no-store' });
+            const resNetto = await fetch(`/api/pembiayaan?tahun=${activeYear}&tipe=${currentPembiayaanMode}`, { cache: 'no-store' });
+            const jsonNetto = await resNetto.json();
+            if (jsonNetto.success && jsonNetto.komparasi) {
+                pembiayaanKomparasiData = jsonNetto.komparasi;
+            } else {
+                pembiayaanKomparasiData = null;
+            }
+        } catch (errNetto) {
+            console.warn("Gagal muat data pembiayaan netto:", errNetto.message);
+            pembiayaanKomparasiData = null;
+        }
+
+        // 2. Ambil data kegiatan RAB
+        let rawData = [];
+        try {
+            const res = await fetch(`/api/pembiayaan-netto/rab?tahun=${activeYear}&tipe=${currentPembiayaanMode}`, { cache: 'no-store' });
             const json = await res.json();
             if (json.success && Array.isArray(json.data) && json.data.length > 0) {
                 rawData = json.data;
             } else {
-                // Fallback ke endpoint /api/rab dengan param with_items
-                const resFallback = await fetch(`/api/rab?tahun=${activeYear}&with_items=true&for_module=pembiayaan_netto`, { cache: 'no-store' });
+                // Fallback ke endpoint /api/rab dengan param with_items & tipe
+                const resFallback = await fetch(`/api/rab?tahun=${activeYear}&tipe=${currentPembiayaanMode}&with_items=true&for_module=pembiayaan_netto`, { cache: 'no-store' });
                 const jsonFallback = await resFallback.json();
                 if (jsonFallback.success && Array.isArray(jsonFallback.data)) {
                     rawData = jsonFallback.data;
@@ -994,7 +1176,7 @@ async function importPembiayaanData() {
         const res = await fetch(`/api/rkpdes-data/import`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tahun: activeYear })
+            body: JSON.stringify({ tahun: activeYear, tipe: currentPembiayaanMode })
         });
         const json = await res.json();
         if (json.success) {
@@ -1025,8 +1207,18 @@ async function bukaModalKelolaPembiayaan() {
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
     }
+    const badge = document.getElementById('modal-pembiayaan-tipe-badge');
+    if (badge) {
+        if (currentPembiayaanMode === 'PERUBAHAN') {
+            badge.className = "px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-500/30 text-amber-200 border border-amber-500/50";
+            badge.textContent = "MODE: PERUBAHAN (PAK)";
+        } else {
+            badge.className = "px-2.5 py-1 text-[11px] font-bold rounded-lg bg-indigo-500/30 text-indigo-300 border border-indigo-500/40";
+            badge.textContent = "MODE: MURNI";
+        }
+    }
     const th = Number(document.getElementById('select-year')?.value) || 2027;
-    await loadPembiayaanNettoData(th);
+    await loadPembiayaanNettoData(th, currentPembiayaanMode);
 }
 
 function tutupModalKelolaPembiayaan() {
@@ -1037,13 +1229,14 @@ function tutupModalKelolaPembiayaan() {
     }
 }
 
-async function loadPembiayaanNettoData(th) {
+async function loadPembiayaanNettoData(th, mode) {
+    const targetMode = mode || currentPembiayaanMode || 'MURNI';
     const ids = ['pembiayaan_silpa', 'pembiayaan_pencairan_cadangan', 'pembiayaan_penjualan_kekayaan', 'pembiayaan_pembentukan_cadangan', 'pembiayaan_penyertaan_modal'];
     // Bersihkan semua input terlebih dahulu agar tahun tanpa data benar-benar kosong
     ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
     try {
-        const res = await fetch(`/api/pembiayaan?tahun=${th}`);
+        const res = await fetch(`/api/pembiayaan?tahun=${th}&tipe=${targetMode}`);
         const json = await res.json();
         const d = json.data;
         if (json.success && json.data && Object.keys(d).length > 0) {
@@ -1085,13 +1278,13 @@ async function simpanPembiayaanForm() {
         const res = await fetch(`/api/pembiayaan`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tahun: th, pembiayaanData: payload })
+            body: JSON.stringify({ tahun: th, tipe: currentPembiayaanMode, pembiayaanData: payload })
         });
         const resJson = await res.json();
         if (resJson.success) {
-            showToast(`✅ Data Pembiayaan Netto tahun ${th} berhasil disimpan ke Supabase!`, 'success');
+            showToast(`✅ Data Pembiayaan ${currentPembiayaanMode} tahun ${th} berhasil disimpan!`, 'success');
         } else {
-            showToast(`⚠️ warning: ${resJson.message}`, 'warning');
+            showToast(`⚠️ warning: ${resJson.message || resJson.error}`, 'warning');
         }
     } catch(e) {
         showToast('⚠️ Gagal koneksi ke server', 'error');
@@ -1197,3 +1390,7 @@ window.formatNumberInput = formatNumberInput;
 window.bukaModalTambahUraian = bukaModalTambahUraian;
 window.closeModalTambahUraian = closeModalTambahUraian;
 window.saveTambahUraianItem = saveTambahUraianItem;
+window.switchPembiayaanMode = switchPembiayaanMode;
+window.formatSelisih = formatSelisih;
+window.formatPersen = formatPersen;
+window.renderKomparasiPembiayaanHtml = renderKomparasiPembiayaanHtml;

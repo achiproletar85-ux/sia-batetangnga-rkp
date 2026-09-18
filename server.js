@@ -2882,7 +2882,7 @@ const TIM_PENYUSUN_COLUMNS = 'id, tahun, nama, jabatan_tim, created_at';
 const PEMBIAYAAN_COLUMNS = [
     'id', 'tahun', 'silpa_tahun_sebelumnya', 'hasil_penjualan_kekayaan',
     'pencairan_dana_cadangan', 'pembentukan_dana_cadangan', 'penyertaan_modal_desa',
-    'created_at', 'updated_at'
+    'created_at', 'updated_at', 'tipe_anggaran'
 ].join(', ');
 
 const PAGU_ANGGARAN_COLUMNS = 'id, tahun, pagu, sumber_dana, keterangan, updated_at';
@@ -9890,21 +9890,122 @@ app.post('/api/pagu-anggaran', async (req, res) => {
     }
 });
 
-// GET /api/pagu-anggaran stable alias (sinkron dgn pagu-indikatif bila tabel belum ada)
+// GET /api/pembiayaan - Mendukung mode MURNI dan PERUBAHAN dengan komparasi Semula vs Menjadi
 app.get('/api/pembiayaan', async (req, res) => {
     try {
         const { tahun } = req.query;
         const th = parseInt(tahun) || 2027;
-        const cacheKey = `pembiayaan_${th}`;
+        const tipeAnggaran = normalizeRabTipe(req.query.tipe || req.query.tipe_anggaran);
+        const cacheKey = `pembiayaan_${th}_${tipeAnggaran}`;
         const cached = refCacheGet(cacheKey);
         if (cached) {
-            return res.json({ success: true, data: cached, cached: true });
+            return res.json({ success: true, ...cached, cached: true });
         }
 
+        if (tipeAnggaran === 'PERUBAHAN') {
+            const { data: rowPerubahan, error: errPerubahan } = await supabase
+                .from('pembiayaan')
+                .select(PEMBIAYAAN_COLUMNS)
+                .eq('tahun', th)
+                .eq('tipe_anggaran', 'PERUBAHAN')
+                .maybeSingle();
+
+            if (errPerubahan) {
+                console.error('Error fetching pembiayaan perubahan:', errPerubahan.message);
+                return res.status(500).json({ success: false, error: errPerubahan.message });
+            }
+
+            const { data: rowMurni, error: errMurni } = await supabase
+                .from('pembiayaan')
+                .select(PEMBIAYAAN_COLUMNS)
+                .eq('tahun', th)
+                .or('tipe_anggaran.eq.MURNI,tipe_anggaran.is.null')
+                .maybeSingle();
+
+            if (errMurni) {
+                console.error('Error fetching pembiayaan murni:', errMurni.message);
+                return res.status(500).json({ success: false, error: errMurni.message });
+            }
+
+            // Hitung komparasi per item
+            const calcKomparasi = (semulaVal, menjadiVal) => {
+                const s = Number(semulaVal || 0);
+                const m = Number(menjadiVal !== undefined && menjadiVal !== null ? menjadiVal : s);
+                const selisih = m - s;
+                const persen = s !== 0 ? (selisih / Math.abs(s)) * 100 : (m !== 0 ? 100 : 0);
+                return { semula: s, menjadi: m, selisih, persen };
+            };
+
+            const silpa = calcKomparasi(rowMurni?.silpa_tahun_sebelumnya, rowPerubahan?.silpa_tahun_sebelumnya);
+            const pencairan = calcKomparasi(rowMurni?.pencairan_dana_cadangan, rowPerubahan?.pencairan_dana_cadangan);
+            const penjualan = calcKomparasi(rowMurni?.hasil_penjualan_kekayaan, rowPerubahan?.hasil_penjualan_kekayaan);
+
+            const totalPenerimaanSemula = silpa.semula + pencairan.semula + penjualan.semula;
+            const totalPenerimaanMenjadi = silpa.menjadi + pencairan.menjadi + penjualan.menjadi;
+            const totalPenerimaanSelisih = totalPenerimaanMenjadi - totalPenerimaanSemula;
+            const totalPenerimaanPersen = totalPenerimaanSemula !== 0 ? (totalPenerimaanSelisih / Math.abs(totalPenerimaanSemula)) * 100 : (totalPenerimaanMenjadi !== 0 ? 100 : 0);
+
+            const pembentukan = calcKomparasi(rowMurni?.pembentukan_dana_cadangan, rowPerubahan?.pembentukan_dana_cadangan);
+            const penyertaan = calcKomparasi(rowMurni?.penyertaan_modal_desa, rowPerubahan?.penyertaan_modal_desa);
+
+            const totalPengeluaranSemula = pembentukan.semula + penyertaan.semula;
+            const totalPengeluaranMenjadi = pembentukan.menjadi + penyertaan.menjadi;
+            const totalPengeluaranSelisih = totalPengeluaranMenjadi - totalPengeluaranSemula;
+            const totalPengeluaranPersen = totalPengeluaranSemula !== 0 ? (totalPengeluaranSelisih / Math.abs(totalPengeluaranSemula)) * 100 : (totalPengeluaranMenjadi !== 0 ? 100 : 0);
+
+            const nettoSemula = totalPenerimaanSemula - totalPengeluaranSemula;
+            const nettoMenjadi = totalPenerimaanMenjadi - totalPengeluaranMenjadi;
+            const nettoSelisih = nettoMenjadi - nettoSemula;
+            const nettoPersen = nettoSemula !== 0 ? (nettoSelisih / Math.abs(nettoSemula)) * 100 : (nettoMenjadi !== 0 ? 100 : 0);
+
+            const effectivePerubahan = rowPerubahan || {
+                id: null,
+                tahun: th,
+                tipe_anggaran: 'PERUBAHAN',
+                silpa_tahun_sebelumnya: silpa.menjadi,
+                pencairan_dana_cadangan: pencairan.menjadi,
+                hasil_penjualan_kekayaan: penjualan.menjadi,
+                pembentukan_dana_cadangan: pembentukan.menjadi,
+                penyertaan_modal_desa: penyertaan.menjadi
+            };
+
+            const responsePayload = {
+                tipe: 'PERUBAHAN',
+                tipe_anggaran: 'PERUBAHAN',
+                tahun: th,
+                data: effectivePerubahan,
+                murni: rowMurni || null,
+                komparasi: {
+                    penerimaan: {
+                        silpa,
+                        pencairan_cadangan: pencairan,
+                        penjualan_kekayaan: penjualan,
+                        total: { semula: totalPenerimaanSemula, menjadi: totalPenerimaanMenjadi, selisih: totalPenerimaanSelisih, persen: totalPenerimaanPersen }
+                    },
+                    pengeluaran: {
+                        pembentukan_cadangan: pembentukan,
+                        penyertaan_modal: penyertaan,
+                        total: { semula: totalPengeluaranSemula, menjadi: totalPengeluaranMenjadi, selisih: totalPengeluaranSelisih, persen: totalPengeluaranPersen }
+                    },
+                    netto: {
+                        semula: nettoSemula,
+                        menjadi: nettoMenjadi,
+                        selisih: nettoSelisih,
+                        persen: nettoPersen
+                    }
+                }
+            };
+
+            refCacheSet(cacheKey, responsePayload);
+            return res.json({ success: true, ...responsePayload });
+        }
+
+        // Mode MURNI
         const { data, error } = await supabase
             .from('pembiayaan')
             .select(PEMBIAYAAN_COLUMNS)
             .eq('tahun', th)
+            .or('tipe_anggaran.eq.MURNI,tipe_anggaran.is.null')
             .maybeSingle();
 
         if (error) {
@@ -9912,31 +10013,49 @@ app.get('/api/pembiayaan', async (req, res) => {
             return res.status(500).json({ success: false, error: error.message });
         }
 
+        const responsePayload = {
+            tipe: 'MURNI',
+            tipe_anggaran: 'MURNI',
+            tahun: th,
+            data: data || null
+        };
+
         if (data) {
-            refCacheSet(cacheKey, data);
+            refCacheSet(cacheKey, responsePayload);
         }
-        res.json({ success: true, data });
+        res.json({ success: true, ...responsePayload });
     } catch (error) {
         console.error('Catch error fetching pembiayaan:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-app.post('/api/pembiayaan', async (req, res) => {
+// POST /api/pembiayaan & POST /api/pembiayaan/save
+app.post(['/api/pembiayaan', '/api/pembiayaan/save'], async (req, res) => {
     try {
-        const { tahun, pembiayaanData } = req.body;
+        const { tahun, pembiayaanData, tipe, tipe_anggaran } = req.body;
         const th = parseInt(tahun) || 2027;
+        const tipeAnggaran = normalizeRabTipe(tipe || tipe_anggaran || req.body?.tipeAnggaran || 'MURNI');
 
         if (!pembiayaanData || typeof pembiayaanData !== 'object') {
             return res.status(400).json({ success: false, error: 'pembiayaanData wajib diisi' });
         }
 
-        const payload = { tahun: th, ...pembiayaanData, updated_at: new Date().toISOString() };
+        const payload = {
+            tahun: th,
+            tipe_anggaran: tipeAnggaran,
+            silpa_tahun_sebelumnya: Number(pembiayaanData.silpa_tahun_sebelumnya || 0),
+            pencairan_dana_cadangan: Number(pembiayaanData.pencairan_dana_cadangan || 0),
+            hasil_penjualan_kekayaan: Number(pembiayaanData.hasil_penjualan_kekayaan || 0),
+            pembentukan_dana_cadangan: Number(pembiayaanData.pembentukan_dana_cadangan || 0),
+            penyertaan_modal_desa: Number(pembiayaanData.penyertaan_modal_desa || 0),
+            updated_at: new Date().toISOString()
+        };
 
         const { data, error } = await supabase
             .from('pembiayaan')
-            .upsert(payload, { onConflict: ['tahun'] })
-            .select('id');
+            .upsert(payload, { onConflict: ['tahun', 'tipe_anggaran'] })
+            .select('id, tahun, tipe_anggaran');
 
         if (error) {
             console.error('Error upserting pembiayaan:', error.message);
@@ -9944,7 +10063,9 @@ app.post('/api/pembiayaan', async (req, res) => {
         }
 
         refCacheInvalidate(`pembiayaan_${th}`);
-        res.json({ success: true, message: 'Data pembiayaan berhasil disimpan', data });
+        refCacheInvalidate(`pembiayaan_${th}_MURNI`);
+        refCacheInvalidate(`pembiayaan_${th}_PERUBAHAN`);
+        res.json({ success: true, message: `Data pembiayaan ${tipeAnggaran} tahun ${th} berhasil disimpan`, data });
     } catch (error) {
         console.error('Catch error saving pembiayaan:', error.message);
         res.status(500).json({ success: false, error: error.message });
