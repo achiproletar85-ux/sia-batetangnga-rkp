@@ -228,6 +228,26 @@ function resolveNamaKegiatanSpesifik(item, kelName, subName) {
     return String(nama || '-').trim();
 }
 
+function resolveBidangNum(item) {
+    if (!item || typeof item !== 'object') return 1;
+    const bidangVal = item?.bidang ?? item?.jenis_bidang ?? item?.sub_bidang;
+    const bNum = parseInt(bidangVal, 10);
+    if (bNum >= 1 && bNum <= 5) return bNum;
+
+    const kode = String(item?.kode_unik || item?.kode_unik_full || item?.kode_bidang || '').trim();
+    const m = kode.match(/^0?([1-5])/);
+    if (m) return parseInt(m[1], 10);
+
+    const bText = String(bidangVal || '').toLowerCase();
+    if (bText.includes('pemerintah')) return 1;
+    if (bText.includes('pembangunan')) return 2;
+    if (bText.includes('kemasyarakatan')) return 3;
+    if (bText.includes('pemberdayaan')) return 4;
+    if (bText.includes('bencana')) return 5;
+
+    return 1;
+}
+
 // 2. Render Tabel Evaluasi (5 Bidang Wajib, Ultra-Fast < 40ms)
 function renderEvaluasiTable() {
     const tbody = document.getElementById('tabel-evaluasi-body');
@@ -238,9 +258,15 @@ function renderEvaluasiTable() {
     let html = '';
     let grandTotalNominal = 0;
 
+    const validList = (Array.isArray(evaluasiList) ? evaluasiList : []).filter(item => item && typeof item === 'object');
+
     for (let b = 1; b <= 5; b++) {
         const namaBidang = NAMA_BIDANG_EVALUASI[b];
-        let itemsBidang = evaluasiList.filter(item => parseInt(item.bidang) === b);
+        let itemsBidang = validList.filter(item => {
+            const bidangVal = item?.bidang || item?.jenis_bidang || item?.sub_bidang || 'Bidang Lainnya';
+            const bNum = parseInt(bidangVal, 10) || resolveBidangNum(item);
+            return bNum === b;
+        });
 
         itemsBidang.sort((a, b) => {
             const ka = String(a.kode_unik || a.kode_unik_full || '').trim();
@@ -434,18 +460,8 @@ async function tarikDariRAB(showAlert = true) {
             // ✅ KELOMPOKKAN BERDASARKAN BIDANG DARI KODE_UNIK
             const grouped = {};
             sortedData.forEach(item => {
-                let bidang = 1;
-                const kodeStr = item.kode_unik || item.kode_unik_full || '';
-                if (kodeStr) {
-                    const match = String(kodeStr).match(/^0?([1-5])/);
-                    if (match) {
-                        const num = parseInt(match[1], 10);
-                        if (num >= 1 && num <= 5) bidang = num;
-                    }
-                } else if (typeof item.bidang === 'number' && item.bidang >= 1 && item.bidang <= 5) {
-                    bidang = item.bidang;
-                }
-
+                if (!item || typeof item !== 'object') return;
+                const bidang = resolveBidangNum(item);
                 if (!grouped[bidang]) grouped[bidang] = [];
                 grouped[bidang].push(item);
             });
@@ -490,7 +506,12 @@ async function tarikDariRAB(showAlert = true) {
 
 // 4. Update Field Realtime
 function updateFieldData(bidangNum, idxInBidang, field, value) {
-    let itemsBidang = evaluasiList.filter(item => parseInt(item.bidang) === bidangNum);
+    const validList = (Array.isArray(evaluasiList) ? evaluasiList : []).filter(item => item && typeof item === 'object');
+    let itemsBidang = validList.filter(item => {
+        const bidangVal = item?.bidang || item?.jenis_bidang || item?.sub_bidang || 'Bidang Lainnya';
+        const bNum = parseInt(bidangVal, 10) || resolveBidangNum(item);
+        return bNum === bidangNum;
+    });
     const targetItem = itemsBidang[idxInBidang];
 
     if (targetItem) {
@@ -507,7 +528,12 @@ function updateFieldData(bidangNum, idxInBidang, field, value) {
 
 // 5. Toggle Realisasi
 function toggleRealisasi(bidangNum, idxInBidang, isChecked) {
-    let itemsBidang = evaluasiList.filter(item => parseInt(item.bidang) === bidangNum);
+    const validList = (Array.isArray(evaluasiList) ? evaluasiList : []).filter(item => item && typeof item === 'object');
+    let itemsBidang = validList.filter(item => {
+        const bidangVal = item?.bidang || item?.jenis_bidang || item?.sub_bidang || 'Bidang Lainnya';
+        const bNum = parseInt(bidangVal, 10) || resolveBidangNum(item);
+        return bNum === bidangNum;
+    });
     const targetItem = itemsBidang[idxInBidang];
 
     if (targetItem) {
@@ -651,7 +677,9 @@ function printPDF() {
     const printFooterTgl = document.getElementById('print-footer-tgl');
     if (printFooterTgl) printFooterTgl.textContent = `Batetangnga, ${formatTanggalIndonesia()}`;
 
-    if (!Array.isArray(evaluasiList) || evaluasiList.length === 0) {
+    const validList = (Array.isArray(evaluasiList) ? evaluasiList : []).filter(item => item && typeof item === 'object');
+
+    if (validList.length === 0) {
         const domBody = document.getElementById('tabel-evaluasi-body');
         if (!domBody || domBody.children.length === 0) {
             alert("⚠️ Data evaluasi belum dimuat. Silakan tunggu atau klik Tarik dari RKPDes.");
@@ -664,9 +692,10 @@ function printPDF() {
 
     for (let b = 1; b <= 5; b++) {
         const namaBidang = NAMA_BIDANG_EVALUASI[b];
-        let itemsBidang = evaluasiList.filter(item => {
-            const bNum = parseInt(item.bidang, 10);
-            return bNum === b || (!bNum && b === 1);
+        let itemsBidang = validList.filter(item => {
+            const bidangVal = item?.bidang || item?.jenis_bidang || item?.sub_bidang || 'Bidang Lainnya';
+            const bNum = parseInt(bidangVal, 10) || resolveBidangNum(item);
+            return bNum === b;
         });
 
         itemsBidang.sort((a, b) => {
