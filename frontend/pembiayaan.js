@@ -779,7 +779,7 @@ function renderTabelPembiayaan(rawData) {
             <td class="border border-slate-400 no-print print:hidden"></td>
         </tr>
         <tr class="bg-indigo-900 text-white font-extrabold border-2 border-indigo-950">
-            <td colspan="3" class="text-center py-2.5 px-3 uppercase tracking-wider font-extrabold border border-indigo-950">TOTAL KESELURUHAN ANGGARAN PEMBIAYAAN PEMBANGUNAN DESA</td>
+            <td colspan="3" class="text-center py-2.5 px-3 uppercase tracking-wider font-extrabold border border-indigo-950">TOTAL KESELURUHAN ANGGARAN PEMBIAYAAN</td>
             <td colspan="7" class="text-center px-4 py-2.5 font-mono text-sm font-black border border-indigo-950 text-amber-300">
                 ${formatRupiah(totalSemua)}
             </td>

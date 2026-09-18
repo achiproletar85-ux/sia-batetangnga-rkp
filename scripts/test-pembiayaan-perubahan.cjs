@@ -129,6 +129,10 @@ check('injectToDOM menggunakan judul dinamis DEFENITIF PERUBAHAN DESA',
 check('injectToDOM menggunakan header kolom kedinasan Jumlah Dana Defenitif', 
     pembiayaanJsContent.includes('Jumlah Dana Defenitif')
 );
+check('Label footer total keseluruhan menggunakan TOTAL KESELURUHAN ANGGARAN PEMBIAYAAN', 
+    pembiayaanJsContent.includes('TOTAL KESELURUHAN ANGGARAN PEMBIAYAAN') &&
+    !pembiayaanJsContent.includes('TOTAL KESELURUHAN ANGGARAN PEMBIAYAAN PEMBANGUNAN DESA')
+);
 check('Teks "Indikatif" tidak lagi muncul di pembiayaan.js', !pembiayaanJsContent.toLowerCase().includes('indikatif'));
 check('loadPembiayaanNettoData memanggil API dengan parameter tipe', 
     pembiayaanJsContent.includes('/api/pembiayaan?tahun=') && pembiayaanJsContent.includes('&tipe=')
