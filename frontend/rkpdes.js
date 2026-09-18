@@ -1353,7 +1353,7 @@ function buildRkpdesPerubahanHtml() {
 
                                 <!-- 5. Kolom AKSI (Screen only) -->
                                 <td class="text-center align-middle border border-slate-300 px-2 py-1.5 whitespace-nowrap no-print">
-                                    <button type="button" class="btn-edit-perubahan px-2.5 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded text-xs font-semibold shadow transition-all inline-flex items-center gap-1.5 cursor-pointer" data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}" onclick="openEditRkpPerubahanModal('${itemKeyEscaped}')" title="Edit RKPDes Perubahan">
+                                    <button type="button" class="btn-edit-perubahan px-2.5 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded text-xs font-semibold shadow transition-all inline-flex items-center gap-1.5 cursor-pointer" data-item-key="${itemKeyEscaped}" data-id="${itemId}" data-kode="${itemKodeAttr}" onclick="openEditRkpPerubahanModal(this.getAttribute('data-item-key') || '${itemKeyEscaped}')" title="Edit RKPDes Perubahan">
                                         <i class="fas fa-edit text-white"></i> Edit
                                     </button>
                                 </td>
@@ -2168,11 +2168,18 @@ function updateModalLiveDifference() {
 }
 window.updateModalLiveDifference = updateModalLiveDifference;
 
-function openEditRkpPerubahanModal(itemKey) {
-    if (!rkpdesPerubahanList || rkpdesPerubahanList.length === 0) return;
-    const item = findPerubahanItem(itemKey);
+function openEditRkpPerubahanModal(itemOrKey) {
+    if (!Array.isArray(rkpdesPerubahanList) || rkpdesPerubahanList.length === 0) return;
+    let item = null;
+    let itemKey = itemOrKey;
+    if (itemOrKey && typeof itemOrKey === 'object') {
+        item = itemOrKey;
+        itemKey = item.kode_unik_full || item.kode_unik || (item.id != null ? String(item.id) : '') || item.nama_kegiatan;
+    } else {
+        item = findPerubahanItem(itemOrKey);
+    }
     if (!item) {
-        console.warn('[RKPDes Perubahan] Kegiatan tidak ditemukan untuk key:', itemKey);
+        console.warn('[RKPDes Perubahan] Kegiatan tidak ditemukan untuk key/item:', itemOrKey);
         showToast('❌ Data kegiatan tidak ditemukan', 'error');
         return;
     }
@@ -2180,9 +2187,10 @@ function openEditRkpPerubahanModal(itemKey) {
     const modal = document.getElementById('modalEditRkpPerubahan');
     if (!modal) return;
 
-    const kode = item.kode_unik_full || item.kode_unik || '-';
+    const kode = item.kode_unik_full || item.kode_unik || (item.id != null ? String(item.id) : '-');
     const nama = item.nama_kegiatan || item.jenis_kegiatan || '-';
     const bidangText = item.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa';
+    const itemIdVal = (item.id != null && item.id !== '') ? String(item.id) : '';
 
     const elKey = document.getElementById('edit-perubahan-item-key');
     const elId = document.getElementById('edit-perubahan-id');
@@ -2191,8 +2199,8 @@ function openEditRkpPerubahanModal(itemKey) {
     const badgeBidang = document.getElementById('edit-perubahan-badge-bidang');
     const titleNama = document.getElementById('edit-perubahan-nama-kegiatan');
 
-    if (elKey) elKey.value = itemKey;
-    if (elId) elId.value = item.id || '';
+    if (elKey) elKey.value = itemKey || kode || itemIdVal;
+    if (elId) elId.value = itemIdVal;
     if (elKode) elKode.value = kode;
     if (badgeKode) badgeKode.textContent = kode;
     if (badgeBidang) badgeBidang.textContent = bidangText;
@@ -2395,6 +2403,7 @@ async function saveEditRkpPerubahanItem(event) {
     const item = findPerubahanItem(itemKey);
     if (!item) {
         showToast('❌ Data kegiatan tidak ditemukan', 'error');
+        alert('⚠️ Data kegiatan tidak ditemukan untuk disimpan. Silakan segarkan halaman.');
         return;
     }
 
@@ -2404,7 +2413,19 @@ async function saveEditRkpPerubahanItem(event) {
         saveBtn.innerHTML = '<i class="fas fa-circle-notch animate-spin mr-1"></i> Menyimpan...';
     }
 
-    const kode = item.kode_unik_full || item.kode_unik || document.getElementById('edit-perubahan-kode')?.value;
+    const kode = item.kode_unik_full || item.kode_unik || document.getElementById('edit-perubahan-kode')?.value || '';
+    const idVal = (item.id != null && item.id !== '') ? item.id : (document.getElementById('edit-perubahan-id')?.value || null);
+    const parsedId = (idVal != null && idVal !== '' && !isNaN(Number(idVal))) ? Number(idVal) : idVal;
+
+    if (!kode && !parsedId) {
+        showToast('❌ Kode kegiatan atau ID tidak valid', 'error');
+        alert('⚠️ ID atau Kode Unik Kegiatan tidak ditemukan. Operasi penyimpanan dibatalkan.');
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-save mr-1"></i> Simpan Perubahan';
+        }
+        return;
+    }
 
     // Nilai Sisi SEMULA
     const volSemula = document.getElementById('edit-semula-volume')?.value?.trim() || '1';
@@ -2439,7 +2460,7 @@ async function saveEditRkpPerubahanItem(event) {
     const payload = {
         tahun: activeYear,
         kode_unik_full: kode,
-        id: item.id || null,
+        id: parsedId,
         nama_kegiatan: item.nama_kegiatan || item.jenis_kegiatan || '-',
         bidang: item.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
         // Struktur data Semula
@@ -2476,6 +2497,8 @@ async function saveEditRkpPerubahanItem(event) {
         },
         // Fallback properti flat untuk kompatibilitas
         stunting: stuntingMenjadi,
+        stunting_semula: stuntingSemula,
+        stunting_menjadi: stuntingMenjadi,
         volume: volMenjadi,
         satuan: satMenjadi,
         biaya: biayaMenjadi,
@@ -2491,13 +2514,23 @@ async function saveEditRkpPerubahanItem(event) {
     };
 
     try {
+        console.log('📡 Mengirim payload update RKPDes Perubahan:', payload);
         const res = await fetch('/api/rkpdes/perubahan', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        const result = await res.json();
-        if (result.success) {
+
+        let result;
+        try {
+            result = await res.json();
+        } catch (jsonErr) {
+            throw new Error(`Server merespons status ${res.status} tanpa format JSON yang valid`);
+        }
+
+        console.log('📥 Respons server PUT /api/rkpdes/perubahan:', result);
+
+        if (res.ok && result.success) {
             // Update objek SEMULA lokal
             if (!item.semula) item.semula = {};
             item.semula.volume = volSemula;
@@ -2554,11 +2587,15 @@ async function saveEditRkpPerubahanItem(event) {
             renderRkpdesPerubahanPreview();
             showToast('✅ Berhasil memperbarui data RKPDes / RAB Perubahan (Semula & Menjadi)!', 'success');
         } else {
-            showToast(`❌ Gagal menyimpan: ${result.error || 'Terjadi kesalahan'}`, 'error');
+            const errMsg = result?.error || `Gagal menyimpan data ke database (Status HTTP ${res.status})`;
+            console.error('❌ Gagal menyimpan RKPDes Perubahan:', errMsg, result);
+            showToast(`❌ Gagal menyimpan: ${errMsg}`, 'error');
+            alert(`⚠️ Gagal Menyimpan RKPDes Perubahan:\n${errMsg}`);
         }
     } catch (err) {
         console.error('❌ Error saveEditRkpPerubahanItem:', err);
-        showToast('❌ Gagal menghubungi server', 'error');
+        showToast(`❌ Gagal menghubungi server: ${err.message}`, 'error');
+        alert(`⚠️ Terjadi Kesalahan Sistem Saat Menyimpan:\n${err.message}`);
     } finally {
         if (saveBtn) {
             saveBtn.disabled = false;

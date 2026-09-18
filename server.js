@@ -8602,7 +8602,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
 
             if (existingRabPer && existingRabPer.id) {
                 rabPerId = existingRabPer.id;
-                await supabase.from(RAB_TABLE).update({
+                const { data: upRabRes, error: rabUpErr } = await supabase.from(RAB_TABLE).update({
                     volume: volNum,
                     satuan: satStr,
                     jumlah_anggaran: biayaNum,
@@ -8613,6 +8613,10 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     rpjm_data: newRpjmData,
                     updated_at: nowIso
                 }).eq('id', rabPerId).select('id');
+                if (rabUpErr) {
+                    console.error('❌ Gagal update RAB perubahan:', rabUpErr.message);
+                    throw new Error(`Gagal update tabel RAB: ${rabUpErr.message}`);
+                }
             } else {
                 let murniRef = null;
                 if (kode) {
@@ -8659,14 +8663,20 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     saved_at: nowIso,
                     updated_at: nowIso
                 };
-                const { data: insertedRab } = await supabase.from(RAB_TABLE).insert(newRabPayload).select('id');
+                const { data: insertedRab, error: rabInErr } = await supabase.from(RAB_TABLE).insert(newRabPayload).select('id');
+                if (rabInErr) {
+                    console.error('❌ Gagal insert RAB perubahan:', rabInErr.message);
+                    throw new Error(`Gagal membuat baris baru tabel RAB: ${rabInErr.message}`);
+                }
                 if (insertedRab && insertedRab[0]) rabPerId = insertedRab[0].id;
             }
         } catch (rabErr) {
-            console.warn('⚠️ Gagal update tabel RAB perubahan (tetap lanjut ke rkpdes):', rabErr.message);
+            console.error('❌ Error handling tabel RAB perubahan:', rabErr.message);
+            throw rabErr;
         }
 
         // B. Koordinasi Penyimpanan ke Tabel RKPDES (stunting & mendukung_sdgs untuk Menjadi)
+        let rkpUpdatedCount = 0;
         try {
             const rkpPerubahanUpdate = {
                 stunting: stuntingMenjadiStr,
@@ -8675,15 +8685,66 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             if (cleanSdgsMenjadi) {
                 rkpPerubahanUpdate.mendukung_sdgs = sdgsMenjadiLabel;
             }
-            let rkpQ = supabase.from('rkpdes').update(sanitizeRkpdesPayload(rkpPerubahanUpdate));
-            if (id && !isNaN(Number(id))) {
-                rkpQ = rkpQ.eq('id', Number(id));
-            } else if (kode) {
-                rkpQ = rkpQ.eq('kode_unik_full', kode).eq('tahun', tahunInt);
+
+            let rkpMatchId = null;
+            if (kode) {
+                const { data: rkpRow } = await supabase
+                    .from('rkpdes')
+                    .select('id')
+                    .eq('kode_unik_full', kode)
+                    .eq('tahun', tahunInt)
+                    .maybeSingle();
+                if (rkpRow && rkpRow.id) rkpMatchId = rkpRow.id;
             }
-            await rkpQ.select('id');
+            if (!rkpMatchId && id && !isNaN(Number(id))) {
+                const { data: rkpRowById } = await supabase
+                    .from('rkpdes')
+                    .select('id')
+                    .eq('id', Number(id))
+                    .maybeSingle();
+                if (rkpRowById && rkpRowById.id) rkpMatchId = rkpRowById.id;
+            }
+
+            if (rkpMatchId) {
+                const { data: rkpRes, error: rkpUpdateErr } = await supabase
+                    .from('rkpdes')
+                    .update(sanitizeRkpdesPayload(rkpPerubahanUpdate))
+                    .eq('id', rkpMatchId)
+                    .select('id');
+                if (rkpUpdateErr) throw rkpUpdateErr;
+                rkpUpdatedCount = (rkpRes && rkpRes.length) ? rkpRes.length : 1;
+            } else if (kode) {
+                const { data: maxRkp } = await supabase.from('rkpdes').select('id').order('id', { ascending: false }).limit(1);
+                const nextRkpId = (maxRkp && maxRkp[0] && Number(maxRkp[0].id)) ? Number(maxRkp[0].id) + 1 : Date.now();
+                const { error: insErr } = await supabase.from('rkpdes').insert(sanitizeRkpdesPayload({
+                    id: nextRkpId,
+                    tahun: tahunInt,
+                    kode_unik_full: kode,
+                    nama_kegiatan: nama_kegiatan || '-',
+                    jenis_kegiatan: nama_kegiatan || '-',
+                    bidang: bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
+                    stunting: stuntingMenjadiStr,
+                    mendukung_sdgs: sdgsMenjadiLabel,
+                    volume: String(volNum),
+                    satuan: satStr,
+                    prakiraan_biaya: biayaNum,
+                    lokasi: lokasiStr,
+                    sumber_pembiayaan: sumberStr,
+                    waktu_pelaksanaan: waktuStr,
+                    pola_pelaksanaan: polaStr,
+                    data_eksisting: eksistingStr,
+                    created_at: nowIso,
+                    updated_at: nowIso
+                })).select('id');
+                if (insErr) {
+                    console.warn('⚠️ Gagal insert rkpdes untuk kegiatan baru:', insErr.message);
+                } else {
+                    rkpUpdatedCount = 1;
+                }
+            }
         } catch (rkpUpdateErr) {
-            console.warn('⚠️ Gagal update rkpdes stunting/mendukung_sdgs:', rkpUpdateErr.message);
+            console.error('❌ Gagal update rkpdes stunting/mendukung_sdgs:', rkpUpdateErr.message);
+            throw new Error(`Gagal update tabel RKPDES: ${rkpUpdateErr.message}`);
         }
 
         return res.json({
