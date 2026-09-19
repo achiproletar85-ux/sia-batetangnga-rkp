@@ -45,7 +45,7 @@ async function runTests() {
     check('Endpoint alias POST /api/rktl/perubahan/sync terdaftar', serverJs.includes("app.post('/api/rktl/perubahan/sync'"));
     check('Pemisahan delete query antara MURNI dan PERUBAHAN', serverJs.includes("delQuery.eq('tipe', 'PERUBAHAN')"));
 
-    // 3. Frontend Interface & Tab Switch
+    // 3. Frontend Interface & Tab Switch & 7 Kolom Baku
     console.log('\n--- 3. Interface dan Komponen Frontend (rktl.html) ---');
     check('Tab switch RKTL Murni ada di rktl.html', rktlHtml.includes('id="tab-btn-rktl-murni"'));
     check('Tab switch RKTL Perubahan ada di rktl.html', rktlHtml.includes('id="tab-btn-rktl-perubahan"'));
@@ -54,18 +54,35 @@ async function runTests() {
     check('Elemen judul dinamis prefix ada di rktl.html', rktlHtml.includes('id="judul-dokumen-prefix"'));
     check('Elemen judul dinamis sub ada di rktl.html', rktlHtml.includes('id="judul-dokumen-sub"'));
     check('Elemen judul tahun doc ada di rktl.html', rktlHtml.includes('id="judul-tahun-doc"'));
+    check('Header tabel memuat 7 kolom baku kedinasan', 
+        rktlHtml.includes('HARI, TANGGAL') && 
+        rktlHtml.includes('PUKUL') && 
+        rktlHtml.includes('TEMPAT') && 
+        rktlHtml.includes('URAIAN') && 
+        rktlHtml.includes('KETERANGAN') && 
+        rktlHtml.includes('KELUARAN')
+    );
 
     // 4. Logika Javascript (rktl.js)
-    console.log('\n--- 4. Logika Controller dan Penanganan Judul (rktl.js) ---');
+    console.log('\n--- 4. Logika Controller dan Penanganan Judul & Kolom (rktl.js) ---');
     check('Variabel currentRktlMode terdefinisi', rktlJs.includes('let currentRktlMode ='));
     check('DEFAULT_RKTL_PERUBAHAN_STEPS terdefinisi', rktlJs.includes('const DEFAULT_RKTL_PERUBAHAN_STEPS ='));
     check('Fungsi switchRktlMode terdefinisi', rktlJs.includes('function switchRktlMode('));
     check('Fungsi updateRktlModeUI terdefinisi', rktlJs.includes('function updateRktlModeUI('));
     check('Fungsi salinDariRktlMurni terdefinisi', rktlJs.includes('async function salinDariRktlMurni('));
+    check('Fungsi formatUraianHtml (sub-baris bertingkat) terdefinisi', rktlJs.includes('function formatUraianHtml('));
     check('Judul resmi PERUBAHAN PENYUSUNAN DOKUMEN RKP DESA TAHUN tercantum', rktlJs.includes('PERUBAHAN PENYUSUNAN DOKUMEN RKP DESA TAHUN'));
     check('Judul resmi RENCANA KERJA DAN TINDAK LANJUT (RKTL) PERUBAHAN tercantum', rktlJs.includes('RENCANA KERJA DAN TINDAK LANJUT (RKTL) PERUBAHAN'));
-    check('Simpan RKTL mengirimkan tipe ke backend', rktlJs.includes('tipe: currentRktlMode'));
-    check('Cetak PDF mengadaptasi judul sesuai mode dokumen', rktlJs.includes('docJudulSub') && rktlJs.includes('docJudulPrefix'));
+    check('Simpan RKTL mengirimkan tipe dan 7 kolom ke backend', 
+        rktlJs.includes('tipe: currentRktlMode') && 
+        rktlJs.includes('keluaran:') && 
+        rktlJs.includes('hari_tanggal:')
+    );
+    check('Cetak PDF mengadaptasi judul dan 7 kolom baku landscape', 
+        rktlJs.includes('docJudulSub') && 
+        rktlJs.includes('docJudulPrefix') &&
+        rktlJs.includes('size: landscape')
+    );
 
     // 5. Menu Navigasi (navbar.html)
     console.log('\n--- 5. Navigasi Menu Perencanaan ---');
@@ -80,18 +97,34 @@ async function runTests() {
         // Bersihkan dulu
         await supabase.from('rktl').delete().eq('tahun', testYear);
 
-        // Simpan Murni
+        // Simpan Murni dengan struktur 7 kolom baku
         await supabase.from('rktl').insert({
             tahun: testYear,
             tipe: 'MURNI',
-            rktl_items: [{ uraian: 'Test Murni', keterangan: 'Keterangan Murni' }]
+            rktl_items: [{
+                no_urut: 1,
+                hari_tanggal: 'Senin, 06 Juli 2026',
+                pukul: '09.00 - 12.30 WITA',
+                tempat: 'Aula Kantor Desa Batetangnga',
+                uraian: 'Test Murni\na. Sub Poin 1\nb. Sub Poin 2',
+                keterangan: 'Keterangan Murni',
+                keluaran: 'Output Murni Terverifikasi'
+            }]
         }).select('id');
 
-        // Simpan Perubahan
+        // Simpan Perubahan dengan struktur 7 kolom baku
         await supabase.from('rktl').insert({
             tahun: testYear,
             tipe: 'PERUBAHAN',
-            rktl_items: [{ uraian: 'Test Perubahan', keterangan: 'Keterangan Perubahan' }]
+            rktl_items: [{
+                no_urut: 1,
+                hari_tanggal: 'Kamis, 10 September 2026',
+                pukul: '09.00 - 13.00 WITA',
+                tempat: 'Aula Kantor Desa Batetangnga',
+                uraian: 'Test Perubahan',
+                keterangan: 'Keterangan Perubahan',
+                keluaran: 'Output Perubahan Terverifikasi'
+            }]
         }).select('id');
 
         // Tarik Murni
@@ -106,11 +139,14 @@ async function runTests() {
             .eq('tahun', testYear)
             .eq('tipe', 'PERUBAHAN');
 
-        check('Data RKTL Murni tersimpan terpisah', resMurni && resMurni.length === 1 && resMurni[0].rktl_items[0].uraian === 'Test Murni');
+        check('Data RKTL Murni tersimpan terpisah', resMurni && resMurni.length === 1 && resMurni[0].rktl_items[0].uraian.includes('Test Murni'));
+        check('Data RKTL Murni memuat kolom keluaran & hari_tanggal', resMurni && resMurni[0].rktl_items[0].keluaran === 'Output Murni Terverifikasi' && resMurni[0].rktl_items[0].hari_tanggal === 'Senin, 06 Juli 2026');
         check('Data RKTL Perubahan tersimpan terpisah', resPerubahan && resPerubahan.length === 1 && resPerubahan[0].rktl_items[0].uraian === 'Test Perubahan');
+        check('Data RKTL Perubahan memuat kolom keluaran & tempat', resPerubahan && resPerubahan[0].rktl_items[0].keluaran === 'Output Perubahan Terverifikasi' && resPerubahan[0].rktl_items[0].tempat === 'Aula Kantor Desa Batetangnga');
 
         // Bersihkan
         await supabase.from('rktl').delete().eq('tahun', testYear);
+        check('Pembersihan data uji coba berhasil', true);
         check('Pembersihan data uji coba berhasil', true);
     } catch (err) {
         check('Persistensi Supabase error: ' + err.message, false);

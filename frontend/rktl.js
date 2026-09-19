@@ -2,61 +2,137 @@
 // RKTL (RENCANA KERJA DAN TINDAK LANJUT) JS
 // ============================================
 
+// Helper Escape HTML untuk keamanan render DOM & cetak
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// Helper perapih sub-baris bertingkat (a., b., dll.) dengan indentasi rapi
+function formatUraianHtml(text) {
+    if (!text) return '-';
+    const lines = String(text).split('\n');
+    return lines.map(line => {
+        const trimmed = line.trim();
+        if (/^([a-z]\.|\d+\.|\-|\•)/i.test(trimmed)) {
+            return `<div style="padding-left: 14px; margin-top: 2px;">${escapeHtml(trimmed)}</div>`;
+        }
+        return `<div>${escapeHtml(line)}</div>`;
+    }).join('');
+}
+
 const DEFAULT_RKTL_STEPS = [
     {
+        hari_tanggal: "Senin, 06 Juli 2026",
+        pukul: "09.00 - 12.30 WITA",
+        tempat: "Aula Kantor Desa Batetangnga",
         uraian: "Rembuk Stunting",
-        keterangan: "BA Rembuk Stunting"
+        keterangan: "BA Rembuk Stunting",
+        keluaran: "Berita Acara & Rekomendasi Prioritas Stunting"
     },
     {
+        hari_tanggal: "Kamis, 09 Juli 2026",
+        pukul: "09.00 - 13.00 WITA",
+        tempat: "Aula Kantor Desa Batetangnga",
         uraian: "Pembentukan Tim Penyusun RKP Desa",
-        keterangan: "Musyawarah Mufakat"
+        keterangan: "Musyawarah Mufakat",
+        keluaran: "SK Kepala Desa tentang Tim Penyusun RKP Desa"
     },
     {
-        uraian: "Pencermatan dan penyelarasan rencana kegiatan dan pembiayaan Pembangunan Desa",
-        keterangan: "Mencermati: Dok. RPJMD, Renstra OPD, RPKD, Jasmas, Pagu Indikatif Desa: DD, ADD, BHP, BKK, dll."
+        hari_tanggal: "Senin - Rabu, 13-15 Juli 2026",
+        pukul: "08.30 - 16.00 WITA",
+        tempat: "Ruang Rapat Kantor Desa",
+        uraian: "Pencermatan dan penyelarasan rencana kegiatan dan pembiayaan Pembangunan Desa:\na. Pencermatan Pagu Indikatif Desa\nb. Penyelarasan Program/Kegiatan Masuk Desa",
+        keterangan: "Mencermati: Dok. RPJMD, Renstra OPD, RPKD, Jasmas, Pagu Indikatif Desa: DD, ADD, BHP, BKK, dll.",
+        keluaran: "Format Data Pagu Indikatif & Daftar Program Masuk Desa"
     },
     {
-        uraian: "Pencermatan Ulang RPJM Desa",
-        keterangan: "Dok. RPJM Desa, Hasil Laju Capaian SDGs Desa"
+        hari_tanggal: "Kamis - Jumat, 16-17 Juli 2026",
+        pukul: "09.00 - 15.30 WITA",
+        tempat: "Sekretariat Tim Penyusun",
+        uraian: "Pencermatan Ulang RPJM Desa:\na. Pengkajian Ulang Prioritas RPJM Desa\nb. Rekapitulasi SDGs Desa",
+        keterangan: "Dok. RPJM Desa, Hasil Laju Capaian SDGs Desa",
+        keluaran: "Format Daftar Usulan Program Berdasarkan RPJM Desa"
     },
     {
-        uraian: "Penyusunan Rancangan RKP Desa dan DU-RKP Desa",
-        keterangan: "Berdasarkan daftar rencana program dan kegiatan yang masuk ke Desa, data dan informasi tentang rencana pembiayaan Pembangunan Desa, data dan informasi hasil pencermatan RPJM Desa, daftar kegiatan yang mendukung penanganan aksi program prioritas nasional (konvergensi pencegahan stunting, dll)"
+        hari_tanggal: "Senin - Jumat, 20-24 Juli 2026",
+        pukul: "08.30 - 16.00 WITA",
+        tempat: "Ruang Kerja Tim Penyusun",
+        uraian: "Penyusunan Rancangan RKP Desa dan DU-RKP Desa:\na. Penyusunan Matriks RKP Desa\nb. Penyusunan Rancangan RAB Kegiatan\nc. Pengintegrasian Prioritas Nasional & Stunting",
+        keterangan: "Berdasarkan daftar rencana program dan kegiatan yang masuk ke Desa, data dan informasi tentang rencana pembiayaan Pembangunan Desa, data dan informasi hasil pencermatan RPJM Desa, daftar kegiatan yang mendukung penanganan aksi program prioritas nasional (konvergensi pencegahan stunting, dll)",
+        keluaran: "Draft Rancangan Dokumen RKP Desa & DU-RKP Desa"
     },
     {
+        hari_tanggal: "Selasa, 28 Juli 2026",
+        pukul: "09.00 - 15.00 WITA",
+        tempat: "Aula Kantor Desa Batetangnga",
         uraian: "Musrenbang Desa pembahasan rancangan RKP Desa dan Daftar Usulan RKP Desa",
-        keterangan: "Menetapkan prioritas, program, kegiatan, dan kebutuhan Pembangunan Desa yang didanai oleh APB Desa, swadaya, dan/atau APBD dan APBN."
+        keterangan: "Menetapkan prioritas, program, kegiatan, dan kebutuhan Pembangunan Desa yang didanai oleh APB Desa, swadaya, dan/atau APBD dan APBN.",
+        keluaran: "BA Musrenbangdes Pembahasan Rancangan RKP Desa"
     },
     {
+        hari_tanggal: "Minggu, 02 Agustus 2026",
+        pukul: "09.00 - 13.00 WITA",
+        tempat: "Aula Kantor Desa Batetangnga",
         uraian: "Musyawarah Desa tentang pembahasan dan pengesahan PERDES RKP Desa dan DU-RKP Desa",
-        keterangan: "Membahas, menetapkan dan mengesahkan dokumen RKP Desa dan DU-RKP Desa dengan penandatangan Peraturan Desa tentang RKP Desa oleh Kepala Desa dan Ketua BPD."
+        keterangan: "Membahas, menetapkan dan mengesahkan dokumen RKP Desa dan DU-RKP Desa dengan penandatangan Peraturan Desa tentang RKP Desa oleh Kepala Desa dan Ketua BPD.",
+        keluaran: "Perdes RKP Desa & Berita Acara Pengesahan BPD"
     }
 ];
 
 const DEFAULT_RKTL_PERUBAHAN_STEPS = [
     {
+        hari_tanggal: "Kamis, 10 September 2026",
+        pukul: "09.00 - 13.00 WITA",
+        tempat: "Aula Kantor Desa Batetangnga",
         uraian: "Musyawarah Desa Pembahasan Keadaan Luar Biasa / Perubahan RKP Desa",
-        keterangan: "BA Musdes Pembahasan Alasan Perubahan RKP Desa dan Penelaahan Kebutuhan Mendesak / Pergeseran Anggaran."
+        keterangan: "BA Musdes Pembahasan Alasan Perubahan RKP Desa dan Penelaahan Kebutuhan Mendesak / Pergeseran Anggaran.",
+        keluaran: "BA Musdes Kesepakatan Perubahan RKP Desa"
     },
     {
+        hari_tanggal: "Senin, 14 September 2026",
+        pukul: "09.00 - 12.00 WITA",
+        tempat: "Aula Kantor Desa Batetangnga",
         uraian: "Pembentukan / Penugasan Tim Penyusun Dokumen Perubahan RKP Desa",
-        keterangan: "Surat Keputusan Kepala Desa tentang Penugasan Tim Penyusun Perubahan RKP Desa."
+        keterangan: "Surat Keputusan Kepala Desa tentang Penugasan Tim Penyusun Perubahan RKP Desa.",
+        keluaran: "SK Tim Penyusun Perubahan RKP Desa"
     },
     {
-        uraian: "Pencermatan dan Penyelarasan Rancangan Kegiatan serta Sumber Pembiayaan Perubahan",
-        keterangan: "Mencermati perubahan pagu indikatif, pergeseran belanja program prioritas, serta hasil realisasi semester berjalan."
+        hari_tanggal: "Selasa - Rabu, 15-16 September 2026",
+        pukul: "08.30 - 16.00 WITA",
+        tempat: "Ruang Rapat Kantor Desa",
+        uraian: "Pencermatan dan Penyelarasan Rancangan Kegiatan serta Sumber Pembiayaan Perubahan:\na. Pencermatan Perubahan Pagu Indikatif\nb. Evaluasi Realisasi Belanja Semester Berjalan",
+        keterangan: "Mencermati perubahan pagu indikatif, pergeseran belanja program prioritas, serta hasil realisasi semester berjalan.",
+        keluaran: "Matriks Rincian Pergeseran Anggaran dan Kegiatan"
     },
     {
-        uraian: "Penyusunan Rancangan Dokumen Perubahan RKP Desa",
-        keterangan: "Menyusun matriks perbandingan program kegiatan (Semula - Menjadi) beserta rincian perubahan anggaran."
+        hari_tanggal: "Kamis - Jumat, 17-18 September 2026",
+        pukul: "08.30 - 16.30 WITA",
+        tempat: "Sekretariat Tim Penyusun",
+        uraian: "Penyusunan Rancangan Dokumen Perubahan RKP Desa:\na. Penyusunan Matriks Semula - Menjadi\nb. Penyusunan Penyesuaian Program Prioritas & Stunting",
+        keterangan: "Menyusun matriks perbandingan program kegiatan (Semula - Menjadi) beserta rincian perubahan anggaran.",
+        keluaran: "Draft Dokumen Rancangan Perubahan RKP Desa"
     },
     {
+        hari_tanggal: "Selasa, 22 September 2026",
+        pukul: "09.00 - 14.30 WITA",
+        tempat: "Aula Kantor Desa Batetangnga",
         uraian: "Musrenbang Desa Pembahasan Rancangan Perubahan RKP Desa",
-        keterangan: "Membahas dan menyepakati prioritas kegiatan perubahan bersama BPD, LPMD, tokoh masyarakat, dan unsur perempuan."
+        keterangan: "Membahas dan menyepakati prioritas kegiatan perubahan bersama BPD, LPMD, tokoh masyarakat, dan unsur perempuan.",
+        keluaran: "BA Musrenbangdes Pembahasan Perubahan RKP Desa"
     },
     {
+        hari_tanggal: "Jumat, 25 September 2026",
+        pukul: "09.00 - 13.00 WITA",
+        tempat: "Aula Kantor Desa Batetangnga",
         uraian: "Musyawarah Desa tentang Pembahasan dan Pengesahan Peraturan Desa tentang Perubahan RKP Desa",
-        keterangan: "Pengesahan PERDES Perubahan RKP Desa oleh Kepala Desa dan Ketua BPD."
+        keterangan: "Pengesahan PERDES Perubahan RKP Desa oleh Kepala Desa dan Ketua BPD.",
+        keluaran: "Perdes Perubahan RKP Desa & BA Pengesahan"
     }
 ];
 
@@ -271,7 +347,7 @@ async function loadRKTLData() {
     }
 }
 
-// 2. Render Tabel Agenda RKTL (Semua Uraian Editable & Fleksibel Baris)
+// 2. Render Tabel Agenda RKTL (Format Baku 7 Kolom Kedinasan)
 function renderRKTLTable() {
     const tbody = document.getElementById('tabel-rktl-body');
     if (!tbody) return;
@@ -283,9 +359,12 @@ function renderRKTLTable() {
     if (countLabel) countLabel.innerText = list.length;
 
     list.forEach((item, idx) => {
+        const hariTglVal = item.hari_tanggal !== undefined ? item.hari_tanggal : (item.tanggal_tempat || '');
+        const pukulVal = item.pukul !== undefined ? item.pukul : '09.00 - Selesai';
+        const tempatVal = item.tempat !== undefined ? item.tempat : 'Aula Kantor Desa Batetangnga';
         const uraianVal = item.uraian !== undefined ? item.uraian : '';
-        const tglVal = item.tanggal_tempat || '';
         const ketVal = item.keterangan !== undefined ? item.keterangan : '';
+        const keluaranVal = item.keluaran !== undefined ? item.keluaran : (item.output || '');
 
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50 border-b border-slate-200 text-xs";
@@ -293,13 +372,22 @@ function renderRKTLTable() {
         tr.innerHTML = `
             <td class="p-2 text-center font-bold text-slate-600 border border-slate-300">${idx + 1}</td>
             <td class="p-1 border border-slate-300">
-                <textarea id="uraian-rktl-${idx}" rows="2" onchange="updateRKTLRowData(${idx}, 'uraian', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none resize-y font-bold text-slate-800" placeholder="Uraian Kegiatan Agenda...">${String(uraianVal).replace(/"/g, '&quot;')}</textarea>
+                <textarea id="hari-tgl-rktl-${idx}" rows="2" onchange="updateRKTLRowData(${idx}, 'hari_tanggal', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none resize-y text-slate-800 text-center font-semibold" placeholder="Hari, Tanggal...">${escapeHtml(hariTglVal)}</textarea>
             </td>
             <td class="p-1 border border-slate-300">
-                <input type="text" id="tgl-rktl-${idx}" value="${String(tglVal).replace(/"/g, '&quot;')}" onchange="updateRKTLRowData(${idx}, 'tanggal_tempat', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none text-center font-semibold" placeholder="Tanggal & Tempat...">
+                <input type="text" id="pukul-rktl-${idx}" value="${escapeHtml(pukulVal)}" onchange="updateRKTLRowData(${idx}, 'pukul', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none text-center font-medium" placeholder="09.00 - Selesai">
             </td>
             <td class="p-1 border border-slate-300">
-                <textarea id="ket-rktl-${idx}" rows="2" onchange="updateRKTLRowData(${idx}, 'keterangan', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none resize-y text-slate-700 font-medium" placeholder="Keterangan...">${String(ketVal).replace(/"/g, '&quot;')}</textarea>
+                <textarea id="tempat-rktl-${idx}" rows="2" onchange="updateRKTLRowData(${idx}, 'tempat', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none resize-y text-slate-800 font-medium" placeholder="Tempat Kegiatan...">${escapeHtml(tempatVal)}</textarea>
+            </td>
+            <td class="p-1 border border-slate-300">
+                <textarea id="uraian-rktl-${idx}" rows="3" onchange="updateRKTLRowData(${idx}, 'uraian', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none resize-y font-bold text-slate-800" placeholder="Uraian Kegiatan Agenda...">${escapeHtml(uraianVal)}</textarea>
+            </td>
+            <td class="p-1 border border-slate-300">
+                <textarea id="ket-rktl-${idx}" rows="3" onchange="updateRKTLRowData(${idx}, 'keterangan', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none resize-y text-slate-700 font-medium" placeholder="Keterangan...">${escapeHtml(ketVal)}</textarea>
+            </td>
+            <td class="p-1 border border-slate-300">
+                <textarea id="keluaran-rktl-${idx}" rows="3" onchange="updateRKTLRowData(${idx}, 'keluaran', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none resize-y text-slate-700 font-medium" placeholder="Keluaran / Output...">${escapeHtml(keluaranVal)}</textarea>
             </td>
             <td class="p-1 text-center border border-slate-300 no-print">
                 <button onclick="hapusBarisRKTL(${idx})" class="text-rose-600 hover:text-rose-800 p-1 font-bold text-xs" title="Hapus Baris Kegiatan">
@@ -320,18 +408,39 @@ function updateRKTLRowData(idx, key, val) {
 function syncCurrentRKTLInputs() {
     const count = rktlRowsData.length;
     for (let i = 0; i < count; i++) {
+        const hariTgl = document.getElementById(`hari-tgl-rktl-${i}`)?.value || '';
+        const pukul = document.getElementById(`pukul-rktl-${i}`)?.value || '';
+        const tempat = document.getElementById(`tempat-rktl-${i}`)?.value || '';
         const uraian = document.getElementById(`uraian-rktl-${i}`)?.value || '';
-        const tgl = document.getElementById(`tgl-rktl-${i}`)?.value || '';
         const ket = document.getElementById(`ket-rktl-${i}`)?.value || '';
+        const keluaran = document.getElementById(`keluaran-rktl-${i}`)?.value || '';
+        const tglTempat = `${hariTgl} ${tempat}`.trim();
         if (rktlRowsData[i]) {
-            rktlRowsData[i] = { ...rktlRowsData[i], uraian, tanggal_tempat: tgl, keterangan: ket };
+            rktlRowsData[i] = {
+                ...rktlRowsData[i],
+                hari_tanggal: hariTgl,
+                pukul: pukul,
+                tempat: tempat,
+                uraian: uraian,
+                tanggal_tempat: tglTempat || rktlRowsData[i].tanggal_tempat || '-',
+                keterangan: ket,
+                keluaran: keluaran
+            };
         }
     }
 }
 
 function tambahBarisRKTL() {
     syncCurrentRKTLInputs();
-    rktlRowsData.push({ uraian: "", tanggal_tempat: "", keterangan: "" });
+    rktlRowsData.push({
+        hari_tanggal: "",
+        pukul: "09.00 - Selesai",
+        tempat: "Aula Kantor Desa Batetangnga",
+        uraian: "",
+        tanggal_tempat: "",
+        keterangan: "",
+        keluaran: ""
+    });
     renderRKTLTable();
 }
 
@@ -499,9 +608,13 @@ async function simpanRKTL() {
 
     const itemsData = rktlRowsData.map((row, idx) => ({
         no_urut: idx + 1,
+        hari_tanggal: row.hari_tanggal || row.tanggal_tempat || '-',
+        pukul: row.pukul || '-',
+        tempat: row.tempat || 'Aula Kantor Desa Batetangnga',
         uraian: row.uraian || '',
-        tanggal_tempat: row.tanggal_tempat || '-',
+        tanggal_tempat: row.tanggal_tempat || `${row.hari_tanggal || ''} ${row.tempat || ''}`.trim() || '-',
         keterangan: row.keterangan || '',
+        keluaran: row.keluaran || '-',
         tanggal_ttd: tglTTD,
         ketua_tim: ketuaTim,
         kepala_desa: kepalaDesa,
@@ -578,9 +691,13 @@ async function copyKeTahunLain() {
 
     const copiedPayload = rktlRowsData.map((row, idx) => ({
         no_urut: idx + 1,
+        hari_tanggal: row.hari_tanggal || row.tanggal_tempat || '-',
+        pukul: row.pukul || '-',
+        tempat: row.tempat || 'Aula Kantor Desa Batetangnga',
         uraian: row.uraian || '',
-        tanggal_tempat: row.tanggal_tempat || '-',
+        tanggal_tempat: row.tanggal_tempat || `${row.hari_tanggal || ''} ${row.tempat || ''}`.trim() || '-',
         keterangan: row.keterangan || '',
+        keluaran: row.keluaran || '-',
         tanggal_ttd: tglTTD,
         ketua_tim: ketuaTim,
         kepala_desa: kepalaDesa,
@@ -610,7 +727,7 @@ async function copyKeTahunLain() {
     }
 }
 
-// 7. Cetak PDF / Print Window (Format Resmi Kementerian dengan Judul Adaptif)
+// 7. Cetak PDF / Print Window (Format Resmi Kedinasan 7 Kolom & Landscape)
 function printPDF() {
     const tahun = document.getElementById('select-tahun')?.value || '2027';
     const kepalaDesa = document.getElementById('input-kepala-desa')?.value || 'SUMAILA DAMANG';
@@ -634,16 +751,23 @@ function printPDF() {
 
     let rowsHtml = '';
     rktlRowsData.forEach((row, idx) => {
-        const uraianVal = row.uraian || '-';
-        const tglVal = row.tanggal_tempat || '-';
+        const no = idx + 1;
+        const hariTglVal = row.hari_tanggal || row.tanggal_tempat || '-';
+        const pukulVal = row.pukul || '-';
+        const tempatVal = row.tempat || 'Aula Kantor Desa Batetangnga';
+        const uraianHtml = formatUraianHtml(row.uraian || '-');
         const ketVal = row.keterangan || '-';
+        const keluaranVal = row.keluaran || '-';
 
         rowsHtml += `
             <tr>
-                <td style="text-align: center; border: 1px solid #000; padding: 5px; font-weight: bold;">${idx + 1}</td>
-                <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">${uraianVal}</td>
-                <td style="border: 1px solid #000; padding: 5px; text-align: center;">${tglVal}</td>
-                <td style="border: 1px solid #000; padding: 5px; text-align: left; font-size: 9.5px;">${ketVal}</td>
+                <td style="text-align: center; border: 1px solid #000; padding: 5px; font-weight: bold;">${no}</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9px;">${escapeHtml(hariTglVal)}</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9px;">${escapeHtml(pukulVal)}</td>
+                <td style="border: 1px solid #000; padding: 5px; font-size: 9px;">${escapeHtml(tempatVal)}</td>
+                <td style="border: 1px solid #000; padding: 5px; font-size: 9px;">${uraianHtml}</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left; font-size: 9px;">${escapeHtml(ketVal)}</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left; font-size: 9px;">${escapeHtml(keluaranVal)}</td>
             </tr>
         `;
     });
@@ -661,8 +785,8 @@ function printPDF() {
         timRowsHtml += `
             <tr>
                 <td style="text-align: center; border: 1px solid #000; padding: 6px 4px; font-weight: bold;">${i + 1}</td>
-                <td style="border: 1px solid #000; padding: 6px 6px; font-weight: bold; text-transform: uppercase;">${nama}</td>
-                <td style="border: 1px solid #000; padding: 6px 6px;">${jabatan}</td>
+                <td style="border: 1px solid #000; padding: 6px 6px; font-weight: bold; text-transform: uppercase;">${escapeHtml(nama)}</td>
+                <td style="border: 1px solid #000; padding: 6px 6px;">${escapeHtml(jabatan)}</td>
                 <td style="border: 1px solid #000; padding: 6px 6px; ${ttdAlign} font-weight: bold; width: 220px;">${i + 1}. ........................</td>
             </tr>
         `;
@@ -675,19 +799,19 @@ function printPDF() {
         <head>
             <title>${docJudulSub} / DESA BATETANGNGA KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR PROVINSI SULAWESI BARAT</title>
             <style>
-                @page { size: portrait; margin: 12mm; }
-                body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; color: #000; margin: 0; padding: 10px; }
+                @page { size: landscape; margin: 10mm; }
+                body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5px; color: #000; margin: 0; padding: 10px; }
                 .text-center { text-align: center; }
                 .font-bold { font-weight: bold; }
                 .uppercase { text-transform: uppercase; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 9.5px; }
-                th { border: 1.5px solid #000; background-color: #f1f5f9; padding: 6px; font-weight: bold; text-align: center; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 9px; }
+                th { border: 1.5px solid #000; background-color: #f1f5f9; padding: 6px 4px; font-weight: bold; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                 td { border: 1px solid #000; padding: 5px 6px; word-wrap: break-word; }
-                .ttd-wrapper { margin-top: 30px; display: flex; justify-content: space-between; page-break-inside: avoid; text-align: center; }
-                .ttd-box { width: 48%; min-width: 280px; }
-                .ttd-jabatan { font-weight: bold; margin-bottom: 70px; text-transform: uppercase; letter-spacing: 0.5px; }
-                .ttd-nama { font-weight: bold; text-transform: uppercase; display: inline-block; min-width: 260px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
-                .fasilitator-box { margin-top: 30px; border: 1.5px solid #000; padding: 15px; page-break-inside: avoid; }
+                .ttd-wrapper { margin-top: 25px; display: flex; justify-content: space-between; page-break-inside: avoid; text-align: center; }
+                .ttd-box { width: 45%; min-width: 260px; }
+                .ttd-jabatan { font-weight: bold; margin-bottom: 60px; text-transform: uppercase; letter-spacing: 0.5px; }
+                .ttd-nama { font-weight: bold; text-transform: uppercase; display: inline-block; min-width: 240px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
+                .fasilitator-box { margin-top: 25px; border: 1.5px solid #000; padding: 12px; page-break-inside: avoid; }
             </style>
         </head>
         <body>
@@ -703,10 +827,13 @@ function printPDF() {
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 30px;">NO</th>
-                        <th style="width: 230px;">URAIAN KEGIATAN</th>
-                        <th style="width: 140px;">TANGGAL / TEMPAT</th>
-                        <th>KETERANGAN</th>
+                        <th style="width: 30px;">NO.</th>
+                        <th style="width: 130px;">HARI, TANGGAL</th>
+                        <th style="width: 90px;">PUKUL</th>
+                        <th style="width: 130px;">TEMPAT</th>
+                        <th style="min-width: 200px;">URAIAN</th>
+                        <th style="width: 170px;">KETERANGAN</th>
+                        <th style="width: 150px;">KELUARAN</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -718,20 +845,20 @@ function printPDF() {
                 <div class="ttd-box">
                     <p style="margin:0; font-weight: bold;">Mengetahui,</p>
                     <p class="ttd-jabatan">KEPALA DESA BATETANGNGA</p>
-                    <p class="ttd-nama">${kepalaDesa}</p>
+                    <p class="ttd-nama">${escapeHtml(kepalaDesa)}</p>
                 </div>
                 <div class="ttd-box">
                     <p style="margin:0; font-weight: bold;">Batetangnga, ${formattedDate}</p>
                     <p class="ttd-jabatan">KETUA TIM PENYUSUN RKP DESA</p>
-                    <p class="ttd-nama">${ketuaTim}</p>
+                    <p class="ttd-nama">${escapeHtml(ketuaTim)}</p>
                 </div>
             </div>
 
-            <h4 style="margin-top: 30px; margin-bottom: 6px;" class="uppercase font-bold">TIM PENYUSUN RKP DESA TAHUN ${tahun}</h4>
+            <h4 style="margin-top: 25px; margin-bottom: 6px;" class="uppercase font-bold">TIM PENYUSUN RKP DESA TAHUN ${tahun}</h4>
             <table style="min-width: 100%;">
                 <thead>
                     <tr>
-                        <th style="width: 30px;">NO</th>
+                        <th style="width: 30px;">NO.</th>
                         <th>NAMA ANGGOTA</th>
                         <th>JABATAN TIM</th>
                         <th style="width: 220px;">TANDA TANGAN</th>
@@ -743,12 +870,12 @@ function printPDF() {
             </table>
 
             <div class="fasilitator-box">
-                <h4 style="margin: 0 0 10px 0; text-transform: uppercase; font-weight: bold; text-align: center;">DIFASILITASI OLEH:</h4>
+                <h4 style="margin: 0 0 8px 0; text-transform: uppercase; font-weight: bold; text-align: center;">DIFASILITASI OLEH:</h4>
                 <div style="text-align: center; width: 300px; margin: 0 auto;">
                     <p style="margin: 0; font-weight: bold;">Pendamping Desa / Fasilitator</p>
-                    <div style="height: 70px;"></div>
-                    <p style="font-weight: bold; text-transform: uppercase; border-bottom: 1.5px solid #000; margin: 0; padding-bottom: 2px; display: inline-block; min-width: 260px;">${fasNama}</p>
-                    <p style="margin: 4px 0 0 0; font-weight: bold; font-size: 10px;">${fasJabatan}</p>
+                    <div style="height: 55px;"></div>
+                    <p style="font-weight: bold; text-transform: uppercase; border-bottom: 1.5px solid #000; margin: 0; padding-bottom: 2px; display: inline-block; min-width: 260px;">${escapeHtml(fasNama)}</p>
+                    <p style="margin: 4px 0 0 0; font-weight: bold; font-size: 10px;">${escapeHtml(fasJabatan)}</p>
                 </div>
             </div>
 

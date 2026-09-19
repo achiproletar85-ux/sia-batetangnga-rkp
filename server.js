@@ -11228,9 +11228,13 @@ async function handleSyncRktl(req, res, forceTipe = null) {
 
         const itemsData = rows.map((r, idx) => ({
             no_urut: r.no_urut || idx + 1,
+            hari_tanggal: String(r.hari_tanggal || r.tanggal_tempat || '-'),
+            pukul: String(r.pukul || '-'),
+            tempat: String(r.tempat || 'Aula Kantor Desa Batetangnga'),
             uraian: String(r.uraian || ''),
-            tanggal_tempat: String(r.tanggal_tempat || ''),
+            tanggal_tempat: String(r.tanggal_tempat || `${r.hari_tanggal || ''} ${r.tempat || ''}`.trim() || '-'),
             keterangan: String(r.keterangan || ''),
+            keluaran: String(r.keluaran || r.output || '-'),
             tanggal_ttd: r.tanggal_ttd || null,
             ketua_tim: r.ketua_tim || null,
             kepala_desa: r.kepala_desa || null,
