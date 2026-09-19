@@ -312,7 +312,17 @@ async function loadRKTLData() {
         const rktlJson = rktlRes.ok ? await rktlRes.json() : { success: true, data: [] };
 
         if (rktlJson.success && Array.isArray(rktlJson.data) && rktlJson.data.length > 0) {
-            rktlRowsData = rktlJson.data;
+            rktlRowsData = rktlJson.data.map((item, idx) => ({
+                no: item.no !== undefined && item.no !== null ? item.no : (item.no_urut || idx + 1),
+                no_urut: item.no_urut !== undefined && item.no_urut !== null ? item.no_urut : (item.no || idx + 1),
+                hari_tanggal: item.hari_tanggal || item.tanggal_tempat || '',
+                pukul: item.pukul || '09.00 - Selesai',
+                tempat: item.tempat || 'Aula Kantor Desa Batetangnga',
+                uraian: item.uraian || '',
+                tanggal_tempat: item.tanggal_tempat || `${item.hari_tanggal || ''} ${item.tempat || ''}`.trim() || '-',
+                keterangan: item.keterangan || '',
+                keluaran: item.keluaran || item.output || ''
+            }));
             const first = rktlJson.data[0];
             if (first.tanggal_ttd && document.getElementById('input-tanggal-ttd')) {
                 document.getElementById('input-tanggal-ttd').value = first.tanggal_ttd.split('T')[0];
@@ -354,23 +364,29 @@ function renderRKTLTable() {
 
     tbody.innerHTML = '';
 
-    const list = (rktlRowsData && rktlRowsData.length > 0) ? rktlRowsData : DEFAULT_RKTL_STEPS;
+    if (!rktlRowsData || rktlRowsData.length === 0) {
+        const defaultSteps = currentRktlMode === 'PERUBAHAN' ? DEFAULT_RKTL_PERUBAHAN_STEPS : DEFAULT_RKTL_STEPS;
+        rktlRowsData = JSON.parse(JSON.stringify(defaultSteps));
+    }
+
+    const list = rktlRowsData;
     const countLabel = document.getElementById('jumlah-rktl-count');
     if (countLabel) countLabel.innerText = list.length;
 
     list.forEach((item, idx) => {
-        const hariTglVal = item.hari_tanggal !== undefined ? item.hari_tanggal : (item.tanggal_tempat || '');
-        const pukulVal = item.pukul !== undefined ? item.pukul : '09.00 - Selesai';
-        const tempatVal = item.tempat !== undefined ? item.tempat : 'Aula Kantor Desa Batetangnga';
-        const uraianVal = item.uraian !== undefined ? item.uraian : '';
-        const ketVal = item.keterangan !== undefined ? item.keterangan : '';
-        const keluaranVal = item.keluaran !== undefined ? item.keluaran : (item.output || '');
+        const noVal = item.no || item.no_urut || (idx + 1);
+        const hariTglVal = item.hari_tanggal !== undefined && item.hari_tanggal !== null ? item.hari_tanggal : (item.tanggal_tempat || '');
+        const pukulVal = item.pukul !== undefined && item.pukul !== null ? item.pukul : '09.00 - Selesai';
+        const tempatVal = item.tempat !== undefined && item.tempat !== null ? item.tempat : 'Aula Kantor Desa Batetangnga';
+        const uraianVal = item.uraian !== undefined && item.uraian !== null ? item.uraian : '';
+        const ketVal = item.keterangan !== undefined && item.keterangan !== null ? item.keterangan : '';
+        const keluaranVal = item.keluaran !== undefined && item.keluaran !== null ? item.keluaran : (item.output || '');
 
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50 border-b border-slate-200 text-xs";
 
         tr.innerHTML = `
-            <td class="p-2 text-center font-bold text-slate-600 border border-slate-300">${idx + 1}</td>
+            <td class="p-2 text-center font-bold text-slate-600 border border-slate-300">${noVal}</td>
             <td class="p-1 border border-slate-300">
                 <textarea id="hari-tgl-rktl-${idx}" rows="2" onchange="updateRKTLRowData(${idx}, 'hari_tanggal', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none resize-y text-slate-800 text-center font-semibold" placeholder="Hari, Tanggal...">${escapeHtml(hariTglVal)}</textarea>
             </td>
@@ -406,33 +422,48 @@ function updateRKTLRowData(idx, key, val) {
 }
 
 function syncCurrentRKTLInputs() {
-    const count = rktlRowsData.length;
-    for (let i = 0; i < count; i++) {
-        const hariTgl = document.getElementById(`hari-tgl-rktl-${i}`)?.value || '';
-        const pukul = document.getElementById(`pukul-rktl-${i}`)?.value || '';
-        const tempat = document.getElementById(`tempat-rktl-${i}`)?.value || '';
-        const uraian = document.getElementById(`uraian-rktl-${i}`)?.value || '';
-        const ket = document.getElementById(`ket-rktl-${i}`)?.value || '';
-        const keluaran = document.getElementById(`keluaran-rktl-${i}`)?.value || '';
+    const tbody = document.getElementById('tabel-rktl-body');
+    const domRowsCount = tbody ? tbody.querySelectorAll('tr').length : 0;
+    const maxCount = Math.max(rktlRowsData.length, domRowsCount);
+
+    for (let i = 0; i < maxCount; i++) {
+        const row = rktlRowsData[i] || {};
+        const hariTglEl = document.getElementById(`hari-tgl-rktl-${i}`);
+        const pukulEl = document.getElementById(`pukul-rktl-${i}`);
+        const tempatEl = document.getElementById(`tempat-rktl-${i}`);
+        const uraianEl = document.getElementById(`uraian-rktl-${i}`);
+        const ketEl = document.getElementById(`ket-rktl-${i}`);
+        const keluaranEl = document.getElementById(`keluaran-rktl-${i}`);
+
+        const hariTgl = hariTglEl ? hariTglEl.value : (row.hari_tanggal !== undefined && row.hari_tanggal !== null ? row.hari_tanggal : (row.tanggal_tempat || ''));
+        const pukul = pukulEl ? pukulEl.value : (row.pukul !== undefined && row.pukul !== null ? row.pukul : '09.00 - Selesai');
+        const tempat = tempatEl ? tempatEl.value : (row.tempat !== undefined && row.tempat !== null ? row.tempat : 'Aula Kantor Desa Batetangnga');
+        const uraian = uraianEl ? uraianEl.value : (row.uraian !== undefined && row.uraian !== null ? row.uraian : '');
+        const ket = ketEl ? ketEl.value : (row.keterangan !== undefined && row.keterangan !== null ? row.keterangan : '');
+        const keluaran = keluaranEl ? keluaranEl.value : (row.keluaran !== undefined && row.keluaran !== null ? row.keluaran : (row.output || ''));
         const tglTempat = `${hariTgl} ${tempat}`.trim();
-        if (rktlRowsData[i]) {
-            rktlRowsData[i] = {
-                ...rktlRowsData[i],
-                hari_tanggal: hariTgl,
-                pukul: pukul,
-                tempat: tempat,
-                uraian: uraian,
-                tanggal_tempat: tglTempat || rktlRowsData[i].tanggal_tempat || '-',
-                keterangan: ket,
-                keluaran: keluaran
-            };
-        }
+
+        rktlRowsData[i] = {
+            ...row,
+            no: i + 1,
+            no_urut: i + 1,
+            hari_tanggal: hariTgl,
+            pukul: pukul,
+            tempat: tempat,
+            uraian: uraian,
+            tanggal_tempat: tglTempat || row.tanggal_tempat || '-',
+            keterangan: ket,
+            keluaran: keluaran
+        };
     }
 }
 
 function tambahBarisRKTL() {
     syncCurrentRKTLInputs();
+    const newNo = rktlRowsData.length + 1;
     rktlRowsData.push({
+        no: newNo,
+        no_urut: newNo,
         hari_tanggal: "",
         pukul: "09.00 - Selesai",
         tempat: "Aula Kantor Desa Batetangnga",
@@ -591,49 +622,60 @@ async function salinDariRktlMurni() {
 
 // 5. Simpan Ke Database (Mempertahankan Tipe Murni / Perubahan)
 async function simpanRKTL() {
-    const tahun = parseInt(document.getElementById('select-tahun')?.value || '2027');
-    const tglTTD = document.getElementById('input-tanggal-ttd')?.value || '2026-08-02';
-    const ketuaTim = document.getElementById('input-ketua-tim')?.value || 'AHMAD';
-    const kepalaDesa = document.getElementById('input-kepala-desa')?.value || 'SUMAILA DAMANG';
-    const fasNama = document.getElementById('input-fasilitator-nama')?.value || 'RAHMAN, ST';
-    const fasJabatan = document.getElementById('input-fasilitator-jabatan')?.value || 'Pendamping Desa';
-
-    syncCurrentRKTLInputs();
-    syncCurrentTimInputs();
-
-    if (rktlRowsData.length === 0) {
-        alert('⚠️ Tambahkan minimal 1 baris agenda RKTL!');
-        return;
+    const btnSimpan = document.getElementById('btn-simpan-rktl') || document.querySelector('button[onclick="simpanRKTL()"]');
+    if (btnSimpan) {
+        btnSimpan.disabled = true;
+        btnSimpan.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
     }
 
-    const itemsData = rktlRowsData.map((row, idx) => ({
-        no_urut: idx + 1,
-        hari_tanggal: row.hari_tanggal || row.tanggal_tempat || '-',
-        pukul: row.pukul || '-',
-        tempat: row.tempat || 'Aula Kantor Desa Batetangnga',
-        uraian: row.uraian || '',
-        tanggal_tempat: row.tanggal_tempat || `${row.hari_tanggal || ''} ${row.tempat || ''}`.trim() || '-',
-        keterangan: row.keterangan || '',
-        keluaran: row.keluaran || '-',
-        tanggal_ttd: tglTTD,
-        ketua_tim: ketuaTim,
-        kepala_desa: kepalaDesa,
-        fasilitator_nama: fasNama,
-        fasilitator_jabatan: fasJabatan,
-        fasilitator: `${fasNama} (${fasJabatan})`,
-        tim_penyusun: timPenyusunData
-    }));
-
-    const modeLabel = currentRktlMode === 'PERUBAHAN' ? 'RKTL Perubahan' : 'RKTL Murni';
-    console.log(`💾 Syncing ${itemsData.length} baris ${modeLabel} & ${timPenyusunData.length} team members to Supabase for tahun ${tahun}...`);
-
     try {
+        const tahun = parseInt(document.getElementById('select-tahun')?.value || '2027', 10);
+        const tglTTD = document.getElementById('input-tanggal-ttd')?.value || '2026-08-02';
+        const ketuaTim = document.getElementById('input-ketua-tim')?.value || 'AHMAD';
+        const kepalaDesa = document.getElementById('input-kepala-desa')?.value || 'SUMAILA DAMANG';
+        const fasNama = document.getElementById('input-fasilitator-nama')?.value || 'RAHMAN, ST';
+        const fasJabatan = document.getElementById('input-fasilitator-jabatan')?.value || 'Pendamping Desa';
+
+        syncCurrentRKTLInputs();
+        syncCurrentTimInputs();
+
+        if (rktlRowsData.length === 0) {
+            alert('⚠️ Tambahkan minimal 1 baris agenda RKTL!');
+            return;
+        }
+
+        const itemsData = rktlRowsData.map((row, idx) => ({
+            no: row.no !== undefined && row.no !== null ? (Number(row.no) || idx + 1) : (idx + 1),
+            no_urut: row.no_urut !== undefined && row.no_urut !== null ? (Number(row.no_urut) || idx + 1) : (idx + 1),
+            hari_tanggal: String(row.hari_tanggal || row.tanggal_tempat || '-'),
+            pukul: String(row.pukul || '-'),
+            tempat: String(row.tempat || 'Aula Kantor Desa Batetangnga'),
+            uraian: String(row.uraian || ''),
+            tanggal_tempat: String(row.tanggal_tempat || `${row.hari_tanggal || ''} ${row.tempat || ''}`.trim() || '-'),
+            keterangan: String(row.keterangan || ''),
+            keluaran: String(row.keluaran || row.output || '-'),
+            tanggal_ttd: tglTTD,
+            ketua_tim: ketuaTim,
+            kepala_desa: kepalaDesa,
+            fasilitator_nama: fasNama,
+            fasilitator_jabatan: fasJabatan,
+            fasilitator: `${fasNama} (${fasJabatan})`,
+            tim_penyusun: timPenyusunData
+        }));
+
+        const modeLabel = currentRktlMode === 'PERUBAHAN' ? 'RKTL Perubahan' : 'RKTL Murni';
+        console.log(`💾 Syncing ${itemsData.length} baris ${modeLabel} & ${timPenyusunData.length} team members to Supabase for tahun ${tahun}...`);
+
         // Sync Master Data Tim Penyusun
-        await fetch('/api/tim-penyusun/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tahun: tahun, data: timPenyusunData })
-        });
+        try {
+            await fetch('/api/tim-penyusun/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tahun: tahun, data: timPenyusunData })
+            });
+        } catch (timErr) {
+            console.warn('⚠️ Gagal sync master tim-penyusun:', timErr.message);
+        }
 
         // Sync RKTL rows dengan payload eksplisit tipe
         const res = await fetch('/api/rktl/sync', {
@@ -641,17 +683,29 @@ async function simpanRKTL() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tahun: tahun, tipe: currentRktlMode, data: itemsData })
         });
-        const json = await res.json();
 
-        if (json.success) {
+        let json = null;
+        try {
+            json = await res.json();
+        } catch (parseErr) {
+            throw new Error(`Server mengembalikan respon tidak valid (${res.status} ${res.statusText})`);
+        }
+
+        if (res.ok && json && json.success) {
             alert(`✅ Data ${modeLabel} & Master Tim Penyusun berhasil disimpan ke database!`);
             loadRKTLData();
         } else {
-            alert(`❌ Gagal menyimpan data ${modeLabel}: ` + json.error);
+            const errDetail = (json && (json.error || json.message)) ? (json.error || json.message) : `HTTP ${res.status} ${res.statusText}`;
+            alert(`❌ Gagal menyimpan data ${modeLabel}: ${errDetail}`);
         }
     } catch (err) {
         console.error('❌ Error simpanRKTL:', err);
-        alert('❌ Terjadi kesalahan koneksi server');
+        alert(`❌ Terjadi kesalahan saat menyimpan: ${err.message || err}`);
+    } finally {
+        if (btnSimpan) {
+            btnSimpan.disabled = false;
+            btnSimpan.innerHTML = '<i class="fas fa-save"></i> Simpan DB';
+        }
     }
 }
 
@@ -670,13 +724,13 @@ async function copyKeTahunLain() {
     const targetTahunStr = prompt(`Masukkan TAHUN tujuan untuk menyalin ${modeLabel} dari tahun ${activeTahun} (contoh: 2028):`, '2028');
     if (!targetTahunStr) return;
 
-    const targetTahunInt = parseInt(targetTahunStr.trim());
+    const targetTahunInt = parseInt(targetTahunStr.trim(), 10);
     if (isNaN(targetTahunInt) || targetTahunInt < 2000 || targetTahunInt > 2100) {
         alert('⚠️ Tahun tujuan tidak valid!');
         return;
     }
 
-    if (targetTahunInt === parseInt(activeTahun)) {
+    if (targetTahunInt === parseInt(activeTahun, 10)) {
         alert('⚠️ Tahun tujuan harus berbeda dengan tahun saat ini.');
         return;
     }
@@ -690,14 +744,15 @@ async function copyKeTahunLain() {
     const fasJabatan = document.getElementById('input-fasilitator-jabatan')?.value || 'Pendamping Desa';
 
     const copiedPayload = rktlRowsData.map((row, idx) => ({
-        no_urut: idx + 1,
-        hari_tanggal: row.hari_tanggal || row.tanggal_tempat || '-',
-        pukul: row.pukul || '-',
-        tempat: row.tempat || 'Aula Kantor Desa Batetangnga',
-        uraian: row.uraian || '',
-        tanggal_tempat: row.tanggal_tempat || `${row.hari_tanggal || ''} ${row.tempat || ''}`.trim() || '-',
-        keterangan: row.keterangan || '',
-        keluaran: row.keluaran || '-',
+        no: row.no !== undefined && row.no !== null ? (Number(row.no) || idx + 1) : (idx + 1),
+        no_urut: row.no_urut !== undefined && row.no_urut !== null ? (Number(row.no_urut) || idx + 1) : (idx + 1),
+        hari_tanggal: String(row.hari_tanggal || row.tanggal_tempat || '-'),
+        pukul: String(row.pukul || '-'),
+        tempat: String(row.tempat || 'Aula Kantor Desa Batetangnga'),
+        uraian: String(row.uraian || ''),
+        tanggal_tempat: String(row.tanggal_tempat || `${row.hari_tanggal || ''} ${row.tempat || ''}`.trim() || '-'),
+        keterangan: String(row.keterangan || ''),
+        keluaran: String(row.keluaran || row.output || '-'),
         tanggal_ttd: tglTTD,
         ketua_tim: ketuaTim,
         kepala_desa: kepalaDesa,
@@ -713,17 +768,18 @@ async function copyKeTahunLain() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tahun: targetTahunInt, tipe: currentRktlMode, data: copiedPayload })
         });
-        const json = await res.json();
-        if (json.success) {
+        const json = await res.json().catch(() => null);
+        if (res.ok && json && json.success) {
             alert(`✅ Berhasil menyalin data ${modeLabel} ke tahun ${targetTahunInt}!`);
             document.getElementById('select-tahun').value = targetTahunInt.toString();
             loadRKTLData();
         } else {
-            alert('❌ Gagal menyalin: ' + json.error);
+            const detailError = (json && (json.error || json.message)) ? (json.error || json.message) : `HTTP ${res.status} ${res.statusText}`;
+            alert(`❌ Gagal menyalin: ${detailError}`);
         }
     } catch (err) {
         console.error('❌ Error copyKeTahunLain:', err);
-        alert('❌ Terjadi kesalahan saat menghubungi server');
+        alert(`❌ Terjadi kesalahan saat menghubungi server: ${err.message || err}`);
     }
 }
 
@@ -886,4 +942,25 @@ function printPDF() {
         </html>
     `);
     printWin.document.close();
+}
+
+// Ekspos fungsi ke scope window untuk interaksi aman dengan event DOM/inline HTML
+if (typeof window !== 'undefined') {
+    window.switchRktlMode = switchRktlMode;
+    window.loadRKTLData = loadRKTLData;
+    window.renderRKTLTable = renderRKTLTable;
+    window.updateRKTLRowData = updateRKTLRowData;
+    window.syncCurrentRKTLInputs = syncCurrentRKTLInputs;
+    window.tambahBarisRKTL = tambahBarisRKTL;
+    window.hapusBarisRKTL = hapusBarisRKTL;
+    window.renderTimPenyusunTable = renderTimPenyusunTable;
+    window.updateTimItemData = updateTimItemData;
+    window.syncCurrentTimInputs = syncCurrentTimInputs;
+    window.tambahAnggotaTim = tambahAnggotaTim;
+    window.hapusAnggotaTim = hapusAnggotaTim;
+    window.resetDefaultRKTL = resetDefaultRKTL;
+    window.salinDariRktlMurni = salinDariRktlMurni;
+    window.simpanRKTL = simpanRKTL;
+    window.copyKeTahunLain = copyKeTahunLain;
+    window.printPDF = printPDF;
 }

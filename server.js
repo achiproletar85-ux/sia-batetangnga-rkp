@@ -11198,7 +11198,23 @@ async function handleGetRktl(req, res, forceTipe = null) {
         }
 
         const record = data[0];
-        const items = (record && Array.isArray(record.rktl_items)) ? record.rktl_items : [];
+        const rawItems = (record && Array.isArray(record.rktl_items)) ? record.rktl_items : [];
+        const items = rawItems.map((it, idx) => {
+            const item = it || {};
+            const noVal = item.no !== undefined && item.no !== null ? (Number(item.no) || idx + 1) : (item.no_urut !== undefined && item.no_urut !== null ? (Number(item.no_urut) || idx + 1) : idx + 1);
+            return {
+                ...item,
+                no: noVal,
+                no_urut: noVal,
+                hari_tanggal: item.hari_tanggal || item.tanggal_tempat || '-',
+                pukul: item.pukul || '-',
+                tempat: item.tempat || 'Aula Kantor Desa Batetangnga',
+                uraian: item.uraian || '',
+                tanggal_tempat: item.tanggal_tempat || `${item.hari_tanggal || ''} ${item.tempat || ''}`.trim() || '-',
+                keterangan: item.keterangan || '',
+                keluaran: item.keluaran || item.output || '-'
+            };
+        });
         if (items.length > 0 && record) {
             if (!items[0].tanggal_ttd && record.tanggal_ttd) items[0].tanggal_ttd = record.tanggal_ttd;
             if (!items[0].ketua_tim && record.ketua_tim) items[0].ketua_tim = record.ketua_tim;
@@ -11226,27 +11242,38 @@ async function handleSyncRktl(req, res, forceTipe = null) {
 
         const effectiveTipe = forceTipe || (tipe && String(tipe).toUpperCase().includes('PERUBAHAN') ? 'PERUBAHAN' : 'MURNI');
 
-        const itemsData = rows.map((r, idx) => ({
-            no_urut: r.no_urut || idx + 1,
-            hari_tanggal: String(r.hari_tanggal || r.tanggal_tempat || '-'),
-            pukul: String(r.pukul || '-'),
-            tempat: String(r.tempat || 'Aula Kantor Desa Batetangnga'),
-            uraian: String(r.uraian || ''),
-            tanggal_tempat: String(r.tanggal_tempat || `${r.hari_tanggal || ''} ${r.tempat || ''}`.trim() || '-'),
-            keterangan: String(r.keterangan || ''),
-            keluaran: String(r.keluaran || r.output || '-'),
-            tanggal_ttd: r.tanggal_ttd || null,
-            ketua_tim: r.ketua_tim || null,
-            kepala_desa: r.kepala_desa || null,
-            fasilitator_nama: r.fasilitator_nama || null,
-            fasilitator_jabatan: r.fasilitator_jabatan || null,
-            fasilitator: r.fasilitator || null
-        }));
+        const sanitizeDateOnly = (val) => {
+            if (!val) return null;
+            const str = String(val).trim().split('T')[0];
+            return /^\d{4}-\d{2}-\d{2}$/.test(str) ? str : null;
+        };
+
+        const itemsData = rows.map((r, idx) => {
+            const row = r || {};
+            const noVal = row.no !== undefined && row.no !== null ? (Number(row.no) || idx + 1) : (row.no_urut !== undefined && row.no_urut !== null ? (Number(row.no_urut) || idx + 1) : idx + 1);
+            return {
+                no: noVal,
+                no_urut: noVal,
+                hari_tanggal: String(row.hari_tanggal !== undefined && row.hari_tanggal !== null ? row.hari_tanggal : (row.tanggal_tempat || '-')),
+                pukul: String(row.pukul !== undefined && row.pukul !== null ? row.pukul : '-'),
+                tempat: String(row.tempat !== undefined && row.tempat !== null ? row.tempat : 'Aula Kantor Desa Batetangnga'),
+                uraian: String(row.uraian !== undefined && row.uraian !== null ? row.uraian : ''),
+                tanggal_tempat: String(row.tanggal_tempat !== undefined && row.tanggal_tempat !== null ? row.tanggal_tempat : (`${row.hari_tanggal || ''} ${row.tempat || ''}`.trim() || '-')),
+                keterangan: String(row.keterangan !== undefined && row.keterangan !== null ? row.keterangan : ''),
+                keluaran: String(row.keluaran !== undefined && row.keluaran !== null ? row.keluaran : (row.output || '-')),
+                tanggal_ttd: sanitizeDateOnly(row.tanggal_ttd),
+                ketua_tim: row.ketua_tim ? String(row.ketua_tim).trim() : null,
+                kepala_desa: row.kepala_desa ? String(row.kepala_desa).trim() : null,
+                fasilitator_nama: row.fasilitator_nama ? String(row.fasilitator_nama).trim() : null,
+                fasilitator_jabatan: row.fasilitator_jabatan ? String(row.fasilitator_jabatan).trim() : null,
+                fasilitator: row.fasilitator ? String(row.fasilitator).trim() : null
+            };
+        });
 
         const first = rows[0] || {};
         const timPenyusun = Array.isArray(first.tim_penyusun)
             ? first.tim_penyusun
-            : rows.map(r => r.tim_penyusun).find(Array.isArray) || [];
+            : rows.map(r => r ? r.tim_penyusun : null).find(Array.isArray) || [];
 
         // Hapus baris lama untuk tahun dan tipe tsb, lalu simpan 1 baris baru
         let delQuery = supabase
@@ -11268,9 +11295,9 @@ async function handleSyncRktl(req, res, forceTipe = null) {
             tipe: effectiveTipe,
             rktl_items: itemsData,
             tim_penyusun: timPenyusun,
-            tanggal_ttd: first.tanggal_ttd || null,
-            ketua_tim: first.ketua_tim || null,
-            fasilitator: first.fasilitator || null
+            tanggal_ttd: sanitizeDateOnly(first.tanggal_ttd),
+            ketua_tim: first.ketua_tim ? String(first.ketua_tim).trim() : null,
+            fasilitator: first.fasilitator ? String(first.fasilitator).trim() : null
         };
 
         if (itemsData.length > 0) {

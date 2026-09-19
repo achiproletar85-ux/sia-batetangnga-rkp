@@ -44,6 +44,7 @@ async function runTests() {
     check('Endpoint POST /api/rktl/sync mendukung tipe', serverJs.includes("app.post('/api/rktl/sync'") && serverJs.includes('handleSyncRktl'));
     check('Endpoint alias POST /api/rktl/perubahan/sync terdaftar', serverJs.includes("app.post('/api/rktl/perubahan/sync'"));
     check('Pemisahan delete query antara MURNI dan PERUBAHAN', serverJs.includes("delQuery.eq('tipe', 'PERUBAHAN')"));
+    check('Server handleSyncRktl memetakan properti no dan sanitizeDateOnly', serverJs.includes('no: noVal') && serverJs.includes('sanitizeDateOnly'));
 
     // 3. Frontend Interface & Tab Switch & 7 Kolom Baku
     console.log('\n--- 3. Interface dan Komponen Frontend (rktl.html) ---');
@@ -51,6 +52,7 @@ async function runTests() {
     check('Tab switch RKTL Perubahan ada di rktl.html', rktlHtml.includes('id="tab-btn-rktl-perubahan"'));
     check('Badge info mode ada di rktl.html', rktlHtml.includes('id="tab-badge-info"'));
     check('Tombol Salin dari Murni ada di rktl.html', rktlHtml.includes('id="btn-copy-murni"'));
+    check('Tombol Simpan DB memiliki id btn-simpan-rktl', rktlHtml.includes('id="btn-simpan-rktl"'));
     check('Elemen judul dinamis prefix ada di rktl.html', rktlHtml.includes('id="judul-dokumen-prefix"'));
     check('Elemen judul dinamis sub ada di rktl.html', rktlHtml.includes('id="judul-dokumen-sub"'));
     check('Elemen judul tahun doc ada di rktl.html', rktlHtml.includes('id="judul-tahun-doc"'));
@@ -76,8 +78,11 @@ async function runTests() {
     check('Simpan RKTL mengirimkan tipe dan 7 kolom ke backend', 
         rktlJs.includes('tipe: currentRktlMode') && 
         rktlJs.includes('keluaran:') && 
-        rktlJs.includes('hari_tanggal:')
+        rktlJs.includes('hari_tanggal:') &&
+        rktlJs.includes('no:')
     );
+    check('Simpan RKTL menangani pelaporan error detail dari server', rktlJs.includes('errDetail'));
+    check('Fungsi RKTL terekspos ke window scope', rktlJs.includes('window.simpanRKTL = simpanRKTL'));
     check('Cetak PDF mengadaptasi judul dan 7 kolom baku landscape', 
         rktlJs.includes('docJudulSub') && 
         rktlJs.includes('docJudulPrefix') &&
@@ -102,6 +107,7 @@ async function runTests() {
             tahun: testYear,
             tipe: 'MURNI',
             rktl_items: [{
+                no: 1,
                 no_urut: 1,
                 hari_tanggal: 'Senin, 06 Juli 2026',
                 pukul: '09.00 - 12.30 WITA',
@@ -117,6 +123,7 @@ async function runTests() {
             tahun: testYear,
             tipe: 'PERUBAHAN',
             rktl_items: [{
+                no: 1,
                 no_urut: 1,
                 hari_tanggal: 'Kamis, 10 September 2026',
                 pukul: '09.00 - 13.00 WITA',
@@ -140,9 +147,9 @@ async function runTests() {
             .eq('tipe', 'PERUBAHAN');
 
         check('Data RKTL Murni tersimpan terpisah', resMurni && resMurni.length === 1 && resMurni[0].rktl_items[0].uraian.includes('Test Murni'));
-        check('Data RKTL Murni memuat kolom keluaran & hari_tanggal', resMurni && resMurni[0].rktl_items[0].keluaran === 'Output Murni Terverifikasi' && resMurni[0].rktl_items[0].hari_tanggal === 'Senin, 06 Juli 2026');
+        check('Data RKTL Murni memuat properti no, keluaran & hari_tanggal', resMurni && resMurni[0].rktl_items[0].no === 1 && resMurni[0].rktl_items[0].keluaran === 'Output Murni Terverifikasi' && resMurni[0].rktl_items[0].hari_tanggal === 'Senin, 06 Juli 2026');
         check('Data RKTL Perubahan tersimpan terpisah', resPerubahan && resPerubahan.length === 1 && resPerubahan[0].rktl_items[0].uraian === 'Test Perubahan');
-        check('Data RKTL Perubahan memuat kolom keluaran & tempat', resPerubahan && resPerubahan[0].rktl_items[0].keluaran === 'Output Perubahan Terverifikasi' && resPerubahan[0].rktl_items[0].tempat === 'Aula Kantor Desa Batetangnga');
+        check('Data RKTL Perubahan memuat properti no, keluaran & tempat', resPerubahan && resPerubahan[0].rktl_items[0].no === 1 && resPerubahan[0].rktl_items[0].keluaran === 'Output Perubahan Terverifikasi' && resPerubahan[0].rktl_items[0].tempat === 'Aula Kantor Desa Batetangnga');
 
         // Bersihkan
         await supabase.from('rktl').delete().eq('tahun', testYear);
