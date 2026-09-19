@@ -931,4 +931,35 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+-- ────────────────────────────────────────────────────────────
+-- TABEL: notulensi
+-- ────────────────────────────────────────────────────────────
+DROP TABLE IF EXISTS public.notulensi CASCADE;
+CREATE TABLE IF NOT EXISTS public.notulensi (
+    id              bigserial PRIMARY KEY,
+    tahun           integer NOT NULL DEFAULT 2027,
+    judul           text NOT NULL,
+    tanggal         text,
+    waktu           text,
+    tempat          text,
+    peserta         text,
+    pembahasan      jsonb NOT NULL DEFAULT '[]'::jsonb,
+    notulis         text,
+    pimpinan        text,
+    created_at      timestamptz DEFAULT now(),
+    updated_at      timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_notulensi_tahun ON public.notulensi (tahun);
+
+-- RLS & Permissions untuk notulensi
+ALTER TABLE public.notulensi ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "notulensi_all_policy" ON public.notulensi;
+CREATE POLICY "notulensi_all_policy" ON public.notulensi FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON TABLE public.notulensi TO anon, authenticated, service_role;
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'notulensi_id_seq') THEN
+        GRANT ALL ON SEQUENCE public.notulensi_id_seq TO anon, authenticated, service_role;
+    END IF;
+END $$;
+
 

@@ -2893,6 +2893,8 @@ const TEMPLATES_COLUMNS = 'id, code, name, stage, documentid, is_real, fields, t
 
 const RKTL_COLUMNS = 'id, tahun, tipe, rktl_items, ketua_tim, tim_penyusun, fasilitator, tanggal_ttd, updated_at';
 
+const NOTULENSI_COLUMNS = 'id, tahun, judul, tanggal, waktu, tempat, peserta, pembahasan, notulis, pimpinan, created_at, updated_at';
+
 // In-memory cache untuk GET /api/rpjmdes-standar (TTL 5 menit)
 const rpjmdesStandarCache = new Map();
 const RPJMDES_STANDAR_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -11337,6 +11339,177 @@ app.post('/api/rktl/perubahan/sync', async (req, res) => {
     return handleSyncRktl(req, res, 'PERUBAHAN');
 });
 
+// ============================================================
+// NOTULENSI API (Multi-Record Persistence & List Preservation)
+// ============================================================
+
+// GET /api/notulensi?tahun=XXXX — Ambil daftar seluruh notulensi
+app.get('/api/notulensi', async (req, res) => {
+    try {
+        const { tahun } = req.query;
+        let query = supabase
+            .from('notulensi')
+            .select(NOTULENSI_COLUMNS)
+            .order('id', { ascending: true });
+
+        if (tahun) {
+            const tahunInt = parseInt(tahun, 10);
+            if (!isNaN(tahunInt)) {
+                query = query.eq('tahun', tahunInt);
+            }
+        }
+
+        const { data, error } = await query;
+        if (error) {
+            if (error.code === 'PGRST205') {
+                return res.json({ success: true, data: [] });
+            }
+            throw error;
+        }
+
+        return res.json({ success: true, data: Array.isArray(data) ? data : [] });
+    } catch (err) {
+        console.error('❌ Error GET /api/notulensi:', err.message);
+        return res.status(500).json({ success: false, error: err.message, data: [] });
+    }
+});
+
+// GET /api/notulensi/:id — Ambil detail satu notulensi
+app.get('/api/notulensi/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const idNum = parseInt(id, 10);
+        if (isNaN(idNum)) return res.status(400).json({ success: false, error: 'ID tidak valid' });
+
+        const { data, error } = await supabase
+            .from('notulensi')
+            .select(NOTULENSI_COLUMNS)
+            .eq('id', idNum)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ success: false, error: 'Notulensi tidak ditemukan' });
+
+        return res.json({ success: true, data });
+    } catch (err) {
+        console.error('❌ Error GET /api/notulensi/:id:', err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// POST /api/notulensi — Tambah notulensi baru tanpa menimpa list sebelumnya
+app.post('/api/notulensi', async (req, res) => {
+    try {
+        const b = req.body || {};
+        // Batch insert jika payload berupa array data
+        if (Array.isArray(b.data)) {
+            const payloads = b.data.map(item => ({
+                tahun: parseInt(item.tahun, 10) || 2027,
+                judul: String(item.judul || 'Notulensi Rapat').trim(),
+                tanggal: item.tanggal || '',
+                waktu: item.waktu || '',
+                tempat: item.tempat || '',
+                peserta: item.peserta || '',
+                pembahasan: Array.isArray(item.pembahasan) ? item.pembahasan : (item.pembahasan ? [item.pembahasan] : []),
+                notulis: item.notulis || '',
+                pimpinan: item.pimpinan || '',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            }));
+
+            const { data, error } = await supabase
+                .from('notulensi')
+                .insert(payloads)
+                .select(NOTULENSI_COLUMNS);
+
+            if (error) throw error;
+            return res.status(201).json({ success: true, message: `${payloads.length} notulensi berhasil disimpan.`, data });
+        }
+
+        // Single record insertion
+        const payload = {
+            tahun: parseInt(b.tahun, 10) || 2027,
+            judul: String(b.judul || 'Notulensi Rapat').trim(),
+            tanggal: b.tanggal || '',
+            waktu: b.waktu || '',
+            tempat: b.tempat || '',
+            peserta: b.peserta || '',
+            pembahasan: Array.isArray(b.pembahasan) ? b.pembahasan : (b.pembahasan ? [b.pembahasan] : []),
+            notulis: b.notulis || '',
+            pimpinan: b.pimpinan || '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
+        const { data, error } = await supabase
+            .from('notulensi')
+            .insert([payload])
+            .select(NOTULENSI_COLUMNS);
+
+        if (error) throw error;
+        const inserted = Array.isArray(data) && data.length > 0 ? data[0] : payload;
+        return res.status(201).json({ success: true, message: 'Notulensi berhasil disimpan.', data: inserted });
+    } catch (err) {
+        console.error('❌ Error POST /api/notulensi:', err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// PUT /api/notulensi/:id dan PUT /api/notulensi — Perbarui notulensi tertentu
+app.put(['/api/notulensi/:id', '/api/notulensi'], async (req, res) => {
+    try {
+        const b = req.body || {};
+        const targetId = parseInt(req.params.id || b.id, 10);
+        if (isNaN(targetId)) {
+            return res.status(400).json({ success: false, error: 'ID notulensi diperlukan untuk pembaruan.' });
+        }
+
+        const patch = { updated_at: new Date().toISOString() };
+        if (b.tahun !== undefined) patch.tahun = parseInt(b.tahun, 10) || 2027;
+        if (b.judul !== undefined) patch.judul = String(b.judul).trim();
+        if (b.tanggal !== undefined) patch.tanggal = b.tanggal;
+        if (b.waktu !== undefined) patch.waktu = b.waktu;
+        if (b.tempat !== undefined) patch.tempat = b.tempat;
+        if (b.peserta !== undefined) patch.peserta = b.peserta;
+        if (b.pembahasan !== undefined) patch.pembahasan = Array.isArray(b.pembahasan) ? b.pembahasan : [b.pembahasan];
+        if (b.notulis !== undefined) patch.notulis = b.notulis;
+        if (b.pimpinan !== undefined) patch.pimpinan = b.pimpinan;
+
+        const { data, error } = await supabase
+            .from('notulensi')
+            .update(patch)
+            .eq('id', targetId)
+            .select(NOTULENSI_COLUMNS);
+
+        if (error) throw error;
+        const updated = Array.isArray(data) && data.length > 0 ? data[0] : null;
+        return res.json({ success: true, message: 'Notulensi berhasil diperbarui.', data: updated });
+    } catch (err) {
+        console.error('❌ Error PUT /api/notulensi:', err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// DELETE /api/notulensi/:id dan DELETE /api/notulensi — Hapus notulensi tertentu
+app.delete(['/api/notulensi/:id', '/api/notulensi'], async (req, res) => {
+    try {
+        const targetId = parseInt(req.params.id || req.query.id || req.body?.id, 10);
+        if (isNaN(targetId)) {
+            return res.status(400).json({ success: false, error: 'ID notulensi diperlukan untuk penghapusan.' });
+        }
+
+        const { error } = await supabase
+            .from('notulensi')
+            .delete()
+            .eq('id', targetId);
+
+        if (error) throw error;
+        return res.json({ success: true, message: 'Notulensi berhasil dihapus.' });
+    } catch (err) {
+        console.error('❌ Error DELETE /api/notulensi:', err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
 
 // ============================================================
 // DOKUMEN DESA API

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notulensi Rapat & Kegiatan - Desa Batetangnga</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        
+        /* STANDARISASI CSS @media print GLOBAL */
+        @media print {
+            nav, header, .navbar, #navbar, #navbar-container, .no-print, button, .btn, .sidebar, #sidebar {
+                display: none !important;
+            }
+            body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #fff !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .shadow, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .rounded-lg, .rounded-xl, .rounded-2xl {
+                box-shadow: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col">
+
+    <!-- NAVBAR COMPONENT CONTAINER -->
+    <div id="navbar-container" class="no-print sticky top-0 z-[999]"></div>
+
+    <!-- MAIN CONTAINER -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
+
+        <!-- HEADER BANNER & ACTION TOOLBAR -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 no-print flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div class="space-y-1">
+                <div class="flex items-center gap-2.5">
+                    <span class="bg-indigo-100 text-indigo-800 font-extrabold text-[11px] px-2.5 py-1 rounded-lg uppercase tracking-wide">
+                        <i class="fas fa-file-pen mr-1"></i> Dokumentasi Rapat
+                    </span>
+                    <span id="notulensi-count-badge" class="bg-slate-100 text-slate-700 font-bold text-[11px] px-2.5 py-1 rounded-lg">
+                        0 Notulensi Terdaftar
+                    </span>
+                </div>
+                <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                    NOTULENSI RAPAT & MUSYAWARAH DESA
+                </h1>
+                <p class="text-xs text-slate-500 font-medium">
+                    Desa Batetangnga &bull; Kecamatan Binuang &bull; Kabupaten Polewali Mandar
+                </p>
+            </div>
+
+            <!-- CONTROLS: TAHUN SELECTOR & ADD BUTTON -->
+            <div class="flex flex-wrap items-center gap-2.5">
+                <div class="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-300">
+                    <label for="select-tahun-notulensi" class="text-xs font-bold text-slate-600">Tahun:</label>
+                    <select id="select-tahun-notulensi" onchange="gantiTahunNotulensi(this.value)" class="bg-white text-slate-800 font-extrabold text-xs px-2 py-1 rounded-lg border border-slate-200 outline-none cursor-pointer">
+                        <option value="2022">2022</option>
+                        <option value="2023">2023</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027" selected>2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                        <option value="2030">2030</option>
+                    </select>
+                </div>
+
+                <div class="relative">
+                    <input type="text" id="search-notulensi" oninput="filterNotulensiList(this.value)" placeholder="Cari kegiatan/tempat..." class="bg-slate-100 border border-slate-300 rounded-xl px-3 py-1.5 pl-8 text-xs font-medium outline-none focus:border-indigo-500 focus:bg-white w-48 transition">
+                    <i class="fas fa-search absolute left-2.5 top-2.5 text-slate-400 text-xs pointer-events-none"></i>
+                </div>
+
+                <button onclick="bukaModalNotulensi()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm hover:shadow transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fas fa-plus"></i> Tambah Notulensi
+                </button>
+            </div>
+        </div>
+
+        <!-- TABLE CARD (MULTI-RECORD LIST) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden no-print">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                    <i class="fas fa-list-check text-indigo-600"></i> Daftar Notulensi Kegiatan Tahun <span id="label-tahun-tabel">2027</span>
+                </h3>
+                <span class="text-[11px] text-slate-400 font-semibold">Tersimpan multi-record di Supabase</span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-100/80 text-slate-700 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                            <th class="p-3 text-center w-12">NO</th>
+                            <th class="p-3 min-w-[150px]">HARI, TANGGAL</th>
+                            <th class="p-3 w-32">WAKTU</th>
+                            <th class="p-3 min-w-[240px]">AGENDA / JUDUL KEGIATAN</th>
+                            <th class="p-3 min-w-[180px]">TEMPAT</th>
+                            <th class="p-3 w-40">NOTULIS</th>
+                            <th class="p-3 w-40">PIMPINAN</th>
+                            <th class="p-3 text-center w-40">AKSI</th>
+                        </tr>
+                    </thead>
+                    <tbody id="notulensi-table-body">
+                        <!-- Populated dynamically via JS -->
+                        <tr>
+                            <td colspan="8" class="p-8 text-center text-slate-400 font-medium">
+                                <i class="fas fa-spinner fa-spin mr-2"></i> Memuat daftar notulensi...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL TAMBAH / EDIT NOTULENSI -->
+    <div id="modalNotulensi" class="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl my-8 overflow-hidden transform transition-all">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-5 flex items-center justify-between">
+                <div>
+                    <h3 id="modalNotulensiTitle" class="text-sm font-black uppercase tracking-wide">
+                        Tambah Notulensi Baru
+                    </h3>
+                    <p class="text-[11px] text-slate-300">Isi rincian jalannya musyawarah atau rapat dinas desa</p>
+                </div>
+                <button type="button" onclick="tutupModalNotulensi()" class="text-slate-400 hover:text-white text-lg p-1 cursor-pointer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Modal Form -->
+            <form id="formNotulensi" onsubmit="simpanNotulensiForm(event)" class="p-6 space-y-4 text-xs font-semibold text-slate-700 max-h-[75vh] overflow-y-auto">
+                <input type="hidden" id="form-notulensi-id">
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="md:col-span-2 space-y-1">
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase">Judul / Agenda Kegiatan <span class="text-rose-500">*</span></label>
+                        <input type="text" id="form-notulensi-judul" required placeholder="Contoh: Musyawarah Desa Pembahasan RKPDes 2027" class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none focus:border-indigo-500 font-bold text-slate-800">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase">Tahun Anggaran</label>
+                        <select id="form-notulensi-tahun" class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none focus:border-indigo-500 font-bold text-slate-800">
+                            <option value="2022">2022</option>
+                            <option value="2023">2023</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                            <option value="2027" selected>2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase">Hari, Tanggal</label>
+                        <input type="text" id="form-notulensi-tanggal" placeholder="Contoh: Minggu, 02 Agustus 2026" class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none focus:border-indigo-500">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase">Waktu</label>
+                        <input type="text" id="form-notulensi-waktu" placeholder="Contoh: 09.00 - 12.30 WITA" class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase">Tempat Pelaksanaan</label>
+                    <input type="text" id="form-notulensi-tempat" value="Aula Kantor Desa Batetangnga" placeholder="Lokasi kegiatan..." class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none focus:border-indigo-500">
+                </div>
+
+                <div class="space-y-1">
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase">Peserta Yang Hadir</label>
+                    <textarea id="form-notulensi-peserta" rows="2" placeholder="Kepala Desa, BPD, Perangkat Desa, Pendamping Desa, Tokoh Masyarakat..." class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none focus:border-indigo-500"></textarea>
+                </div>
+
+                <!-- POIN HASIL PEMBAHASAN -->
+                <div class="space-y-2 pt-2 border-t border-slate-200">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[11px] font-extrabold text-slate-700 uppercase flex items-center gap-1.5">
+                            <i class="fas fa-list-ol text-indigo-600"></i> Hasil Pembahasan &amp; Keputusan
+                        </label>
+                        <button type="button" onclick="tambahBarisPembahasan()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer">
+                            <i class="fas fa-plus"></i> Tambah Poin
+                        </button>
+                    </div>
+
+                    <div id="pembahasan-container" class="space-y-2">
+                        <!-- Dynamic list items -->
+                    </div>
+                </div>
+
+                <!-- TANDA TANGAN (MIXED-CASE ALLOWED, NO UPPERCASE LOCK) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-200">
+                    <div class="space-y-1">
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase">Nama Notulis / Sekretaris</label>
+                        <input type="text" id="form-notulensi-notulis" value="AHMAD" placeholder="Nama Notulis..." class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none focus:border-indigo-500 font-bold text-slate-800">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase">Pimpinan Musyawarah / Rapat</label>
+                        <input type="text" id="form-notulensi-pimpinan" value="SUMAILA DAMANG" placeholder="Nama Pimpinan Rapat..." class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none focus:border-indigo-500 font-bold text-slate-800">
+                    </div>
+                </div>
+
+                <!-- Modal Footer Actions -->
+                <div class="pt-4 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                    <button type="button" onclick="tutupModalNotulensi()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2 rounded-xl transition cursor-pointer">
+                        Batal
+                    </button>
+                    <button type="submit" id="btn-simpan-notulensi" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2 rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+                        <i class="fas fa-save"></i> Simpan Notulensi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SCRIPT UTAMA -->
+    <script src="notulensi.js"></script>
+    <script>
+        // Load Navbar
+        fetch('/components/navbar.html')
+            .then(res => res.text())
+            .then(html => {
+                document.getElementById('navbar-container').innerHTML = html;
+            })
+            .catch(err => console.warn('Navbar load error:', err));
+    </script>
+</body>
+</html>
