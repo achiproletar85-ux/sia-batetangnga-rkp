@@ -511,7 +511,7 @@ function renderTimPenyusunTable() {
         tr.innerHTML = `
             <td class="p-2 text-center font-bold text-slate-600 border border-slate-300">${idx + 1}</td>
             <td class="p-1 border border-slate-300">
-                <input type="text" id="tim-nama-${idx}" value="${String(item.nama || '').replace(/"/g, '&quot;')}" onchange="updateTimItemData(${idx}, 'nama', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none font-bold uppercase text-slate-800" placeholder="Nama Anggota...">
+                <input type="text" id="tim-nama-${idx}" value="${String(item.nama || '').replace(/"/g, '&quot;')}" onchange="updateTimItemData(${idx}, 'nama', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none font-bold text-slate-800" placeholder="Nama Anggota...">
             </td>
             <td class="p-1 border border-slate-300">
                 <input type="text" id="tim-jabatan-${idx}" value="${String(item.jabatan || '').replace(/"/g, '&quot;')}" onchange="updateTimItemData(${idx}, 'jabatan', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none font-semibold text-slate-700" placeholder="Jabatan Dalam Tim...">
@@ -841,7 +841,7 @@ function printPDF() {
         timRowsHtml += `
             <tr>
                 <td style="text-align: center; border: 1px solid #000; padding: 6px 4px; font-weight: bold;">${i + 1}</td>
-                <td style="border: 1px solid #000; padding: 6px 6px; font-weight: bold; text-transform: uppercase;">${escapeHtml(nama)}</td>
+                <td style="border: 1px solid #000; padding: 6px 6px; font-weight: bold;">${escapeHtml(nama)}</td>
                 <td style="border: 1px solid #000; padding: 6px 6px;">${escapeHtml(jabatan)}</td>
                 <td style="border: 1px solid #000; padding: 6px 6px; ${ttdAlign} font-weight: bold; width: 220px;">${i + 1}. ........................</td>
             </tr>
@@ -866,7 +866,7 @@ function printPDF() {
                 .ttd-wrapper { margin-top: 25px; display: flex; justify-content: space-between; page-break-inside: avoid; text-align: center; }
                 .ttd-box { width: 45%; min-width: 260px; }
                 .ttd-jabatan { font-weight: bold; margin-bottom: 60px; text-transform: uppercase; letter-spacing: 0.5px; }
-                .ttd-nama { font-weight: bold; text-transform: uppercase; display: inline-block; min-width: 240px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
+                .ttd-nama { font-weight: bold; display: inline-block; min-width: 240px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
                 .fasilitator-box { margin-top: 25px; border: 1.5px solid #000; padding: 12px; page-break-inside: avoid; }
             </style>
         </head>
@@ -930,7 +930,7 @@ function printPDF() {
                 <div style="text-align: center; width: 300px; margin: 0 auto;">
                     <p style="margin: 0; font-weight: bold;">Pendamping Desa / Fasilitator</p>
                     <div style="height: 55px;"></div>
-                    <p style="font-weight: bold; text-transform: uppercase; border-bottom: 1.5px solid #000; margin: 0; padding-bottom: 2px; display: inline-block; min-width: 260px;">${escapeHtml(fasNama)}</p>
+                    <p style="font-weight: bold; border-bottom: 1.5px solid #000; margin: 0; padding-bottom: 2px; display: inline-block; min-width: 260px;">${escapeHtml(fasNama)}</p>
                     <p style="margin: 4px 0 0 0; font-weight: bold; font-size: 10px;">${escapeHtml(fasJabatan)}</p>
                 </div>
             </div>

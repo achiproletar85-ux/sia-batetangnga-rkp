@@ -64,6 +64,11 @@ async function runTests() {
         rktlHtml.includes('KETERANGAN') && 
         rktlHtml.includes('KELUARAN')
     );
+    check('Input penandatangan tidak mengunci huruf besar (mixed-case allowed)',
+        !rktlHtml.includes('id="input-kepala-desa" class="text-center font-extrabold uppercase') &&
+        !rktlHtml.includes('id="input-ketua-tim" class="text-center font-extrabold uppercase') &&
+        !rktlHtml.includes('id="input-fasilitator-nama" class="text-center font-extrabold uppercase')
+    );
 
     // 4. Logika Javascript (rktl.js)
     console.log('\n--- 4. Logika Controller dan Penanganan Judul & Kolom (rktl.js) ---');
@@ -87,6 +92,11 @@ async function runTests() {
         rktlJs.includes('docJudulSub') && 
         rktlJs.includes('docJudulPrefix') &&
         rktlJs.includes('size: landscape')
+    );
+    check('Input tim penyusun dan print signature tidak memaksakan uppercase',
+        !rktlJs.includes('id="tim-nama-${idx}" value="${String(item.nama || \'\').replace(/"/g, \'&quot;\')}" onchange="updateTimItemData(${idx}, \'nama\', this.value)" class="w-full px-2 py-1 text-xs border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded outline-none font-bold uppercase') &&
+        !rktlJs.includes('.ttd-nama { font-weight: bold; text-transform: uppercase;') &&
+        !rktlJs.includes('font-weight: bold; text-transform: uppercase; border-bottom: 1.5px solid #000; margin: 0; padding-bottom: 2px; display: inline-block; min-width: 260px;">${escapeHtml(fasNama)}')
     );
 
     // 5. Menu Navigasi (navbar.html)
