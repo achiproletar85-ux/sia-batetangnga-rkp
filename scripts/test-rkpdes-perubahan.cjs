@@ -263,6 +263,20 @@ assert(rabJsCode.includes('scrollIntoView'), 'Smooth scroll ke target form RAB t
 assert(jsCode.includes("localStorage.setItem('rab_target_nama', nama)"), 'rkpdes.js menyimpan rab_target_nama ke localStorage');
 assert(jsCode.includes("params.set('nama', nama)"), 'rkpdes.js menyertakan parameter nama di URL');
 
+// 16. AUDIT FINAL & STRESS-TEST MENYELURUH RKPDES (PRINT, SEARCH, LOCKING, ROUNDING, TANDA TANGAN)
+console.log('\n--- AUDIT FINAL & STRESS-TEST MENYELURUH RKPDES (PRINT, SEARCH, LOCKING, ROUNDING, TANDA TANGAN) ---\n');
+assert(htmlCode.includes('thead { display: table-header-group !important; }'), 'CSS print rkpdes.html mengulang header thead pada setiap halaman cetak multi-halaman');
+assert(htmlCode.includes('tr { page-break-inside: avoid !important; }'), 'CSS print rkpdes.html mencegah baris tabel terpotong di tengah halaman cetak');
+assert(htmlCode.includes('id="search-rkpdes"') && htmlCode.includes('id="btn-clear-search-rkpdes"'), 'Bilah pencarian in-memory rkpdes dan tombol reset terpasang di rkpdes.html');
+assert(jsCode.includes('let rkpdesSearchKeyword =') && jsCode.includes('function onSearchRkpdes(') && jsCode.includes('function clearSearchRkpdes('), 'Fungsi pencarian in-memory & reset terpasang di rkpdes.js');
+assert(jsCode.includes('window.onSearchRkpdes = onSearchRkpdes') && jsCode.includes('window.clearSearchRkpdes = clearSearchRkpdes'), 'Fungsi pencarian diekspos ke window object');
+assert(htmlCode.includes('onkeydown="return false;"') && htmlCode.includes('onpaste="return false;"'), 'Input biaya memblokir interaksi ketik langsung dan tempel');
+assert(jsCode.includes('let _isSavingRkpItem = false;') && jsCode.includes('let _isSavingRkpPerubahanItem = false;'), 'Double-submit lock flag terpasang pada modul simpan Murni & Perubahan');
+assert(jsCode.includes('const genuineCost =') && jsCode.includes('const genuineSemulaBiaya =') && jsCode.includes('const genuineMenjadiBiaya ='), 'DevTools inspector anti-bypass mengunci biaya genuine langsung dari data terverifikasi');
+assert(serverCode.includes('Math.round(acc.semula +') && serverCode.includes('Math.round(acc.menjadi +'), 'server.js membersihkan floating-point rounding pada grand total perubahan');
+assert(jsCode.includes('Math.round(Number(num) || 0)'), 'Helper formatRupiah menggunakan Math.round untuk integritas nominal bulat');
+assert(!jsCode.includes('class="font-bold underline uppercase">${timInfo.nama') && jsCode.includes('class="font-bold underline">${timInfo.nama'), 'Nama penandatangan mempertahankan format asli gelar campuran (tanpa paksaan CSS uppercase)');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

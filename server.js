@@ -8303,9 +8303,9 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
         results.sort((a, b) => compareKodeUnikFull(a?.kode_unik_full || '', b?.kode_unik_full || ''));
 
         const grandTotal = results.reduce((acc, it) => {
-            acc.semula += Number(it?.semula?.biaya || 0);
-            acc.menjadi += Number(it?.menjadi?.biaya || 0);
-            acc.selisih += Number(it?.selisih || 0);
+            acc.semula = Math.round(acc.semula + Number(it?.semula?.biaya || 0));
+            acc.menjadi = Math.round(acc.menjadi + Number(it?.menjadi?.biaya || 0));
+            acc.selisih = Math.round(acc.selisih + Number(it?.selisih || 0));
             return acc;
         }, { semula: 0, menjadi: 0, selisih: 0 });
 
@@ -8350,6 +8350,7 @@ app.put('/api/rkpdes', async (req, res) => {
             mendukung_sdgs: item.mendukung_sdgs || item.sdgs || '-',
             verifikasi_proposal: item.verifikasi_proposal || 'Belum',
             stunting: (item.stunting === 'Ya' || item.stunting === true || item.stunting === 'true') ? 'Ya' : 'Tidak',
+            lokasi: item.lokasi || item.lokasi_kegiatan || 'Desa Batetangnga',
             volume: String(item.volume ?? 1),
             satuan: item.satuan || 'Kegiatan',
             prakiraan_biaya: isNaN(Number(item.prakiraan_biaya)) ? 0 : Number(item.prakiraan_biaya),

@@ -16,14 +16,38 @@ const masterBidangList = [
     { key: 5, name: 'Bidang Penanggulangan Bencana, Keadaan Darurat Dan Mendesak Desa' }
 ];
 
+let rkpdesSearchKeyword = '';
+
+function onSearchRkpdes(query) {
+    rkpdesSearchKeyword = String(query || '').trim().toLowerCase();
+    const clearBtn = document.getElementById('btn-clear-search-rkpdes');
+    if (clearBtn) {
+        if (rkpdesSearchKeyword) {
+            clearBtn.classList.remove('hidden');
+        } else {
+            clearBtn.classList.add('hidden');
+        }
+    }
+    updateLivePreview();
+}
+window.onSearchRkpdes = onSearchRkpdes;
+
+function clearSearchRkpdes() {
+    const input = document.getElementById('search-rkpdes');
+    if (input) input.value = '';
+    onSearchRkpdes('');
+}
+window.clearSearchRkpdes = clearSearchRkpdes;
+
 function formatRupiah(num) {
-    if (num === 0 || !num) return 'Rp 0';
-    return 'Rp ' + Number(num).toLocaleString('id-ID');
+    const n = Math.round(Number(num) || 0);
+    if (n === 0) return 'Rp 0';
+    return 'Rp ' + n.toLocaleString('id-ID');
 }
 
 function formatSelisihRupiah(num) {
-    if (num === 0 || !num) return 'Rp 0';
-    const n = Number(num);
+    const n = Math.round(Number(num) || 0);
+    if (n === 0) return 'Rp 0';
     const absStr = 'Rp ' + Math.abs(n).toLocaleString('id-ID');
     if (n > 0) return `+${absStr}`;
     return `-${absStr}`;
@@ -445,9 +469,37 @@ function resolveJenisKegiatanKelompokFallback(item) {
 function buildRkpdesMurniHtml() {
     // Tanpa data: kembalikan string kosong (pemanggil merender placeholder sendiri)
     if (!Array.isArray(rkpdesList) || rkpdesList.length === 0) return '';
+
+    // Filter pencarian lokal cepat (0 egress)
+    let displayList = rkpdesList;
+    if (rkpdesSearchKeyword) {
+        displayList = rkpdesList.filter(item => {
+            const k = String(item.kode_unik_full || item.kode_unik || '').toLowerCase();
+            const nm = String(item.nama_kegiatan || item.uraian || '').toLowerCase();
+            const bd = String(item.bidang || '').toLowerCase();
+            const jb = String(item.jenis_bidang || '').toLowerCase();
+            const jk = String(item.jenis_kegiatan || '').toLowerCase();
+            return k.includes(rkpdesSearchKeyword) || nm.includes(rkpdesSearchKeyword) ||
+                   bd.includes(rkpdesSearchKeyword) || jb.includes(rkpdesSearchKeyword) ||
+                   jk.includes(rkpdesSearchKeyword);
+        });
+        if (displayList.length === 0) {
+            return `
+                <div class="text-center py-12 bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-6">
+                    <i class="fas fa-search text-3xl text-slate-300 mb-3"></i>
+                    <h4 class="font-bold text-slate-700 text-sm">Tidak Ditemukan</h4>
+                    <p class="text-xs text-slate-500 mt-1">Tidak ada kegiatan yang cocok dengan kata kunci "<strong>${rkpdesSearchKeyword}</strong>".</p>
+                    <button type="button" onclick="clearSearchRkpdes()" class="mt-3 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition cursor-pointer">
+                        Bersihkan Pencarian
+                    </button>
+                </div>
+            `;
+        }
+    }
+
     // Grouping by Bidang (1 s.d 5)
     const grouped = { 1: [], 2: [], 3: [], 4: [], 5: [] };
-    (rkpdesList || []).forEach(item => {
+    displayList.forEach(item => {
         const key = getBidangKey(item);
         if (grouped[key]) {
             grouped[key].push(item);
@@ -538,9 +590,9 @@ function buildRkpdesMurniHtml() {
 
                     // Render Activity Data Rows (Level 4)
                     items.forEach((item, index) => {
-                        const biaya = Number(item.prakiraan_biaya || 0);
-                        subTotalBiaya += biaya;
-                        grandTotalBiaya += biaya;
+                        const biaya = Math.round(Number(item.prakiraan_biaya || 0));
+                        subTotalBiaya = Math.round(subTotalBiaya + biaya);
+                        grandTotalBiaya = Math.round(grandTotalBiaya + biaya);
 
                         const rpjmObj = item._rpjmObj || {};
                         const rawVol = item.volume || rpjmObj.volume || item.volume_kegiatan || rpjmObj.volume_kegiatan || '1';
@@ -717,7 +769,7 @@ function buildRkpdesMurniHtml() {
                 <p>Disusun Oleh,</p>
                 <p class="font-bold uppercase">${timInfo.jabatan}</p>
                 <div style="height: 70px;"></div>
-                <p class="font-bold underline uppercase">${timInfo.nama}</p>
+                <p class="font-bold underline">${timInfo.nama}</p>
             </div>
         </div>
     `;
@@ -766,7 +818,11 @@ function openEditRkpModal(key) {
     
     document.getElementById('edit-rkp-volume').value = item.volume || '1';
     document.getElementById('edit-rkp-satuan').value = item.satuan || 'Kegiatan';
-    document.getElementById('edit-rkp-biaya').value = item.prakiraan_biaya || 0;
+    const inputBiaya = document.getElementById('edit-rkp-biaya');
+    if (inputBiaya) {
+        inputBiaya.value = item.prakiraan_biaya || 0;
+        inputBiaya.readOnly = true;
+    }
     
     // Parse manfaat from sasaran_manfaat / total_manfaat
     let mVal = (item.total_manfaat != null && item.total_manfaat > 0) ? String(item.total_manfaat) : (item.sasaran_manfaat || item.penerima_manfaat || '');
@@ -814,8 +870,14 @@ function closeEditRkpModal() {
     document.getElementById('modalEditRkp').classList.add('hidden');
 }
 
+let _isSavingRkpItem = false;
 async function saveEditRkpItem(event) {
     if (event) event.preventDefault();
+    if (_isSavingRkpItem) {
+        console.warn('⚠️ saveEditRkpItem sedang berjalan, mengabaikan double-submit');
+        return;
+    }
+    _isSavingRkpItem = true;
     const btnSubmit = document.getElementById('btn-save-edit-rkp');
     const originalBtnHtml = btnSubmit ? btnSubmit.innerHTML : '<i class="fas fa-save mr-1"></i> Simpan Perubahan';
 
@@ -836,6 +898,7 @@ async function saveEditRkpItem(event) {
         }
 
         const inputNamaKeg = document.getElementById('edit-rkp-nama-kegiatan')?.value?.trim();
+        const inputLokasi = document.getElementById('edit-rkp-lokasi')?.value?.trim();
         const dataEksisting = document.getElementById('edit-rkp-data-eksisting')?.value?.trim() || '-';
         const targetCapaian = document.getElementById('edit-rkp-target-capaian')?.value?.trim() || '-';
         const sdgs = document.getElementById('edit-rkp-sdgs')?.value?.trim() || '-';
@@ -843,7 +906,11 @@ async function saveEditRkpItem(event) {
         const stunting = document.getElementById('edit-rkp-stunting')?.value || 'Tidak';
         const volume = document.getElementById('edit-rkp-volume')?.value?.trim() || '1';
         const satuan = document.getElementById('edit-rkp-satuan')?.value?.trim() || 'Kegiatan';
-        const prakiraanBiaya = Number(document.getElementById('edit-rkp-biaya')?.value) || 0;
+        
+        // Anti-bypass inspector: strictly lock to genuine memory cost if available
+        const genuineCost = (item && item.prakiraan_biaya != null && !isNaN(Number(item.prakiraan_biaya)))
+            ? Math.round(Number(item.prakiraan_biaya))
+            : Math.round(Number(document.getElementById('edit-rkp-biaya')?.value) || 0);
         
         const manfaatInput = document.getElementById('edit-rkp-manfaat')?.value?.trim();
         const manfaatNum = Number(manfaatInput) || 0;
@@ -862,7 +929,7 @@ async function saveEditRkpItem(event) {
             bidang: item?.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
             jenis_kegiatan: item?.jenis_kegiatan || '-',
             nama_kegiatan: inputNamaKeg || item?.nama_kegiatan || '-',
-            lokasi: item?.lokasi || item?.lokasi_kegiatan || 'Desa Batetangnga',
+            lokasi: inputLokasi || item?.lokasi || item?.lokasi_kegiatan || 'Desa Batetangnga',
             data_eksisting: dataEksisting,
             target_capaian: targetCapaian,
             sdgs: sdgs,
@@ -871,7 +938,7 @@ async function saveEditRkpItem(event) {
             stunting: stunting,
             volume: volume,
             satuan: satuan,
-            prakiraan_biaya: prakiraanBiaya,
+            prakiraan_biaya: genuineCost,
             sasaran_manfaat: sasaranManfaat,
             penerima_manfaat: penerimaManfaat,
             total_manfaat: manfaatNum,
@@ -912,6 +979,7 @@ async function saveEditRkpItem(event) {
         console.error('❌ Exception in saveEditRkpItem:', err);
         showToast(`❌ Kesalahan: ${err.message}`, 'error');
     } finally {
+        _isSavingRkpItem = false;
         if (btnSubmit) {
             btnSubmit.disabled = false;
             btnSubmit.innerHTML = originalBtnHtml;
@@ -1235,9 +1303,37 @@ window.loadRkpdesPerubahanData = loadRkpdesPerubahanData;
 // — murni string, tanpa menyentuh DOM. Dipakai render preview DAN cetak terisolasi.
 function buildRkpdesPerubahanHtml() {
     if (!rkpdesPerubahanList || rkpdesPerubahanList.length === 0) return '';
+
+    // Filter pencarian lokal cepat (0 egress)
+    let displayList = rkpdesPerubahanList;
+    if (rkpdesSearchKeyword) {
+        displayList = rkpdesPerubahanList.filter(item => {
+            const k = String(item.kode_unik_full || item.kode_unik || '').toLowerCase();
+            const nm = String(item.nama_kegiatan || item.uraian || '').toLowerCase();
+            const bd = String(item.bidang || '').toLowerCase();
+            const jb = String(item.jenis_bidang || '').toLowerCase();
+            const jk = String(item.jenis_kegiatan || '').toLowerCase();
+            return k.includes(rkpdesSearchKeyword) || nm.includes(rkpdesSearchKeyword) ||
+                   bd.includes(rkpdesSearchKeyword) || jb.includes(rkpdesSearchKeyword) ||
+                   jk.includes(rkpdesSearchKeyword);
+        });
+        if (displayList.length === 0) {
+            return `
+                <div class="text-center py-12 bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-6">
+                    <i class="fas fa-search text-3xl text-slate-300 mb-3"></i>
+                    <h4 class="font-bold text-slate-700 text-sm">Tidak Ditemukan</h4>
+                    <p class="text-xs text-slate-500 mt-1">Tidak ada kegiatan RKPDes Perubahan yang cocok dengan kata kunci "<strong>${rkpdesSearchKeyword}</strong>".</p>
+                    <button type="button" onclick="clearSearchRkpdes()" class="mt-3 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold transition cursor-pointer">
+                        Bersihkan Pencarian
+                    </button>
+                </div>
+            `;
+        }
+    }
+
     // Grouping by Bidang (1 s.d 5)
     const grouped = { 1: [], 2: [], 3: [], 4: [], 5: [] };
-    rkpdesPerubahanList.forEach(item => {
+    displayList.forEach(item => {
         const key = getBidangKey(item);
         if (grouped[key]) {
             grouped[key].push(item);
@@ -1319,17 +1415,17 @@ function buildRkpdesPerubahanHtml() {
                         if (!item.menjadi) item.menjadi = {};
                         const menjadi = item.menjadi;
 
-                        const bSemula = Number(semula.biaya || 0);
-                        const bMenjadi = Number(menjadi.biaya || 0);
-                        const diff = Number(item.selisih != null ? item.selisih : (bMenjadi - bSemula));
+                        const bSemula = Math.round(Number(semula.biaya || 0));
+                        const bMenjadi = Math.round(Number(menjadi.biaya || 0));
+                        const diff = Math.round(Number(item.selisih != null ? item.selisih : (bMenjadi - bSemula)));
 
-                        subSemula += bSemula;
-                        subMenjadi += bMenjadi;
-                        subSelisih += diff;
+                        subSemula = Math.round(subSemula + bSemula);
+                        subMenjadi = Math.round(subMenjadi + bMenjadi);
+                        subSelisih = Math.round(subSelisih + diff);
 
-                        grandTotalSemula += bSemula;
-                        grandTotalMenjadi += bMenjadi;
-                        grandTotalSelisih += diff;
+                        grandTotalSemula = Math.round(grandTotalSemula + bSemula);
+                        grandTotalMenjadi = Math.round(grandTotalMenjadi + bMenjadi);
+                        grandTotalSelisih = Math.round(grandTotalSelisih + diff);
 
                         // OTOMATISASI FALLBACK PENERIMA MANFAAT: SEMULA KE MENJADI
                         // Terapkan logika fallback aktif: const penerimaL = item.penerima_l_menjadi ?? item.penerima_l_semula ?? '-';
@@ -1633,7 +1729,7 @@ function buildRkpdesPerubahanHtml() {
                 <p>Disusun oleh,</p>
                 <p class="font-bold uppercase">${timInfo.jabatan || 'Ketua Tim Penyusun RKPDesa'}</p>
                 <div style="height: 70px;"></div>
-                <p class="font-bold underline uppercase">${timInfo.nama || 'ABDUL AZIS SPM'}</p>
+                <p class="font-bold underline">${timInfo.nama || 'ABDUL AZIS SPM'}</p>
             </div>
         </div>
     `;
@@ -2312,7 +2408,10 @@ function openEditRkpPerubahanModal(itemOrKey) {
 
     if (semVol) semVol.value = semula.volume || '1';
     if (semSat) semSat.value = semula.satuan || 'Paket';
-    if (semBiaya) semBiaya.value = Number(semula.biaya || 0);
+    if (semBiaya) {
+        semBiaya.value = Number(semula.biaya || 0);
+        semBiaya.readOnly = true;
+    }
     if (semLokasi) semLokasi.value = semula.lokasi || 'Desa Batetangnga';
     if (semWaktu) semWaktu.value = semula.waktu_pelaksanaan || '12 Bulan';
 
@@ -2363,7 +2462,10 @@ function openEditRkpPerubahanModal(itemOrKey) {
 
     if (inVol) inVol.value = menjadi.volume ?? semula.volume ?? '1';
     if (inSat) inSat.value = menjadi.satuan ?? semula.satuan ?? 'Paket';
-    if (inBiaya) inBiaya.value = Number(menjadi.biaya != null ? menjadi.biaya : (semula.biaya || 0));
+    if (inBiaya) {
+        inBiaya.value = Number(menjadi.biaya != null ? menjadi.biaya : (semula.biaya || 0));
+        inBiaya.readOnly = true;
+    }
     if (inLokasi) inLokasi.value = menjadi.lokasi || semula.lokasi || 'Desa Batetangnga';
     const rawWaktu = menjadi.waktu_pelaksanaan || semula.waktu_pelaksanaan || '';
     if (inWaktu) inWaktu.value = (rawWaktu && rawWaktu !== String(activeYear)) ? rawWaktu : '12 Bulan';
@@ -2521,13 +2623,20 @@ function editInRabPerubahanFromModal() {
 }
 window.editInRabPerubahanFromModal = editInRabPerubahanFromModal;
 
+let _isSavingRkpPerubahanItem = false;
 async function saveEditRkpPerubahanItem(event) {
     if (event) event.preventDefault();
+    if (_isSavingRkpPerubahanItem) {
+        console.warn('⚠️ saveEditRkpPerubahanItem sedang berjalan, mengabaikan double-submit');
+        return;
+    }
+    _isSavingRkpPerubahanItem = true;
     const itemKey = document.getElementById('edit-perubahan-item-key')?.value;
     const item = findPerubahanItem(itemKey);
     if (!item) {
         showToast('❌ Data kegiatan tidak ditemukan', 'error');
         alert('⚠️ Data kegiatan tidak ditemukan untuk disimpan. Silakan segarkan halaman.');
+        _isSavingRkpPerubahanItem = false;
         return;
     }
 
@@ -2548,13 +2657,24 @@ async function saveEditRkpPerubahanItem(event) {
             saveBtn.disabled = false;
             saveBtn.innerHTML = '<i class="fas fa-save mr-1"></i> Simpan Perubahan';
         }
+        _isSavingRkpPerubahanItem = false;
         return;
     }
+
+    // Anti-bypass inspector: genuine verified cost directly from memory item or fallback
+    const genuineSemulaBiaya = (item.semula && item.semula.biaya != null && !isNaN(Number(item.semula.biaya)))
+        ? Math.round(Number(item.semula.biaya))
+        : Math.round(Number(document.getElementById('edit-semula-biaya')?.value) || 0);
+
+    const genuineMenjadiBiaya = (item.menjadi && item.menjadi.biaya != null && !isNaN(Number(item.menjadi.biaya)))
+        ? Math.round(Number(item.menjadi.biaya))
+        : ((item.semula && item.semula.biaya != null && !isNaN(Number(item.semula.biaya)))
+            ? Math.round(Number(item.semula.biaya))
+            : Math.round(Number(document.getElementById('edit-perubahan-biaya')?.value) || 0));
 
     // Nilai Sisi SEMULA
     const volSemula = document.getElementById('edit-semula-volume')?.value?.trim() || '1';
     const satSemula = document.getElementById('edit-semula-satuan')?.value?.trim() || 'Paket';
-    const biayaSemula = Number(document.getElementById('edit-semula-biaya')?.value) || 0;
     const lokasiSemula = document.getElementById('edit-semula-lokasi')?.value?.trim() || 'Desa Batetangnga';
     const waktuSemula = document.getElementById('edit-semula-waktu')?.value?.trim() || '12 Bulan';
     const sumberSemula = document.getElementById('edit-semula-sumber-biaya')?.value || 'DDS';
@@ -2571,7 +2691,6 @@ async function saveEditRkpPerubahanItem(event) {
     // Nilai Sisi MENJADI
     const volMenjadi = document.getElementById('edit-perubahan-volume')?.value?.trim() || '1';
     const satMenjadi = document.getElementById('edit-perubahan-satuan')?.value?.trim() || 'Paket';
-    const biayaMenjadi = Number(document.getElementById('edit-perubahan-biaya')?.value) || 0;
     const lokasiMenjadi = document.getElementById('edit-perubahan-lokasi')?.value?.trim() || 'Desa Batetangnga';
     const waktuMenjadi = document.getElementById('edit-perubahan-waktu')?.value?.trim() || '12 Bulan';
     const sumberMenjadi = document.getElementById('edit-perubahan-sumber-biaya')?.value || 'DDS';
@@ -2595,7 +2714,7 @@ async function saveEditRkpPerubahanItem(event) {
         semula: {
             volume: volSemula,
             satuan: satSemula,
-            biaya: biayaSemula,
+            biaya: genuineSemulaBiaya,
             lokasi: lokasiSemula,
             sumber_biaya: sumberSemula,
             waktu_pelaksanaan: waktuSemula,
@@ -2611,7 +2730,7 @@ async function saveEditRkpPerubahanItem(event) {
         menjadi: {
             volume: volMenjadi,
             satuan: satMenjadi,
-            biaya: biayaMenjadi,
+            biaya: genuineMenjadiBiaya,
             lokasi: lokasiMenjadi,
             sumber_biaya: sumberMenjadi,
             waktu_pelaksanaan: waktuMenjadi,
@@ -2629,7 +2748,7 @@ async function saveEditRkpPerubahanItem(event) {
         stunting_menjadi: stuntingMenjadi,
         volume: volMenjadi,
         satuan: satMenjadi,
-        biaya: biayaMenjadi,
+        biaya: genuineMenjadiBiaya,
         lokasi: lokasiMenjadi,
         sumber_biaya: sumberMenjadi,
         waktu_pelaksanaan: waktuMenjadi,
@@ -2664,7 +2783,7 @@ async function saveEditRkpPerubahanItem(event) {
             item.semula.volume = volSemula;
             item.semula.satuan = satSemula;
             item.semula.volume_satuan = (volSemula.toLowerCase().includes(satSemula.toLowerCase()) || !satSemula) ? volSemula : `${volSemula} ${satSemula}`;
-            item.semula.biaya = biayaSemula;
+            item.semula.biaya = genuineSemulaBiaya;
             item.semula.lokasi = lokasiSemula;
             item.semula.sumber_biaya = sumberSemula;
             item.semula.waktu_pelaksanaan = waktuSemula;
@@ -2688,7 +2807,7 @@ async function saveEditRkpPerubahanItem(event) {
             item.menjadi.volume = volMenjadi;
             item.menjadi.satuan = satMenjadi;
             item.menjadi.volume_satuan = (volMenjadi.toLowerCase().includes(satMenjadi.toLowerCase()) || !satMenjadi) ? volMenjadi : `${volMenjadi} ${satMenjadi}`;
-            item.menjadi.biaya = biayaMenjadi;
+            item.menjadi.biaya = genuineMenjadiBiaya;
             item.menjadi.lokasi = lokasiMenjadi;
             item.menjadi.sumber_biaya = sumberMenjadi;
             item.menjadi.waktu_pelaksanaan = waktuMenjadi;
@@ -2708,7 +2827,7 @@ async function saveEditRkpPerubahanItem(event) {
             item.penerima_p_menjadi = mPMenjadi;
             item.penerima_rtm_menjadi = mRtmMenjadi;
 
-            item.selisih = biayaMenjadi - biayaSemula;
+            item.selisih = Math.round(genuineMenjadiBiaya - genuineSemulaBiaya);
             item.status_perubahan = item.selisih > 0 ? 'bertambah' : (item.selisih < 0 ? 'berkurang' : 'tetap');
 
             closeEditRkpPerubahanModal();
@@ -2725,6 +2844,7 @@ async function saveEditRkpPerubahanItem(event) {
         showToast(`❌ Gagal menghubungi server: ${err.message}`, 'error');
         alert(`⚠️ Terjadi Kesalahan Sistem Saat Menyimpan:\n${err.message}`);
     } finally {
+        _isSavingRkpPerubahanItem = false;
         if (saveBtn) {
             saveBtn.disabled = false;
             saveBtn.innerHTML = '<i class="fas fa-save mr-1"></i> Simpan Perubahan';
