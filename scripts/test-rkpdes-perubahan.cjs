@@ -220,6 +220,17 @@ assert(serverCode.includes("app.delete('/api/stunting'"), 'Endpoint DELETE /api/
 assert(serverCode.includes("app.post('/api/stunting/sync'"), 'Endpoint POST /api/stunting/sync terdaftar di server.js');
 assert(serverCode.includes("eq('tipe_anggaran', RAB_TIPE_MURNI)"), 'Bidirectional sync ke RAB Murni terpasang di endpoint stunting');
 
+// 13. HARDENING & VERIFIKASI INTEGRITAS MODAL EDIT RKPDES MURNI & FALLBACK PERSISTENCE
+console.log('\n--- HARDENING & VERIFIKASI INTEGRITAS MODAL EDIT RKPDES MURNI & FALLBACK PERSISTENCE ---\n');
+assert(htmlCode.includes('id="btn-save-edit-rkp"'), 'Tombol simpan modal edit RKPDes memiliki id="btn-save-edit-rkp" eksplisit');
+assert(jsCode.includes('async function saveEditRkpItem(event)'), 'Fungsi saveEditRkpItem diubah menjadi async function');
+assert(jsCode.includes('btnSubmit.disabled = true') && jsCode.includes('btnSubmit.disabled = false'), 'Double-submit protection & loading state terpasang di saveEditRkpItem');
+assert(jsCode.includes('await loadRkpdesData()'), 'Local state refetch & resync loadRkpdesData terpasang setelah mutasi');
+assert(serverCode.includes('// PUT /api/rkpdes - update satu baris rkpdes dengan verifikasi baris & persistensi fallback'), 'Endpoint PUT /api/rkpdes menggunakan handler yang diperkeras');
+assert(serverCode.includes('existingRow') && serverCode.includes('checkQ'), 'PUT /api/rkpdes melakukan pengecekan keberadaan row sebelum mutasi');
+assert(serverCode.includes("throw new Error('Gagal memperbarui data: tidak ada baris yang terpengaruh di tabel rkpdes')"), 'PUT /api/rkpdes melempar error eksplisit jika 0 baris terpengaruh (anti-silent-failure)');
+assert(serverCode.includes('Fallback item persisted into rkpdes ID:'), 'PUT /api/rkpdes melakukan auto-insert persistensi saat data berasal dari fallback RAB');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

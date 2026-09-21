@@ -784,67 +784,108 @@ function closeEditRkpModal() {
     document.getElementById('modalEditRkp').classList.add('hidden');
 }
 
-function saveEditRkpItem(event) {
-    event.preventDefault();
-    const kode = document.getElementById('edit-rkp-kode').value;
-    const item = rkpdesList.find(x => String(x.kode_unik_full || x.kode_unik || x.id) === String(kode));
-    
-    if (!item) {
-        showToast('❌ Data tidak ditemukan', 'error');
-        return;
-    }
+async function saveEditRkpItem(event) {
+    if (event) event.preventDefault();
+    const btnSubmit = document.getElementById('btn-save-edit-rkp');
+    const originalBtnHtml = btnSubmit ? btnSubmit.innerHTML : '<i class="fas fa-save mr-1"></i> Simpan Perubahan';
 
-    const inputNamaKeg = document.getElementById('edit-rkp-nama-kegiatan')?.value?.trim();
-    if (inputNamaKeg) {
-        item.nama_kegiatan = inputNamaKeg;
-    }
-    item.data_eksisting = document.getElementById('edit-rkp-data-eksisting').value;
-    item.target_capaian = document.getElementById('edit-rkp-target-capaian').value;
-    item.sdgs = document.getElementById('edit-rkp-sdgs').value;
-    item.mendukung_sdgs = item.sdgs;
-    item.verifikasi_proposal = document.getElementById('edit-rkp-verifikasi-proposal').value;
-    item.stunting = document.getElementById('edit-rkp-stunting').value;
-    
-    if (item.rpjm_data) {
-        item.rpjm_data.target_capaian = item.target_capaian;
-    }
-
-    item.volume = document.getElementById('edit-rkp-volume').value || '1';
-    item.satuan = document.getElementById('edit-rkp-satuan').value;
-    item.prakiraan_biaya = Number(document.getElementById('edit-rkp-biaya').value) || 0;
-    
-    const manfaatInput = document.getElementById('edit-rkp-manfaat').value;
-    const manfaatNum = Number(manfaatInput) || 0;
-    item.sasaran_manfaat = manfaatNum > 0 ? `L: 0, P: 0, RTM: 0 (Total: ${manfaatNum} Orang)` : '-';
-    item.total_manfaat = manfaatNum;
-    item.penerima_manfaat = manfaatNum > 0 ? `${manfaatNum} Orang` : '-';
-    
-    const inputWaktu = document.getElementById('edit-rkp-waktu').value;
-    item.waktu_pelaksanaan = inputWaktu;
-    if (item.rpjm_data) {
-        item.rpjm_data.waktu_pelaksanaan = inputWaktu;
-    }
-
-    item.sumber_pembiayaan = document.getElementById('edit-rkp-sumber-biaya').value;
-    item.pola_pelaksanaan = document.getElementById('edit-rkp-pola').value;
-    
-    // Save to backend
     try {
-        fetch('/api/rkpdes', {
+        const kode = document.getElementById('edit-rkp-kode')?.value || '';
+        const rawId = document.getElementById('edit-rkp-id')?.value || '';
+        const item = rkpdesList.find(x => String(x.kode_unik_full || x.kode_unik || x.id) === String(kode) || (rawId && String(x.id) === String(rawId)));
+        
+        if (!item && !kode && !rawId) {
+            showToast('❌ Data kegiatan tidak ditemukan untuk disimpan', 'error');
+            return;
+        }
+
+        // Disable button & show spinner to prevent race condition
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<i class="fas fa-circle-notch animate-spin mr-1"></i> Menyimpan...';
+        }
+
+        const inputNamaKeg = document.getElementById('edit-rkp-nama-kegiatan')?.value?.trim();
+        const dataEksisting = document.getElementById('edit-rkp-data-eksisting')?.value?.trim() || '-';
+        const targetCapaian = document.getElementById('edit-rkp-target-capaian')?.value?.trim() || '-';
+        const sdgs = document.getElementById('edit-rkp-sdgs')?.value?.trim() || '-';
+        const verifikasiProposal = document.getElementById('edit-rkp-verifikasi-proposal')?.value || 'Belum';
+        const stunting = document.getElementById('edit-rkp-stunting')?.value || 'Tidak';
+        const volume = document.getElementById('edit-rkp-volume')?.value?.trim() || '1';
+        const satuan = document.getElementById('edit-rkp-satuan')?.value?.trim() || 'Kegiatan';
+        const prakiraanBiaya = Number(document.getElementById('edit-rkp-biaya')?.value) || 0;
+        
+        const manfaatInput = document.getElementById('edit-rkp-manfaat')?.value?.trim();
+        const manfaatNum = Number(manfaatInput) || 0;
+        const sasaranManfaat = manfaatNum > 0 ? `L: 0, P: 0, RTM: 0 (Total: ${manfaatNum} Orang)` : '-';
+        const penerimaManfaat = manfaatNum > 0 ? `${manfaatNum} Orang` : '-';
+        
+        const waktuPelaksanaan = document.getElementById('edit-rkp-waktu')?.value?.trim() || '12 Bulan';
+        const sumberPembiayaan = document.getElementById('edit-rkp-sumber-biaya')?.value || 'DDS';
+        const polaPelaksanaan = document.getElementById('edit-rkp-pola')?.value || 'Swakelola';
+
+        // Prepare clean, sanitized payload matching DB schema
+        const payload = {
+            id: rawId && !isNaN(Number(rawId)) ? Number(rawId) : (item?.id && !isNaN(Number(item.id)) ? Number(item.id) : null),
+            tahun: Number(activeYear) || 2027,
+            kode_unik_full: kode || item?.kode_unik_full || item?.kode_unik || '',
+            bidang: item?.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
+            jenis_kegiatan: item?.jenis_kegiatan || '-',
+            nama_kegiatan: inputNamaKeg || item?.nama_kegiatan || '-',
+            lokasi: item?.lokasi || item?.lokasi_kegiatan || 'Desa Batetangnga',
+            data_eksisting: dataEksisting,
+            target_capaian: targetCapaian,
+            sdgs: sdgs,
+            mendukung_sdgs: sdgs,
+            verifikasi_proposal: verifikasiProposal,
+            stunting: stunting,
+            volume: volume,
+            satuan: satuan,
+            prakiraan_biaya: prakiraanBiaya,
+            sasaran_manfaat: sasaranManfaat,
+            penerima_manfaat: penerimaManfaat,
+            total_manfaat: manfaatNum,
+            waktu_pelaksanaan: waktuPelaksanaan,
+            sumber_pembiayaan: sumberPembiayaan,
+            pola_pelaksanaan: polaPelaksanaan
+        };
+
+        const res = await fetch('/api/rkpdes', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(item)
-        }).then(res => res.json()).then(data => {
-            if(data.success) {
-                closeEditRkpModal();
-                updateLivePreview();
-                showToast('✅ Berhasil memperbarui data RKPDesa', 'success');
-            } else {
-                showToast('❌ Gagal memperbarui di server', 'error');
-            }
+            body: JSON.stringify(payload)
         });
-    } catch(e) {
-        showToast('❌ Kesalahan jaringan', 'error');
+
+        let json;
+        try {
+            json = await res.json();
+        } catch (jsonErr) {
+            throw new Error(`Respon server tidak valid (Status HTTP ${res.status})`);
+        }
+
+        if (!res.ok || !json.success) {
+            const errMsg = json?.error || `Gagal menyimpan data (Status HTTP ${res.status})`;
+            showToast(`❌ ${errMsg}`, 'error');
+            console.error('❌ Save RKPDes failed:', json);
+            return;
+        }
+
+        // Close modal upon successful write
+        closeEditRkpModal();
+
+        // Refresh dataset directly from backend/database to guarantee complete persistence & UI sync
+        await loadRkpdesData();
+
+        showToast('✅ Berhasil memperbarui dan menyimpan data RKPDesa', 'success');
+
+    } catch (err) {
+        console.error('❌ Exception in saveEditRkpItem:', err);
+        showToast(`❌ Kesalahan: ${err.message}`, 'error');
+    } finally {
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = originalBtnHtml;
+        }
     }
 }
 

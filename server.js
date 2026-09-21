@@ -8304,48 +8304,133 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
     }
 });
 
-// PUT /api/rkpdes - update satu baris rkpdes
+// PUT /api/rkpdes - update satu baris rkpdes dengan verifikasi baris & persistensi fallback
 app.put('/api/rkpdes', async (req, res) => {
     try {
         const item = req.body;
-        if (!item) return res.status(400).json({ success: false, error: 'Data item diperlukan' });
-        
-        const updatePayload = {
+        if (!item || typeof item !== 'object') {
+            return res.status(400).json({ success: false, error: 'Payload data RKPDes diperlukan' });
+        }
+
+        const tahunInt = parseInt(item.tahun, 10) || null;
+        const idInt = (item.id != null && !isNaN(Number(item.id))) ? Number(item.id) : null;
+        const kode = item.kode_unik_full ? String(item.kode_unik_full).trim() : (item.kode_unik ? String(item.kode_unik).trim() : null);
+
+        if (!idInt && (!kode || !tahunInt)) {
+            return res.status(400).json({ success: false, error: 'ID atau pasangan (kode_unik_full & tahun) diperlukan' });
+        }
+
+        const sanitizedUpdate = sanitizeRkpdesPayload({
             data_eksisting: item.data_eksisting || item.data_existing || '-',
             target_capaian: item.target_capaian || '-',
             sdgs: item.sdgs || '-',
             mendukung_sdgs: item.mendukung_sdgs || item.sdgs || '-',
             verifikasi_proposal: item.verifikasi_proposal || 'Belum',
-            stunting: item.stunting || 'Tidak',
-            volume: String(item.volume || 1),
+            stunting: (item.stunting === 'Ya' || item.stunting === true || item.stunting === 'true') ? 'Ya' : 'Tidak',
+            volume: String(item.volume ?? 1),
             satuan: item.satuan || 'Kegiatan',
-            prakiraan_biaya: Number(item.prakiraan_biaya || 0),
+            prakiraan_biaya: isNaN(Number(item.prakiraan_biaya)) ? 0 : Number(item.prakiraan_biaya),
             sasaran_manfaat: item.sasaran_manfaat || '-',
             penerima_manfaat: item.penerima_manfaat || '-',
-            total_manfaat: Number(item.total_manfaat || 0),
+            total_manfaat: isNaN(Number(item.total_manfaat)) ? 0 : Number(item.total_manfaat),
             waktu_pelaksanaan: item.waktu_pelaksanaan || '12 Bulan',
             sumber_pembiayaan: item.sumber_pembiayaan || 'DDS',
             pola_pelaksanaan: item.pola_pelaksanaan || 'Swakelola',
             ...(item.nama_kegiatan && String(item.nama_kegiatan).trim() !== '' ? { nama_kegiatan: String(item.nama_kegiatan).trim() } : {}),
             updated_at: new Date().toISOString()
-        };
+        });
 
-        let q = supabase.from('rkpdes').update(updatePayload);
-        if (item.id && !isNaN(Number(item.id))) {
-            q = q.eq('id', Number(item.id));
-        } else if (item.kode_unik_full && item.tahun) {
-            q = q.eq('kode_unik_full', item.kode_unik_full).eq('tahun', Number(item.tahun));
-        } else {
-            return res.status(400).json({ success: false, error: 'ID atau kode_unik_full & tahun diperlukan' });
+        // 1. Cek keberadaan baris target di tabel rkpdes
+        let existingRow = null;
+        if (idInt) {
+            let checkQ = supabase.from('rkpdes').select('id, tahun, kode_unik_full').eq('id', idInt);
+            if (tahunInt) checkQ = checkQ.eq('tahun', tahunInt);
+            const { data: rowById, error: errById } = await checkQ.maybeSingle();
+            if (errById) {
+                console.error('❌ Error checking rkpdes by ID:', errById.message);
+                throw errById;
+            }
+            if (rowById) existingRow = rowById;
         }
 
-        const { error } = await q.select('id');
-        if (error) throw error;
+        if (!existingRow && kode && tahunInt) {
+            const { data: rowByCode, error: errByCode } = await supabase
+                .from('rkpdes')
+                .select('id, tahun, kode_unik_full')
+                .eq('kode_unik_full', kode)
+                .eq('tahun', tahunInt)
+                .maybeSingle();
+            if (errByCode) {
+                console.error('❌ Error checking rkpdes by code:', errByCode.message);
+                throw errByCode;
+            }
+            if (rowByCode) existingRow = rowByCode;
+        }
 
-        res.json({ success: true, message: 'Data RKPDes berhasil diperbarui' });
+        // 2. Jika baris sudah ada di tabel rkpdes, lakukan UPDATE dengan validasi affected rows
+        if (existingRow) {
+            const { data: updatedRows, error: updateErr } = await supabase
+                .from('rkpdes')
+                .update(sanitizedUpdate)
+                .eq('id', existingRow.id)
+                .select('id, tahun, kode_unik_full, nama_kegiatan, updated_at');
+
+            if (updateErr) {
+                console.error('❌ Error updating rkpdes row:', updateErr.message);
+                throw updateErr;
+            }
+
+            if (!updatedRows || updatedRows.length === 0) {
+                throw new Error('Gagal memperbarui data: tidak ada baris yang terpengaruh di tabel rkpdes');
+            }
+
+            console.log(`✅ [STRICT] RKPDes updated successfully ID: ${existingRow.id} (${existingRow.kode_unik_full || kode})`);
+            return res.json({
+                success: true,
+                message: 'Data RKPDes berhasil diperbarui di database',
+                data: updatedRows[0]
+            });
+        }
+
+        // 3. Jika baris belum ada di tabel rkpdes (misalnya data hasil fallback dari tabel rab),
+        // lakukan INSERT agar data hasil edit tersimpan permanen di tabel rkpdes
+        const insertPayload = sanitizeRkpdesPayload({
+            tahun: tahunInt || 2027,
+            kode_unik_full: kode || `RKP-${Date.now()}`,
+            bidang: item.bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
+            jenis_kegiatan: item.jenis_kegiatan || item.nama_kegiatan || '-',
+            nama_kegiatan: item.nama_kegiatan || '-',
+            lokasi: item.lokasi || item.lokasi_kegiatan || 'Desa Batetangnga',
+            status_rab: item.status_rab || 'Sudah Dibuat',
+            ...sanitizedUpdate,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        });
+
+        const { data: insertedRows, error: insertErr } = await supabase
+            .from('rkpdes')
+            .insert([insertPayload])
+            .select('id, tahun, kode_unik_full, nama_kegiatan, updated_at');
+
+        if (insertErr) {
+            console.error('❌ Error inserting fallback row into rkpdes:', insertErr.message);
+            throw insertErr;
+        }
+
+        if (!insertedRows || insertedRows.length === 0) {
+            throw new Error('Gagal menyimpan data baru ke tabel rkpdes');
+        }
+
+        console.log(`✅ [STRICT] Fallback item persisted into rkpdes ID: ${insertedRows[0].id} (${insertedRows[0].kode_unik_full})`);
+        return res.json({
+            success: true,
+            message: 'Data RKPDes baru berhasil disimpan ke database',
+            data: insertedRows[0]
+        });
+
     } catch (err) {
         console.error('❌ Error PUT /api/rkpdes:', err.message);
-        res.status(500).json({ success: false, error: err.message });
+        return res.status(500).json({ success: false, error: err.message });
     }
 });
 
