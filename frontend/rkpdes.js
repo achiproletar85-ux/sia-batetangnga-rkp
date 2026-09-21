@@ -109,6 +109,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             printRkpdesMurni(e);
         });
     }
+
+    // Auto-sync detector: mendeteksi perubahan nominal belanja dari modul RAB
+    let lastRabUpdatedTimestamp = 0;
+    try {
+        lastRabUpdatedTimestamp = Number(localStorage.getItem('sia_rab_updated') || 0);
+    } catch (_) {}
+
+    async function checkAndSyncFromRabUpdate() {
+        try {
+            const latestUpdate = Number(localStorage.getItem('sia_rab_updated') || 0);
+            if (latestUpdate && latestUpdate > lastRabUpdatedTimestamp) {
+                lastRabUpdatedTimestamp = latestUpdate;
+                console.log('🔄 Mendeteksi perubahan nominal belanja dari modul RAB, memuat ulang RKPDes...');
+                if (currentRkpdesTab === 'perubahan') {
+                    await loadRkpdesPerubahanData();
+                } else {
+                    await loadRkpdesData();
+                }
+                showToast('🔄 Anggaran RKPDes disinkronkan otomatis dengan perubahan terbaru dari RAB', 'info');
+            }
+        } catch (_) {}
+    }
+
+    window.addEventListener('focus', checkAndSyncFromRabUpdate);
+    window.addEventListener('pageshow', checkAndSyncFromRabUpdate);
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'sia_rab_updated') {
+            checkAndSyncFromRabUpdate();
+        }
+    });
 });
 
 function getBidangKey(item) {
@@ -956,11 +986,19 @@ async function deleteRkpItem(key) {
 }
 
 function editInRabFromModal() {
-    const kode = document.getElementById('edit-rkp-kode')?.value;
-    if (kode) {
-        window.location.href = `rab.html?kode=${encodeURIComponent(kode)}`;
+    const kode = document.getElementById('edit-rkp-kode')?.value || '';
+    const cleanKode = kode.includes('..') ? kode.split('..')[0].trim() : kode.trim();
+    try {
+        localStorage.setItem('rab_target_kode', cleanKode);
+        localStorage.setItem('rab_tahun_anggaran', String(activeYear));
+        localStorage.setItem('sia_tahun_anggaran', String(activeYear));
+        localStorage.setItem('rab_tipe_anggaran', 'MURNI');
+        localStorage.setItem('sia_tipe_anggaran', 'MURNI');
+    } catch (_) {}
+    if (cleanKode) {
+        window.location.href = `rab.html?kode=${encodeURIComponent(cleanKode)}&kode_unik=${encodeURIComponent(cleanKode)}&tahun=${activeYear}&tipe=MURNI`;
     } else {
-        window.location.href = 'rab.html';
+        window.location.href = `rab.html?tahun=${activeYear}&tipe=MURNI`;
     }
 }
 window.editInRabFromModal = editInRabFromModal;
@@ -2428,10 +2466,36 @@ function copyAllFromSemulaToMenjadi() {
 }
 window.copyAllFromSemulaToMenjadi = copyAllFromSemulaToMenjadi;
 
+function editInRabSemulaFromModal() {
+    const kode = document.getElementById('edit-perubahan-kode')?.value || '';
+    const cleanKode = kode.includes('..') ? kode.split('..')[0].trim() : kode.trim();
+    try {
+        localStorage.setItem('rab_target_kode', cleanKode);
+        localStorage.setItem('rab_tahun_anggaran', String(activeYear));
+        localStorage.setItem('sia_tahun_anggaran', String(activeYear));
+        localStorage.setItem('rab_tipe_anggaran', 'MURNI');
+        localStorage.setItem('sia_tipe_anggaran', 'MURNI');
+    } catch (_) {}
+    if (cleanKode) {
+        window.location.href = `rab.html?kode=${encodeURIComponent(cleanKode)}&kode_unik=${encodeURIComponent(cleanKode)}&tahun=${activeYear}&tipe=MURNI`;
+    } else {
+        window.location.href = `rab.html?tahun=${activeYear}&tipe=MURNI`;
+    }
+}
+window.editInRabSemulaFromModal = editInRabSemulaFromModal;
+
 function editInRabPerubahanFromModal() {
-    const kode = document.getElementById('edit-perubahan-kode')?.value;
-    if (kode) {
-        window.location.href = `rab.html?kode=${encodeURIComponent(kode)}&tahun=${activeYear}&tipe=PERUBAHAN`;
+    const kode = document.getElementById('edit-perubahan-kode')?.value || '';
+    const cleanKode = kode.includes('..') ? kode.split('..')[0].trim() : kode.trim();
+    try {
+        localStorage.setItem('rab_target_kode', cleanKode);
+        localStorage.setItem('rab_tahun_anggaran', String(activeYear));
+        localStorage.setItem('sia_tahun_anggaran', String(activeYear));
+        localStorage.setItem('rab_tipe_anggaran', 'PERUBAHAN');
+        localStorage.setItem('sia_tipe_anggaran', 'PERUBAHAN');
+    } catch (_) {}
+    if (cleanKode) {
+        window.location.href = `rab.html?kode=${encodeURIComponent(cleanKode)}&kode_unik=${encodeURIComponent(cleanKode)}&tahun=${activeYear}&tipe=PERUBAHAN`;
     } else {
         window.location.href = `rab.html?tahun=${activeYear}&tipe=PERUBAHAN`;
     }

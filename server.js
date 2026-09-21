@@ -7970,27 +7970,41 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             }
         }
 
-        // 3. Tarik data RAB Perubahan
+        // 3. Tarik data RAB Perubahan & RAB Murni
         let perRows = [];
+        let rabMurniRows = [];
         try {
-            const { data: rabPerubahan, error: rabErr } = await supabase
-                .from('rab')
-                .select(RAB_PERUBAHAN_COLUMNS)
-                .eq('tahun', tahunInt)
-                .eq('tipe_anggaran', 'PERUBAHAN');
-            if (rabErr) {
-                console.warn('⚠️ Query rab perubahan error:', rabErr.message);
-            } else if (Array.isArray(rabPerubahan)) {
-                perRows = rabPerubahan;
+            const [rabPerRes, rabMurniRes] = await Promise.all([
+                supabase
+                    .from('rab')
+                    .select(RAB_PERUBAHAN_COLUMNS)
+                    .eq('tahun', tahunInt)
+                    .eq('tipe_anggaran', 'PERUBAHAN'),
+                supabase
+                    .from('rab')
+                    .select(RAB_SYNC_COLUMNS)
+                    .eq('tahun', tahunInt)
+                    .eq('tipe_anggaran', 'MURNI')
+            ]);
+            if (rabPerRes.error) {
+                console.warn('⚠️ Query rab perubahan error:', rabPerRes.error.message);
+            } else if (rabPerRes.data && Array.isArray(rabPerRes.data)) {
+                perRows = rabPerRes.data;
+            }
+            if (rabMurniRes.error) {
+                console.warn('⚠️ Query rab murni error:', rabMurniRes.error.message);
+            } else if (rabMurniRes.data && Array.isArray(rabMurniRes.data)) {
+                rabMurniRows = rabMurniRes.data;
             }
         } catch (rabPerQueryErr) {
-            console.warn('⚠️ Query rab perubahan fetch failed:', rabPerQueryErr.message);
+            console.warn('⚠️ Query rab perubahan error:', rabPerQueryErr.message);
         }
 
         const normKode = (k) => String(k || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
 
         const perMap = new Map();
         const perMapByRef = new Map();
+        const rabMurniMap = new Map();
 
         perRows.forEach(p => {
             const rawK = String(p.kode_unik_full || p.kode_unik || '').trim();
@@ -7998,6 +8012,13 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             if (rawK) perMap.set(rawK, p);
             if (cleanK) perMap.set(cleanK, p);
             if (p.id_referensi_murni) perMapByRef.set(String(p.id_referensi_murni), p);
+        });
+
+        rabMurniRows.forEach(rb => {
+            const rawK = String(rb.kode_unik_full || rb.kode_unik || '').trim();
+            const cleanK = normKode(rawK);
+            if (rawK) rabMurniMap.set(rawK, rb);
+            if (cleanK) rabMurniMap.set(cleanK, rb);
         });
 
         // 4. Pengayaan dengan metadata RPJMDes Standar
@@ -8028,8 +8049,10 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                 : ((p && (p.nama_kegiatan || p.uraian)) || m.jenis_kegiatan);
             const resolved = resolveRpjmStandar(code, m.bidang, m.jenis_bidang, rawNamaMurni, rpjmLookup);
 
-            const biayaSemula = Number(m.prakiraan_biaya || 0);
-            const biayaMenjadi = p ? Number(p.jumlah_anggaran || 0) : biayaSemula;
+            const rabMurniMatch = rabMurniMap.get(code) || rabMurniMap.get(cleanCode);
+            const rabMurniBiaya = rabMurniMatch ? Number(rabMurniMatch.jumlah_anggaran || 0) : 0;
+            const biayaSemula = rabMurniBiaya > 0 ? rabMurniBiaya : Number(m.prakiraan_biaya || 0);
+            const biayaMenjadi = (p && Number(p.jumlah_anggaran) > 0) ? Number(p.jumlah_anggaran || 0) : biayaSemula;
             const selisih = biayaMenjadi - biayaSemula;
 
             const volSemula = String(m.volume || 1);
@@ -9044,6 +9067,25 @@ async function mergeRkpFromRab(tahunSync) {
         const { error } = await supabase.from('rkpdes').insert(freshRows.map(sanitizeRkpdesPayload));
         if (error) throw error;
     }
+
+    // Perbarui nominal prakiraan_biaya, volume & satuan pada baris yang sudah ada agar selalu sinkron dengan RAB
+    for (const r of rows) {
+        const codeKey = String(r.kode_unik_full || '').trim();
+        if (codeKey && existingCodes.has(codeKey)) {
+            await supabase
+                .from('rkpdes')
+                .update({
+                    prakiraan_biaya: Number(r.prakiraan_biaya || 0),
+                    volume: String(r.volume || 1),
+                    satuan: r.satuan || 'Paket',
+                    sumber_pembiayaan: r.sumber_pembiayaan || 'DDS',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('tahun', tahun)
+                .eq('kode_unik_full', codeKey);
+        }
+    }
+
     return { merged: freshRows.length, removed: staleIds.length };
 }
 

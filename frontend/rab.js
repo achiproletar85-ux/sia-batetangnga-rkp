@@ -752,22 +752,35 @@ async function loadInitialData() {
 
     initUnsavedChangesTracker();
 
-    // Handle redirect from pembiayaan page
-    const kodeUnikFromUrl = urlParams.get('kode_unik');
+    // Handle redirect from rkpdes or pembiayaan page
+    const kodeUnikFromUrl = urlParams.get('kode_unik') || urlParams.get('kode');
 
-    if (kodeUnikFromUrl && tahunFromUrl) {
-        showToast('Mengarahkan ke data RAB dari halaman pembiayaan...', 'success');
+    if (kodeUnikFromUrl) {
+        showToast('Mengarahkan ke data RAB kegiatan...', 'success');
         
         // Use a slight delay to ensure the DOM is fully ready
         setTimeout(async () => {
-            document.getElementById('select-year').value = tahunFromUrl;
-            // onYearChange will trigger data loading for the correct year
-            await onYearChange();
+            if (tahunFromUrl) {
+                const yearEl = document.getElementById('select-year');
+                if (yearEl && yearEl.value !== String(tahunFromUrl)) {
+                    yearEl.value = tahunFromUrl;
+                    await onYearChange();
+                }
+            }
             
             // Ensure the select-kode-unik dropdown is populated before setting its value
             const selectKodeUnik = document.getElementById('select-kode-unik');
             if (selectKodeUnik) {
-                selectKodeUnik.value = kodeUnikFromUrl;
+                let targetVal = kodeUnikFromUrl;
+                const cleanTarget = String(kodeUnikFromUrl).trim().replace(/\.+$/, '');
+                for (let i = 0; i < selectKodeUnik.options.length; i++) {
+                    const optVal = String(selectKodeUnik.options[i].value).trim().replace(/\.+$/, '');
+                    if (optVal === cleanTarget || optVal.includes(cleanTarget) || cleanTarget.includes(optVal)) {
+                        targetVal = selectKodeUnik.options[i].value;
+                        break;
+                    }
+                }
+                selectKodeUnik.value = targetVal;
                 // selectRpjm will load the RAB details for the selected item
                 await selectRpjm();
 
@@ -782,7 +795,7 @@ async function loadInitialData() {
             
             // Clean the URL to avoid reloading the same item on refresh
             window.history.replaceState({}, document.title, window.location.pathname);
-        }, 100);
+        }, 150);
     }
 }
 
@@ -2119,6 +2132,11 @@ async function executeSaveRAB() {
             currentRabRefMurni = json.data.id_referensi_murni;
         }
         setFormDirty(false);
+        try {
+            localStorage.setItem('sia_rab_updated', String(Date.now()));
+            localStorage.setItem('sia_rab_updated_kode', String(activity.kode_unik_full || kodeUnikFix).trim());
+            localStorage.setItem('sia_rab_updated_tahun', String(rabYear));
+        } catch (_) {}
         showToast(`✅ Data RAB ${rabTipe} berhasil disimpan ke Supabase!`, 'success');
         await loadSavedRabList();
         await refreshLockStatus();

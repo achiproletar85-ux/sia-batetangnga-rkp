@@ -231,6 +231,23 @@ assert(serverCode.includes('existingRow') && serverCode.includes('checkQ'), 'PUT
 assert(serverCode.includes("throw new Error('Gagal memperbarui data: tidak ada baris yang terpengaruh di tabel rkpdes')"), 'PUT /api/rkpdes melempar error eksplisit jika 0 baris terpengaruh (anti-silent-failure)');
 assert(serverCode.includes('Fallback item persisted into rkpdes ID:'), 'PUT /api/rkpdes melakukan auto-insert persistensi saat data berasal dari fallback RAB');
 
+// 14. INTEGRITAS SINKRONISASI BIAYA RAB -> RKPDES & KUNCI READONLY INPUT BIAYA
+console.log('\n--- INTEGRITAS SINKRONISASI BIAYA RAB -> RKPDES & KUNCI READONLY INPUT BIAYA ---\n');
+assert(htmlCode.includes('id="edit-semula-biaya"') && htmlCode.includes('readonly'), 'Input Prakiraan Biaya Semula terkunci readonly');
+assert(htmlCode.includes('id="edit-perubahan-biaya"') && htmlCode.includes('readonly'), 'Input Jumlah Biaya Menjadi terkunci readonly');
+assert(htmlCode.includes('id="edit-rkp-biaya"') && htmlCode.includes('readonly'), 'Input Jumlah Biaya Murni terkunci readonly');
+assert(htmlCode.includes('Terkunci otomatis: Nilai ini dihitung otomatis dari rincian belanja RAB'), 'Label peringatan terkunci otomatis terpasang pada input biaya');
+assert(htmlCode.includes('onclick="editInRabSemulaFromModal()"'), 'Tombol pintasan 1-klik ke RAB Murni terpasang di modal');
+assert(htmlCode.includes('onclick="editInRabPerubahanFromModal()"'), 'Tombol pintasan 1-klik ke RAB Perubahan terpasang di modal');
+assert(jsCode.includes('function editInRabSemulaFromModal'), 'Fungsi editInRabSemulaFromModal terdefinisi di rkpdes.js');
+assert(jsCode.includes('function editInRabPerubahanFromModal'), 'Fungsi editInRabPerubahanFromModal terdefinisi di rkpdes.js');
+assert(jsCode.includes('sia_rab_updated'), 'Auto-sync listener mendeteksi pembaruan belanja RAB di rkpdes.js');
+const rabJsCode = fs.readFileSync(path.resolve(__dirname, '..', 'frontend', 'rab.js'), 'utf8');
+assert(rabJsCode.includes("localStorage.setItem('sia_rab_updated'"), 'Modul RAB mencatat timestamp pembaruan sia_rab_updated saat simpan');
+assert(rabJsCode.includes("urlParams.get('kode_unik') || urlParams.get('kode')"), 'Modul RAB membaca parameter navigasi kegiatan 1-klik');
+assert(serverCode.includes('Perbarui nominal prakiraan_biaya, volume & satuan pada baris yang sudah ada'), 'server.js memperbarui prakiraan_biaya di rkpdes dari RAB');
+assert(serverCode.includes('rabMurniBiaya > 0 ? rabMurniBiaya : Number(m.prakiraan_biaya || 0)'), 'server.js memperkaya biayaSemula langsung dari RAB Murni');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
