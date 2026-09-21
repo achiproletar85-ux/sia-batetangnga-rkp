@@ -988,18 +988,25 @@ async function deleteRkpItem(key) {
 function editInRabFromModal() {
     const kode = document.getElementById('edit-rkp-kode')?.value || '';
     const cleanKode = kode.includes('..') ? kode.split('..')[0].trim() : kode.trim();
+    const nama = document.getElementById('edit-rkp-nama-kegiatan')?.value?.trim() ||
+                 document.getElementById('edit-rkp-jenis-kegiatan')?.value?.trim() || '';
     try {
         localStorage.setItem('rab_target_kode', cleanKode);
+        if (nama) localStorage.setItem('rab_target_nama', nama);
         localStorage.setItem('rab_tahun_anggaran', String(activeYear));
         localStorage.setItem('sia_tahun_anggaran', String(activeYear));
         localStorage.setItem('rab_tipe_anggaran', 'MURNI');
         localStorage.setItem('sia_tipe_anggaran', 'MURNI');
     } catch (_) {}
+    const params = new URLSearchParams();
     if (cleanKode) {
-        window.location.href = `rab.html?kode=${encodeURIComponent(cleanKode)}&kode_unik=${encodeURIComponent(cleanKode)}&tahun=${activeYear}&tipe=MURNI`;
-    } else {
-        window.location.href = `rab.html?tahun=${activeYear}&tipe=MURNI`;
+        params.set('kode', cleanKode);
+        params.set('kode_unik', cleanKode);
     }
+    if (nama) params.set('nama', nama);
+    params.set('tahun', String(activeYear));
+    params.set('tipe', 'MURNI');
+    window.location.href = `rab.html?${params.toString()}`;
 }
 window.editInRabFromModal = editInRabFromModal;
 
@@ -2469,36 +2476,48 @@ window.copyAllFromSemulaToMenjadi = copyAllFromSemulaToMenjadi;
 function editInRabSemulaFromModal() {
     const kode = document.getElementById('edit-perubahan-kode')?.value || '';
     const cleanKode = kode.includes('..') ? kode.split('..')[0].trim() : kode.trim();
+    const nama = document.getElementById('edit-perubahan-nama-kegiatan')?.textContent?.trim() || '';
     try {
         localStorage.setItem('rab_target_kode', cleanKode);
+        if (nama) localStorage.setItem('rab_target_nama', nama);
         localStorage.setItem('rab_tahun_anggaran', String(activeYear));
         localStorage.setItem('sia_tahun_anggaran', String(activeYear));
         localStorage.setItem('rab_tipe_anggaran', 'MURNI');
         localStorage.setItem('sia_tipe_anggaran', 'MURNI');
     } catch (_) {}
+    const params = new URLSearchParams();
     if (cleanKode) {
-        window.location.href = `rab.html?kode=${encodeURIComponent(cleanKode)}&kode_unik=${encodeURIComponent(cleanKode)}&tahun=${activeYear}&tipe=MURNI`;
-    } else {
-        window.location.href = `rab.html?tahun=${activeYear}&tipe=MURNI`;
+        params.set('kode', cleanKode);
+        params.set('kode_unik', cleanKode);
     }
+    if (nama) params.set('nama', nama);
+    params.set('tahun', String(activeYear));
+    params.set('tipe', 'MURNI');
+    window.location.href = `rab.html?${params.toString()}`;
 }
 window.editInRabSemulaFromModal = editInRabSemulaFromModal;
 
 function editInRabPerubahanFromModal() {
     const kode = document.getElementById('edit-perubahan-kode')?.value || '';
     const cleanKode = kode.includes('..') ? kode.split('..')[0].trim() : kode.trim();
+    const nama = document.getElementById('edit-perubahan-nama-kegiatan')?.textContent?.trim() || '';
     try {
         localStorage.setItem('rab_target_kode', cleanKode);
+        if (nama) localStorage.setItem('rab_target_nama', nama);
         localStorage.setItem('rab_tahun_anggaran', String(activeYear));
         localStorage.setItem('sia_tahun_anggaran', String(activeYear));
         localStorage.setItem('rab_tipe_anggaran', 'PERUBAHAN');
         localStorage.setItem('sia_tipe_anggaran', 'PERUBAHAN');
     } catch (_) {}
+    const params = new URLSearchParams();
     if (cleanKode) {
-        window.location.href = `rab.html?kode=${encodeURIComponent(cleanKode)}&kode_unik=${encodeURIComponent(cleanKode)}&tahun=${activeYear}&tipe=PERUBAHAN`;
-    } else {
-        window.location.href = `rab.html?tahun=${activeYear}&tipe=PERUBAHAN`;
+        params.set('kode', cleanKode);
+        params.set('kode_unik', cleanKode);
     }
+    if (nama) params.set('nama', nama);
+    params.set('tahun', String(activeYear));
+    params.set('tipe', 'PERUBAHAN');
+    window.location.href = `rab.html?${params.toString()}`;
 }
 window.editInRabPerubahanFromModal = editInRabPerubahanFromModal;
 

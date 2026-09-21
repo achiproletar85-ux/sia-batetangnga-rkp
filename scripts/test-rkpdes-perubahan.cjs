@@ -248,9 +248,25 @@ assert(rabJsCode.includes("urlParams.get('kode_unik') || urlParams.get('kode')")
 assert(serverCode.includes('Perbarui nominal prakiraan_biaya, volume & satuan pada baris yang sudah ada'), 'server.js memperbarui prakiraan_biaya di rkpdes dari RAB');
 assert(serverCode.includes('rabMurniBiaya > 0 ? rabMurniBiaya : Number(m.prakiraan_biaya || 0)'), 'server.js memperkaya biayaSemula langsung dari RAB Murni');
 
+// 15. ALUR NAVIGASI 1-KLIK RKPDES KE RAB & MULTI-TIER AUTO-SELECT
+console.log('\n--- ALUR NAVIGASI 1-KLIK RKPDES KE RAB & MULTI-TIER AUTO-SELECT ---\n');
+assert(rabJsCode.includes('async function applyAutoSelectFromNavigation'), 'Fungsi applyAutoSelectFromNavigation terdefinisi di rab.js');
+assert(rabJsCode.includes('window.applyAutoSelectFromNavigation = applyAutoSelectFromNavigation'), 'applyAutoSelectFromNavigation diekspos ke window di rab.js');
+assert(rabJsCode.includes('selectEl.options.length <= 1'), 'Guard asinkron memastikan options selesai dimuat sebelum matching');
+assert(rabJsCode.includes('canonicalCode'), 'Canonical dot numbers segment match terpasang');
+assert(rabJsCode.includes('cleanDigits'), 'Pure digits segment match terpasang');
+assert(rabJsCode.includes('siltapKeywords'), 'Activity name / keyword fallback (Siltap / Penghasilan Tetap) terpasang');
+assert(rabJsCode.includes('selectEl.value = matchedVal'), 'Eksekusi pemilihan dropdown otomatis terpasang');
+assert(rabJsCode.includes('selectRpjm(true)'), 'Panggilan selectRpjm(true) otomatis terpasang');
+assert(rabJsCode.includes('resetRabItemForm()'), 'Form rincian direset ke mode tambah item baru');
+assert(rabJsCode.includes('scrollIntoView'), 'Smooth scroll ke target form RAB terpasang');
+assert(jsCode.includes("localStorage.setItem('rab_target_nama', nama)"), 'rkpdes.js menyimpan rab_target_nama ke localStorage');
+assert(jsCode.includes("params.set('nama', nama)"), 'rkpdes.js menyertakan parameter nama di URL');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
 console.log('========================================\n');
 
 if (fail > 0) process.exit(1);
+

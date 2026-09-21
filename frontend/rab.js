@@ -752,51 +752,8 @@ async function loadInitialData() {
 
     initUnsavedChangesTracker();
 
-    // Handle redirect from rkpdes or pembiayaan page
-    const kodeUnikFromUrl = urlParams.get('kode_unik') || urlParams.get('kode');
-
-    if (kodeUnikFromUrl) {
-        showToast('Mengarahkan ke data RAB kegiatan...', 'success');
-        
-        // Use a slight delay to ensure the DOM is fully ready
-        setTimeout(async () => {
-            if (tahunFromUrl) {
-                const yearEl = document.getElementById('select-year');
-                if (yearEl && yearEl.value !== String(tahunFromUrl)) {
-                    yearEl.value = tahunFromUrl;
-                    await onYearChange();
-                }
-            }
-            
-            // Ensure the select-kode-unik dropdown is populated before setting its value
-            const selectKodeUnik = document.getElementById('select-kode-unik');
-            if (selectKodeUnik) {
-                let targetVal = kodeUnikFromUrl;
-                const cleanTarget = String(kodeUnikFromUrl).trim().replace(/\.+$/, '');
-                for (let i = 0; i < selectKodeUnik.options.length; i++) {
-                    const optVal = String(selectKodeUnik.options[i].value).trim().replace(/\.+$/, '');
-                    if (optVal === cleanTarget || optVal.includes(cleanTarget) || cleanTarget.includes(optVal)) {
-                        targetVal = selectKodeUnik.options[i].value;
-                        break;
-                    }
-                }
-                selectKodeUnik.value = targetVal;
-                // selectRpjm will load the RAB details for the selected item
-                await selectRpjm();
-
-                // Siapkan form dalam mode Tambah Item Baru (bukan auto-edit item 0 yang memicu penimpaan)
-                resetRabItemForm();
-            }
-
-            const formPanel = document.getElementById('rab-form-panel');
-            if (formPanel) {
-                formPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-            
-            // Clean the URL to avoid reloading the same item on refresh
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }, 150);
-    }
+    // Handle redirect from rkpdes or pembiayaan page with multi-tier smart auto-select
+    await applyAutoSelectFromNavigation();
 }
 
 function populateGroupOptions() {
@@ -964,6 +921,211 @@ function autoSelectSumberDana(el, sumberText) {
     }
 }
 
+let _autoSelectInProgress = false;
+let _autoSelectRetryCount = 0;
+let _autoSelectDone = false;
+
+async function applyAutoSelectFromNavigation() {
+    if (_autoSelectInProgress || _autoSelectDone) return;
+
+    // 1. Ambil target dari URL params atau localStorage fallback
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetKode = (urlParams.get('kode_unik') || urlParams.get('kode') || localStorage.getItem('rab_target_kode') || '').trim();
+    const targetNama = (urlParams.get('nama') || localStorage.getItem('rab_target_nama') || '').trim();
+
+    // Jika tidak ada target navigasi, tidak perlu lakukan auto-select
+    if (!targetKode && !targetNama) return;
+
+    const selectEl = document.getElementById('select-kode-unik');
+    if (!selectEl) return;
+
+    // Guard Asinkron: Pastikan seluruh <option> dari API sudah terisi di dropdown
+    // Jika dropdown masih kosong atau baru ada placeholder (-- Pilih...), tunggu dengan retry
+    if (selectEl.options.length <= 1) {
+        if (_autoSelectRetryCount < 20) {
+            _autoSelectRetryCount++;
+            setTimeout(applyAutoSelectFromNavigation, 150);
+        }
+        return;
+    }
+
+    _autoSelectInProgress = true;
+
+    try {
+        const cleanCode = (s) => String(s || '').trim().replace(/^PEM\./i, '').replace(/\.+$/, '');
+
+        // Canonical dot numbers: e.g. "01.01.01" -> "1.1.1", "1.01.01" -> "1.1.1", "1.01.01..1" -> "1.1.1.1"
+        const canonicalCode = (s) => {
+            const c = cleanCode(s);
+            if (!c) return '';
+            const parts = c.split('.').map(p => p.trim()).filter(Boolean);
+            if (!parts.length) return '';
+            return parts.map(p => {
+                const num = parseInt(p, 10);
+                return isNaN(num) ? p.toLowerCase() : String(num);
+            }).join('.');
+        };
+
+        const cleanDigits = (s) => String(s || '').replace(/\D/g, '');
+
+        const targetClean = cleanCode(targetKode);
+        const targetCanon = canonicalCode(targetKode);
+        const targetDig = cleanDigits(targetKode);
+        const targetNamaLower = targetNama.toLowerCase();
+
+        let matchedVal = null;
+        const optionsList = Array.from(selectEl.options).filter(opt => opt.value);
+
+        // --- LAPISAN 1: Exact & Clean Match ---
+        if (targetClean) {
+            for (const opt of optionsList) {
+                const optVal = opt.value;
+                const optClean = cleanCode(optVal);
+                if (optVal === targetKode || optClean === targetClean) {
+                    matchedVal = optVal;
+                    break;
+                }
+            }
+        }
+
+        // --- LAPISAN 2: Canonical Dot Numbers / Digits Segment Match ---
+        if (!matchedVal && targetCanon) {
+            for (const opt of optionsList) {
+                const optVal = opt.value;
+                const optCanon = canonicalCode(optVal);
+                if (optCanon && optCanon === targetCanon) {
+                    matchedVal = optVal;
+                    break;
+                }
+            }
+        }
+
+        if (!matchedVal && targetDig && targetDig.length >= 3) {
+            for (const opt of optionsList) {
+                const optVal = opt.value;
+                const optDig = cleanDigits(optVal);
+                if (optDig === targetDig) {
+                    matchedVal = optVal;
+                    break;
+                }
+            }
+        }
+
+        if (!matchedVal && targetClean) {
+            for (const opt of optionsList) {
+                const optVal = opt.value;
+                const optClean = cleanCode(optVal);
+                if (optClean && (optClean.startsWith(targetClean) || targetClean.startsWith(optClean))) {
+                    matchedVal = optVal;
+                    break;
+                }
+            }
+        }
+
+        if (!matchedVal && targetCanon) {
+            for (const opt of optionsList) {
+                const optVal = opt.value;
+                const optCanon = canonicalCode(optVal);
+                if (optCanon && (optCanon.startsWith(targetCanon) || targetCanon.startsWith(optCanon))) {
+                    matchedVal = optVal;
+                    break;
+                }
+            }
+        }
+
+        // --- LAPISAN 3: Activity Name / Keyword Fallback ---
+        if (!matchedVal && targetNamaLower) {
+            const siltapKeywords = ['siltap', 'penghasilan tetap'];
+            const isTargetSiltap = siltapKeywords.some(k => targetNamaLower.includes(k));
+
+            for (const opt of optionsList) {
+                const labelLower = (opt.text || opt.textContent || '').toLowerCase();
+                if (isTargetSiltap && siltapKeywords.some(k => labelLower.includes(k))) {
+                    if (targetNamaLower.includes('kepala desa') || targetNamaLower.includes('kades')) {
+                        if (labelLower.includes('kepala desa') || labelLower.includes('kades')) {
+                            matchedVal = opt.value;
+                            break;
+                        }
+                    } else if (targetNamaLower.includes('perangkat') || targetNamaLower.includes('aparat')) {
+                        if (labelLower.includes('perangkat') || labelLower.includes('aparat')) {
+                            matchedVal = opt.value;
+                            break;
+                        }
+                    } else if (targetNamaLower.includes('bpd')) {
+                        if (labelLower.includes('bpd')) {
+                            matchedVal = opt.value;
+                            break;
+                        }
+                    } else {
+                        matchedVal = opt.value;
+                        break;
+                    }
+                }
+            }
+
+            if (!matchedVal) {
+                const cleanName = (s) => s.replace(/^(kegiatan|penyelenggaraan|pelaksanaan|pembangunan|pengadaan|pembinaan|pemberdayaan)\s+/gi, '').trim();
+                const simpTargetName = cleanName(targetNamaLower);
+
+                for (const opt of optionsList) {
+                    const labelLower = (opt.text || opt.textContent || '').toLowerCase();
+                    const labelClean = cleanName(labelLower);
+                    if (simpTargetName && (labelLower.includes(simpTargetName) || labelClean.includes(simpTargetName) || (simpTargetName.length > 5 && labelClean.includes(simpTargetName.slice(0, 15))))) {
+                        matchedVal = opt.value;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // --- EKSEKUSI PEMILIHAN & PEMUATAN ---
+        if (matchedVal) {
+            console.log(`[applyAutoSelectFromNavigation] Berhasil mencocokkan nilai '${matchedVal}' untuk target [${targetKode}] '${targetNama}'`);
+            selectEl.value = matchedVal;
+            selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+            const formSelect = document.getElementById('select-kode-unik-form');
+            if (formSelect) formSelect.value = matchedVal;
+
+            await selectRpjm(true);
+            resetRabItemForm();
+
+            showToast(`Membuka kegiatan RAB: ${matchedVal}`, 'success');
+
+            setTimeout(() => {
+                const targetScrollEl = document.getElementById('rab-form-panel') || document.getElementById('rab-items-container');
+                if (targetScrollEl) {
+                    targetScrollEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 300);
+
+            _autoSelectDone = true;
+        } else {
+            console.warn(`[applyAutoSelectFromNavigation] Tidak ditemukan kegiatan yang cocok untuk target [${targetKode}] '${targetNama}'`);
+        }
+
+        // Bersihkan parameter target setelah selesai agar tidak berulang saat refresh
+        try {
+            localStorage.removeItem('rab_target_kode');
+            localStorage.removeItem('rab_target_nama');
+            if (window.location.search) {
+                const cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete('kode');
+                cleanUrl.searchParams.delete('kode_unik');
+                cleanUrl.searchParams.delete('nama');
+                const remaining = cleanUrl.searchParams.toString();
+                window.history.replaceState({}, document.title, cleanUrl.pathname + (remaining ? '?' + remaining : ''));
+            }
+        } catch (_) {}
+
+    } catch (err) {
+        console.error('❌ Error in applyAutoSelectFromNavigation:', err);
+    } finally {
+        _autoSelectInProgress = false;
+    }
+}
+window.applyAutoSelectFromNavigation = applyAutoSelectFromNavigation;
+
 let rabActivitiesGlobal = [];
 
 async function loadRabActivities() {
@@ -980,6 +1142,7 @@ async function loadRabActivities() {
         
         renderRabActivityOptions();
         populateGroupCetakDropdown();
+        applyAutoSelectFromNavigation();
     } catch (error) {
         console.error('❌ Error loadRabActivities:', error);
         showToast('Gagal memuat data kegiatan RAB', 'error');
