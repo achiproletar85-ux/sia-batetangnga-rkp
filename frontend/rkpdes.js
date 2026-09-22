@@ -2801,6 +2801,37 @@ function editInRabPerubahanFromModal() {
 }
 window.editInRabPerubahanFromModal = editInRabPerubahanFromModal;
 
+// --- Pembacaan input yang menghormati pengosongan yang disengaja ---------------
+// Bug lama: `const val = document.getElementById('x')?.value?.trim() || 'default'`
+// memperlakukan input yang SENGAJA dikosongkan pengguna sebagai "tidak ada nilai",
+// lalu mengisinya kembali dengan nilai lama/default (SEMULA). Helper di bawah
+// memisahkan "tidak diubah" dari "sengaja dikosongkan":
+//   - elemen tidak ada        → fallback (nilai lama)
+//   - input berisi apa pun    → nilai eksplisit apa adanya, termasuk '' (kosong)
+function readEditText(id, fallback = '') {
+    const el = document.getElementById(id);
+    if (!el) return fallback;
+    return String(el.value ?? '').trim();
+}
+
+// Field numerik: input dikosongkan → 0 eksplisit (bukan fallback ke nilai lama).
+function readEditNumber(id, fallback = 0) {
+    const el = document.getElementById(id);
+    if (!el) return fallback;
+    const raw = String(el.value ?? '').trim();
+    if (raw === '') return 0;
+    const n = Number(raw.replace(/[^\d.-]/g, ''));
+    return Number.isFinite(n) ? n : fallback;
+}
+
+// Field pilihan (select): tidak bisa dikosongkan bebas, nilai kosong → fallback.
+function readEditSelect(id, fallback = '') {
+    const el = document.getElementById(id);
+    if (!el) return fallback;
+    const v = String(el.value ?? '').trim();
+    return v === '' ? fallback : v;
+}
+
 let _isSavingRkpPerubahanItem = false;
 async function saveEditRkpPerubahanItem(event) {
     if (event) event.preventDefault();
@@ -2851,36 +2882,38 @@ async function saveEditRkpPerubahanItem(event) {
             : Math.round(Number(document.getElementById('edit-perubahan-biaya')?.value) || 0));
 
     // Nilai Sisi SEMULA
-    const volSemula = document.getElementById('edit-semula-volume')?.value?.trim() || '1';
-    const satSemula = document.getElementById('edit-semula-satuan')?.value?.trim() || 'Paket';
-    const lokasiSemula = document.getElementById('edit-semula-lokasi')?.value?.trim() || 'Desa Batetangnga';
-    const waktuSemula = document.getElementById('edit-semula-waktu')?.value?.trim() || '12 Bulan';
-    const sumberSemula = document.getElementById('edit-semula-sumber-biaya')?.value || 'DDS';
-    const polaSemula = document.getElementById('edit-semula-pola')?.value || 'Swakelola';
-    const sdgsSemula = document.getElementById('edit-semula-sdgs')?.value?.trim() || '';
+    // readEditText/readEditNumber: input kosong = pengguna SENGAJA mengosongkan,
+    // sehingga dikirim sebagai '' (teks) atau 0 (numerik) — BUKAN fallback ke nilai lama.
+    const volSemula = String(readEditNumber('edit-semula-volume', 1));
+    const satSemula = readEditText('edit-semula-satuan', 'Paket');
+    const lokasiSemula = readEditText('edit-semula-lokasi', 'Desa Batetangnga');
+    const waktuSemula = readEditText('edit-semula-waktu', '12 Bulan');
+    const sumberSemula = readEditSelect('edit-semula-sumber-biaya', 'DDS');
+    const polaSemula = readEditSelect('edit-semula-pola', 'Swakelola');
+    const sdgsSemula = readEditText('edit-semula-sdgs', '');
     const rawStuntingSemula = document.getElementById('edit-semula-stunting')?.value || item.stunting_semula || item.semula?.stunting || item.stunting || 'Tidak';
     const stuntingSemulaStr = (rawStuntingSemula === 'Ya' || rawStuntingSemula === true || rawStuntingSemula === 'true') ? 'Ya' : 'Tidak';
     const stuntingSemula = stuntingSemulaStr;
-    const eksistingSemula = document.getElementById('edit-semula-data-eksisting')?.value?.trim() || '-';
-    const mLSemula = document.getElementById('edit-semula-manfaat-l')?.value?.trim() || '-';
-    const mPSemula = document.getElementById('edit-semula-manfaat-p')?.value?.trim() || '-';
-    const mRtmSemula = document.getElementById('edit-semula-manfaat-rtm')?.value?.trim() || '-';
+    const eksistingSemula = readEditText('edit-semula-data-eksisting', '-');
+    const mLSemula = readEditText('edit-semula-manfaat-l', '-');
+    const mPSemula = readEditText('edit-semula-manfaat-p', '-');
+    const mRtmSemula = readEditText('edit-semula-manfaat-rtm', '-');
 
     // Nilai Sisi MENJADI
-    const volMenjadi = document.getElementById('edit-perubahan-volume')?.value?.trim() || '1';
-    const satMenjadi = document.getElementById('edit-perubahan-satuan')?.value?.trim() || 'Paket';
-    const lokasiMenjadi = document.getElementById('edit-perubahan-lokasi')?.value?.trim() || 'Desa Batetangnga';
-    const waktuMenjadi = document.getElementById('edit-perubahan-waktu')?.value?.trim() || '12 Bulan';
-    const sumberMenjadi = document.getElementById('edit-perubahan-sumber-biaya')?.value || 'DDS';
-    const polaMenjadi = document.getElementById('edit-perubahan-pola')?.value || 'Swakelola';
-    const sdgsMenjadi = document.getElementById('edit-perubahan-sdgs')?.value?.trim() || '';
+    const volMenjadi = String(readEditNumber('edit-perubahan-volume', 1));
+    const satMenjadi = readEditText('edit-perubahan-satuan', 'Paket');
+    const lokasiMenjadi = readEditText('edit-perubahan-lokasi', 'Desa Batetangnga');
+    const waktuMenjadi = readEditText('edit-perubahan-waktu', '12 Bulan');
+    const sumberMenjadi = readEditSelect('edit-perubahan-sumber-biaya', 'DDS');
+    const polaMenjadi = readEditSelect('edit-perubahan-pola', 'Swakelola');
+    const sdgsMenjadi = readEditText('edit-perubahan-sdgs', '');
     const rawStuntingMenjadi = document.getElementById('edit-perubahan-stunting')?.value || item.stunting_menjadi || item.menjadi?.stunting || item.stunting || 'Tidak';
     const stuntingMenjadiStr = (rawStuntingMenjadi === 'Ya' || rawStuntingMenjadi === true || rawStuntingMenjadi === 'true') ? 'Ya' : 'Tidak';
     const stuntingMenjadi = stuntingMenjadiStr;
-    const eksistingMenjadi = document.getElementById('edit-perubahan-data-eksisting')?.value?.trim() || '-';
-    const mLMenjadi = document.getElementById('edit-perubahan-manfaat-l')?.value?.trim() || '-';
-    const mPMenjadi = document.getElementById('edit-perubahan-manfaat-p')?.value?.trim() || '-';
-    const mRtmMenjadi = document.getElementById('edit-perubahan-manfaat-rtm')?.value?.trim() || '-';
+    const eksistingMenjadi = readEditText('edit-perubahan-data-eksisting', '-');
+    const mLMenjadi = readEditText('edit-perubahan-manfaat-l', '-');
+    const mPMenjadi = readEditText('edit-perubahan-manfaat-p', '-');
+    const mRtmMenjadi = readEditText('edit-perubahan-manfaat-rtm', '-');
 
     const payload = {
         tahun: activeYear,

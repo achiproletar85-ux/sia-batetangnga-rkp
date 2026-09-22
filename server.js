@@ -290,6 +290,35 @@ function hasTextValue(v) {
     return v !== null && v !== undefined && String(v).trim() !== '' && String(v).trim() !== '-';
 }
 
+// --- Nilai eksplisit vs "field tidak dikirim" -------------------------------
+// Bug lama: pola `payload.field = inputVal || nilaiLama` memperlakukan input yang
+// SENGAJA dikosongkan pengguna ('') sebagai "tidak ada nilai", sehingga nilai
+// lama/default (SEMULA / baseline rpjmdes_standar / RAB murni) muncul kembali.
+// Helper di bawah memisahkan dua kondisi:
+//   - `undefined` / `null`  → field tidak dikirim  → pakai nilai lama (fallback)
+//   - string kosong ('')    → sengaja dikosongkan  → simpan kosong (bukan fallback)
+function isFieldProvided(v) {
+    return v !== undefined && v !== null;
+}
+
+// Teks yang sengaja dikosongkan disimpan sebagai '-' (penanda "kosong" resmi
+// proyek ini). Penanda '-' bersifat truthy sehingga rantai `||` lama tidak akan
+// menghidupkan kembali nilai lama saat render.
+function pickExplicitText(v, fallback, emptyAs = '-') {
+    if (!isFieldProvided(v)) return fallback;
+    const s = String(v).trim();
+    return s === '' ? emptyAs : s;
+}
+
+// Angka yang sengaja dikosongkan menjadi 0 eksplisit (bukan fallback nilai lama).
+function pickExplicitNumber(v, fallback, emptyAs = 0) {
+    if (!isFieldProvided(v)) return fallback;
+    const s = String(v).trim();
+    if (s === '') return emptyAs;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : fallback;
+}
+
 function isTableMissingError(error) {
     const message = String(error?.message || '').toLowerCase();
     // common Postgres / PostgREST messages when a table is missing
@@ -8102,6 +8131,17 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                 matchedPerRowIds.add(String(p.id));
             }
 
+            // Penanda "rincian MENJADI sudah disimpan eksplisit oleh admin" (dari PUT).
+            // Bila aktif, nilai MENJADI dari baris RAB PERUBAHAN dipakai APA ADANYA —
+            // termasuk 0 / '-' — dan tidak boleh di-coalesce kembali ke nilai SEMULA.
+            const pRpjm = (p && p.rpjm_data) || {};
+            const rincianDiubahManual = pRpjm.rincian_override === true || String(pRpjm.rincian_override) === 'true';
+            // Nilai MENJADI yang tersimpan eksplisit (0 / '' / '-' tetap dipakai apa adanya).
+            const pickMenjadiText = (v, fallback) => {
+                if (rincianDiubahManual) return hasTextValue(v) ? String(v).trim() : '-';
+                return hasTextValue(v) ? String(v).trim() : fallback;
+            };
+
             const rawNamaMurni = (m.nama_kegiatan && String(m.nama_kegiatan).trim() !== '' && String(m.nama_kegiatan).trim() !== '-')
                 ? String(m.nama_kegiatan).trim()
                 : ((p && (p.nama_kegiatan || p.uraian)) || m.jenis_kegiatan);
@@ -8110,13 +8150,20 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             const rabMurniMatch = rabMurniMap.get(code) || rabMurniMap.get(cleanCode);
             const rabMurniBiaya = rabMurniMatch ? Number(rabMurniMatch.jumlah_anggaran || 0) : 0;
             const biayaSemula = rabMurniBiaya > 0 ? rabMurniBiaya : Number(m.prakiraan_biaya || 0);
-            const biayaMenjadi = (p && Number(p.jumlah_anggaran) > 0) ? Number(p.jumlah_anggaran || 0) : biayaSemula;
+            // Anti falsy-fallback: MENJADI = 0 adalah nilai SAH (bukan "belum diisi").
+            // Hanya baris PERUBAHAN yang benar-benar tidak ada yang mewarisi SEMULA,
+            // dan hanya bila admin belum menyimpan rincian MENJADI secara eksplisit.
+            const biayaMenjadi = (p && rincianDiubahManual)
+                ? Number(p.jumlah_anggaran ?? 0)
+                : ((p && Number(p.jumlah_anggaran) > 0) ? Number(p.jumlah_anggaran || 0) : biayaSemula);
             const selisih = biayaMenjadi - biayaSemula;
 
-            const volSemula = String(m.volume || 1);
-            const satSemula = String(m.satuan || 'Kegiatan');
-            const volMenjadi = p ? String(p.volume || volSemula) : volSemula;
-            const satMenjadi = p ? String(p.satuan || satSemula) : satSemula;
+            const volSemula = (m.volume === null || m.volume === undefined || String(m.volume).trim() === '') ? '1' : String(m.volume).trim();
+            const satSemula = (m.satuan === null || m.satuan === undefined || String(m.satuan).trim() === '') ? 'Kegiatan' : String(m.satuan).trim();
+            // Volume 0 tetap dihormati (nullish/'' check, bukan `||`).
+            const volMenjadi = p ? ((p.volume === null || p.volume === undefined || String(p.volume).trim() === '') ? volSemula : String(p.volume).trim()) : volSemula;
+            const satMenjadi = p ? pickMenjadiText(p.satuan, satSemula) : satSemula;
+            const volSatuanMenjadi = (!hasTextValue(satMenjadi) || volMenjadi.toLowerCase().includes(satMenjadi.toLowerCase())) ? volMenjadi : `${volMenjadi} ${satMenjadi}`;
 
             // ZERO-DEFAULT SDGs: SEMULA dari kolom sdgs baris murni; MENJADI dari
             // kolom mendukung_sdgs (hasil edit tersimpan) / data RAB perubahan bila ada.
@@ -8132,9 +8179,12 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             // PUT /api/rkpdes/perubahan, sehingga p.lokasi wajib menang atas m.lokasi
             // (m.lokasi adalah sisi SEMULA/RKPDes). Tanpa ini hasil edit lokasi MENJADI
             // akan tampak kembali ke nilai lama di perangkat lain.
-            const lokasiVal = (p && hasTextValue(p.lokasi))
-                ? String(p.lokasi).trim()
-                : (hasTextValue(m.lokasi) ? String(m.lokasi).trim() : 'Desa Batetangnga');
+            // Lokasi MENJADI yang dikosongkan admin tetap '-' (tidak di-coalesce ke SEMULA).
+            const lokasiVal = (p && rincianDiubahManual)
+                ? (hasTextValue(p.lokasi) ? String(p.lokasi).trim() : '-')
+                : ((p && hasTextValue(p.lokasi))
+                    ? String(p.lokasi).trim()
+                    : (hasTextValue(m.lokasi) ? String(m.lokasi).trim() : 'Desa Batetangnga'));
             const manfaatVal = m.total_manfaat ? `${m.total_manfaat} Orang` : (m.penerima_manfaat && m.penerima_manfaat !== '-' ? m.penerima_manfaat : ((resolved.total_manfaat || (resolved.matchedStd && resolved.matchedStd.total_manfaat)) ? `${resolved.total_manfaat || resolved.matchedStd.total_manfaat} Orang` : '-'));
             const sumberSemula = m.sumber_pembiayaan || 'DDS';
             const sumberMenjadi = p ? (p.sumber_dana || sumberSemula) : sumberSemula;
@@ -8205,7 +8255,6 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             // `manfaat_override = true` berarti admin SUDAH menyimpan nilai ini secara
             // eksplisit (via /api/rkpdes/perubahan/manfaat), sehingga nilainya dipakai
             // apa adanya — termasuk '-' — dan tidak boleh ditimpa nilai SEMULA/RPJMDes.
-            const pRpjm = (p && p.rpjm_data) || {};
             const formatManfaatCell = (v, unit) => {
                 if (!hasTextValue(v)) return '-';
                 const s = String(v).trim();
@@ -8246,9 +8295,13 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             }
 
             const sdgsMenjadiSaved = pRpjm.sdgs ? formatSdgsLabel(cleanSdgsRaw(pRpjm.sdgs)) : null;
-            const dataEksistingMenjadi = pRpjm.data_eksisting || dataEksistingVal;
-            const waktuMenjadi = pRpjm.waktu_pelaksanaan || m.waktu_pelaksanaan || '12 Bulan';
-            const polaMenjadi = pRpjm.pola_pelaksanaan || m.pola_pelaksanaan || 'Swakelola';
+            // Rincian MENJADI yang disimpan eksplisit tidak boleh di-coalesce ke SEMULA;
+            // data_eksisting '-' berarti admin sengaja mengosongkannya.
+            const dataEksistingMenjadi = rincianDiubahManual
+                ? (hasTextValue(pRpjm.data_eksisting) ? String(pRpjm.data_eksisting).trim() : '-')
+                : (pRpjm.data_eksisting || dataEksistingVal);
+            const waktuMenjadi = pickMenjadiText(pRpjm.waktu_pelaksanaan, m.waktu_pelaksanaan || '12 Bulan');
+            const polaMenjadi = pickMenjadiText(pRpjm.pola_pelaksanaan, m.pola_pelaksanaan || 'Swakelola');
             const stuntingSemula = m.stunting || 'Tidak';
             const stuntingMenjadi = (pRpjm && pRpjm.stunting) || m.stunting || 'Tidak';
 
@@ -8294,7 +8347,7 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                     lokasi: lokasiVal,
                     volume: volMenjadi,
                     satuan: satMenjadi,
-                    volume_satuan: (volMenjadi.toLowerCase().includes(satMenjadi.toLowerCase()) || !satMenjadi) ? volMenjadi : `${volMenjadi} ${satMenjadi}`,
+                    volume_satuan: volSatuanMenjadi,
                     manfaat_l: lpRtmMenjadi.l,
                     manfaat_p: lpRtmMenjadi.p,
                     manfaat_rtm: lpRtmMenjadi.rtm,
@@ -8918,14 +8971,16 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
         // ==========================================
         if (body.semula && typeof body.semula === 'object') {
             const sem = body.semula;
-            const volSemulaNum = (sem.volume !== undefined && sem.volume !== null && sem.volume !== '' && !isNaN(Number(sem.volume))) ? Number(sem.volume) : 1;
-            const satSemulaStr = String(sem.satuan || 'Paket');
-            const biayaSemulaNum = (sem.biaya !== undefined && sem.biaya !== null && sem.biaya !== '' && !isNaN(Number(sem.biaya))) ? Number(sem.biaya) : 0;
-            const lokasiSemulaStr = String(sem.lokasi || 'Desa Batetangnga');
-            const sumberSemulaStr = String(sem.sumber_biaya || sem.sumber_dana || 'DDS');
-            const waktuSemulaStr = String(sem.waktu_pelaksanaan || '12 Bulan');
-            const polaSemulaStr = String(sem.pola_pelaksanaan || 'Swakelola');
-            const eksistingSemulaStr = String(sem.data_eksisting || '-');
+            // Anti falsy-fallback: pengosongan input yang disengaja ('') TIDAK boleh
+            // dikembalikan menjadi nilai lama/default (lihat pickExplicitText/Number).
+            const volSemulaNum = pickExplicitNumber(sem.volume, 1);
+            const satSemulaStr = pickExplicitText(sem.satuan, 'Paket');
+            const biayaSemulaNum = pickExplicitNumber(sem.biaya, 0);
+            const lokasiSemulaStr = pickExplicitText(sem.lokasi, 'Desa Batetangnga');
+            const sumberSemulaStr = pickExplicitText(isFieldProvided(sem.sumber_biaya) ? sem.sumber_biaya : sem.sumber_dana, 'DDS');
+            const waktuSemulaStr = pickExplicitText(sem.waktu_pelaksanaan, '12 Bulan');
+            const polaSemulaStr = pickExplicitText(sem.pola_pelaksanaan, 'Swakelola');
+            const eksistingSemulaStr = pickExplicitText(sem.data_eksisting, '-');
             const cleanSdgsSem = cleanSdgsRaw(sem.sdgs);
 
             const numLSemula = parseManfaatNumber(sem.manfaat_l);
@@ -8971,7 +9026,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             try {
                 const stuntingSemulaStr = (sem.stunting === 'Ya' || sem.stunting === true || sem.stunting === 'true') ? 'Ya' : 'Tidak';
                 const rkpSemulaPayload = {
-                    volume: String((sem.volume !== undefined && sem.volume !== null && sem.volume !== '' && !isNaN(Number(sem.volume))) ? sem.volume : 1),
+                    volume: String(volSemulaNum),
                     satuan: satSemulaStr,
                     prakiraan_biaya: biayaSemulaNum,
                     lokasi: lokasiSemulaStr,
@@ -9056,16 +9111,18 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
         // 2. KOORDINASI DATA SISI MENJADI (Perubahan)
         // ==========================================
         const men = (body.menjadi && typeof body.menjadi === 'object') ? body.menjadi : body;
+        // Anti falsy-fallback MENJADI: kosong disengaja => 0 (numerik) atau '-' (teks),
+        // BUKAN dikembalikan ke nilai SEMULA/default.
         const rawMenVol = men.volume ?? body.volume;
-        const volNum = (rawMenVol !== undefined && rawMenVol !== null && rawMenVol !== '' && !isNaN(Number(rawMenVol))) ? Number(rawMenVol) : 1;
-        const satStr = String(men.satuan || body.satuan || 'Paket');
+        const volNum = pickExplicitNumber(rawMenVol, 1);
+        const satStr = pickExplicitText(men.satuan ?? body.satuan, 'Paket');
         const rawMenBiaya = men.biaya != null ? men.biaya : body.biaya;
-        const biayaNum = (rawMenBiaya !== undefined && rawMenBiaya !== null && rawMenBiaya !== '' && !isNaN(Number(rawMenBiaya))) ? Number(rawMenBiaya) : 0;
-        const lokasiStr = String(men.lokasi || body.lokasi || 'Desa Batetangnga');
-        const sumberStr = String(men.sumber_biaya || men.sumber_dana || body.sumber_biaya || body.sumber_dana || 'DDS');
-        const waktuStr = String(men.waktu_pelaksanaan || body.waktu_pelaksanaan || '12 Bulan');
-        const polaStr = String(men.pola_pelaksanaan || body.pola_pelaksanaan || 'Swakelola');
-        const eksistingStr = String(men.data_eksisting || body.data_eksisting || '-');
+        const biayaNum = pickExplicitNumber(rawMenBiaya, 0);
+        const lokasiStr = pickExplicitText(men.lokasi ?? body.lokasi, 'Desa Batetangnga');
+        const sumberStr = pickExplicitText(men.sumber_biaya ?? men.sumber_dana ?? body.sumber_biaya ?? body.sumber_dana, 'DDS');
+        const waktuStr = pickExplicitText(men.waktu_pelaksanaan ?? body.waktu_pelaksanaan, '12 Bulan');
+        const polaStr = pickExplicitText(men.pola_pelaksanaan ?? body.pola_pelaksanaan, 'Swakelola');
+        const eksistingStr = pickExplicitText(men.data_eksisting ?? body.data_eksisting, '-');
         const rawSdgsMenjadi = men.sdgs !== undefined ? men.sdgs : body.sdgs;
         const cleanSdgsMenjadi = cleanSdgsRaw(rawSdgsMenjadi);
         const sdgsMenjadiLabel = cleanSdgsMenjadi ? formatSdgsLabel(cleanSdgsMenjadi) : '-';
@@ -9073,9 +9130,9 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
         const rawStuntingMenjadi = men.stunting !== undefined ? men.stunting : (body.stunting !== undefined ? body.stunting : (body.stunting_menjadi !== undefined ? body.stunting_menjadi : (body.semula && body.semula.stunting)));
         const stuntingMenjadiStr = (rawStuntingMenjadi === 'Ya' || rawStuntingMenjadi === true || rawStuntingMenjadi === 'true') ? 'Ya' : 'Tidak';
 
-        const mLStr = String(men.manfaat_l || body.manfaat_l || '-');
-        const mPStr = String(men.manfaat_p || body.manfaat_p || '-');
-        const mRtmStr = String(men.manfaat_rtm || body.manfaat_rtm || '-');
+        const mLStr = pickExplicitText(men.manfaat_l ?? body.manfaat_l, '-');
+        const mPStr = pickExplicitText(men.manfaat_p ?? body.manfaat_p, '-');
+        const mRtmStr = pickExplicitText(men.manfaat_rtm ?? body.manfaat_rtm, '-');
 
         // A. Koordinasi Penyimpanan ke Tabel RAB (tipe_anggaran: 'PERUBAHAN')
         let rabPerId = null;
@@ -9099,6 +9156,14 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 data_eksisting: eksistingStr,
                 sdgs: sdgsMenjadiLabel,
                 stunting: stuntingMenjadiStr,
+                // Penanda "rincian MENJADI sudah disimpan eksplisit oleh admin".
+                // Tanpa ini, GET /api/rkpdes/perubahan akan meng-coalesce nilai yang
+                // sengaja dikosongkan/dinolkan kembali ke data SEMULA (nilai lama muncul lagi).
+                rincian_override: true,
+                rincian_override_at: nowIso,
+                // Menyimpan rincian lewat modal = penerima manfaat MENJADI juga disimpan eksplisit.
+                manfaat_override: true,
+                manfaat_updated_at: nowIso,
                 manfaat_l: (mLStr && mLStr !== '-') ? (mLStr.includes('Org') ? mLStr : `${mLStr} Org`) : '-',
                 manfaat_p: (mPStr && mPStr !== '-') ? (mPStr.includes('Org') ? mPStr : `${mPStr} Org`) : '-',
                 manfaat_rtm: (mRtmStr && mRtmStr !== '-') ? (mRtmStr.includes('KK') ? mRtmStr : `${mRtmStr} KK`) : '-'

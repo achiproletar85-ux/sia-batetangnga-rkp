@@ -336,6 +336,40 @@ assert(jsCode.includes('Taruh ulang dari database') || jsCode.includes('await lo
 assert(jsCode.includes('kode=${encodeURIComponent(kodeItem)}&tahun='), 'deleteRkpItem menghapus berdasarkan kode + tahun (bukan id fallback RAB)');
 assert(serverCode.includes('Parameter id atau kode diperlukan'), 'DELETE /api/rkpdes menerima kode/tahun dan memvalidasi baris terhapus');
 
+// 18. ANTI FALSY-FALLBACK: pengosongan input yang disengaja WAJIB tersimpan
+//     (bukan dikembalikan ke nilai lama/SEMULA oleh operator `||`).
+console.log('\n--- ANTI FALSY-FALLBACK (INPUT DIKOSONGKAN = TERSIMPAN KOSONG) ---\n');
+assert(serverCode.includes('function isFieldProvided'), 'Helper isFieldProvided terdefinisi di server.js');
+assert(serverCode.includes('function pickExplicitText'), 'Helper pickExplicitText terdefinisi (bedakan "tidak dikirim" vs "sengaja dikosongkan")');
+assert(serverCode.includes('function pickExplicitNumber'), 'Helper pickExplicitNumber terdefinisi (input numerik kosong => 0)');
+assert(jsCode.includes('function readEditText') && jsCode.includes('function readEditNumber') && jsCode.includes('function readEditSelect'), 'Helper readEditText/readEditNumber/readEditSelect terpasang di frontend/rkpdes.js');
+
+// 18a. Pola `input?.value?.trim() || fallback` sudah dibuang dari modal perubahan
+assert(!jsCode.includes("document.getElementById('edit-perubahan-volume')?.value?.trim() || '1'"), 'Volume MENJADI tidak lagi memakai fallback || (pengosongan dihormati)');
+assert(!jsCode.includes("document.getElementById('edit-perubahan-lokasi')?.value?.trim() || 'Desa Batetangnga'"), 'Lokasi MENJADI tidak lagi memakai fallback ||');
+assert(!jsCode.includes("document.getElementById('edit-perubahan-satuan')?.value?.trim() || 'Paket'"), 'Satuan MENJADI tidak lagi memakai fallback ||');
+assert(!jsCode.includes("document.getElementById('edit-semula-manfaat-l')?.value?.trim() || '-'"), 'Manfaat SEMULA tidak lagi memakai fallback ||');
+assert(!jsCode.includes("document.getElementById('edit-perubahan-data-eksisting')?.value?.trim() || '-'"), 'Data eksisting MENJADI tidak lagi memakai fallback ||');
+assert(jsCode.includes("readEditNumber('edit-semula-volume', 1)") && jsCode.includes("readEditNumber('edit-perubahan-volume', 1)"), 'Volume SEMULA & MENJADI dibaca via readEditNumber (kosong => 0 eksplisit)');
+assert(jsCode.includes("readEditText('edit-perubahan-lokasi'") && jsCode.includes("readEditText('edit-perubahan-data-eksisting'"), 'Teks MENJADI dibaca via readEditText (kosong => \'\' eksplisit)');
+
+// 18b. Backend PUT: sanitasi nilai eksplisit untuk SEMULA & MENJADI
+assert(serverCode.includes('const volSemulaNum = pickExplicitNumber(sem.volume, 1)'), 'PUT perubahan: volume SEMULA memakai pickExplicitNumber (bukan `|| 1`)');
+assert(serverCode.includes("const satSemulaStr = pickExplicitText(sem.satuan, 'Paket')"), 'PUT perubahan: satuan SEMULA memakai pickExplicitText');
+assert(serverCode.includes('const volNum = pickExplicitNumber(rawMenVol, 1)'), 'PUT perubahan: volume MENJADI memakai pickExplicitNumber');
+assert(serverCode.includes('const biayaNum = pickExplicitNumber(rawMenBiaya, 0)'), 'PUT perubahan: biaya MENJADI memakai pickExplicitNumber');
+assert(serverCode.includes("const lokasiStr = pickExplicitText(men.lokasi ?? body.lokasi"), 'PUT perubahan: lokasi MENJADI memakai pickExplicitText (nullish, bukan ||)');
+assert(serverCode.includes('volume: String(volSemulaNum),'), 'Payload rkpdes SEMULA memakai volume tersanitasi (volume 0 tersimpan sebagai 0)');
+assert(!serverCode.includes("const mLStr = String(men.manfaat_l || body.manfaat_l || '-')"), 'PUT perubahan: manfaat MENJADI tidak lagi memakai || (kosong => -)');
+
+// 18c. Penanda rincian_override: nilai MENJADI yang sengaja di-0/kosong tidak di-coalesce
+assert(serverCode.includes('rincian_override: true'), 'Penanda rincian_override tersimpan saat rincian MENJADI disimpan eksplisit');
+assert(serverCode.includes('const rincianDiubahManual ='), 'GET /api/rkpdes/perubahan menghormati penanda rincian_override');
+assert(serverCode.includes('const biayaMenjadi = (p && rincianDiubahManual)'), 'GET: biaya MENJADI 0 tidak di-coalesce kembali ke SEMULA');
+assert(serverCode.includes('const pickMenjadiText =') && serverCode.includes('const volSatuanMenjadi'), 'GET: volume/satuan MENJADI dihitung tanpa memaksa fallback ke SEMULA');
+assert(serverCode.includes("const lokasiVal = (p && rincianDiubahManual)"), 'GET: lokasi MENJADI yang dikosongkan tetap kosong (-), tidak kembali ke SEMULA');
+assert(!serverCode.includes("const volMenjadi = p ? String(p.volume || volSemula) : volSemula;"), 'GET: volume MENJADI tidak lagi memakai `|| volSemula` (volume 0 dihormati)');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
