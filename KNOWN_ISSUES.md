@@ -193,6 +193,39 @@ Tidak diperlukan migrasi kolom baru.
 
 ---
 
+## 11. 🟢 Penjaga variabel tak terdeklarasi (no-undef) & kebersihan artefak teks manfaat
+
+**Status:** 🟢 Selesai
+
+`node --check` hanya memvalidasi sintaks, sehingga identifier hantu seperti
+`activeRkpTab` (lihat riwayat perbaikan handler klik RKPDes) hanya meletus sebagai
+`ReferenceError` saat runtime lalu menghentikan sisa event handler — termasuk
+pemulihan posisi scroll. Selain itu masih tersisa nilai warisan penulisan lama
+berbentuk `"0 KK"`, `"0 Org"`, `"0 Orang"`, dan satuan menempel (`"144Org"`) yang
+bocor ke tampilan tabel.
+
+**Perbaikan:**
+
+1. **Penjaga no-undef** — `scripts/audit-undeclared-vars.cjs` (tanpa dependensi baru)
+   memakai tokenizer sadar-template/regex lalu mengumpulkan deklarasi lintas berkas
+   (`frontend/*.js`, `server.js`, **dan `<script>` inline di `frontend/*.html`**)
+   sebelum memeriksa referensi. Tersambung ke `npm run check:all` sebagai
+   `audit:undeclared`, sehingga pipeline keluar dengan exit code 1 bila ada identifier
+   hantu. `scripts/test-undeclared-vars.cjs` (`test:undeclared`) menguji dua arah:
+   5 konstruksi hantu wajib terdeteksi (termasuk `activeRkpTab`) dan 4 konstruksi sah
+   (destructuring default, catch/arrow/method param, kunci objek, regex sesudah `||`,
+   helper global dari HTML) wajib lolos — jadi penjaga tidak bisa "membusuk diam-diam".
+2. **Cleanup artefak teks manfaat** — `scripts/cleanup-manfaat-artifacts.cjs`
+   (dry-run default, satu transaksi, cadangan + `--restore`). Nol pada `rpjm_data`
+   ditulis `"0"`, **bukan** `"-"`: nilai `"-"` tidak lolos gerbang
+   `if (pRpjm.manfaat_x && pRpjm.manfaat_x !== '-')` di `GET /api/rkpdes/perubahan`
+   sehingga nilai hasil tebakan heuristik nama kegiatan muncul kembali (terbukti:
+   `01.01.03.04.` MENJADI rtm berubah `-` → `10 KK`). Dengan `"0"` tampilan identik
+   seperti sebelum dibersihkan. Paritas grand total belanja diverifikasi di dalam
+   transaksi (rollback bila bergeser) dan skrip idempoten.
+
+---
+
 <!-- Format entri baru:
 ## N. Judul singkat
 **Status:** 🟠 Terbuka / 🟢 Selesai

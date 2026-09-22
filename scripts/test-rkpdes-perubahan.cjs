@@ -418,6 +418,24 @@ assert(jsCode.includes("if (trPerubahan && isActiveRkpdesTab('perubahan'))"), 'L
 assert(jsCode.includes('const savedScrollY = scrollState.y;') && jsCode.includes('const editedKodeUnik = scrollState.kode;'), 'saveEditRkpPerubahanItem mencatat savedScrollY & kode baris teredit');
 assert(jsCode.includes('window.scrollTo({ top: savedScrollY, behavior: \'instant\' })'), 'Posisi scroll dipulihkan eksplisit ke savedScrollY tanpa animasi');
 
+// 21. PENJAGA NO-UNDEF & KEBERSIHAN DATA MANFAAT (perkakas pendukung)
+console.log('\n--- PENJAGA NO-UNDEF & CLEANUP ARTEFAK MANFAAT ---\n');
+const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'));
+const guardPath = path.resolve(__dirname, 'audit-undeclared-vars.cjs');
+const guardTestPath = path.resolve(__dirname, 'test-undeclared-vars.cjs');
+const cleanupPath = path.resolve(__dirname, 'cleanup-manfaat-artifacts.cjs');
+assert(fs.existsSync(guardPath), 'Penjaga no-undef (scripts/audit-undeclared-vars.cjs) tersedia');
+assert(fs.existsSync(guardTestPath), 'Uji mandiri penjaga no-undef (scripts/test-undeclared-vars.cjs) tersedia');
+assert(String(pkg.scripts['check:all'] || '').includes('audit:undeclared') && String(pkg.scripts['check:all'] || '').includes('test:undeclared'), 'check:all menjalankan audit & uji penjaga no-undef (exit 1 bila ada identifier hantu)');
+const guardCode = fs.readFileSync(guardPath, 'utf8');
+assert(guardCode.includes('window.syncAccSection = syncAccSection') || guardCode.includes('extractInlineScripts'), 'Penjaga memindai <script> inline HTML sebagai sumber deklarasi global');
+assert(fs.existsSync(cleanupPath), 'Skrip cleanup artefak teks manfaat tersedia');
+const cleanupCode = fs.readFileSync(cleanupPath, 'utf8');
+assert(cleanupCode.includes("const APPLY = args.includes('--apply')"), 'Cleanup berjalan DRY-RUN secara default (hanya --apply yang menulis)');
+assert(cleanupCode.includes('PARITAS ANGKA BERGESER'), 'Cleanup membatalkan transaksi bila paritas total belanja bergeser');
+assert(cleanupCode.includes("'--restore'"), 'Cleanup menyediakan mode restore dari cadangan');
+assert(cleanupCode.includes("const NOL_JSON = '0'") && cleanupCode.includes('v.trim() !== NOL_JSON'), 'Nol rpjm_data ditulis sebagai "0" (paritas tampilan terjaga) dan aturan idempoten');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
