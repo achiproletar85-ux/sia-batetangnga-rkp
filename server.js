@@ -11283,22 +11283,22 @@ app.get('/api/pagu-anggaran', async (req, res) => {
             if (!paguMap['APBD Tk. I']) paguMap['APBD Tk. I'] = 27000000;
 
             if (!detailsMap['ADD']) {
-                detailsMap['ADD'] = { pagu_semula: 689184000, pagu_menjadi: 629844000, pagu_murni: 689184000, perubahan: 629844000, delta: -59340000, silpa: 6350531, pengeluaran_pembiayaan: 0, pagu_akhir: 636194531 };
+                detailsMap['ADD'] = { pagu_semula: 689184000, pagu_menjadi: 629844000, pagu_perubahan: 629844000, pagu_murni: 689184000, perubahan: 629844000, delta: -59340000, silpa: 6350531, pengeluaran_pembiayaan: 0, pagu_akhir: 636194531 };
             }
             if (!detailsMap['DDS']) {
-                detailsMap['DDS'] = { pagu_semula: 1400542000, pagu_menjadi: 373456000, pagu_murni: 1400542000, perubahan: 373456000, delta: -1027086000, silpa: 0, pengeluaran_pembiayaan: 178126500, pagu_akhir: 195329500 };
+                detailsMap['DDS'] = { pagu_semula: 1400542000, pagu_menjadi: 373456000, pagu_perubahan: 373456000, pagu_murni: 1400542000, perubahan: 373456000, delta: -1027086000, silpa: 0, pengeluaran_pembiayaan: 178126500, pagu_akhir: 195329500 };
             }
             if (!detailsMap['PBH']) {
-                detailsMap['PBH'] = { pagu_semula: 15690041, pagu_menjadi: 29637269, pagu_murni: 15690041, perubahan: 29637269, delta: 13947228, silpa: 31076703, pengeluaran_pembiayaan: 0, pagu_akhir: 60713972 };
+                detailsMap['PBH'] = { pagu_semula: 15690041, pagu_menjadi: 29637269, pagu_perubahan: 29637269, pagu_murni: 15690041, perubahan: 29637269, delta: 13947228, silpa: 31076703, pengeluaran_pembiayaan: 0, pagu_akhir: 60713972 };
             }
             if (!detailsMap['APBD Tk. I']) {
-                detailsMap['APBD Tk. I'] = { pagu_semula: 84000000, pagu_menjadi: 27000000, pagu_murni: 84000000, perubahan: 27000000, delta: -57000000, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: 27000000 };
+                detailsMap['APBD Tk. I'] = { pagu_semula: 84000000, pagu_menjadi: 27000000, pagu_perubahan: 27000000, pagu_murni: 84000000, perubahan: 27000000, delta: -57000000, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: 27000000 };
             }
             if (!detailsMap['APBD Tk. II']) {
-                detailsMap['APBD Tk. II'] = { pagu_semula: 0, pagu_menjadi: 0, pagu_murni: 0, perubahan: 0, delta: 0, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: 0 };
+                detailsMap['APBD Tk. II'] = { pagu_semula: 0, pagu_menjadi: 0, pagu_perubahan: 0, pagu_murni: 0, perubahan: 0, delta: 0, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: 0 };
             }
             if (!detailsMap['PAD']) {
-                detailsMap['PAD'] = { pagu_semula: 0, pagu_menjadi: 0, pagu_murni: 0, perubahan: 0, delta: 0, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: 0 };
+                detailsMap['PAD'] = { pagu_semula: 0, pagu_menjadi: 0, pagu_perubahan: 0, pagu_murni: 0, perubahan: 0, delta: 0, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: 0 };
             }
         }
 

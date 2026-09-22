@@ -4592,7 +4592,7 @@ function hitungPaguModalRealtime() {
         const pengeluaran = parseFormVal(`paguPengeluaran_${k}`);
 
         // Rumus Dokumen Siskeudes APBDes Perubahan:
-        // Pagu Akhir Belanja = Pagu Menjadi + SiLPA Masuk - Pengeluaran Pembiayaan
+        // Pagu Akhir Belanja = Pagu Pendapatan Perubahan + SiLPA Masuk - Pengeluaran Pembiayaan
         const akhir = menjadi + silpa - pengeluaran;
 
         // Subteks selisih penyesuaian (Menjadi - Semula)
@@ -4602,18 +4602,26 @@ function hitungPaguModalRealtime() {
             if (menjadi === 0 && semula === 0) {
                 badgeDelta.textContent = '';
             } else if (delta < 0) {
-                badgeDelta.innerHTML = `<span class="text-rose-600 font-semibold"><i class="fas fa-arrow-trend-down mr-0.5"></i>Berkurang Rp ${Math.abs(delta).toLocaleString('id-ID')}</span>`;
+                badgeDelta.innerHTML = `<span class="text-rose-600 font-semibold">(Selisih: -Rp ${Math.abs(delta).toLocaleString('id-ID')})</span>`;
             } else if (delta > 0) {
-                badgeDelta.innerHTML = `<span class="text-emerald-600 font-semibold"><i class="fas fa-arrow-trend-up mr-0.5"></i>Bertambah Rp ${delta.toLocaleString('id-ID')}</span>`;
+                badgeDelta.innerHTML = `<span class="text-emerald-600 font-semibold">(Selisih: +Rp ${delta.toLocaleString('id-ID')})</span>`;
             } else {
-                badgeDelta.innerHTML = `<span class="text-slate-400 font-medium">Tetap (Rp 0)</span>`;
+                badgeDelta.innerHTML = `<span class="text-slate-400 font-medium">(Selisih: Rp 0)</span>`;
             }
+        }
+
+        const inpAkhir = document.getElementById(`paguAkhir_${k}`);
+        if (inpAkhir) {
+            inpAkhir.value = 'Rp ' + akhir.toLocaleString('id-ID');
+            inpAkhir.className = akhir < 0 
+                ? "input-field text-right text-xs py-1 px-2 bg-rose-100/60 text-rose-950 font-black cursor-not-allowed border-rose-300 shadow-inner"
+                : "input-field text-right text-xs py-1 px-2 bg-emerald-100/60 text-emerald-950 font-black cursor-not-allowed border-emerald-300 shadow-inner";
         }
 
         const lbl = document.getElementById(`paguAkhirLabel_${k}`);
         if (lbl) {
-            lbl.textContent = 'Rp ' + akhir.toLocaleString('id-ID');
-            lbl.className = akhir < 0 ? "p-2.5 text-right font-extrabold text-red-600 bg-red-50/50" : "p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30";
+            if (lbl.tagName === 'INPUT') lbl.value = 'Rp ' + akhir.toLocaleString('id-ID');
+            else lbl.textContent = 'Rp ' + akhir.toLocaleString('id-ID');
         }
 
         const hiddenLegacy = document.getElementById(`paguInput_${k}`);
@@ -4645,37 +4653,37 @@ function muatDataResmi2026() {
     paguState.tahun = '2026';
 
     // Rujukan Resmi Siskeudes (RAB 1 Pendapatan & RAB 3 Pembiayaan T.A. 2026 Batetangnga):
-    // ADD: Semula 689.184.000 | Menjadi 629.844.000 | SiLPA 6.350.531 | Pembiayaan 0 => Pagu Akhir: Rp 636.194.531
+    // ADD: Semula 689.184.000 | Perubahan = 629.844.000 | SiLPA 6.350.531 | Pembiayaan 0 => Pagu Akhir Otomatis: Rp 636.194.531
     setFormVal('paguMurni_ADD', 689184000);
     setFormVal('paguPerub_ADD', 629844000);
     setFormVal('paguSilpa_ADD', 6350531);
     setFormVal('paguPengeluaran_ADD', 0);
 
-    // DDS: Semula 1.400.542.000 | Menjadi 373.456.000 | SiLPA 0 | Pembiayaan 178.126.500 => Pagu Akhir: Rp 195.329.500
+    // DDS: Semula 1.400.542.000 | Perubahan = 373.456.000 | SiLPA 0 | Pembiayaan 178.126.500 => Pagu Akhir Otomatis: Rp 195.329.500
     setFormVal('paguMurni_DDS', 1400542000);
     setFormVal('paguPerub_DDS', 373456000);
     setFormVal('paguSilpa_DDS', 0);
     setFormVal('paguPengeluaran_DDS', 178126500);
 
-    // PBH: Semula 15.690.041 | Menjadi 29.637.269 | SiLPA 31.076.703 | Pembiayaan 0 => Pagu Akhir: Rp 60.713.972
+    // PBH: Semula 15.690.041 | Perubahan = 29.637.269 | SiLPA 31.076.703 | Pembiayaan 0 => Pagu Akhir Otomatis: Rp 60.713.972
     setFormVal('paguMurni_PBH', 15690041);
     setFormVal('paguPerub_PBH', 29637269);
     setFormVal('paguSilpa_PBH', 31076703);
     setFormVal('paguPengeluaran_PBH', 0);
 
-    // APBD Tk. I: Semula 84.000.000 | Menjadi 27.000.000 | SiLPA 0 | Pembiayaan 0 => Pagu Akhir: Rp 27.000.000
+    // APBD Tk. I: Semula 84.000.000 | Perubahan = 27.000.000 | SiLPA 0 | Pembiayaan 0 => Pagu Akhir Otomatis: Rp 27.000.000
     setFormVal('paguMurni_APBD1', 84000000);
     setFormVal('paguPerub_APBD1', 27000000);
     setFormVal('paguSilpa_APBD1', 0);
     setFormVal('paguPengeluaran_APBD1', 0);
 
-    // APBD Tk. II: Semula 0 | Menjadi 0 | SiLPA 0 | Pembiayaan 0 => Pagu Akhir: Rp 0
+    // APBD Tk. II: Semula 0 | Perubahan = 0 | SiLPA 0 | Pembiayaan 0 => Pagu Akhir Otomatis: Rp 0
     setFormVal('paguMurni_APBD2', 0);
     setFormVal('paguPerub_APBD2', 0);
     setFormVal('paguSilpa_APBD2', 0);
     setFormVal('paguPengeluaran_APBD2', 0);
 
-    // PAD: Semula 0 | Menjadi 0 | SiLPA 0 | Pembiayaan 0 => Pagu Akhir: Rp 0
+    // PAD: Semula 0 | Perubahan = 0 | SiLPA 0 | Pembiayaan 0 => Pagu Akhir Otomatis: Rp 0
     setFormVal('paguMurni_PAD', 0);
     setFormVal('paguPerub_PAD', 0);
     setFormVal('paguSilpa_PAD', 0);
@@ -4683,7 +4691,7 @@ function muatDataResmi2026() {
 
     hitungPaguModalRealtime();
     if (typeof showToast === 'function') {
-        showToast('✅ Data resmi Siskeudes T.A. 2026 berhasil dimuat! Total Pagu Akhir Belanja: Rp 919.238.003', 'success');
+        showToast('✅ Data resmi Siskeudes T.A. 2026 berhasil dimuat! Total Pagu Akhir Belanja Otomatis: Rp 919.238.003', 'success');
     }
 }
 
@@ -4695,9 +4703,9 @@ function loadPaguInputForm(th) {
     PAGU_KEYS.forEach(k => {
         const mapCode = PAGU_MAP_CODES[k];
         const d = details[mapCode];
-        if (d && (d.pagu_semula !== undefined || d.pagu_murni !== undefined || d.pagu_menjadi !== undefined || d.perubahan !== undefined || d.silpa !== undefined || d.pengeluaran_pembiayaan !== undefined)) {
+        if (d && (d.pagu_semula !== undefined || d.pagu_murni !== undefined || d.pagu_menjadi !== undefined || d.pagu_perubahan !== undefined || d.perubahan !== undefined || d.silpa !== undefined || d.pengeluaran_pembiayaan !== undefined)) {
             const semulaVal = d.pagu_semula !== undefined ? d.pagu_semula : d.pagu_murni;
-            const menjadiVal = d.pagu_menjadi !== undefined ? d.pagu_menjadi : (d.perubahan !== undefined ? d.perubahan : d.pagu_akhir);
+            const menjadiVal = d.pagu_menjadi !== undefined ? d.pagu_menjadi : (d.pagu_perubahan !== undefined ? d.pagu_perubahan : (d.perubahan !== undefined ? d.perubahan : d.pagu_akhir));
             setFormVal(`paguMurni_${k}`, semulaVal);
             setFormVal(`paguPerub_${k}`, menjadiVal);
             setFormVal(`paguSilpa_${k}`, d.silpa);
@@ -4774,6 +4782,7 @@ async function simpanPaguForm() {
         newDetails[mapCode] = {
             pagu_semula: semula,
             pagu_menjadi: menjadi,
+            pagu_perubahan: menjadi,
             pagu_murni: semula, // kompatibilitas
             perubahan: menjadi,  // kompatibilitas
             delta: menjadi - semula,
