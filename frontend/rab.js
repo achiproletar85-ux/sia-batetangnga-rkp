@@ -4562,13 +4562,23 @@ const PAGU_MAP_CODES = {
 function parseFormVal(id) {
     const el = document.getElementById(id);
     if (!el) return 0;
-    return Number(String(el.value || '').replace(/[^0-9-]/g, '')) || 0;
+    const str = String(el.value || '').trim();
+    const isNeg = str.startsWith('-');
+    const digits = str.replace(/[^0-9]/g, '');
+    if (!digits) return 0;
+    const num = Number(digits);
+    return isNeg ? -num : num;
 }
 
 function setFormVal(id, num) {
     const el = document.getElementById(id);
     if (el) {
-        el.value = (num !== undefined && num !== null && Number(num) !== 0) ? Number(num).toLocaleString('id-ID') : '';
+        if (num !== undefined && num !== null && Number(num) !== 0) {
+            const n = Number(num);
+            el.value = (n < 0 ? '-' : '') + Math.abs(n).toLocaleString('id-ID');
+        } else {
+            el.value = '';
+        }
     }
 }
 
@@ -4606,38 +4616,49 @@ function hitungPaguModalRealtime() {
     const elTotAkhir = document.getElementById('paguTotalAkhir');
 
     if (elTotMurni) elTotMurni.textContent = 'Rp ' + totMurni.toLocaleString('id-ID');
-    if (elTotPerub) elTotPerub.textContent = 'Rp ' + totPerub.toLocaleString('id-ID');
+    if (elTotPerub) elTotPerub.textContent = (totPerub < 0 ? '-Rp ' : 'Rp ') + Math.abs(totPerub).toLocaleString('id-ID');
     if (elTotSilpa) elTotSilpa.textContent = 'Rp ' + totSilpa.toLocaleString('id-ID');
     if (elTotPeng) elTotPeng.textContent = 'Rp ' + totPengeluaran.toLocaleString('id-ID');
     if (elTotAkhir) elTotAkhir.textContent = 'Rp ' + totAkhir.toLocaleString('id-ID');
 }
 
 function muatDataResmi2026() {
+    const selTahun = document.getElementById('paguInputTahun');
+    if (selTahun) selTahun.value = '2026';
+    paguState.tahun = '2026';
+
+    // Baseline Resmi T.A. 2026 Batetangnga:
+    // ADD: Pendapatan Rp 629.844.000 + Penyesuaian Pendapatan Rp 21.949.469 + SiLPA Rp 6.350.531 = Rp 658.144.000
     setFormVal('paguMurni_ADD', 629844000);
     setFormVal('paguPerub_ADD', 21949469);
     setFormVal('paguSilpa_ADD', 6350531);
     setFormVal('paguPengeluaran_ADD', 0);
 
+    // DDS: Alokasi DDS Perubahan Rp 373.456.000 - Pengeluaran Pembiayaan Rp 178.126.500 = Rp 195.329.500
     setFormVal('paguMurni_DDS', 373456000);
     setFormVal('paguPerub_DDS', 0);
     setFormVal('paguSilpa_DDS', 0);
     setFormVal('paguPengeluaran_DDS', 178126500);
 
+    // PBH: Pendapatan PBH Rp 29.637.000 + SiLPA Rp 31.076.703 = Rp 60.713.703
     setFormVal('paguMurni_PBH', 29637000);
     setFormVal('paguPerub_PBH', 0);
     setFormVal('paguSilpa_PBH', 31076703);
     setFormVal('paguPengeluaran_PBH', 0);
 
+    // APBD Tk. I: Bantuan Provinsi Rp 27.000.000
     setFormVal('paguMurni_APBD1', 27000000);
     setFormVal('paguPerub_APBD1', 0);
     setFormVal('paguSilpa_APBD1', 0);
     setFormVal('paguPengeluaran_APBD1', 0);
 
+    // APBD Tk. II: Rp 0
     setFormVal('paguMurni_APBD2', 0);
     setFormVal('paguPerub_APBD2', 0);
     setFormVal('paguSilpa_APBD2', 0);
     setFormVal('paguPengeluaran_APBD2', 0);
 
+    // PAD: Rp 0
     setFormVal('paguMurni_PAD', 0);
     setFormVal('paguPerub_PAD', 0);
     setFormVal('paguSilpa_PAD', 0);
@@ -4645,7 +4666,7 @@ function muatDataResmi2026() {
 
     hitungPaguModalRealtime();
     if (typeof showToast === 'function') {
-        showToast('✅ Data resmi SiLPA dan Pembiayaan T.A. 2026 berhasil dimuat!', 'success');
+        showToast('✅ Data resmi SiLPA dan Pembiayaan T.A. 2026 berhasil dimuat! Total Pagu Akhir: Rp 941.187.203', 'success');
     }
 }
 
@@ -4657,7 +4678,7 @@ function loadPaguInputForm(th) {
     PAGU_KEYS.forEach(k => {
         const mapCode = PAGU_MAP_CODES[k];
         const d = details[mapCode];
-        if (d && (d.pagu_murni || d.silpa || d.pengeluaran_pembiayaan || d.perubahan)) {
+        if (d && (d.pagu_murni !== undefined || d.silpa !== undefined || d.pengeluaran_pembiayaan !== undefined || d.perubahan !== undefined)) {
             setFormVal(`paguMurni_${k}`, d.pagu_murni);
             setFormVal(`paguPerub_${k}`, d.perubahan);
             setFormVal(`paguSilpa_${k}`, d.silpa);
@@ -4701,12 +4722,15 @@ function loadPaguInputForm(th) {
     hitungPaguModalRealtime();
 }
 
-function formatNumberInput(el) {
-    let raw = el.value.replace(/[^0-9]/g, '');
+function formatNumberInput(el, allowNegative = true) {
+    if (!el) return;
+    let val = String(el.value || '').trim();
+    let isNeg = allowNegative && val.startsWith('-');
+    let raw = val.replace(/[^0-9]/g, '');
     if (raw) {
-        el.value = Number(raw).toLocaleString('id-ID');
+        el.value = (isNeg ? '-' : '') + Number(raw).toLocaleString('id-ID');
     } else {
-        el.value = '';
+        el.value = isNeg ? '-' : '';
     }
 }
 
