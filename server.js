@@ -11275,24 +11275,24 @@ app.get('/api/pagu-anggaran', async (req, res) => {
             });
         }
 
-        // Baseline data resmi tahun 2026 jika detail belum tersimpan
+        // Baseline data resmi tahun 2026 rujukan Siskeudes (RAB 1 & 3) jika detail belum tersimpan
         if (tahunInt === 2026) {
-            if (!paguMap['ADD']) paguMap['ADD'] = 658144000;
+            if (!paguMap['ADD']) paguMap['ADD'] = 636194531;
             if (!paguMap['DDS']) paguMap['DDS'] = 195329500;
-            if (!paguMap['PBH']) paguMap['PBH'] = 60713703;
+            if (!paguMap['PBH']) paguMap['PBH'] = 60713972;
             if (!paguMap['APBD Tk. I']) paguMap['APBD Tk. I'] = 27000000;
 
             if (!detailsMap['ADD']) {
-                detailsMap['ADD'] = { pagu_murni: 629844000, perubahan: 21949469, silpa: 6350531, pengeluaran_pembiayaan: 0, pagu_akhir: 658144000 };
+                detailsMap['ADD'] = { pagu_murni: 689184000, perubahan: -59340000, silpa: 6350531, pengeluaran_pembiayaan: 0, pagu_akhir: 636194531 };
             }
             if (!detailsMap['DDS']) {
-                detailsMap['DDS'] = { pagu_murni: 373456000, perubahan: 0, silpa: 0, pengeluaran_pembiayaan: 178126500, pagu_akhir: 195329500 };
+                detailsMap['DDS'] = { pagu_murni: 1400542000, perubahan: -1027086000, silpa: 0, pengeluaran_pembiayaan: 178126500, pagu_akhir: 195329500 };
             }
             if (!detailsMap['PBH']) {
-                detailsMap['PBH'] = { pagu_murni: 29637000, perubahan: 0, silpa: 31076703, pengeluaran_pembiayaan: 0, pagu_akhir: 60713703 };
+                detailsMap['PBH'] = { pagu_murni: 15690041, perubahan: 13947228, silpa: 31076703, pengeluaran_pembiayaan: 0, pagu_akhir: 60713972 };
             }
             if (!detailsMap['APBD Tk. I']) {
-                detailsMap['APBD Tk. I'] = { pagu_murni: 27000000, perubahan: 0, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: 27000000 };
+                detailsMap['APBD Tk. I'] = { pagu_murni: 84000000, perubahan: -57000000, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: 27000000 };
             }
             if (!detailsMap['APBD Tk. II']) {
                 detailsMap['APBD Tk. II'] = { pagu_murni: 0, perubahan: 0, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: 0 };

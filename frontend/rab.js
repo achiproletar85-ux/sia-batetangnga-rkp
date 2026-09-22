@@ -4627,28 +4627,28 @@ function muatDataResmi2026() {
     if (selTahun) selTahun.value = '2026';
     paguState.tahun = '2026';
 
-    // Baseline Resmi T.A. 2026 Batetangnga:
-    // ADD: Pendapatan Rp 629.844.000 + Penyesuaian Pendapatan Rp 21.949.469 + SiLPA Rp 6.350.531 = Rp 658.144.000
-    setFormVal('paguMurni_ADD', 629844000);
-    setFormVal('paguPerub_ADD', 21949469);
+    // Rujukan Resmi Siskeudes (RAB 1 Pendapatan & RAB 3 Pembiayaan T.A. 2026 Batetangnga):
+    // ADD: Murni Rp 689.184.000, Delta -Rp 59.340.000, SiLPA Rp 6.350.531, Pembiayaan Rp 0 => Pagu Akhir: Rp 636.194.531
+    setFormVal('paguMurni_ADD', 689184000);
+    setFormVal('paguPerub_ADD', -59340000);
     setFormVal('paguSilpa_ADD', 6350531);
     setFormVal('paguPengeluaran_ADD', 0);
 
-    // DDS: Alokasi DDS Perubahan Rp 373.456.000 - Pengeluaran Pembiayaan Rp 178.126.500 = Rp 195.329.500
-    setFormVal('paguMurni_DDS', 373456000);
-    setFormVal('paguPerub_DDS', 0);
+    // DDS: Murni Rp 1.400.542.000, Delta -Rp 1.027.086.000, SiLPA Rp 0, Pembiayaan Rp 178.126.500 => Pagu Akhir: Rp 195.329.500
+    setFormVal('paguMurni_DDS', 1400542000);
+    setFormVal('paguPerub_DDS', -1027086000);
     setFormVal('paguSilpa_DDS', 0);
     setFormVal('paguPengeluaran_DDS', 178126500);
 
-    // PBH: Pendapatan PBH Rp 29.637.000 + SiLPA Rp 31.076.703 = Rp 60.713.703
-    setFormVal('paguMurni_PBH', 29637000);
-    setFormVal('paguPerub_PBH', 0);
+    // PBH: Murni Rp 15.690.041, Delta +Rp 13.947.228, SiLPA Rp 31.076.703, Pembiayaan Rp 0 => Pagu Akhir: Rp 60.713.972
+    setFormVal('paguMurni_PBH', 15690041);
+    setFormVal('paguPerub_PBH', 13947228);
     setFormVal('paguSilpa_PBH', 31076703);
     setFormVal('paguPengeluaran_PBH', 0);
 
-    // APBD Tk. I: Bantuan Provinsi Rp 27.000.000
-    setFormVal('paguMurni_APBD1', 27000000);
-    setFormVal('paguPerub_APBD1', 0);
+    // APBD Tk. I: Murni Rp 84.000.000, Delta -Rp 57.000.000, SiLPA Rp 0, Pembiayaan Rp 0 => Pagu Akhir: Rp 27.000.000
+    setFormVal('paguMurni_APBD1', 84000000);
+    setFormVal('paguPerub_APBD1', -57000000);
     setFormVal('paguSilpa_APBD1', 0);
     setFormVal('paguPengeluaran_APBD1', 0);
 
@@ -4666,7 +4666,7 @@ function muatDataResmi2026() {
 
     hitungPaguModalRealtime();
     if (typeof showToast === 'function') {
-        showToast('✅ Data resmi SiLPA dan Pembiayaan T.A. 2026 berhasil dimuat! Total Pagu Akhir: Rp 941.187.203', 'success');
+        showToast('✅ Data resmi Siskeudes T.A. 2026 berhasil dimuat! Total Pagu Akhir: Rp 919.238.003', 'success');
     }
 }
 
@@ -4685,23 +4685,23 @@ function loadPaguInputForm(th) {
             setFormVal(`paguPengeluaran_${k}`, d.pengeluaran_pembiayaan);
         } else if (is2026) {
             if (k === 'ADD') {
-                setFormVal(`paguMurni_${k}`, 629844000);
-                setFormVal(`paguPerub_${k}`, 21949469);
+                setFormVal(`paguMurni_${k}`, 689184000);
+                setFormVal(`paguPerub_${k}`, -59340000);
                 setFormVal(`paguSilpa_${k}`, 6350531);
                 setFormVal(`paguPengeluaran_${k}`, 0);
             } else if (k === 'DDS') {
-                setFormVal(`paguMurni_${k}`, 373456000);
-                setFormVal(`paguPerub_${k}`, 0);
+                setFormVal(`paguMurni_${k}`, 1400542000);
+                setFormVal(`paguPerub_${k}`, -1027086000);
                 setFormVal(`paguSilpa_${k}`, 0);
                 setFormVal(`paguPengeluaran_${k}`, 178126500);
             } else if (k === 'PBH') {
-                setFormVal(`paguMurni_${k}`, 29637000);
-                setFormVal(`paguPerub_${k}`, 0);
+                setFormVal(`paguMurni_${k}`, 15690041);
+                setFormVal(`paguPerub_${k}`, 13947228);
                 setFormVal(`paguSilpa_${k}`, 31076703);
                 setFormVal(`paguPengeluaran_${k}`, 0);
             } else if (k === 'APBD1') {
-                setFormVal(`paguMurni_${k}`, 27000000);
-                setFormVal(`paguPerub_${k}`, 0);
+                setFormVal(`paguMurni_${k}`, 84000000);
+                setFormVal(`paguPerub_${k}`, -57000000);
                 setFormVal(`paguSilpa_${k}`, 0);
                 setFormVal(`paguPengeluaran_${k}`, 0);
             } else {
