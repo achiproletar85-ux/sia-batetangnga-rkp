@@ -342,7 +342,7 @@ function formatManfaatRpjm(v, unit) {
 // dan halaman tidak berbeda perilaku. Volume kini boleh berupa TEKS DIMENSI
 // (mis. "250mX4mX0,15m3") — tidak boleh dipaksa Number() lalu menjadi NaN/0.
 const VolumeTeks = require('./frontend/volumeTeks.js');
-const { hitungBiayaMenjadi } = require('./backend/services/rkpdesMenjadi.js');
+const { hitungBiayaMenjadi, getCanonicalKey, getCanonicalName } = require('./backend/services/rkpdesMenjadi.js');
 
 function isBlankVolumeValue(v) {
     return VolumeTeks.isVolumeKosong(v);
@@ -8147,22 +8147,37 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
         const normKode = (k) => String(k || '').trim().replace(/\.+$/, '').replace(/^PEM\./i, '');
 
         const perMap = new Map();
+        const perMapByCanonical = new Map();
+        const perMapByName = new Map();
         const perMapByRef = new Map();
+
         const rabMurniMap = new Map();
+        const rabMurniMapByCanonical = new Map();
+        const rabMurniMapByName = new Map();
 
         perRows.forEach(p => {
             const rawK = String(p.kode_unik_full || p.kode_unik || '').trim();
             const cleanK = normKode(rawK);
+            const canonK = getCanonicalKey(p);
+            const canonN = getCanonicalName(p);
+
             if (rawK) perMap.set(rawK, p);
             if (cleanK) perMap.set(cleanK, p);
+            if (canonK) perMapByCanonical.set(canonK, p);
+            if (canonN && !perMapByName.has(canonN)) perMapByName.set(canonN, p);
             if (p.id_referensi_murni) perMapByRef.set(String(p.id_referensi_murni), p);
         });
 
         rabMurniRows.forEach(rb => {
             const rawK = String(rb.kode_unik_full || rb.kode_unik || '').trim();
             const cleanK = normKode(rawK);
+            const canonK = getCanonicalKey(rb);
+            const canonN = getCanonicalName(rb);
+
             if (rawK) rabMurniMap.set(rawK, rb);
             if (cleanK) rabMurniMap.set(cleanK, rb);
+            if (canonK) rabMurniMapByCanonical.set(canonK, rb);
+            if (canonN && !rabMurniMapByName.has(canonN)) rabMurniMapByName.set(canonN, rb);
         });
 
         // 4. Pengayaan dengan metadata RPJMDes Standar
@@ -8180,9 +8195,34 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             const code = String(m.kode_unik_full || m.kode_unik || m.id || '').trim();
             if (!code) return;
             const cleanCode = normKode(code);
-            let p = perMap.get(code) || perMap.get(cleanCode);
+            const canonCode = getCanonicalKey(m);
+            const canonName = getCanonicalName(m);
+
+            // Pencocokan RAB Murni: raw -> canonical -> clean -> nama
+            const rabMurniMatch = rabMurniMap.get(code)
+                || (canonCode ? rabMurniMapByCanonical.get(canonCode) : null)
+                || rabMurniMap.get(cleanCode)
+                || (canonName ? rabMurniMapByName.get(canonName) : null);
+
+            // Multi-fallback matching untuk rekaman RAB Perubahan:
+            // 1. Kode mentah persis (misal '02.03.11.01.')
+            // 2. Kode kanonik (bebas trailing dot & spasi, misal '02.03.11.01')
+            // 3. Clean kode (normKode)
+            // 4. ID referensi murni (relasi 1:1 dari baris RAB Murni yang cocok)
+            // 5. Fallback ID rkpdes / rab_id
+            // 6. Secondary matching berdasarkan nama kegiatan ternormalisasi
+            let p = perMap.get(code)
+                || (canonCode ? perMapByCanonical.get(canonCode) : null)
+                || perMap.get(cleanCode);
+
+            if (!p && rabMurniMatch && rabMurniMatch.id) {
+                p = perMapByRef.get(String(rabMurniMatch.id));
+            }
             if (!p && m.id) p = perMapByRef.get(String(m.id));
             if (!p && m.rab_id) p = perMapByRef.get(String(m.rab_id));
+            if (!p && canonName) {
+                p = perMapByName.get(canonName);
+            }
 
             if (p && p.id) {
                 matchedPerRowIds.add(String(p.id));
@@ -8209,7 +8249,6 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                 : ((p && (p.nama_kegiatan || p.uraian)) || m.jenis_kegiatan);
             const resolved = resolveRpjmStandar(code, m.bidang, m.jenis_bidang, rawNamaMurni, rpjmLookup);
 
-            const rabMurniMatch = rabMurniMap.get(code) || rabMurniMap.get(cleanCode);
             const rabMurniBiaya = rabMurniMatch ? Number(rabMurniMatch.jumlah_anggaran || 0) : 0;
             const biayaSemula = rabMurniBiaya > 0 ? rabMurniBiaya : Number(m.prakiraan_biaya || 0);
             // SISTEMIK anti falsy-fallback: keberadaan rekaman RAB PERUBAHAN diperiksa
@@ -8458,7 +8497,8 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             if (p.id && matchedPerRowIds.has(String(p.id))) return;
             const code = String(p.kode_unik_full || p.kode_unik || '').trim();
             const cleanCode = normKode(code);
-            if (code && !combinedMap.has(code) && (!cleanCode || !combinedMap.has(cleanCode))) {
+            const canonCode = getCanonicalKey(p);
+            if (code && !combinedMap.has(code) && (!cleanCode || !combinedMap.has(cleanCode)) && (!canonCode || !combinedMap.has(canonCode))) {
                 const resolved = resolveRpjmStandar(code, p.bidang, null, p.nama_kegiatan || p.uraian, rpjmLookup);
                 const biayaMenjadi = Number(p.jumlah_anggaran || 0);
                 const volMenjadi = String(p.volume || 1);
@@ -9088,12 +9128,13 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             // A. Update tabel rab (tipe_anggaran: 'MURNI')
             try {
                 if (kode) {
+                    const kodeCandidates = Array.from(new Set([kode, kode.replace(/\.+$/, ''), kode.replace(/\.+$/, '') + '.', normKode(kode), normKode(kode) + '.', getCanonicalKey(kode)])).filter(Boolean);
                     const { data: existingRabMurni, error: findMurniErr } = await supabase
                         .from(RAB_TABLE)
                         .select('id, kode_unik_full, tahun, tipe_anggaran, volume')
                         .eq('tahun', tahunInt)
                         .eq('tipe_anggaran', RAB_TIPE_MURNI)
-                        .eq('kode_unik_full', kode)
+                        .in('kode_unik_full', kodeCandidates)
                         .maybeSingle();
 
                     if (findMurniErr) throw findMurniErr;
@@ -9162,10 +9203,11 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 // UPDATE mengenai baris salah atau INSERT baris DUPLIKAT pada setiap simpan.
                 let rkpTarget = null;
                 if (kode) {
+                    const kodeCandidates = Array.from(new Set([kode, kode.replace(/\.+$/, ''), kode.replace(/\.+$/, '') + '.', normKode(kode), normKode(kode) + '.', getCanonicalKey(kode)])).filter(Boolean);
                     const { data: byKode, error: errByKode } = await supabase
                         .from('rkpdes')
                         .select('id, kode_unik_full, tahun')
-                        .eq('kode_unik_full', kode)
+                        .in('kode_unik_full', kodeCandidates)
                         .eq('tahun', tahunInt)
                         .maybeSingle();
                     if (errByKode) throw errByKode;
@@ -9263,7 +9305,8 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 .eq('tahun', tahunInt)
                 .eq('tipe_anggaran', RAB_TIPE_PERUBAHAN);
             if (kode) {
-                findQ = findQ.eq('kode_unik_full', kode);
+                const kodeCandidates = Array.from(new Set([kode, kode.replace(/\.+$/, ''), kode.replace(/\.+$/, '') + '.', normKode(kode), normKode(kode) + '.', getCanonicalKey(kode)])).filter(Boolean);
+                findQ = findQ.in('kode_unik_full', kodeCandidates);
             } else if (id && !isNaN(Number(id))) {
                 findQ = findQ.eq('id', Number(id));
             }
@@ -9340,12 +9383,13 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             } else {
                 let murniRef = null;
                 if (kode) {
+                    const kodeCandidates = Array.from(new Set([kode, kode.replace(/\.+$/, ''), kode.replace(/\.+$/, '') + '.', normKode(kode), normKode(kode) + '.', getCanonicalKey(kode)])).filter(Boolean);
                     const { data: mRef } = await supabase
                         .from(RAB_TABLE)
                         .select('id, kode_unik, kode_unik_full, tahun, nama_kegiatan, uraian, bidang, status, group_nama, sub_group_nama, lokasi, lokasi_kegiatan, jenis_kegiatan, volume, satuan, harga_satuan, jumlah_anggaran, sumber_dana, items, rpjm_data')
                         .eq('tahun', tahunInt)
                         .eq('tipe_anggaran', RAB_TIPE_MURNI)
-                        .eq('kode_unik_full', kode)
+                        .in('kode_unik_full', kodeCandidates)
                         .maybeSingle();
                     murniRef = mRef;
                 }
@@ -9408,10 +9452,11 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
 
             let rkpMatchId = null;
             if (kode) {
+                const kodeCandidates = Array.from(new Set([kode, kode.replace(/\.+$/, ''), kode.replace(/\.+$/, '') + '.', normKode(kode), normKode(kode) + '.', getCanonicalKey(kode)])).filter(Boolean);
                 const { data: rkpRow } = await supabase
                     .from('rkpdes')
                     .select('id')
-                    .eq('kode_unik_full', kode)
+                    .in('kode_unik_full', kodeCandidates)
                     .eq('tahun', tahunInt)
                     .maybeSingle();
                 if (rkpRow && rkpRow.id) rkpMatchId = rkpRow.id;
@@ -9424,7 +9469,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     .eq('id', Number(id))
                     .eq('tahun', tahunInt)
                     .maybeSingle();
-                if (rkpRowById && rkpRowById.id && (!kode || !hasTextValue(rkpRowById.kode_unik_full) || String(rkpRowById.kode_unik_full).trim() === kode)) {
+                if (rkpRowById && rkpRowById.id && (!kode || !hasTextValue(rkpRowById.kode_unik_full) || getCanonicalKey(rkpRowById.kode_unik_full) === getCanonicalKey(kode))) {
                     rkpMatchId = rkpRowById.id;
                 }
             }

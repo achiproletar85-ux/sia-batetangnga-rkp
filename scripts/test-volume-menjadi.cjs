@@ -26,7 +26,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const VolumeTeks = require('../frontend/volumeTeks.js');
-const { hitungBiayaMenjadi } = require('../backend/services/rkpdesMenjadi.js');
+const { hitungBiayaMenjadi, getCanonicalKey, getCanonicalName } = require('../backend/services/rkpdesMenjadi.js');
 
 let pass = 0;
 let fail = 0;
@@ -181,5 +181,75 @@ assert(/VolumeTeks\.isVolumeKosong/.test(SYNC_SCRIPT),
     'Skrip sinkronisasi total RAB Perubahan memakai aturan volume yang sama');
 
 // ---------------------------------------------------------------------------
+// D. KANONISASI KUNCI & RESOLUSI TRAILING DOT (02.03.11.01. vs 02.03.11.01)
+// ---------------------------------------------------------------------------
+console.log('\nD. Kanonisasi kunci & resolusi trailing dot (getCanonicalKey)');
+
+assert(getCanonicalKey('02.03.11.01.') === '02.03.11.01',
+    'Trailing dot dibersihkan: "02.03.11.01." -> "02.03.11.01"');
+assert(getCanonicalKey('02.03.11.01') === '02.03.11.01',
+    'Kode tanpa trailing dot tetap utuh: "02.03.11.01"');
+assert(getCanonicalKey('PEM.02.03.11.01.') === '02.03.11.01',
+    'Prefix PEM. dibuang: "PEM.02.03.11.01." -> "02.03.11.01"');
+assert(getCanonicalKey('  02.03.11.01.  ') === '02.03.11.01',
+    'Whitespace di sekeliling kode dibersihkan');
+assert(getCanonicalKey({ kode_unik_full: '02.03.11.01.' }) === '02.03.11.01',
+    'Objek dengan properti kode_unik_full diekstrak secara kanonik');
+assert(getCanonicalKey({ kode_kegiatan: '02.03.11.01' }) === '02.03.11.01',
+    'Objek dengan properti kode_kegiatan diekstrak secara kanonik');
+assert(getCanonicalKey('') === '' && getCanonicalKey(null) === '',
+    'Input kosong menghasilkan string kosong');
+
+// Normalisasi Nama (Secondary Fallback Matching)
+const namaSaleko = 'Pembangunan Rabat Beton Dusun Saleko 250mX4mX0,15m3';
+assert(getCanonicalName(namaSaleko) === 'pembangunanrabatbetondusunsaleko250mx4mx015m3',
+    'getCanonicalName membersihkan spasi, simbol & huruf kapital');
+assert(getCanonicalName({ nama_kegiatan: namaSaleko }) === 'pembangunanrabatbetondusunsaleko250mx4mx015m3',
+    'getCanonicalName mengekstrak dari objek nama_kegiatan');
+
+// Simulasi Multi-Fallback Matching (Kasus 02.03.11.01 Rabat Beton Saleko)
+{
+    const rkpRow = { kode_unik_full: '02.03.11.01.', nama_kegiatan: namaSaleko, biaya: 238105000 };
+    const rabPerRow = { kode_unik_full: '02.03.11.01', nama_kegiatan: namaSaleko, jumlah_anggaran: 0 };
+
+    const perMapByCanonical = new Map();
+    perMapByCanonical.set(getCanonicalKey(rabPerRow), rabPerRow);
+
+    const matched = perMapByCanonical.get(getCanonicalKey(rkpRow));
+    assert(matched !== undefined, 'RKPDes "02.03.11.01." berhasil mencocokkan RAB "02.03.11.01" via canonical key');
+
+    const hasilKalkulasi = hitungBiayaMenjadi({
+        adaPerubahan: !!matched,
+        totalPerubahan: matched.jumlah_anggaran,
+        totalSemula: rkpRow.biaya
+    });
+    assert(hasilKalkulasi.biayaMenjadi === 0, 'Kegiatan fisik 02.03.11.01 menghasilkan Menjadi Rp 0 (bukan fallback ke 238.105.000)');
+    assert(hasilKalkulasi.selisih === -238105000, 'Selisih berkurang penuh (-238.105.000)');
+}
+
+// Simulasi Secondary Name Matching (Jika kode berbeda sama sekali)
+{
+    const rkpRowBedaKode = { kode_unik_full: '99.99.99.99', nama_kegiatan: 'Pembangunan Drainase Dusun Rappoang 250m3', biaya: 117685000 };
+    const rabPerRow = { kode_unik_full: '02.03.14.01.', nama_kegiatan: 'Pembangunan Drainase Dusun Rappoang 250m3', jumlah_anggaran: 0 };
+
+    const perMapByName = new Map();
+    perMapByName.set(getCanonicalName(rabPerRow), rabPerRow);
+
+    const matchedByName = perMapByName.get(getCanonicalName(rkpRowBedaKode));
+    assert(matchedByName !== undefined, 'Secondary matching berhasil menemukan rekaman via nama kegiatan saat kode berbeda');
+    const r = hitungBiayaMenjadi({ adaPerubahan: !!matchedByName, totalPerubahan: matchedByName.jumlah_anggaran, totalSemula: rkpRowBedaKode.biaya });
+    assert(r.biayaMenjadi === 0 && r.selisih === -117685000, 'Secondary name match menghasilkan Rp 0 & selisih -117.685.000');
+}
+
+// Bukti integrasi di server.js
+assert(/perMapByCanonical/.test(SERVER) && /perMapByName/.test(SERVER),
+    'server.js memasang perMapByCanonical dan perMapByName pada GET /api/rkpdes/perubahan');
+assert(/rabMurniMapByCanonical/.test(SERVER),
+    'server.js memasang rabMurniMapByCanonical untuk pencocokan baseline murni');
+assert(/getCanonicalKey\(m\)/.test(SERVER) && /getCanonicalName\(m\)/.test(SERVER),
+    'server.js mengevaluasi canonCode dan canonName saat iterasi murniRows');
+
+// ---------------------------------------------------------------------------
 console.log(`\n=== HASIL: ${pass} LULUS / ${fail} GAGAL ===\n`);
 process.exit(fail === 0 ? 0 : 1);
+
