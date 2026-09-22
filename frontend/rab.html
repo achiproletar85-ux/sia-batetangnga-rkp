@@ -884,73 +884,177 @@
         }
     </script>
 
-    <!-- MODAL KELOLA PAGU ANGGARAN -->
+    <!-- MODAL KELOLA PAGU ANGGARAN & PEMBIAYAAN (PAK) -->
     <div id="modalKelolaPagu" class="fixed inset-0 z-[2000] hidden items-center justify-center p-4" style="background: rgba(2,6,23,0.6); backdrop-filter: blur(8px);">
-        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden" onclick="event.stopPropagation()">
-            <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full overflow-hidden" onclick="event.stopPropagation()">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-lg">
                         <i class="fas fa-sliders"></i>
                     </div>
                     <div>
-                        <h3 class="text-base font-extrabold text-slate-900">Kelola Pagu Sumber Dana</h3>
-                        <p class="text-xs text-slate-400 font-medium">Set batas pagu anggaran per tahun &amp; sumber dana</p>
+                        <h3 class="text-base font-extrabold text-slate-900">Kelola Pagu Sumber Dana &amp; Pembiayaan (PAK)</h3>
+                        <p class="text-xs text-slate-500 font-medium">Sinkronisasi SiLPA, Perubahan Pendapatan, dan Pengeluaran Pembiayaan ke Batas Pagu Belanja RAB</p>
                     </div>
                 </div>
-                <button onclick="tutupModalKelolaPagu()" class="text-slate-400 hover:text-slate-600 p-1">
+                <button onclick="tutupModalKelolaPagu()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition">
                     <i class="fas fa-times text-lg"></i>
                 </button>
             </div>
 
-            <div class="p-5 space-y-3 max-h-[60vh] overflow-y-auto">
-                <div class="mb-3">
-                    <label class="form-label">Tahun Anggaran Target</label>
-                    <select id="paguInputTahun" class="input-field font-bold" onchange="onPaguTahunChange(this.value)">
-                        <option value="2022">2022</option>
-                        <option value="2023">2023</option>
-                        <option value="2024">2024</option>
-                        <option value="2025">2025</option>
-                        <option value="2026">2026</option>
-                        <option value="2027" selected>2027</option>
-                        <option value="2028">2028</option>
-                        <option value="2029">2029</option>
-                        <option value="2030">2030</option>
-                    </select>
+            <div class="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+                <div class="flex flex-wrap items-center justify-between gap-3 p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl">
+                    <div class="flex items-center gap-3">
+                        <label class="text-xs font-bold text-slate-700">Tahun Anggaran Target:</label>
+                        <select id="paguInputTahun" class="input-field font-extrabold text-indigo-700 bg-white border-indigo-200 py-1 px-3 text-xs w-28 rounded-lg" onchange="onPaguTahunChange(this.value)">
+                            <option value="2022">2022</option>
+                            <option value="2023">2023</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                            <option value="2027" selected>2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs">
+                        <span class="inline-flex items-center gap-1.5 bg-white border border-indigo-200 px-3 py-1 rounded-lg text-indigo-700 font-semibold shadow-sm">
+                            <i class="fas fa-calculator text-indigo-500"></i> Pagu Akhir = Murni + Perubahan + SiLPA - Pengeluaran
+                        </span>
+                        <button type="button" onclick="muatDataResmi2026()" class="btn-outline text-[11px] py-1 px-2.5 bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50">
+                            <i class="fas fa-sync-alt mr-1"></i> Muat Data Resmi 2026
+                        </button>
+                    </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <!-- TABEL MATRIKS PAGU & PEMBIAYAAN -->
+                <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                <th class="p-2.5">Sumber Dana</th>
+                                <th class="p-2.5 text-right w-32">Pagu Murni (Rp)</th>
+                                <th class="p-2.5 text-right w-32">Perubahan (+/-)</th>
+                                <th class="p-2.5 text-right w-32 text-emerald-700">SiLPA Masuk (Rp)</th>
+                                <th class="p-2.5 text-right w-36 text-amber-700">Pengeluaran Pembiayaan</th>
+                                <th class="p-2.5 text-right w-36 bg-indigo-50/50 text-indigo-950">Pagu Akhir Belanja</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paguModalTableBody" class="divide-y divide-slate-100 text-slate-700">
+                            <!-- ADD -->
+                            <tr class="hover:bg-slate-50/70 transition">
+                                <td class="p-2.5 font-bold">
+                                    <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-indigo-500"></span> ADD</span>
+                                    <div class="text-[10px] text-slate-400 font-normal">Alokasi Dana Desa</div>
+                                </td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_ADD" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPerub_ADD" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguSilpa_ADD" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPengeluaran_ADD" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_ADD">Rp 0</td>
+                            </tr>
+                            <!-- DDS -->
+                            <tr class="hover:bg-slate-50/70 transition">
+                                <td class="p-2.5 font-bold">
+                                    <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> DDS</span>
+                                    <div class="text-[10px] text-slate-400 font-normal">Dana Desa (APBN)</div>
+                                </td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_DDS" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPerub_DDS" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguSilpa_DDS" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPengeluaran_DDS" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_DDS">Rp 0</td>
+                            </tr>
+                            <!-- PBH -->
+                            <tr class="hover:bg-slate-50/70 transition">
+                                <td class="p-2.5 font-bold">
+                                    <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span> PBH</span>
+                                    <div class="text-[10px] text-slate-400 font-normal">Bagi Hasil Pajak &amp; Retribusi</div>
+                                </td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_PBH" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPerub_PBH" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguSilpa_PBH" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPengeluaran_PBH" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_PBH">Rp 0</td>
+                            </tr>
+                            <!-- APBD Tk. I -->
+                            <tr class="hover:bg-slate-50/70 transition">
+                                <td class="p-2.5 font-bold">
+                                    <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span> APBD I</span>
+                                    <div class="text-[10px] text-slate-400 font-normal">Bantuan Keuangan Provinsi</div>
+                                </td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_APBD1" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPerub_APBD1" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguSilpa_APBD1" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPengeluaran_APBD1" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_APBD1">Rp 0</td>
+                            </tr>
+                            <!-- APBD Tk. II -->
+                            <tr class="hover:bg-slate-50/70 transition">
+                                <td class="p-2.5 font-bold">
+                                    <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-500"></span> APBD II</span>
+                                    <div class="text-[10px] text-slate-400 font-normal">Bantuan Keuangan Kab/Kota</div>
+                                </td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_APBD2" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPerub_APBD2" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguSilpa_APBD2" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPengeluaran_APBD2" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_APBD2">Rp 0</td>
+                            </tr>
+                            <!-- PAD -->
+                            <tr class="hover:bg-slate-50/70 transition">
+                                <td class="p-2.5 font-bold">
+                                    <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-teal-500"></span> PAD</span>
+                                    <div class="text-[10px] text-slate-400 font-normal">Pendapatan Asli Desa</div>
+                                </td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_PAD" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPerub_PAD" class="input-field text-right text-xs py-1 px-2" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguSilpa_PAD" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguPengeluaran_PAD" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" onkeyup="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_PAD">Rp 0</td>
+                            </tr>
+                        </tbody>
+                        <tfoot class="bg-slate-50 font-extrabold border-t-2 border-slate-200 text-slate-900">
+                            <tr>
+                                <td class="p-2.5 uppercase tracking-wider">TOTAL AKUMULASI</td>
+                                <td id="paguTotalMurni" class="p-2.5 text-right">Rp 0</td>
+                                <td id="paguTotalPerubahan" class="p-2.5 text-right">Rp 0</td>
+                                <td id="paguTotalSilpa" class="p-2.5 text-right text-emerald-600">Rp 0</td>
+                                <td id="paguTotalPengeluaran" class="p-2.5 text-right text-amber-600">Rp 0</td>
+                                <td id="paguTotalAkhir" class="p-2.5 text-right bg-indigo-100/60 text-indigo-900 text-sm">Rp 0</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- Hidden inputs for legacy field ID compatibility -->
+                <input type="hidden" id="paguInput_ADD" />
+                <input type="hidden" id="paguInput_DDS" />
+                <input type="hidden" id="paguInput_PBH" />
+                <input type="hidden" id="paguInput_APBD1" />
+                <input type="hidden" id="paguInput_APBD2" />
+                <input type="hidden" id="paguInput_PAD" />
+
+                <!-- Peringatan info -->
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-800 text-[11px] leading-relaxed">
+                    <i class="fas fa-info-circle text-amber-500 mt-0.5 text-sm"></i>
                     <div>
-                        <label class="form-label">Pagu ADD (Alokasi Dana Desa)</label>
-                        <input type="text" id="paguInput_ADD" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
-                    </div>
-                    <div>
-                        <label class="form-label">Pagu DDS (Dana Desa / APBN)</label>
-                        <input type="text" id="paguInput_DDS" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
-                    </div>
-                    <div>
-                        <label class="form-label">Pagu PBH (Bagi Hasil Pajak &amp; Retribusi)</label>
-                        <input type="text" id="paguInput_PBH" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
-                    </div>
-                    <div>
-                        <label class="form-label">Pagu APBD Tk. I (Bantuan Provinsi)</label>
-                        <input type="text" id="paguInput_APBD1" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
-                    </div>
-                    <div>
-                        <label class="form-label">Pagu APBD Tk. II (Bantuan Kabupaten)</label>
-                        <input type="text" id="paguInput_APBD2" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
-                    </div>
-                    <div>
-                        <label class="form-label">Pagu PAD (Pendapatan Asli Desa)</label>
-                        <input type="text" id="paguInput_PAD" class="input-field font-bold text-slate-800" placeholder="Rp 0" onkeyup="formatNumberInput(this)" />
+                        <strong>Catatan Otoritas Anggaran:</strong> Nilai <em>Pagu Akhir Belanja</em> adalah batas atas maksimal yang digunakan sistem untuk memvalidasi alokasi belanja kegiatan RAB. Pengeluaran pembiayaan (misal Koperasi Desa Merah Putih &amp; BUMDes) secara otomatis memotong batas belanja dari sumber dana DDS.
                     </div>
                 </div>
             </div>
 
-            <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
-                <button onclick="tutupModalKelolaPagu()" class="btn-outline text-xs">Batal</button>
-                <button onclick="simpanPaguForm()" class="btn-primary text-xs">
-                    <i class="fas fa-save mr-1"></i> Simpan Pagu Anggaran
-                </button>
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                <div class="text-[11px] text-slate-500 font-medium">
+                    <i class="fas fa-shield-alt text-indigo-500 mr-1"></i> Data tersimpan persisten ke tabel pagu_anggaran &amp; pembiayaan
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="tutupModalKelolaPagu()" class="btn-outline text-xs">Batal</button>
+                    <button onclick="simpanPaguForm()" class="btn-primary text-xs">
+                        <i class="fas fa-save mr-1"></i> Simpan Pagu Anggaran
+                    </button>
+                </div>
             </div>
         </div>
     </div>

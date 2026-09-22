@@ -4343,7 +4343,8 @@ let paguState = {
         "APBD Tk. I": 0,
         "APBD Tk. II": 0,
         "PAD": 0
-    }
+    },
+    details: {}
 };
 
 async function loadPaguAnggaran(tahunParam) {
@@ -4354,6 +4355,7 @@ async function loadPaguAnggaran(tahunParam) {
         if (json.success && json.data) {
             paguState.tahun = th;
             paguState.data = json.data;
+            paguState.details = json.details || {};
         }
     } catch(e) {
         console.log('⚡ Using local pagu state definition');
@@ -4472,6 +4474,10 @@ function updateRabInfographicStats() {
 
         const isDeficit = sisaVal < 0;
 
+        const detail = (paguState.details && paguState.details[sd.code]) ? paguState.details[sd.code] : null;
+        const silpaVal = detail ? Number(detail.silpa || 0) : 0;
+        const pengeluaranVal = detail ? Number(detail.pengeluaran_pembiayaan || 0) : 0;
+
         cardsHtml += `
             <div class="bg-white rounded-xl p-4 border border-slate-200/90 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3">
                 <div class="flex items-start justify-between">
@@ -4488,9 +4494,19 @@ function updateRabInfographicStats() {
 
                 <div class="space-y-1.5 pt-1 border-t border-slate-100">
                     <div class="flex justify-between items-center text-xs">
-                        <span class="text-slate-400 font-semibold">Pagu:</span>
+                        <span class="text-slate-400 font-semibold">Pagu Akhir:</span>
                         <span class="font-extrabold text-slate-800">Rp ${paguVal.toLocaleString('id-ID')}</span>
                     </div>
+                    ${silpaVal > 0 ? `
+                    <div class="flex justify-between items-center text-[10px] text-emerald-600 font-bold bg-emerald-50/60 px-1.5 py-0.5 rounded">
+                        <span>+ SiLPA Masuk:</span>
+                        <span>Rp ${silpaVal.toLocaleString('id-ID')}</span>
+                    </div>` : ''}
+                    ${pengeluaranVal > 0 ? `
+                    <div class="flex justify-between items-center text-[10px] text-amber-700 font-bold bg-amber-50/60 px-1.5 py-0.5 rounded">
+                        <span>- Pembiayaan:</span>
+                        <span>Rp ${pengeluaranVal.toLocaleString('id-ID')}</span>
+                    </div>` : ''}
                     <div class="flex justify-between items-center text-xs">
                         <span class="text-slate-400 font-semibold">Terpakai:</span>
                         <span class="font-extrabold text-indigo-600">Rp ${terpakaiVal.toLocaleString('id-ID')}</span>
@@ -4533,22 +4549,156 @@ function updateRabInfographicStats() {
     if (cardPercentText) cardPercentText.textContent = `${grandPercent}%`;
 }
 
-function loadPaguInputForm(th) {
-    const data = (paguState.tahun === String(th) && paguState.data) ? paguState.data : {};
-    const format = (v) => (v !== undefined && v !== null && Number(v) > 0) ? Number(v).toLocaleString('id-ID') : '';
-    const addEl = document.getElementById('paguInput_ADD');
-    const ddsEl = document.getElementById('paguInput_DDS');
-    const pbhEl = document.getElementById('paguInput_PBH');
-    const apbd1El = document.getElementById('paguInput_APBD1');
-    const apbd2El = document.getElementById('paguInput_APBD2');
-    const padEl = document.getElementById('paguInput_PAD');
+const PAGU_KEYS = ['ADD', 'DDS', 'PBH', 'APBD1', 'APBD2', 'PAD'];
+const PAGU_MAP_CODES = {
+    'ADD': 'ADD',
+    'DDS': 'DDS',
+    'PBH': 'PBH',
+    'APBD1': 'APBD Tk. I',
+    'APBD2': 'APBD Tk. II',
+    'PAD': 'PAD'
+};
 
-    if (addEl) addEl.value = format(data['ADD']);
-    if (ddsEl) ddsEl.value = format(data['DDS']);
-    if (pbhEl) pbhEl.value = format(data['PBH']);
-    if (apbd1El) apbd1El.value = format(data['APBD Tk. I']);
-    if (apbd2El) apbd2El.value = format(data['APBD Tk. II']);
-    if (padEl) padEl.value = format(data['PAD']);
+function parseFormVal(id) {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    return Number(String(el.value || '').replace(/[^0-9-]/g, '')) || 0;
+}
+
+function setFormVal(id, num) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.value = (num !== undefined && num !== null && Number(num) !== 0) ? Number(num).toLocaleString('id-ID') : '';
+    }
+}
+
+function hitungPaguModalRealtime() {
+    let totMurni = 0, totPerub = 0, totSilpa = 0, totPengeluaran = 0, totAkhir = 0;
+
+    PAGU_KEYS.forEach(k => {
+        const murni = parseFormVal(`paguMurni_${k}`);
+        const perub = parseFormVal(`paguPerub_${k}`);
+        const silpa = parseFormVal(`paguSilpa_${k}`);
+        const pengeluaran = parseFormVal(`paguPengeluaran_${k}`);
+
+        const akhir = murni + perub + silpa - pengeluaran;
+
+        const lbl = document.getElementById(`paguAkhirLabel_${k}`);
+        if (lbl) {
+            lbl.textContent = 'Rp ' + akhir.toLocaleString('id-ID');
+            lbl.className = akhir < 0 ? "p-2.5 text-right font-extrabold text-red-600 bg-red-50/50" : "p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30";
+        }
+
+        const hiddenLegacy = document.getElementById(`paguInput_${k}`);
+        if (hiddenLegacy) hiddenLegacy.value = akhir !== 0 ? akhir.toLocaleString('id-ID') : '';
+
+        totMurni += murni;
+        totPerub += perub;
+        totSilpa += silpa;
+        totPengeluaran += pengeluaran;
+        totAkhir += akhir;
+    });
+
+    const elTotMurni = document.getElementById('paguTotalMurni');
+    const elTotPerub = document.getElementById('paguTotalPerubahan');
+    const elTotSilpa = document.getElementById('paguTotalSilpa');
+    const elTotPeng = document.getElementById('paguTotalPengeluaran');
+    const elTotAkhir = document.getElementById('paguTotalAkhir');
+
+    if (elTotMurni) elTotMurni.textContent = 'Rp ' + totMurni.toLocaleString('id-ID');
+    if (elTotPerub) elTotPerub.textContent = 'Rp ' + totPerub.toLocaleString('id-ID');
+    if (elTotSilpa) elTotSilpa.textContent = 'Rp ' + totSilpa.toLocaleString('id-ID');
+    if (elTotPeng) elTotPeng.textContent = 'Rp ' + totPengeluaran.toLocaleString('id-ID');
+    if (elTotAkhir) elTotAkhir.textContent = 'Rp ' + totAkhir.toLocaleString('id-ID');
+}
+
+function muatDataResmi2026() {
+    setFormVal('paguMurni_ADD', 629844000);
+    setFormVal('paguPerub_ADD', 21949469);
+    setFormVal('paguSilpa_ADD', 6350531);
+    setFormVal('paguPengeluaran_ADD', 0);
+
+    setFormVal('paguMurni_DDS', 373456000);
+    setFormVal('paguPerub_DDS', 0);
+    setFormVal('paguSilpa_DDS', 0);
+    setFormVal('paguPengeluaran_DDS', 178126500);
+
+    setFormVal('paguMurni_PBH', 29637000);
+    setFormVal('paguPerub_PBH', 0);
+    setFormVal('paguSilpa_PBH', 31076703);
+    setFormVal('paguPengeluaran_PBH', 0);
+
+    setFormVal('paguMurni_APBD1', 27000000);
+    setFormVal('paguPerub_APBD1', 0);
+    setFormVal('paguSilpa_APBD1', 0);
+    setFormVal('paguPengeluaran_APBD1', 0);
+
+    setFormVal('paguMurni_APBD2', 0);
+    setFormVal('paguPerub_APBD2', 0);
+    setFormVal('paguSilpa_APBD2', 0);
+    setFormVal('paguPengeluaran_APBD2', 0);
+
+    setFormVal('paguMurni_PAD', 0);
+    setFormVal('paguPerub_PAD', 0);
+    setFormVal('paguSilpa_PAD', 0);
+    setFormVal('paguPengeluaran_PAD', 0);
+
+    hitungPaguModalRealtime();
+    if (typeof showToast === 'function') {
+        showToast('✅ Data resmi SiLPA dan Pembiayaan T.A. 2026 berhasil dimuat!', 'success');
+    }
+}
+
+function loadPaguInputForm(th) {
+    const is2026 = String(th) === '2026';
+    const details = (paguState.tahun === String(th) && paguState.details) ? paguState.details : {};
+    const paguData = (paguState.tahun === String(th) && paguState.data) ? paguState.data : {};
+
+    PAGU_KEYS.forEach(k => {
+        const mapCode = PAGU_MAP_CODES[k];
+        const d = details[mapCode];
+        if (d && (d.pagu_murni || d.silpa || d.pengeluaran_pembiayaan || d.perubahan)) {
+            setFormVal(`paguMurni_${k}`, d.pagu_murni);
+            setFormVal(`paguPerub_${k}`, d.perubahan);
+            setFormVal(`paguSilpa_${k}`, d.silpa);
+            setFormVal(`paguPengeluaran_${k}`, d.pengeluaran_pembiayaan);
+        } else if (is2026) {
+            if (k === 'ADD') {
+                setFormVal(`paguMurni_${k}`, 629844000);
+                setFormVal(`paguPerub_${k}`, 21949469);
+                setFormVal(`paguSilpa_${k}`, 6350531);
+                setFormVal(`paguPengeluaran_${k}`, 0);
+            } else if (k === 'DDS') {
+                setFormVal(`paguMurni_${k}`, 373456000);
+                setFormVal(`paguPerub_${k}`, 0);
+                setFormVal(`paguSilpa_${k}`, 0);
+                setFormVal(`paguPengeluaran_${k}`, 178126500);
+            } else if (k === 'PBH') {
+                setFormVal(`paguMurni_${k}`, 29637000);
+                setFormVal(`paguPerub_${k}`, 0);
+                setFormVal(`paguSilpa_${k}`, 31076703);
+                setFormVal(`paguPengeluaran_${k}`, 0);
+            } else if (k === 'APBD1') {
+                setFormVal(`paguMurni_${k}`, 27000000);
+                setFormVal(`paguPerub_${k}`, 0);
+                setFormVal(`paguSilpa_${k}`, 0);
+                setFormVal(`paguPengeluaran_${k}`, 0);
+            } else {
+                setFormVal(`paguMurni_${k}`, 0);
+                setFormVal(`paguPerub_${k}`, 0);
+                setFormVal(`paguSilpa_${k}`, 0);
+                setFormVal(`paguPengeluaran_${k}`, 0);
+            }
+        } else {
+            const val = paguData[mapCode] || 0;
+            setFormVal(`paguMurni_${k}`, val);
+            setFormVal(`paguPerub_${k}`, 0);
+            setFormVal(`paguSilpa_${k}`, 0);
+            setFormVal(`paguPengeluaran_${k}`, 0);
+        }
+    });
+
+    hitungPaguModalRealtime();
 }
 
 function formatNumberInput(el) {
@@ -4564,33 +4714,39 @@ async function simpanPaguForm() {
     const selTahun = document.getElementById('paguInputTahun');
     const th = selTahun ? selTahun.value : String(rabYear || '2027');
 
-    const parseFormVal = id => {
-        const el = document.getElementById(id);
-        if (!el) return 0;
-        return Number(el.value.replace(/[^0-9]/g, '')) || 0;
-    };
+    const newPaguData = {};
+    const newDetails = {};
 
-    const newPaguData = {
-        "ADD": parseFormVal('paguInput_ADD'),
-        "DDS": parseFormVal('paguInput_DDS'),
-        "PBH": parseFormVal('paguInput_PBH'),
-        "APBD Tk. I": parseFormVal('paguInput_APBD1'),
-        "APBD Tk. II": parseFormVal('paguInput_APBD2'),
-        "PAD": parseFormVal('paguInput_PAD')
-    };
+    PAGU_KEYS.forEach(k => {
+        const mapCode = PAGU_MAP_CODES[k];
+        const murni = parseFormVal(`paguMurni_${k}`);
+        const perub = parseFormVal(`paguPerub_${k}`);
+        const silpa = parseFormVal(`paguSilpa_${k}`);
+        const pengeluaran = parseFormVal(`paguPengeluaran_${k}`);
+        const akhir = murni + perub + silpa - pengeluaran;
 
-    console.log(`📡 Sending Pagu Data to Supabase & Server for year ${th}:`, newPaguData);
+        newPaguData[mapCode] = akhir;
+        newDetails[mapCode] = {
+            pagu_murni: murni,
+            perubahan: perub,
+            silpa: silpa,
+            pengeluaran_pembiayaan: pengeluaran,
+            pagu_akhir: akhir
+        };
+    });
+
+    console.log(`📡 Sending Pagu Data & Details to Supabase for year ${th}:`, newPaguData, newDetails);
 
     try {
         const res = await fetch(`${API_URL}/pagu-anggaran`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tahun: th, paguData: newPaguData })
+            body: JSON.stringify({ tahun: th, paguData: newPaguData, details: newDetails })
         });
         const resJson = await res.json();
         if (resJson.success) {
-            console.log("✅ Pagu Anggaran successfully saved to Supabase Database:", resJson);
-            showToast(`✅ Pagu Anggaran tahun ${th} berhasil disimpan ke Supabase Database!`, 'success');
+            console.log("✅ Pagu Anggaran & Pembiayaan successfully saved to Supabase:", resJson);
+            showToast(`✅ Pagu Anggaran tahun ${th} berhasil disimpan & disinkronkan ke Supabase!`, 'success');
         } else {
             console.warn("⚠️ Server warning saving pagu:", resJson.message);
             showToast(`⚠️ warning: ${resJson.message}`, 'warning');
@@ -4602,6 +4758,7 @@ async function simpanPaguForm() {
 
     paguState.tahun = th;
     paguState.data = newPaguData;
+    paguState.details = newDetails;
 
     tutupModalKelolaPagu();
     // Muat ulang pagu tahun aktif agar infografis & validasi konsisten
@@ -4910,6 +5067,8 @@ window.loadPaguInputForm = loadPaguInputForm;
 window.onPaguTahunChange = onPaguTahunChange;
 window.formatNumberInput = formatNumberInput;
 window.simpanPaguForm = simpanPaguForm;
+window.hitungPaguModalRealtime = hitungPaguModalRealtime;
+window.muatDataResmi2026 = muatDataResmi2026;
 window.tutupModalOverBudget = tutupModalOverBudget;
 window.fixRabData = fixRabData;
 window.pilihKegiatanDariForm = pilihKegiatanDariForm;

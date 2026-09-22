@@ -11236,7 +11236,7 @@ app.get('/api/pagu-anggaran', async (req, res) => {
         const cacheKey = `paguAnggaran_${tahunInt}`;
         const cached = refCacheGet(cacheKey);
         if (cached) {
-            return res.json({ success: true, data: cached, cached: true });
+            return res.json({ success: true, ...cached, cached: true });
         }
 
         const { data, error } = await supabase
@@ -11257,17 +11257,49 @@ app.get('/api/pagu-anggaran', async (req, res) => {
             "APBD Tk. II": 0,
             "PAD": 0
         };
+        const detailsMap = {};
 
         if (Array.isArray(data)) {
             data.forEach(item => {
                 if (item.sumber_dana && paguMap.hasOwnProperty(item.sumber_dana)) {
                     paguMap[item.sumber_dana] = Number(item.pagu || 0);
+                    if (item.keterangan) {
+                        try {
+                            const parsed = JSON.parse(item.keterangan);
+                            if (parsed && typeof parsed === 'object') {
+                                detailsMap[item.sumber_dana] = parsed;
+                            }
+                        } catch (e) {}
+                    }
                 }
             });
         }
 
-        refCacheSet(cacheKey, paguMap);
-        res.json({ success: true, data: paguMap });
+        // Baseline data resmi tahun 2026 jika detail belum tersimpan
+        if (tahunInt === 2026) {
+            if (!detailsMap['ADD']) {
+                detailsMap['ADD'] = { pagu_murni: 629844000, perubahan: 21949469, silpa: 6350531, pengeluaran_pembiayaan: 0, pagu_akhir: paguMap['ADD'] || 658144000 };
+            }
+            if (!detailsMap['DDS']) {
+                detailsMap['DDS'] = { pagu_murni: 373456000, perubahan: 0, silpa: 0, pengeluaran_pembiayaan: 178126500, pagu_akhir: paguMap['DDS'] || 195329500 };
+            }
+            if (!detailsMap['PBH']) {
+                detailsMap['PBH'] = { pagu_murni: 29637000, perubahan: 0, silpa: 31076703, pengeluaran_pembiayaan: 0, pagu_akhir: paguMap['PBH'] || 60713703 };
+            }
+            if (!detailsMap['APBD Tk. I']) {
+                detailsMap['APBD Tk. I'] = { pagu_murni: 27000000, perubahan: 0, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: paguMap['APBD Tk. I'] || 27000000 };
+            }
+            if (!detailsMap['APBD Tk. II']) {
+                detailsMap['APBD Tk. II'] = { pagu_murni: 0, perubahan: 0, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: paguMap['APBD Tk. II'] || 0 };
+            }
+            if (!detailsMap['PAD']) {
+                detailsMap['PAD'] = { pagu_murni: 0, perubahan: 0, silpa: 0, pengeluaran_pembiayaan: 0, pagu_akhir: paguMap['PAD'] || 0 };
+            }
+        }
+
+        const resObj = { success: true, data: paguMap, details: detailsMap };
+        refCacheSet(cacheKey, resObj);
+        res.json(resObj);
     } catch (error) {
         console.error('Catch error fetching pagu_anggaran:', error.message);
         res.status(500).json({ success: false, error: error.message });
@@ -11276,32 +11308,74 @@ app.get('/api/pagu-anggaran', async (req, res) => {
 
 app.post('/api/pagu-anggaran', async (req, res) => {
     try {
-        const { tahun, paguData } = req.body;
+        const { tahun, paguData, details } = req.body;
         const tahunInt = parseInt(tahun) || 2027;
 
         if (!paguData || typeof paguData !== 'object') {
             return res.status(400).json({ success: false, error: 'paguData wajib diisi' });
         }
 
-        const rowsToUpsert = Object.keys(paguData).map(sumber => ({
-            tahun: tahunInt,
-            sumber_dana: sumber,
-            pagu: Number(paguData[sumber] || 0),
-            updated_at: new Date().toISOString()
-        }));
+        const rowsToUpsert = Object.keys(paguData).map(sumber => {
+            const detailObj = (details && details[sumber]) ? details[sumber] : null;
+            return {
+                tahun: tahunInt,
+                sumber_dana: sumber,
+                pagu: Number(paguData[sumber] || 0),
+                keterangan: detailObj ? JSON.stringify(detailObj) : null,
+                updated_at: new Date().toISOString()
+            };
+        });
 
         const { data, error } = await supabase
             .from('pagu_anggaran')
             .upsert(rowsToUpsert, { onConflict: ['tahun', 'sumber_dana'] })
-            .select('id');
+            .select('id, tahun, sumber_dana, pagu');
 
         if (error) {
             console.error('Error upserting pagu_anggaran:', error.message);
             return res.status(500).json({ success: false, error: error.message });
         }
 
+        // Sinkronisasi otomatis ke tabel pembiayaan jika details SiLPA / Pengeluaran dikirim
+        if (details && typeof details === 'object') {
+            try {
+                let totalSilpa = 0;
+                let pengeluaranDds = 0;
+                Object.keys(details).forEach(k => {
+                    const d = details[k];
+                    if (d) {
+                        totalSilpa += Number(d.silpa || 0);
+                        if (k === 'DDS') {
+                            pengeluaranDds += Number(d.pengeluaran_pembiayaan || 0);
+                        }
+                    }
+                });
+
+                if (totalSilpa > 0 || pengeluaranDds > 0) {
+                    const cadanganKoperasi = Math.min(46110000, pengeluaranDds);
+                    const modalBumdes = Math.max(0, pengeluaranDds - cadanganKoperasi);
+                    await supabase
+                        .from('pembiayaan')
+                        .upsert([{
+                            tahun: tahunInt,
+                            tipe_anggaran: 'PERUBAHAN',
+                            silpa_tahun_sebelumnya: totalSilpa,
+                            pencairan_dana_cadangan: 0,
+                            hasil_penjualan_kekayaan: 0,
+                            pembentukan_dana_cadangan: cadanganKoperasi,
+                            penyertaan_modal_desa: modalBumdes,
+                            updated_at: new Date().toISOString()
+                        }], { onConflict: ['tahun', 'tipe_anggaran'] })
+                        .select('id, tahun, tipe_anggaran');
+                    refCacheInvalidate(`pembiayaan_${tahunInt}_PERUBAHAN`);
+                }
+            } catch (errSync) {
+                console.warn('⚠️ Warning syncing to pembiayaan table:', errSync.message);
+            }
+        }
+
         refCacheInvalidate(`paguAnggaran_${tahunInt}`);
-        res.json({ success: true, message: 'Pagu anggaran berhasil disimpan', data });
+        res.json({ success: true, message: 'Pagu anggaran dan pembiayaan berhasil disimpan', data });
     } catch (error) {
         console.error('Catch error saving pagu_anggaran:', error.message);
         res.status(500).json({ success: false, error: error.message });
