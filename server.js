@@ -9202,10 +9202,16 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
 
         // A. Koordinasi Penyimpanan ke Tabel RAB (tipe_anggaran: 'PERUBAHAN')
         let rabPerId = null;
+        // Total yang BENAR-BENAR tersimpan di baris RAB PERUBAHAN. Dipakai untuk echo
+        // respons supaya klien tidak menerima angka payload (readonly) yang justru sudah
+        // ditolak oleh aturan ownership total di bawah.
+        let totalTersimpanRabPer = biayaNum;
         try {
             let findQ = supabase
                 .from(RAB_TABLE)
-                .select('id, kode_unik_full, tahun, tipe_anggaran, volume, satuan, jumlah_anggaran, rpjm_data')
+                // `items` & `harga_satuan` ikut ditarik (1 baris saja) karena total anggaran
+                // baris ini dimiliki oleh rincian item-nya, bukan oleh payload modal.
+                .select('id, kode_unik_full, tahun, tipe_anggaran, volume, satuan, harga_satuan, jumlah_anggaran, items, rpjm_data')
                 .eq('tahun', tahunInt)
                 .eq('tipe_anggaran', RAB_TIPE_PERUBAHAN);
             if (kode) {
@@ -9237,11 +9243,30 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
 
             if (existingRabPer && existingRabPer.id) {
                 rabPerId = existingRabPer.id;
+                // OWNERSHIP TOTAL: total anggaran baris RAB PERUBAHAN berasal dari RINCIAN
+                // ITEM-nya, bukan dari modal RKPDes. Input "biaya" MENJADI di modal bersifat
+                // readonly (diturunkan dari tampilan), sehingga menyalinnya ke kolom ini
+                // menghidupkan kembali nilai basi — persis kasus 02.02.02.03.: kegiatan yang
+                // seluruh itemnya bervolume 0 kembali tercatat Rp 95.816.000 setelah admin
+                // menyimpan modal, lalu GET menampilkannya sebagai "Menjadi" (desync).
+                const itemsRabPer = Array.isArray(existingRabPer.items) ? existingRabPer.items : [];
+                const rincianPerubahanNol = itemsRabPer.length > 0
+                    && itemsRabPer.every((it) => (Number(it.volume) || 0) === 0);
+                // Kegiatan ditiadakan (semua item volume 0) => Rp 0, apa pun sisa angka header.
+                const anggaranRabPer = rincianPerubahanNol
+                    ? 0
+                    : (itemsRabPer.length > 0 ? Number(existingRabPer.jumlah_anggaran ?? 0) : biayaNum);
+                totalTersimpanRabPer = anggaranRabPer;
+                const hargaSatuanRabPer = rincianPerubahanNol
+                    ? 0
+                    : (itemsRabPer.length > 0
+                        ? Number(existingRabPer.harga_satuan ?? existingRabPer.jumlah_anggaran ?? 0)
+                        : biayaNum);
                 const { data: upRabRes, error: rabUpErr } = await supabase.from(RAB_TABLE).update({
                     volume: volNum,
                     satuan: satStr,
-                    jumlah_anggaran: biayaNum,
-                    harga_satuan: biayaNum,
+                    jumlah_anggaran: anggaranRabPer,
+                    harga_satuan: hargaSatuanRabPer,
                     lokasi: lokasiStr,
                     lokasi_kegiatan: lokasiStr,
                     sumber_dana: sumberStr,
@@ -9406,7 +9431,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 menjadi: {
                     volume: volNum,
                     satuan: satStr,
-                    biaya: biayaNum,
+                    biaya: totalTersimpanRabPer,
                     lokasi: lokasiStr,
                     sumber_biaya: sumberStr,
                     waktu_pelaksanaan: waktuStr,
@@ -9421,7 +9446,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 stunting: stuntingMenjadiStr,
                 volume: volNum,
                 satuan: satStr,
-                biaya: biayaNum,
+                biaya: totalTersimpanRabPer,
                 lokasi: lokasiStr,
                 sumber_biaya: sumberStr,
                 waktu_pelaksanaan: waktuStr,

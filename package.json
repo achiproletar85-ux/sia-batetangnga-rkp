@@ -13,6 +13,7 @@
     "seed-admin": "node scripts/seed-admin-supabase.js",
     "audit:egress": "node scripts/audit-supabase-calls.cjs",
     "audit:undeclared": "node scripts/audit-undeclared-vars.cjs",
+    "sync:rab-perubahan": "node scripts/sync-total-rab-perubahan.cjs",
     "test:undeclared": "node scripts/test-undeclared-vars.cjs",
     "audit:tingkat-lanjut": "node scripts/audit-tingkat-lanjut.cjs",
     "audit:rab-fetches": "node scripts/audit-rab-fetches.cjs",

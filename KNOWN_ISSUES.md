@@ -226,6 +226,50 @@ bocor ke tampilan tabel.
 
 ---
 
+## 12. 🟢 Desync total RAB Perubahan → RKPDes Perubahan (kegiatan ditiadakan)
+
+**Status:** 🟢 Selesai
+
+Kegiatan yang di dokumen RAB PERUBAHAN sudah ditiadakan (seluruh item bervolume 0)
+tetap tampil bernilai penuh di RKPDes Perubahan — `02.02.02.02.` Rp 107.720.500 dan
+`02.02.02.03.` Rp 95.816.000, keduanya berstatus "Tidak Bergeser". Ini desync dua arah:
+
+1. **Kolom `rab.jumlah_anggaran` masih memuat angka lama.** `02.02.02.02.` header masih
+   Rp 107.720.500 padahal total itemnya Rp 0, sehingga GET menampilkan angka basi itu.
+2. **Modal RKPDes Perubahan menulis-balik total readonly.** Input "biaya" MENJADI di
+   modal bersifat `readonly` (diturunkan dari tampilan), tetapi `PUT /api/rkpdes/perubahan`
+   menyalinnya ke `jumlah_anggaran` + `harga_satuan` baris RAB PERUBAHAN. Nilai SEMULA yang
+   sedang tampil karena fallback pun tersalin kembali — loop yang menyegel desync.
+   Bukti: `rab#775` ter-zero (`jumlah_anggaran = 0`, `rincian_override_at` 16:48:37)
+   lalu kembali Rp 95.816.000 pada saat yang sama dengan penyimpanan modal admin.
+   Tanda yang sama muncul di `#777` (Rp 238.105.000, 16:56:02) dan `#778` (Rp 117.685.000,
+   16:55:18) sehingga total `rab` PERUBAHAN melonjak dari 920.537.472 → 1.276.327.472
+   tanpa ada dokumen yang berubah.
+
+**Perbaikan:**
+
+1. **Ownership total di `PUT /api/rkpdes/perubahan`** — total anggaran baris RAB PERUBAHAN
+   kini dimiliki oleh RINCIAN ITEM-nya (`items` & `harga_satuan` ikut ditarik untuk baris
+   target): seluruh item bervolume 0 → `jumlah_anggaran = 0` & `harga_satuan = 0`; ada
+   rincian → total tersimpan dipertahankan; belum ada rincian → payload boleh menetapkan
+   (perilaku lama untuk kegiatan baru). Payload modal `readonly` tidak lagi bisa menulis total.
+2. **Sinkronisasi data** — `scripts/sync-total-rab-perubahan.cjs` (`npm run sync:rab-perubahan`,
+   DRY-RUN default + cadangan + `--restore` + validasi delta) menolkan header dua baris
+   ditiadakan yang rinciannya sudah disimpan eksplisit (`rincian_override`).
+
+**Hasil terukur:** `02.02.02.02.` → MENJADI Rp 0 (selisih −107.720.500) dan `02.02.02.03.`
+→ Rp 0 (selisih −95.816.000), keduanya ber-badge "Berkurang"; Total Belanja Bidang II
+RKPDes turun tepat **Rp 203.536.500** (906.729.000 → 661.957.500).
+
+**Catatan terbuka:** sembilan baris PERUBAHAN lain memiliki rincian yang seluruh itemnya
+bervolume 0 tetapi TIDAK ditandai penyimpanan eksplisit — termasuk `02.03.11.01.`
+(Rp 238.105.000), `02.03.14.01.` (Rp 117.685.000), `02.03.14.02./.03.`, `04.01.05.01.`,
+`04.03.01.01.`, `04.03.03.01.`, `01.01.08.01.`. Baris-baris itu masih mewarisi nilai SEMULA
+(perilaku lama); apakah dokumen RAB PERUBAHAN resminya juga Rp 0 perlu dikonfirmasi admin
+sebelum diubah.
+
+---
+
 <!-- Format entri baru:
 ## N. Judul singkat
 **Status:** 🟠 Terbuka / 🟢 Selesai

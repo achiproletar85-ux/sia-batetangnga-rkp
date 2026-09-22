@@ -436,6 +436,31 @@ assert(cleanupCode.includes('PARITAS ANGKA BERGESER'), 'Cleanup membatalkan tran
 assert(cleanupCode.includes("'--restore'"), 'Cleanup menyediakan mode restore dari cadangan');
 assert(cleanupCode.includes("const NOL_JSON = '0'") && cleanupCode.includes('v.trim() !== NOL_JSON'), 'Nol rpjm_data ditulis sebagai "0" (paritas tampilan terjaga) dan aturan idempoten');
 
+// 22. SINKRONISASI TOTAL RAB PERUBAHAN vs RINCIAN ITEM (kasus kegiatan ditiadakan)
+console.log('\n--- SINKRONISASI TOTAL RAB PERUBAHAN (KEGIATAN DITIADAKAN = Rp 0) ---\n');
+assert(serverCode.includes('const rincianPerubahanNol ='), 'PUT mengenali baris RAB PERUBAHAN yang seluruh itemnya bervolume 0 (kegiatan ditiadakan)');
+assert(serverCode.includes('const anggaranRabPer = rincianPerubahanNol'), 'Total anggaran baris RAB PERUBAHAN dihitung dari rincian item, bukan dari payload modal');
+assert(serverCode.includes('jumlah_anggaran: anggaranRabPer'), 'Update RAB PERUBAHAN memakai total hasil rincian (kegiatan ditiadakan => 0)');
+assert(serverCode.includes('harga_satuan: hargaSatuanRabPer'), 'harga_satuan ikut disinkronkan dengan rincian (0 saat ditiadakan)');
+assert(serverCode.includes('harga_satuan, jumlah_anggaran, items, rpjm_data'), 'PUT menarik items & harga_satuan baris target (total dimiliki rincian)');
+{
+    // Nilai modal yang readonly tidak boleh lagi disalin ke kolom total pada UPDATE
+    // (pada INSERT untuk kegiatan baru tetap boleh, karena rincian belum ada).
+    const blokUpdate = serverCode.slice(serverCode.indexOf('const anggaranRabPer'), serverCode.indexOf('const anggaranRabPer') + 1200);
+    assert(!/jumlah_anggaran:\s*biayaNum/.test(blokUpdate), 'Update RAB PERUBAHAN tidak lagi menulis jumlah_anggaran dari payload modal (penyebab desync)');
+    assert(!/harga_satuan:\s*biayaNum/.test(blokUpdate), 'Update RAB PERUBAHAN tidak lagi menulis harga_satuan dari payload modal');
+}
+const syncPath = path.resolve(__dirname, 'sync-total-rab-perubahan.cjs');
+assert(fs.existsSync(syncPath), 'Skrip sinkronisasi total RAB Perubahan (scripts/sync-total-rab-perubahan.cjs) tersedia');
+{
+    const syncCode = fs.readFileSync(syncPath, 'utf8');
+    assert(syncCode.includes("const APPLY = args.includes('--apply')"), 'Sinkronisasi total berjalan DRY-RUN default (hanya --apply yang menulis)');
+    assert(syncCode.includes('DELTA TIDAK SESUAI'), 'Sinkronisasi total membatalkan transaksi bila delta total tidak sesuai perhitungan');
+    assert(syncCode.includes("'--restore'"), 'Sinkronisasi total menyediakan mode restore dari cadangan');
+    assert(syncCode.includes('rincian_override'), 'Sinkronisasi total hanya menyentuh baris yang rinciannya disimpan eksplisit (rincian_override)');
+    assert(syncCode.includes('semua item bervolume 0'), 'Aturan “semua item bervolume 0 => Rp 0” didokumentasikan di skrip');
+}
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);
