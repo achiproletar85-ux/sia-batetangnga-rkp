@@ -174,18 +174,22 @@ sehingga pencocokan berbasis nama meleset.
 
 ---
 
-## 10. 🟡 Penghapusan nilai Penerima Manfaat sisi SEMULA belum bisa eksplisit kosong
+## 10. 🟢 Penghapusan nilai Penerima Manfaat sisi SEMULA kini bisa eksplisit kosong
 
-**Status:** 🟠 Terbuka — minor
+**Status:** 🟢 Selesai
 
 `GET /api/rkpdes/perubahan` mengisi sel SEMULA dari kolom `manfaat_l/p/rtm` baris
 `rkpdes`; bila kolom tersebut diisi `0`/kosong, pengayaan standar RPJMDes mengisinya
 kembali dari data rujukan. Sisi MENJADI sudah punya penanda `manfaat_override` sehingga
-nilai eksplisit (termasuk `-`) dihormati; sisi SEMULA belum punya penanda serupa
-(tabel `rkpdes` tidak memiliki kolom penanda).
+nilai eksplisit (termasuk `-`) dihormati.
 
-**Rekomendasi:** tambahkan kolom penanda (mis. `manfaat_override`) pada tabel `rkpdes`,
-atau simpan nilai eksplisit di `sasaran_manfaat` dan hormati bila bukan angka.
+**Perbaikan:** `PUT /api/rkpdes/perubahan` kini menulis `0` ke kolom `manfaat_l/p/rtm`
+(beserta `total_manfaat = 0`, `sasaran_manfaat = "L: 0, P: 0, RTM: 0 (Total: 0 Orang)"`,
+`penerima_manfaat = '-'`) ketika admin mengosongkan input — sebelumnya penulisan
+dilewati sehingga nilai lama tetap tersimpan. Nilai `0` eksplisit itu sendiri berfungsi
+sebagai penanda: `parseLPRTMDetails(..., adminDefined)` berhenti menebak dari
+`rpjmdes_standar` / total / heuristik nama kegiatan saat kolomnya bernilai 0.
+Tidak diperlukan migrasi kolom baru.
 
 ---
 

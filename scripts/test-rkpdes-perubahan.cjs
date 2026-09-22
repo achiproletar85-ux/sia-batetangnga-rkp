@@ -370,6 +370,44 @@ assert(serverCode.includes('const pickMenjadiText =') && serverCode.includes('co
 assert(serverCode.includes("const lokasiVal = (p && rincianDiubahManual)"), 'GET: lokasi MENJADI yang dikosongkan tetap kosong (-), tidak kembali ke SEMULA');
 assert(!serverCode.includes("const volMenjadi = p ? String(p.volume || volSemula) : volSemula;"), 'GET: volume MENJADI tidak lagi memakai `|| volSemula` (volume 0 dihormati)');
 
+// 19. NILAI NOL / KOSONG TIDAK BOLEH JADI TEKS ANEH ("0 -", "0 Org", "0 KK")
+//     & POSISI SCROLL HARUS DIPERTAHANKAN SETELAH SIMPAN.
+console.log('\n--- NILAI NOL/KOSONG & PRESERVASI POSISI SCROLL ---\n');
+
+// 19a. Backend: sanitasi & render nilai kosong
+assert(serverCode.includes('function isManfaatKosong'), 'Helper isManfaatKosong terdefinisi (nol/kosong => strip)');
+assert(serverCode.includes('function formatManfaatRpjm'), 'Helper formatManfaatRpjm terdefinisi (tidak menyisipkan unit pada nilai nol)');
+assert(serverCode.includes('function formatVolumeSatuan') && serverCode.includes('function isBlankVolumeValue'), 'Helper formatVolumeSatuan/isBlankVolumeValue terdefinisi (volume 0 => -)');
+assert(!serverCode.includes("volume_satuan: (volSemula.toLowerCase().includes"), 'SEMULA volume_satuan tidak lagi memakai penggabungan manual (penyebab "0 -")');
+assert(serverCode.includes('volume_satuan: volSatuanSemula'), 'SEMULA volume_satuan memakai formatVolumeSatuan');
+assert(serverCode.includes('const volSatuanMenjadi = formatVolumeSatuan(volMenjadi, satMenjadi)'), 'MENJADI volume_satuan memakai formatVolumeSatuan');
+assert(serverCode.includes("manfaat_l: formatManfaatRpjm(mLStr, 'Org')") && serverCode.includes("manfaat_rtm: formatManfaatRpjm(mRtmStr, 'KK')"), 'rpjm_data manfaat MENJADI memakai formatManfaatRpjm (nol => -)');
+assert(!serverCode.includes("manfaat_l: (mLStr && mLStr !== '-') ? (mLStr.includes('Org')"), 'rpjm_data manfaat tidak lagi memakai penggabungan manual');
+assert(serverCode.includes('const semulaManfaatEksplisit ='), 'GET mendeteksi kolom manfaat SEMULA yang dikosongkan admin (nilai 0 eksplisit)');
+assert(serverCode.includes('parseLPRTMDetails(m, resolved, semulaManfaatEksplisit)'), 'parseLPRTMDetails mematikan tebakan bila admin sudah mengosongkan (adminDefined)');
+assert(serverCode.includes('const semManfaatProvided ='), 'PUT perubahan mengenali field manfaat yang DIKIRIM walau kosong');
+assert(serverCode.includes('rkpSemulaPayload.manfaat_l = nLSem'), 'PUT perubahan menyimpan manfaat SEMULA = 0 saat dikosongkan (bukan dibiarkan nilai lama)');
+assert(serverCode.includes('rkpSemulaPayload.penerima_manfaat = totSemula > 0'), 'Penerima manfaat ikut dikosongkan (\'-\') saat total 0');
+assert(serverCode.includes('manfaat_override: manfaatDiubahManual'), 'GET mengirim penanda manfaat_override ke frontend');
+
+// 19b. Frontend: render bersih + tidak mewarisi nilai lama
+assert(jsCode.includes('function isNilaiKosong') && jsCode.includes('function formatManfaatSel') && jsCode.includes('function formatVolumeSatuanSel'), 'Helper render nilai nol/kosong terpasang di frontend/rkpdes.js');
+assert(!jsCode.includes("${semula.volume_satuan || semula.volume || '-'}"), 'Sel Volume & Satuan SEMULA tidak lagi memakai pola fallback mentah');
+assert(!jsCode.includes("${menjadi.volume_satuan || menjadi.volume || '-'}"), 'Sel Volume & Satuan MENJADI tidak lagi memakai pola fallback mentah');
+assert(jsCode.includes('${formatVolumeSatuanSel(semula.volume, semula.satuan)}'), 'Sel Volume & Satuan SEMULA memakai formatVolumeSatuanSel');
+assert(jsCode.includes('${formatVolumeSatuanSel(menjadi.volume, menjadi.satuan)}'), 'Sel Volume & Satuan MENJADI memakai formatVolumeSatuanSel');
+assert(jsCode.includes('${formatManfaatSel(sL)}') && jsCode.includes('${formatManfaatSel(penerimaL)}'), 'Sel Penerima Manfaat SEMULA & MENJADI memakai formatManfaatSel');
+assert(jsCode.includes('function manfaatMenjadiTersimpanEksplisit'), 'Frontend menghormati penanda manfaat_override (tidak menyalin SEMULA begitu saja)');
+assert(jsCode.includes('menjadiEksplisit ? \'-\''), 'Nilai MENJADI yang dikosongkan admin tetap \'-\' (tidak diisi ulang dari SEMULA)');
+
+// 19c. Scroll: posisi layar dipertahankan setelah simpan
+assert(jsCode.includes('function captureScrollState') && jsCode.includes('function restoreScrollState'), 'Helper preservasi posisi scroll terdefinisi');
+assert(jsCode.includes('const scrollState = captureScrollState(kode);'), 'Posisi scroll dicatat sebelum render ulang tabel Perubahan');
+assert(jsCode.includes('restoreScrollState(scrollState);'), 'Posisi scroll dipulihkan setelah data ditarik ulang dari database');
+assert(jsCode.includes("behavior: 'instant'"), 'Pemulihan scroll tanpa animasi (instant) — tidak meloncat');
+assert(jsCode.includes('tr[data-kode='), 'Baris teredit dicari lewat data-kode agar tetap terlihat');
+assert(!htmlCode.includes('href="#"'), 'Tidak ada tautan href="#" pada modal yang memicu loncatan scroll ke atas');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

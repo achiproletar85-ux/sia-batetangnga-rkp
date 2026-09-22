@@ -53,6 +53,70 @@ function formatSelisihRupiah(num) {
     return `-${absStr}`;
 }
 
+// ---------------------------------------------------------------------------
+// NILAI KOSONG / NOL TIDAK BOLEH MENGHASILKAN TEKS GABUNGAN ANEH ("0 -", "0 Org")
+// ---------------------------------------------------------------------------
+// Angka nol, string kosong, dan '-' dianggap kosong.
+function isNilaiKosong(v) {
+    if (v === null || v === undefined) return true;
+    const s = String(v).trim();
+    if (s === '' || s === '-' || s === '0') return true;
+    const digits = s.replace(/[^\d]/g, '');
+    if (digits === '') return false;
+    return Number(digits) === 0;
+}
+
+// Volume & Satuan: volume 0/kosong => '-' (bukan "0 Org" atau "0 -").
+function formatVolumeSatuanSel(volume, satuan) {
+    const v = (volume === null || volume === undefined) ? '' : String(volume).trim();
+    const isVolKosong = v === '' || v === '-' || (Number.isFinite(Number(v)) && Number(v) === 0);
+    if (isVolKosong) return '-';
+    const s = (satuan === null || satuan === undefined) ? '' : String(satuan).trim();
+    if (!s || s === '-' || s === '0') return v;
+    return v.toLowerCase().includes(s.toLowerCase()) ? v : `${v} ${s}`;
+}
+
+// Penerima Manfaat (Laki-laki / Perempuan / RTM): 0 atau kosong => '-',
+// tanpa embel-embel unit ("0 Org" / "0 KK").
+function formatManfaatSel(v) {
+    return isNilaiKosong(v) ? '-' : String(v).trim();
+}
+
+// Sisi MENJADI hanya boleh mewarisi nilai SEMULA bila admin BELUM pernah
+// menyimpannya secara eksplisit (penanda manfaat_override dari server).
+function manfaatMenjadiTersimpanEksplisit(item) {
+    return !!item && (item.manfaat_override === true || String(item.manfaat_override) === 'true');
+}
+
+// ---------------------------------------------------------------------------
+// PRESERVASI POSISI SCROLL saat render ulang tabel (anti "loncat ke atas")
+// ---------------------------------------------------------------------------
+function captureScrollState(kode = '') {
+    const y = (typeof window.scrollY === 'number')
+        ? window.scrollY
+        : (window.pageYOffset || document.documentElement.scrollTop || 0);
+    return { y: Number(y) || 0, kode: String(kode || '') };
+}
+
+function restoreScrollState(state) {
+    if (!state) return;
+    const apply = () => {
+        window.scrollTo({ top: state.y, left: 0, behavior: 'instant' });
+        if (!state.kode) return;
+        const escaped = String(state.kode).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const row = document.querySelector(`tr[data-kode="${escaped}"]`);
+        if (!row) return;
+        const rect = row.getBoundingClientRect();
+        const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+        // Baris hasil edit tetap terlihat; geser HANYA bila keluar dari viewport.
+        if (rect.top < 0 || rect.bottom > vh) {
+            row.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+    };
+    apply();
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(apply);
+}
+
 function showToast(msg, type = 'success') {
     const toast = document.getElementById('toast');
     if (!toast) return;
@@ -970,8 +1034,11 @@ async function saveEditRkpItem(event) {
         // Close modal upon successful write
         closeEditRkpModal();
 
-        // Refresh dataset directly from backend/database to guarantee complete persistence & UI sync
+        // Refresh dataset directly from backend/database to guarantee complete persistence & UI sync,
+        // lalu pulihkan posisi scroll agar pengguna tidak terlempar ke atas tabel.
+        const scrollState = captureScrollState(kode);
         await loadRkpdesData();
+        restoreScrollState(scrollState);
 
         showToast('✅ Berhasil memperbarui dan menyimpan data RKPDesa', 'success');
 
@@ -1167,10 +1234,10 @@ function applyManfaatOverridesToPerubahanList() {
         if (!item.semula) item.semula = {};
         if (!item.menjadi) item.menjadi = {};
 
-        // 1. Ambil nilai dasar dari SEMULA
-        const sL = item.penerima_l_semula ?? item.semula.manfaat_l ?? item.manfaat_l ?? '-';
-        const sP = item.penerima_p_semula ?? item.semula.manfaat_p ?? item.manfaat_p ?? '-';
-        const sRtm = item.penerima_rtm_semula ?? item.semula.manfaat_rtm ?? item.manfaat_rtm ?? '-';
+        // 1. Ambil nilai dasar dari SEMULA (0/kosong => '-')
+        const sL = formatManfaatSel(item.penerima_l_semula ?? item.semula.manfaat_l ?? item.manfaat_l);
+        const sP = formatManfaatSel(item.penerima_p_semula ?? item.semula.manfaat_p ?? item.manfaat_p);
+        const sRtm = formatManfaatSel(item.penerima_rtm_semula ?? item.semula.manfaat_rtm ?? item.manfaat_rtm);
 
         item.semula.manfaat_l = sL;
         item.semula.manfaat_p = sP;
@@ -1179,26 +1246,27 @@ function applyManfaatOverridesToPerubahanList() {
         item.penerima_p_semula = sP;
         item.penerima_rtm_semula = sRtm;
 
-        // 2. Default Fallback Otomatis: Salin dari SEMULA ke MENJADI
-        // Jika kolom MENJADI masih kosong, null, undefined, atau '-'
+        // 2. Salin SEMULA → MENJADI HANYA bila admin belum menyimpan sisi MENJADI
+        // secara eksplisit (penanda manfaat_override dari server). Tanpa guard ini,
+        // nilai yang sengaja dikosongkan admin diisi ulang oleh nilai SEMULA.
+        const menjadiEksplisit = manfaatMenjadiTersimpanEksplisit(item);
         let mL = item.penerima_l_menjadi ?? item.menjadi.manfaat_l;
-        if (!mL || mL === '' || mL === '-') {
-            mL = (sL !== '-') ? sL : (mL || '-');
-        }
-
         let mP = item.penerima_p_menjadi ?? item.menjadi.manfaat_p;
-        if (!mP || mP === '' || mP === '-') {
-            mP = (sP !== '-') ? sP : (mP || '-');
-        }
-
         let mRtm = item.penerima_rtm_menjadi ?? item.menjadi.manfaat_rtm;
-        if (!mRtm || mRtm === '' || mRtm === '-') {
-            mRtm = (sRtm !== '-') ? sRtm : (mRtm || '-');
+
+        if (menjadiEksplisit) {
+            mL = formatManfaatSel(mL);
+            mP = formatManfaatSel(mP);
+            mRtm = formatManfaatSel(mRtm);
+        } else {
+            if (!mL || mL === '' || mL === '-') mL = (sL !== '-') ? sL : (mL || '-');
+            if (!mP || mP === '' || mP === '-') mP = (sP !== '-') ? sP : (mP || '-');
+            if (!mRtm || mRtm === '' || mRtm === '-') mRtm = (sRtm !== '-') ? sRtm : (mRtm || '-');
         }
 
-        const penerimaL = (mL && mL !== '-') ? mL : (item.penerima_l_menjadi ?? item.penerima_l_semula ?? sL ?? '-');
-        const penerimaP = (mP && mP !== '-') ? mP : (item.penerima_p_menjadi ?? item.penerima_p_semula ?? sP ?? '-');
-        const penerimaRtm = (mRtm && mRtm !== '-') ? mRtm : (item.penerima_rtm_menjadi ?? item.penerima_rtm_semula ?? sRtm ?? '-');
+        const penerimaL = (mL && mL !== '-') ? mL : (menjadiEksplisit ? '-' : (item.penerima_l_menjadi ?? item.penerima_l_semula ?? sL ?? '-'));
+        const penerimaP = (mP && mP !== '-') ? mP : (menjadiEksplisit ? '-' : (item.penerima_p_menjadi ?? item.penerima_p_semula ?? sP ?? '-'));
+        const penerimaRtm = (mRtm && mRtm !== '-') ? mRtm : (menjadiEksplisit ? '-' : (item.penerima_rtm_menjadi ?? item.penerima_rtm_semula ?? sRtm ?? '-'));
 
         item.menjadi.manfaat_l = penerimaL;
         item.menjadi.manfaat_p = penerimaP;
@@ -1439,9 +1507,9 @@ function buildRkpdesPerubahanHtml() {
 
                         // OTOMATISASI FALLBACK PENERIMA MANFAAT: SEMULA KE MENJADI
                         // Terapkan logika fallback aktif: const penerimaL = item.penerima_l_menjadi ?? item.penerima_l_semula ?? '-';
-                        const sL = item.penerima_l_semula ?? semula.manfaat_l ?? item.manfaat_l ?? '-';
-                        const sP = item.penerima_p_semula ?? semula.manfaat_p ?? item.manfaat_p ?? '-';
-                        const sRtm = item.penerima_rtm_semula ?? semula.manfaat_rtm ?? item.manfaat_rtm ?? '-';
+                        const sL = formatManfaatSel(item.penerima_l_semula ?? semula.manfaat_l ?? item.manfaat_l);
+                        const sP = formatManfaatSel(item.penerima_p_semula ?? semula.manfaat_p ?? item.manfaat_p);
+                        const sRtm = formatManfaatSel(item.penerima_rtm_semula ?? semula.manfaat_rtm ?? item.manfaat_rtm);
 
                         semula.manfaat_l = sL;
                         semula.manfaat_p = sP;
@@ -1450,25 +1518,26 @@ function buildRkpdesPerubahanHtml() {
                         item.penerima_p_semula = sP;
                         item.penerima_rtm_semula = sRtm;
 
-                        // Nilai MENJADI mengambil nilai dari SEMULA sebagai default jika belum diisi/diubah
+                        // Nilai MENJADI mewarisi SEMULA HANYA bila admin belum menyimpan
+                        // sisi MENJADI secara eksplisit (0/kosong hasil edit tetap '-').
+                        const menjadiEksplisit = manfaatMenjadiTersimpanEksplisit(item);
                         let mL = item.penerima_l_menjadi ?? menjadi.manfaat_l;
-                        if (!mL || mL === '' || mL === '-') {
-                            mL = (sL !== '-') ? sL : (mL || '-');
-                        }
-
                         let mP = item.penerima_p_menjadi ?? menjadi.manfaat_p;
-                        if (!mP || mP === '' || mP === '-') {
-                            mP = (sP !== '-') ? sP : (mP || '-');
-                        }
-
                         let mRtm = item.penerima_rtm_menjadi ?? menjadi.manfaat_rtm;
-                        if (!mRtm || mRtm === '' || mRtm === '-') {
-                            mRtm = (sRtm !== '-') ? sRtm : (mRtm || '-');
+
+                        if (menjadiEksplisit) {
+                            mL = formatManfaatSel(mL);
+                            mP = formatManfaatSel(mP);
+                            mRtm = formatManfaatSel(mRtm);
+                        } else {
+                            if (!mL || mL === '' || mL === '-') mL = (sL !== '-') ? sL : (mL || '-');
+                            if (!mP || mP === '' || mP === '-') mP = (sP !== '-') ? sP : (mP || '-');
+                            if (!mRtm || mRtm === '' || mRtm === '-') mRtm = (sRtm !== '-') ? sRtm : (mRtm || '-');
                         }
 
-                        const penerimaL = (mL && mL !== '-') ? mL : (item.penerima_l_menjadi ?? item.penerima_l_semula ?? sL ?? '-');
-                        const penerimaP = (mP && mP !== '-') ? mP : (item.penerima_p_menjadi ?? item.penerima_p_semula ?? sP ?? '-');
-                        const penerimaRtm = (mRtm && mRtm !== '-') ? mRtm : (item.penerima_rtm_menjadi ?? item.penerima_rtm_semula ?? sRtm ?? '-');
+                        const penerimaL = (mL && mL !== '-') ? mL : (menjadiEksplisit ? '-' : (item.penerima_l_menjadi ?? item.penerima_l_semula ?? sL ?? '-'));
+                        const penerimaP = (mP && mP !== '-') ? mP : (menjadiEksplisit ? '-' : (item.penerima_p_menjadi ?? item.penerima_p_semula ?? sP ?? '-'));
+                        const penerimaRtm = (mRtm && mRtm !== '-') ? mRtm : (menjadiEksplisit ? '-' : (item.penerima_rtm_menjadi ?? item.penerima_rtm_semula ?? sRtm ?? '-'));
 
                         menjadi.manfaat_l = penerimaL;
                         menjadi.manfaat_p = penerimaP;
@@ -1516,10 +1585,10 @@ function buildRkpdesPerubahanHtml() {
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap">${semula.sdgs || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${semula.data_eksisting || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${semula.lokasi || 'Desa Batetangnga'}</td>
-                                <td class="text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800">${semula.volume_satuan || semula.volume || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${sL || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${sP || '-'}</td>
-                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${sRtm || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800">${formatVolumeSatuanSel(semula.volume, semula.satuan)}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${formatManfaatSel(sL)}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${formatManfaatSel(sP)}</td>
+                                <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">${formatManfaatSel(sRtm)}</td>
                                 <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-semibold text-slate-900 whitespace-nowrap">${formatRupiah(bSemula)}</td>
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${semula.sumber_biaya || 'DDS'}</td>
                                 
@@ -1527,15 +1596,15 @@ function buildRkpdesPerubahanHtml() {
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 whitespace-nowrap">${menjadi.sdgs || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.data_eksisting || '-'}</td>
                                 <td class="align-top border border-slate-300 px-1.5 py-1.5 text-slate-700">${menjadi.lokasi || 'Desa Batetangnga'}</td>
-                                <td class="text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800 font-medium">${menjadi.volume_satuan || menjadi.volume || '-'}</td>
+                                <td class="text-center align-top border border-slate-300 px-1.5 py-1.5 whitespace-nowrap text-slate-800 font-medium">${formatVolumeSatuanSel(menjadi.volume, menjadi.satuan)}</td>
                                 <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">
-                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${penerimaL || '-'}</span>
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${formatManfaatSel(penerimaL)}</span>
                                 </td>
                                 <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">
-                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${penerimaP || '-'}</span>
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${formatManfaatSel(penerimaP)}</span>
                                 </td>
                                 <td class="text-center align-top border border-slate-300 px-0.5 py-1.5 text-slate-800">
-                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${penerimaRtm || '-'}</span>
+                                    <span class="${menjadi._overridden ? 'text-indigo-700 font-bold' : ''}">${formatManfaatSel(penerimaRtm)}</span>
                                 </td>
                                 <td class="text-right align-top border border-slate-300 px-1.5 py-1.5 font-bold text-slate-900 whitespace-nowrap">${formatRupiah(bMenjadi)}</td>
                                 <td class="text-center align-top border border-slate-300 px-1 py-1.5 text-slate-700 font-medium">${menjadi.sumber_biaya || 'DDS'}</td>
@@ -2856,6 +2925,9 @@ async function saveEditRkpPerubahanItem(event) {
     }
 
     const kode = item.kode_unik_full || item.kode_unik || document.getElementById('edit-perubahan-kode')?.value || '';
+    // Simpan posisi scroll SEBELUM modal ditutup & tabel di-render ulang.
+    // Tanpa ini, pengguna yang mengedit baris di bagian bawah tabel akan terlempar ke atas.
+    const scrollState = captureScrollState(kode);
     const idVal = (item.id != null && item.id !== '') ? item.id : (document.getElementById('edit-perubahan-id')?.value || null);
     const parsedId = (idVal != null && idVal !== '' && !isNaN(Number(idVal))) ? Number(idVal) : idVal;
 
@@ -2993,7 +3065,7 @@ async function saveEditRkpPerubahanItem(event) {
             if (!item.semula) item.semula = {};
             item.semula.volume = volSemula;
             item.semula.satuan = satSemula;
-            item.semula.volume_satuan = (volSemula.toLowerCase().includes(satSemula.toLowerCase()) || !satSemula) ? volSemula : `${volSemula} ${satSemula}`;
+            item.semula.volume_satuan = formatVolumeSatuanSel(volSemula, satSemula);
             item.semula.biaya = genuineSemulaBiaya;
             item.semula.lokasi = lokasiSemula;
             item.semula.sumber_biaya = sumberSemula;
@@ -3017,7 +3089,7 @@ async function saveEditRkpPerubahanItem(event) {
             if (!item.menjadi) item.menjadi = {};
             item.menjadi.volume = volMenjadi;
             item.menjadi.satuan = satMenjadi;
-            item.menjadi.volume_satuan = (volMenjadi.toLowerCase().includes(satMenjadi.toLowerCase()) || !satMenjadi) ? volMenjadi : `${volMenjadi} ${satMenjadi}`;
+            item.menjadi.volume_satuan = formatVolumeSatuanSel(volMenjadi, satMenjadi);
             item.menjadi.biaya = genuineMenjadiBiaya;
             item.menjadi.lokasi = lokasiMenjadi;
             item.menjadi.sumber_biaya = sumberMenjadi;
@@ -3050,6 +3122,9 @@ async function saveEditRkpPerubahanItem(event) {
             if (typeof loadRkpdesPerubahanData === 'function') {
                 await loadRkpdesPerubahanData();
             }
+            // Pulihkan posisi layar: render ulang tabel sempat menyusutkan tinggi
+            // dokumen sehingga browser memaksa scroll ke atas.
+            restoreScrollState(scrollState);
         } else {
             const errMsg = result?.error || `Gagal menyimpan data ke database (Status HTTP ${res.status})`;
             console.error('❌ Gagal menyimpan RKPDes Perubahan:', errMsg, result);

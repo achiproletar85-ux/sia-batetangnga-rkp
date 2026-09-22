@@ -319,6 +319,42 @@ function pickExplicitNumber(v, fallback, emptyAs = 0) {
     return Number.isFinite(n) ? n : fallback;
 }
 
+// Nilai manfaat/target yang bermakna "kosong": null, '', '-', atau angka nol
+// (termasuk yang sudah berembel unit seperti "0 Org" / "0 KK"). Nilai nol TIDAK
+// boleh ditampilkan sebagai "0 Org" — harus tampil sebagai strip '-'.
+function isManfaatKosong(v) {
+    if (v === null || v === undefined) return true;
+    const s = String(v).trim();
+    if (s === '' || s === '-' || s === '0') return true;
+    const digits = s.replace(/[^\d]/g, '');
+    if (digits === '') return false; // teks tanpa angka tetap ditampilkan apa adanya
+    return Number(digits) === 0;
+}
+
+// Normalisasi kolom manfaat/target dari payload: kosong/nol => '-', sisanya diberi unit.
+function formatManfaatRpjm(v, unit) {
+    if (isManfaatKosong(v)) return '-';
+    const s = String(v).trim();
+    return s.toLowerCase().includes(String(unit).toLowerCase()) ? s : `${s} ${unit}`;
+}
+
+// Volume & Satuan: volume 0/kosong TIDAK boleh menghasilkan tampilan "0 -" / "0 Org".
+function isBlankVolumeValue(v) {
+    if (v === null || v === undefined) return true;
+    const s = String(v).trim();
+    if (s === '' || s === '-') return true;
+    const n = Number(s);
+    return Number.isFinite(n) && n === 0;
+}
+
+function formatVolumeSatuan(volume, satuanRaw) {
+    if (isBlankVolumeValue(volume)) return '-';
+    const v = String(volume).trim();
+    const s = (satuanRaw === null || satuanRaw === undefined) ? '' : String(satuanRaw).trim();
+    if (!s || s === '-' || s === '0') return v;
+    return v.toLowerCase().includes(s.toLowerCase()) ? v : `${v} ${s}`;
+}
+
 function isTableMissingError(error) {
     const message = String(error?.message || '').toLowerCase();
     // common Postgres / PostgREST messages when a table is missing
@@ -8136,6 +8172,11 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             // termasuk 0 / '-' — dan tidak boleh di-coalesce kembali ke nilai SEMULA.
             const pRpjm = (p && p.rpjm_data) || {};
             const rincianDiubahManual = pRpjm.rincian_override === true || String(pRpjm.rincian_override) === 'true';
+            // Penanda sisi SEMULA: kolom manfaat bernilai 0 (BUKAN null) berarti admin
+            // SENGAJA mengosongkan. Tanda ini mematikan semua tebakan (rpjmdes_standar,
+            // total split, heuristik nama) agar nilai kosong tetap tampil '-'.
+            const isExplicitZeroStored = (v) => v !== null && v !== undefined && String(v).trim() !== '' && String(v).trim() !== '-' && Number(v) === 0;
+            const semulaManfaatEksplisit = isExplicitZeroStored(m.manfaat_l) || isExplicitZeroStored(m.manfaat_p) || isExplicitZeroStored(m.manfaat_rtm);
             // Nilai MENJADI yang tersimpan eksplisit (0 / '' / '-' tetap dipakai apa adanya).
             const pickMenjadiText = (v, fallback) => {
                 if (rincianDiubahManual) return hasTextValue(v) ? String(v).trim() : '-';
@@ -8163,7 +8204,9 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             // Volume 0 tetap dihormati (nullish/'' check, bukan `||`).
             const volMenjadi = p ? ((p.volume === null || p.volume === undefined || String(p.volume).trim() === '') ? volSemula : String(p.volume).trim()) : volSemula;
             const satMenjadi = p ? pickMenjadiText(p.satuan, satSemula) : satSemula;
-            const volSatuanMenjadi = (!hasTextValue(satMenjadi) || volMenjadi.toLowerCase().includes(satMenjadi.toLowerCase())) ? volMenjadi : `${volMenjadi} ${satMenjadi}`;
+            // Volume 0/kosong => '-' (tidak boleh "0 Org" atau "0 -").
+            const volSatuanSemula = formatVolumeSatuan(volSemula, satSemula);
+            const volSatuanMenjadi = formatVolumeSatuan(volMenjadi, satMenjadi);
 
             // ZERO-DEFAULT SDGs: SEMULA dari kolom sdgs baris murni; MENJADI dari
             // kolom mendukung_sdgs (hasil edit tersimpan) / data RAB perubahan bila ada.
@@ -8185,15 +8228,29 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                 : ((p && hasTextValue(p.lokasi))
                     ? String(p.lokasi).trim()
                     : (hasTextValue(m.lokasi) ? String(m.lokasi).trim() : 'Desa Batetangnga'));
-            const manfaatVal = m.total_manfaat ? `${m.total_manfaat} Orang` : (m.penerima_manfaat && m.penerima_manfaat !== '-' ? m.penerima_manfaat : ((resolved.total_manfaat || (resolved.matchedStd && resolved.matchedStd.total_manfaat)) ? `${resolved.total_manfaat || resolved.matchedStd.total_manfaat} Orang` : '-'));
+            // Bila admin sudah mengosongkan kolom manfaat SEMULA (0 eksplisit), kolom
+            // "Penerima Manfaat" SEMULA juga tidak boleh diisi ulang dari rpjmdes_standar.
+            const manfaatVal = semulaManfaatEksplisit
+                ? (Number(m.total_manfaat) > 0 ? `${m.total_manfaat} Orang` : '-')
+                : (m.total_manfaat ? `${m.total_manfaat} Orang` : (m.penerima_manfaat && m.penerima_manfaat !== '-' ? m.penerima_manfaat : ((resolved.total_manfaat || (resolved.matchedStd && resolved.matchedStd.total_manfaat)) ? `${resolved.total_manfaat || resolved.matchedStd.total_manfaat} Orang` : '-')));
             const sumberSemula = m.sumber_pembiayaan || 'DDS';
             const sumberMenjadi = p ? (p.sumber_dana || sumberSemula) : sumberSemula;
 
-            function parseLPRTMDetails(item, resObj) {
+            function parseLPRTMDetails(item, resObj, adminDefined = false) {
                 const std = resObj ? (resObj.matchedStd || resObj) : null;
                 let l = (item && item.manfaat_l != null && item.manfaat_l !== '' && item.manfaat_l !== 0) ? String(item.manfaat_l) : null;
                 let p = (item && item.manfaat_p != null && item.manfaat_p !== '' && item.manfaat_p !== 0) ? String(item.manfaat_p) : null;
                 let rtm = (item && item.manfaat_rtm != null && item.manfaat_rtm !== '' && item.manfaat_rtm !== 0) ? String(item.manfaat_rtm) : null;
+
+                // Admin sudah menentukan nilai ini secara eksplisit: 0/kosong = kosong.
+                // Jangan menebak dari rpjmdes_standar / total / heuristik nama kegiatan.
+                if (adminDefined) {
+                    return {
+                        l: (l && l !== '0' && l !== '-') ? `${l} Org` : '-',
+                        p: (p && p !== '0' && p !== '-') ? `${p} Org` : '-',
+                        rtm: (rtm && rtm !== '0' && rtm !== '-') ? `${rtm} KK` : '-'
+                    };
+                }
 
                 if (!l && std && std.manfaat_l != null && std.manfaat_l !== '' && std.manfaat_l !== 0) l = String(std.manfaat_l);
                 if (!p && std && std.manfaat_p != null && std.manfaat_p !== '' && std.manfaat_p !== 0) p = String(std.manfaat_p);
@@ -8242,24 +8299,21 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                 }
 
                 return {
-                    l: (l && l !== '0' && l !== '-') ? `${l} Org` : '-',
-                    p: (p && p !== '0' && p !== '-') ? `${p} Org` : '-',
-                    rtm: (rtm && rtm !== '0' && rtm !== '-') ? `${rtm} KK` : '-'
+                    l: isManfaatKosong(l) ? '-' : `${l} Org`,
+                    p: isManfaatKosong(p) ? '-' : `${p} Org`,
+                    rtm: isManfaatKosong(rtm) ? '-' : `${rtm} KK`
                 };
             }
 
-            const lpRtmSemula = parseLPRTMDetails(m, resolved);
-            let lpRtmMenjadi = p ? parseLPRTMDetails(p, resolved) : { ...lpRtmSemula };
+            const lpRtmSemula = parseLPRTMDetails(m, resolved, semulaManfaatEksplisit);
+            let lpRtmMenjadi = p ? parseLPRTMDetails(p, resolved, false) : { ...lpRtmSemula };
 
             // Cek jika p.rpjm_data memiliki data tersimpan dari edit manual.
             // `manfaat_override = true` berarti admin SUDAH menyimpan nilai ini secara
             // eksplisit (via /api/rkpdes/perubahan/manfaat), sehingga nilainya dipakai
             // apa adanya — termasuk '-' — dan tidak boleh ditimpa nilai SEMULA/RPJMDes.
-            const formatManfaatCell = (v, unit) => {
-                if (!hasTextValue(v)) return '-';
-                const s = String(v).trim();
-                return s.toLowerCase().includes(String(unit).toLowerCase()) ? s : `${s} ${unit}`;
-            };
+            // Nilai "0"/"0 Org"/"0 KK" hasil simpanan lama diperlakukan sebagai kosong.
+            const formatManfaatCell = (v, unit) => formatManfaatRpjm(v, unit);
             const manfaatDiubahManual = pRpjm.manfaat_override === true || String(pRpjm.manfaat_override) === 'true';
 
             if (manfaatDiubahManual) {
@@ -8320,6 +8374,10 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                 penerima_l_menjadi: lpRtmMenjadi.l,
                 penerima_p_menjadi: lpRtmMenjadi.p,
                 penerima_rtm_menjadi: lpRtmMenjadi.rtm,
+                // Diteruskan ke frontend agar nilai MENJADI yang sudah disimpan eksplisit
+                // (termasuk yang dikosongkan) tidak diisi ulang dari nilai SEMULA.
+                manfaat_override: manfaatDiubahManual,
+                semula_manfaat_kosong: semulaManfaatEksplisit,
                 stunting: stuntingMenjadi,
                 stunting_semula: stuntingSemula,
                 stunting_menjadi: stuntingMenjadi,
@@ -8330,7 +8388,7 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
                     lokasi: m.lokasi || 'Desa Batetangnga',
                     volume: volSemula,
                     satuan: satSemula,
-                    volume_satuan: (volSemula.toLowerCase().includes(satSemula.toLowerCase()) || !satSemula) ? volSemula : `${volSemula} ${satSemula}`,
+                    volume_satuan: volSatuanSemula,
                     manfaat_l: lpRtmSemula.l,
                     manfaat_p: lpRtmSemula.p,
                     manfaat_rtm: lpRtmSemula.rtm,
@@ -9039,13 +9097,21 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     updated_at: nowIso
                 };
 
-                if (numLSemula !== null) rkpSemulaPayload.manfaat_l = numLSemula;
-                if (numPSemula !== null) rkpSemulaPayload.manfaat_p = numPSemula;
-                if (numRtmSemula !== null) rkpSemulaPayload.manfaat_rtm = numRtmSemula;
-                if (numLSemula !== null || numPSemula !== null || numRtmSemula !== null) {
-                    const totSemula = (numLSemula || 0) + (numPSemula || 0);
+                // Nilai kosong yang DIKIRIM admin wajib tersimpan sebagai 0 — bukan dibiarkan
+                // memakai nilai lama di database (inilah penyebab "nilai tidak mau hilang").
+                // `undefined` (field tidak dikirim) tidak menyentuh kolom sama sekali.
+                const semManfaatProvided = isFieldProvided(sem.manfaat_l) || isFieldProvided(sem.manfaat_p) || isFieldProvided(sem.manfaat_rtm);
+                if (semManfaatProvided) {
+                    const nLSem = numLSemula ?? 0;
+                    const nPSem = numPSemula ?? 0;
+                    const nRSem = numRtmSemula ?? 0;
+                    const totSemula = nLSem + nPSem;
+                    rkpSemulaPayload.manfaat_l = nLSem;
+                    rkpSemulaPayload.manfaat_p = nPSem;
+                    rkpSemulaPayload.manfaat_rtm = nRSem;
                     rkpSemulaPayload.total_manfaat = totSemula;
-                    rkpSemulaPayload.sasaran_manfaat = `L: ${numLSemula || 0}, P: ${numPSemula || 0}, RTM: ${numRtmSemula || 0} (Total: ${totSemula} Orang)`;
+                    rkpSemulaPayload.sasaran_manfaat = `L: ${nLSem}, P: ${nPSem}, RTM: ${nRSem} (Total: ${totSemula} Orang)`;
+                    rkpSemulaPayload.penerima_manfaat = totSemula > 0 ? `${totSemula} Orang` : '-';
                 }
 
                 // Pencocokan KODE + TAHUN lebih dulu. `id` yang dikirim klien dapat berasal
@@ -9164,9 +9230,9 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 // Menyimpan rincian lewat modal = penerima manfaat MENJADI juga disimpan eksplisit.
                 manfaat_override: true,
                 manfaat_updated_at: nowIso,
-                manfaat_l: (mLStr && mLStr !== '-') ? (mLStr.includes('Org') ? mLStr : `${mLStr} Org`) : '-',
-                manfaat_p: (mPStr && mPStr !== '-') ? (mPStr.includes('Org') ? mPStr : `${mPStr} Org`) : '-',
-                manfaat_rtm: (mRtmStr && mRtmStr !== '-') ? (mRtmStr.includes('KK') ? mRtmStr : `${mRtmStr} KK`) : '-'
+                manfaat_l: formatManfaatRpjm(mLStr, 'Org'),
+                manfaat_p: formatManfaatRpjm(mPStr, 'Org'),
+                manfaat_rtm: formatManfaatRpjm(mRtmStr, 'KK')
             };
 
             if (existingRabPer && existingRabPer.id) {
