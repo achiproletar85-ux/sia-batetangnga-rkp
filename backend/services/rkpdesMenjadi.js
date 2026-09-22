@@ -51,6 +51,7 @@ function getCanonicalName(item) {
         : (item.nama_kegiatan || item.uraian || item.kegiatan || item.jenis_kegiatan || '');
     return String(raw)
         .toLowerCase()
+        .replace(/koordinasi/g, 'kordinasi')
         .replace(/[^a-z0-9]/g, '');
 }
 

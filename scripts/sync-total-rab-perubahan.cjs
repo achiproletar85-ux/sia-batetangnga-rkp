@@ -74,9 +74,13 @@ const norm = (v) => String(v == null ? '' : v).trim().toLowerCase();
         await c.query('begin');
         try {
             for (const r of isi.baris || []) {
-                const res = await c.query(
-                    `update public.rab set jumlah_anggaran = $1, harga_satuan = $2 where id = $3`,
-                    [r.jumlah_anggaran, r.harga_satuan, r.id]);
+                const res = r.rpjm_data !== undefined
+                    ? await c.query(
+                        `update public.rab set jumlah_anggaran = $1, harga_satuan = $2, rpjm_data = $3 where id = $4`,
+                        [r.jumlah_anggaran, r.harga_satuan, JSON.stringify(r.rpjm_data), r.id])
+                    : await c.query(
+                        `update public.rab set jumlah_anggaran = $1, harga_satuan = $2 where id = $3`,
+                        [r.jumlah_anggaran, r.harga_satuan, r.id]);
                 if (res.rowCount !== 1) throw new Error(`rowCount=${res.rowCount} (id ${r.id})`);
             }
             await c.query('commit');
@@ -108,21 +112,19 @@ const norm = (v) => String(v == null ? '' : v).trim().toLowerCase();
         if (!semuaNol) continue;
         const ditandai = r.rincian_override === 'true' || r.rincian_override === true;
         const totalHeader = Number(r.jumlah_anggaran) || 0;
-        if (!ditandai) {
-            catatan.push(`  ℹ️  #${r.id} ${r.kode_unik_full} tanpa penanda rincian_override (header ${totalHeader}) — TIDAK diubah, menunggu keputusan admin`);
-            continue;
-        }
         if (totalHeader === 0 && Number(r.harga_satuan || 0) === 0) continue; // sudah sinkron
         rencana.push({
             id: r.id, kode: r.kode_unik_full, nama: r.nama_kegiatan,
-            dari: totalHeader, ke: 0, hargaDari: Number(r.harga_satuan) || 0
+            dari: totalHeader, ke: 0, hargaDari: Number(r.harga_satuan) || 0,
+            rpjm_data: r.rpjm_data,
+            ditandai
         });
     }
 
     console.log(`Baris PERUBAHAN diperiksa : ${rows.length}`);
     console.log(`Perlu disinkronkan        : ${rencana.length}\n`);
     for (const p of rencana) {
-        console.log(`  #${p.id} ${p.kode} ${JSON.stringify(norm(p.nama) ? p.nama : '')}\n      jumlah_anggaran ${p.dari} → 0 (harga_satuan ${p.hargaDari} → 0)`);
+        console.log(`  #${p.id} ${p.kode} ${JSON.stringify(norm(p.nama) ? p.nama : '')}\n      jumlah_anggaran ${p.dari} → 0 (harga_satuan ${p.hargaDari} → 0)${p.ditandai ? '' : ' [disematkan penanda rincian_override: true]'}`);
     }
     for (const t of catatan) console.log(t);
 
@@ -148,15 +150,17 @@ const norm = (v) => String(v == null ? '' : v).trim().toLowerCase();
     const berkasCadangan = path.join(BACKUP_DIR, `sync-total-rab-perubahan-${TAHUN}-${stempel}.json`);
     const barisCadangan = rows
         .filter((r) => rencana.some((p) => p.id === r.id))
-        .map((r) => ({ id: r.id, kode_unik_full: r.kode_unik_full, jumlah_anggaran: r.jumlah_anggaran, harga_satuan: r.harga_satuan }));
+        .map((r) => ({ id: r.id, kode_unik_full: r.kode_unik_full, jumlah_anggaran: r.jumlah_anggaran, harga_satuan: r.harga_satuan, rpjm_data: r.rpjm_data }));
     fs.writeFileSync(berkasCadangan, JSON.stringify({ tahun: TAHUN, baris: barisCadangan, rencana }, null, 2));
     console.log(`\nCadangan                : ${path.relative(ROOT, berkasCadangan)}`);
 
     await c.query('begin');
     try {
         for (const p of rencana) {
+            const nextRpjm = Object.assign({}, p.rpjm_data || {}, { rincian_override: true });
             const res = await c.query(
-                `update public.rab set jumlah_anggaran = 0, harga_satuan = 0, updated_at = now() where id = $1`, [p.id]);
+                `update public.rab set jumlah_anggaran = 0, harga_satuan = 0, rpjm_data = $1, updated_at = now() where id = $2`,
+                [JSON.stringify(nextRpjm), p.id]);
             if (res.rowCount !== 1) throw new Error(`jumlah baris terpengaruh = ${res.rowCount} (id ${p.id})`);
         }
         const sesudah = await total();

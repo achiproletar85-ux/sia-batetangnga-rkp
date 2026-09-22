@@ -241,6 +241,38 @@ assert(getCanonicalName({ nama_kegiatan: namaSaleko }) === 'pembangunanrabatbeto
     assert(r.biayaMenjadi === 0 && r.selisih === -117685000, 'Secondary name match menghasilkan Rp 0 & selisih -117.685.000');
 }
 
+// Kasus Kegiatan 01.01.08.01 (Biaya Kordinasi / Koordinasi Pemerintah Desa)
+{
+    const namaRkp = 'Biaya Koordinasi Pemerintah Desa';
+    const namaRab = 'Biaya Kordinasi Pemerintah Desa';
+    assert(getCanonicalName(namaRkp) === getCanonicalName(namaRab),
+        'getCanonicalName menyamakan "koordinasi" dan "kordinasi" menjadi kanonik yang identik');
+
+    const rkpRow = { kode_unik_full: '01.01.08.01.', nama_kegiatan: namaRkp, biaya: 7650000 };
+    const rabPerRow = { kode_unik_full: '01.01.08.01.', nama_kegiatan: namaRab, jumlah_anggaran: 0 };
+
+    const perMapByCanonical = new Map();
+    perMapByCanonical.set(getCanonicalKey(rabPerRow), rabPerRow);
+
+    const perMapByName = new Map();
+    perMapByName.set(getCanonicalName(rabPerRow), rabPerRow);
+
+    // Cocok via canonical key
+    const matchedByKey = perMapByCanonical.get(getCanonicalKey(rkpRow));
+    assert(matchedByKey !== undefined, '01.01.08.01 cocok via canonical key');
+
+    const resKey = hitungBiayaMenjadi({ adaPerubahan: !!matchedByKey, totalPerubahan: matchedByKey.jumlah_anggaran, totalSemula: rkpRow.biaya });
+    assert(resKey.biayaMenjadi === 0, 'Kegiatan 01.01.08.01 menghasilkan Menjadi = Rp 0');
+    assert(resKey.selisih === -7650000, 'Kegiatan 01.01.08.01 menghasilkan Selisih = -Rp 7.650.000 (berkurang penuh)');
+
+    // Cocok via canonical name jika kode berbeda
+    const matchedByName = perMapByName.get(getCanonicalName(rkpRow));
+    assert(matchedByName !== undefined, '01.01.08.01 cocok via canonical name (kordinasi vs koordinasi)');
+    const resName = hitungBiayaMenjadi({ adaPerubahan: !!matchedByName, totalPerubahan: matchedByName.jumlah_anggaran, totalSemula: rkpRow.biaya });
+    assert(resName.biayaMenjadi === 0 && resName.selisih === -7650000,
+        'Pencocokan nama kordinasi vs koordinasi menghasilkan Menjadi = Rp 0 dan Selisih = -Rp 7.650.000');
+}
+
 // Bukti integrasi di server.js
 assert(/perMapByCanonical/.test(SERVER) && /perMapByName/.test(SERVER),
     'server.js memasang perMapByCanonical dan perMapByName pada GET /api/rkpdes/perubahan');
