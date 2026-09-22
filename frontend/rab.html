@@ -611,7 +611,9 @@
                             <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                                 <div>
                                     <label id="label-volume" class="form-label">Volume *</label>
-                                    <input type="number" step="any" id="input-volume" class="input-field" placeholder="0" />
+                                    <!-- type=text: volume boleh DIMENSI TEKNIS ("250mX4mX0,15m3").
+                                         Bidang/angka murni tetap didukung; validasi tetap di rab.js. -->
+                                    <input type="text" id="input-volume" class="input-field" placeholder="Contoh: 12 / 250mX4mX0,15m3" />
                                     <div id="help-volume-semula" class="hidden text-[11px] font-semibold text-slate-500 mt-1"></div>
                                 </div>
                                 <div>
@@ -1045,6 +1047,7 @@
         </div>
     </div>
 
+    <script src="volumeTeks.js"></script>
     <script src="rab.js?v=20260915-masterlock" defer></script>
     <script>
         fetch('/components/navbar.html')

@@ -80,7 +80,12 @@ function isNilaiKosong(v) {
 }
 
 // Volume & Satuan: volume 0/kosong => '-' (bukan "0 Org" atau "0 -").
+// Aturan tunggal ada di volumeTeks.js (dipakai server juga) supaya teks dimensi
+// seperti "250mX4mX0,15m3" tidak dirusak menjadi angka/NaN.
 function formatVolumeSatuanSel(volume, satuan) {
+    if (typeof window !== 'undefined' && window.VolumeTeks) {
+        return window.VolumeTeks.formatVolumeSatuan(volume, satuan);
+    }
     const v = (volume === null || volume === undefined) ? '' : String(volume).trim();
     const isVolKosong = v === '' || v === '-' || (Number.isFinite(Number(v)) && Number(v) === 0);
     if (isVolKosong) return '-';
@@ -981,7 +986,7 @@ async function saveEditRkpItem(event) {
         const sdgs = document.getElementById('edit-rkp-sdgs')?.value?.trim() || '-';
         const verifikasiProposal = document.getElementById('edit-rkp-verifikasi-proposal')?.value || 'Belum';
         const stunting = document.getElementById('edit-rkp-stunting')?.value || 'Tidak';
-        const volume = document.getElementById('edit-rkp-volume')?.value?.trim() || '1';
+        const volume = readEditVolume('edit-rkp-volume', '1');
         const satuan = document.getElementById('edit-rkp-satuan')?.value?.trim() || 'Kegiatan';
         
         // Anti-bypass inspector: strictly lock to genuine memory cost if available
@@ -2906,6 +2911,18 @@ function readEditNumber(id, fallback = 0) {
     return Number.isFinite(n) ? n : fallback;
 }
 
+// FIELD VOLUME: boleh TEKS BEBAS berisi dimensi teknis ("250mX4mX0,15m3",
+// "10 kg + 2 dus"). JANGAN pernah dipaksa Number() — huruf akan terhapus / jadi
+// NaN. Input yang dikosongkan sengaja menjadi '0' (penanda 'ditiadakan' yang sudah
+// dipakai server), bukan diisi ulang nilai lama.
+function readEditVolume(id, fallback = '1') {
+    const el = document.getElementById(id);
+    if (!el) return fallback;
+    const raw = String(el.value ?? '').trim();
+    if (raw === '') return '0';
+    return raw;
+}
+
 // Field pilihan (select): tidak bisa dikosongkan bebas, nilai kosong → fallback.
 function readEditSelect(id, fallback = '') {
     const el = document.getElementById(id);
@@ -2969,9 +2986,8 @@ async function saveEditRkpPerubahanItem(event) {
             : Math.round(Number(document.getElementById('edit-perubahan-biaya')?.value) || 0));
 
     // Nilai Sisi SEMULA
-    // readEditText/readEditNumber: input kosong = pengguna SENGAJA mengosongkan,
-    // sehingga dikirim sebagai '' (teks) atau 0 (numerik) — BUKAN fallback ke nilai lama.
-    const volSemula = String(readEditNumber('edit-semula-volume', 1));
+    // Volume boleh teks dimensi ("250mX4mX0,15m3") → dibaca apa adanya (tanpa Number()).
+    const volSemula = readEditVolume('edit-semula-volume', '1');
     const satSemula = readEditText('edit-semula-satuan', 'Paket');
     const lokasiSemula = readEditText('edit-semula-lokasi', 'Desa Batetangnga');
     const waktuSemula = readEditText('edit-semula-waktu', '12 Bulan');
@@ -2987,7 +3003,8 @@ async function saveEditRkpPerubahanItem(event) {
     const mRtmSemula = readEditText('edit-semula-manfaat-rtm', '-');
 
     // Nilai Sisi MENJADI
-    const volMenjadi = String(readEditNumber('edit-perubahan-volume', 1));
+    // Volume boleh teks dimensi → dibaca apa adanya (tanpa Number()).
+    const volMenjadi = readEditVolume('edit-perubahan-volume', '1');
     const satMenjadi = readEditText('edit-perubahan-satuan', 'Paket');
     const lokasiMenjadi = readEditText('edit-perubahan-lokasi', 'Desa Batetangnga');
     const waktuMenjadi = readEditText('edit-perubahan-waktu', '12 Bulan');

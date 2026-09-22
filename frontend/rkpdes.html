@@ -281,7 +281,9 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Volume:</label>
-                        <input type="number" id="edit-rkp-volume" class="input-field" min="1" step="any" />
+                        <!-- type=text: volume boleh berupa DIMENSI TEKNIS ("250mX4mX0,15m3").
+                             type=number akan membuang huruf dan mengosongkan input. -->
+                        <input type="text" id="edit-rkp-volume" class="input-field" placeholder="Contoh: 12 / 250mX4mX0,15m3" />
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Satuan:</label>
@@ -768,6 +770,7 @@
         </div>
     </div>
 
+    <script src="volumeTeks.js"></script>
     <script src="rkpdes.js"></script>
     <script>
         fetch('/components/navbar.html')

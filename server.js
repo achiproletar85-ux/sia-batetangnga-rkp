@@ -338,21 +338,36 @@ function formatManfaatRpjm(v, unit) {
     return s.toLowerCase().includes(String(unit).toLowerCase()) ? s : `${s} ${unit}`;
 }
 
-// Volume & Satuan: volume 0/kosong TIDAK boleh menghasilkan tampilan "0 -" / "0 Org".
+// Volume & Satuan: aturan tunggal ada di frontend/volumeTeks.js (UMD) supaya server
+// dan halaman tidak berbeda perilaku. Volume kini boleh berupa TEKS DIMENSI
+// (mis. "250mX4mX0,15m3") — tidak boleh dipaksa Number() lalu menjadi NaN/0.
+const VolumeTeks = require('./frontend/volumeTeks.js');
+const { hitungBiayaMenjadi } = require('./backend/services/rkpdesMenjadi.js');
+
 function isBlankVolumeValue(v) {
-    if (v === null || v === undefined) return true;
-    const s = String(v).trim();
-    if (s === '' || s === '-') return true;
-    const n = Number(s);
-    return Number.isFinite(n) && n === 0;
+    return VolumeTeks.isVolumeKosong(v);
 }
 
 function formatVolumeSatuan(volume, satuanRaw) {
-    if (isBlankVolumeValue(volume)) return '-';
-    const v = String(volume).trim();
-    const s = (satuanRaw === null || satuanRaw === undefined) ? '' : String(satuanRaw).trim();
-    if (!s || s === '-' || s === '0') return v;
-    return v.toLowerCase().includes(s.toLowerCase()) ? v : `${v} ${s}`;
+    return VolumeTeks.formatVolumeSatuan(volume, satuanRaw);
+}
+
+// Volume ITEM RAB (jsonb `rab.items`) disimpan APA ADANYA — termasuk teks dimensi
+// teknis seperti "250mX4mX0,15m3". Angka murni tetap disimpan sebagai number supaya
+// perhitungan lama tidak berubah; teks dimensi TIDAK boleh dipaksa menjadi number
+// (dulu normalisasi item menuliskan 1 sehingga ukuran teknis admin hilang).
+function volumeItemRabSimpan(v) {
+    const bersih = VolumeTeks.bersihkan(v);
+    if (bersih === '') return 1; // perilaku lama: volume item kosong dianggap 1
+    const angka = VolumeTeks.volumeKeAngka(bersih);
+    return angka === null ? bersih : angka;
+}
+
+// Angka pengali volume item untuk menghitung `jumlah` bila `jumlah` tidak dikirim.
+// Teks dimensi tidak punya pengali tunggal → dianggap 1 satuan kerja.
+function volumeItemRabAngka(v) {
+    const angka = VolumeTeks.volumeKeAngka(v);
+    return angka !== null ? angka : 1;
 }
 
 function isTableMissingError(error) {
@@ -764,9 +779,10 @@ async function saveRabToDb(record) {
     const rawItemsArray = Array.isArray(record.items) ? record.items : [];
     const itemsArray = rawItemsArray.map((it, idx) => {
         if (it && typeof it === 'object') {
-            const vol = (it.volume !== undefined && it.volume !== null && it.volume !== '' && !isNaN(Number(it.volume))) ? Number(it.volume) : 1;
+            const vol = volumeItemRabSimpan(it.volume);
+            const volNum = volumeItemRabAngka(it.volume);
             const hrg = (it.harga !== undefined && it.harga !== null && it.harga !== '' && !isNaN(Number(it.harga))) ? Number(it.harga) : (it.harga_satuan !== undefined && it.harga_satuan !== null && it.harga_satuan !== '' && !isNaN(Number(it.harga_satuan)) ? Number(it.harga_satuan) : 0);
-            const jml = (it.jumlah !== undefined && it.jumlah !== null && it.jumlah !== '' && !isNaN(Number(it.jumlah))) ? Number(it.jumlah) : (it.jumlah_biaya !== undefined && it.jumlah_biaya !== null && it.jumlah_biaya !== '' && !isNaN(Number(it.jumlah_biaya)) ? Number(it.jumlah_biaya) : (vol * hrg));
+            const jml = (it.jumlah !== undefined && it.jumlah !== null && it.jumlah !== '' && !isNaN(Number(it.jumlah))) ? Number(it.jumlah) : (it.jumlah_biaya !== undefined && it.jumlah_biaya !== null && it.jumlah_biaya !== '' && !isNaN(Number(it.jumlah_biaya)) ? Number(it.jumlah_biaya) : (volNum * hrg));
             const subNo = it.no_subgroup || it.urutan_subgroup || it.no || it.urutan || (idx + 1);
             const uManual = (it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '' && !isNaN(Number(it.urutan_manual))) ? Number(it.urutan_manual) : subNo;
 
@@ -1851,9 +1867,11 @@ function buildPerubahanItemsFromBaseline(murniItems, perItems, murniId) {
             });
         } else {
             // Item murni belum tersimpan di perubahan -> drafkan persis
-            const vol = Number(m.volume || 1);
+            // Volume dimensi dipertahankan apa adanya; pengali memakai angka (fallback 1).
+            const vol = volumeItemRabSimpan(m.volume);
+            const volNum = volumeItemRabAngka(m.volume);
             const hrg = Number(m.harga || m.harga_satuan || 0);
-            const jml = Number(m.jumlah !== undefined ? m.jumlah : (vol * hrg));
+            const jml = Number(m.jumlah !== undefined ? m.jumlah : (volNum * hrg));
             updated.push({
                 group: (m.group || m.group_belanja || m.group_nama || '').trim(),
                 subgroup: (m.subgroup || m.group_kegiatan || m.jenis_kegiatan || '').trim(),
@@ -5565,9 +5583,10 @@ app.post('/api/rab', async (req, res) => {
         // Formulir RAB Murni dibuka penuh agar pengguna dapat menyesuaikan rincian anggaran kapan saja
 
         const mappedItems = Array.isArray(items) ? sortRabItems(items.map((it, idx) => {
-            const vol = (it.volume !== undefined && it.volume !== null && it.volume !== '' && !isNaN(Number(it.volume))) ? Number(it.volume) : 1;
+            const vol = volumeItemRabSimpan(it.volume);
+            const volNum = volumeItemRabAngka(it.volume);
             const hrg = (it.harga !== undefined && it.harga !== null && it.harga !== '' && !isNaN(Number(it.harga))) ? Number(it.harga) : (it.harga_satuan !== undefined && it.harga_satuan !== null && it.harga_satuan !== '' && !isNaN(Number(it.harga_satuan)) ? Number(it.harga_satuan) : 0);
-            const jml = (it.jumlah !== undefined && it.jumlah !== null && it.jumlah !== '' && !isNaN(Number(it.jumlah))) ? Number(it.jumlah) : (it.jumlah_biaya !== undefined && it.jumlah_biaya !== null && it.jumlah_biaya !== '' && !isNaN(Number(it.jumlah_biaya)) ? Number(it.jumlah_biaya) : (vol * hrg));
+            const jml = (it.jumlah !== undefined && it.jumlah !== null && it.jumlah !== '' && !isNaN(Number(it.jumlah))) ? Number(it.jumlah) : (it.jumlah_biaya !== undefined && it.jumlah_biaya !== null && it.jumlah_biaya !== '' && !isNaN(Number(it.jumlah_biaya)) ? Number(it.jumlah_biaya) : (volNum * hrg));
             const subNo = it.no_subgroup || it.urutan_subgroup || it.no || it.urutan || (idx + 1);
             const uManual = (it.urutan_manual !== undefined && it.urutan_manual !== null && it.urutan_manual !== '' && !isNaN(Number(it.urutan_manual))) ? Number(it.urutan_manual) : subNo;
 
@@ -5761,9 +5780,10 @@ app.post('/api/rab/sync-to-murni', async (req, res) => {
             targetMurniItem = murniItems[existingIdx];
         } else {
             // Tambahkan item baru ke RAB Murni
-            const vol = (item.volume !== undefined && item.volume !== null && item.volume !== '') ? Number(item.volume) : 1;
+            const vol = volumeItemRabSimpan(item.volume);
+            const volNum = volumeItemRabAngka(item.volume);
             const hrg = (item.harga !== undefined && item.harga !== null && item.harga !== '') ? Number(item.harga) : 0;
-            const jml = (item.jumlah !== undefined && item.jumlah !== null && item.jumlah !== '') ? Number(item.jumlah) : (vol * hrg);
+            const jml = (item.jumlah !== undefined && item.jumlah !== null && item.jumlah !== '') ? Number(item.jumlah) : (volNum * hrg);
 
             targetMurniItem = {
                 group: (item.group || '').trim(),
@@ -5939,9 +5959,10 @@ app.post('/api/rab/sync-basis-perubahan', async (req, res) => {
             const key = norm(pItem.uraian) + '||' + normSubgroup(pItem.subgroup);
             const mMatch = murniMap.get(key);
 
-            const vol = (pItem.volume !== undefined && pItem.volume !== null && pItem.volume !== '') ? Number(pItem.volume) : 1;
+            const vol = volumeItemRabSimpan(pItem.volume);
+            const volNum = volumeItemRabAngka(pItem.volume);
             const hrg = (pItem.harga !== undefined && pItem.harga !== null && pItem.harga !== '') ? Number(pItem.harga) : 0;
-            const jml = (pItem.jumlah !== undefined && pItem.jumlah !== null && pItem.jumlah !== '') ? Number(pItem.jumlah) : (vol * hrg);
+            const jml = (pItem.jumlah !== undefined && pItem.jumlah !== null && pItem.jumlah !== '') ? Number(pItem.jumlah) : (volNum * hrg);
 
             if (mMatch) {
                 // Item ada di Murni, pertahankan identitas tapi update urutan_manual mengikuti Perubahan
@@ -8191,18 +8212,30 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             const rabMurniMatch = rabMurniMap.get(code) || rabMurniMap.get(cleanCode);
             const rabMurniBiaya = rabMurniMatch ? Number(rabMurniMatch.jumlah_anggaran || 0) : 0;
             const biayaSemula = rabMurniBiaya > 0 ? rabMurniBiaya : Number(m.prakiraan_biaya || 0);
-            // Anti falsy-fallback: MENJADI = 0 adalah nilai SAH (bukan "belum diisi").
-            // Hanya baris PERUBAHAN yang benar-benar tidak ada yang mewarisi SEMULA,
-            // dan hanya bila admin belum menyimpan rincian MENJADI secara eksplisit.
-            const biayaMenjadi = (p && rincianDiubahManual)
-                ? Number(p.jumlah_anggaran ?? 0)
-                : ((p && Number(p.jumlah_anggaran) > 0) ? Number(p.jumlah_anggaran || 0) : biayaSemula);
-            const selisih = biayaMenjadi - biayaSemula;
+            // SISTEMIK anti falsy-fallback: keberadaan rekaman RAB PERUBAHAN diperiksa
+            // EKSPLISIT (bukan `Number(p.jumlah_anggaran) > 0`). Kegiatan yang di dokumen
+            // RAB Perubahan sudah ditiadakan (total Rp 0) WAJIB tampil Rp 0 dengan selisih
+            // minus penuh — sebelumnya angka 0 dianggap falsy lalu dikembalikan ke SEMULA
+            // sehingga pemangkasan anggaran lintas bidang tidak pernah terlihat.
+            const hasPerubahanRecord = p !== null && p !== undefined && typeof p === 'object';
+            const { biayaMenjadi, selisih } = hitungBiayaMenjadi({
+                adaPerubahan: hasPerubahanRecord,
+                totalPerubahan: hasPerubahanRecord ? p.jumlah_anggaran : null,
+                totalSemula: biayaSemula
+            });
 
             const volSemula = (m.volume === null || m.volume === undefined || String(m.volume).trim() === '') ? '1' : String(m.volume).trim();
             const satSemula = (m.satuan === null || m.satuan === undefined || String(m.satuan).trim() === '') ? 'Kegiatan' : String(m.satuan).trim();
+            // Volume MENJADI: teks dimensi tersimpan (rpjm_data.volume_teks) MENANG atas
+            // kolom numerik `rab.volume` yang tidak mampu menyimpan huruf — tanpa ini
+            // "250mX4mX0,15m3" akan tampil sebagai angka saja.
+            const volTeksTersimpan = VolumeTeks.bersihkan(pRpjm.volume_teks);
             // Volume 0 tetap dihormati (nullish/'' check, bukan `||`).
-            const volMenjadi = p ? ((p.volume === null || p.volume === undefined || String(p.volume).trim() === '') ? volSemula : String(p.volume).trim()) : volSemula;
+            const volMenjadi = !p
+                ? volSemula
+                : (volTeksTersimpan !== ''
+                    ? volTeksTersimpan
+                    : ((p.volume === null || p.volume === undefined || String(p.volume).trim() === '') ? volSemula : String(p.volume).trim()));
             const satMenjadi = p ? pickMenjadiText(p.satuan, satSemula) : satSemula;
             // Volume 0/kosong => '-' (tidak boleh "0 Org" atau "0 -").
             const volSatuanSemula = formatVolumeSatuan(volSemula, satSemula);
@@ -9031,7 +9064,14 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             const sem = body.semula;
             // Anti falsy-fallback: pengosongan input yang disengaja ('') TIDAK boleh
             // dikembalikan menjadi nilai lama/default (lihat pickExplicitText/Number).
-            const volSemulaNum = pickExplicitNumber(sem.volume, 1);
+            // Volume SEMULA boleh berupa TEKS DIMENSI ("250mX4mX0,15m3"). Kolom teks
+            // `rkpdes.volume` menyimpan apa adanya; kolom numerik `rab.volume` hanya
+            // menerima angka murni. Pengosongan sengaja tetap menjadi '0' (penanda lama).
+            const volSemulaAda = isFieldProvided(sem.volume);
+            const volSemulaBersih = volSemulaAda ? VolumeTeks.bersihkan(sem.volume) : '';
+            const volSemulaTeks = volSemulaAda ? (volSemulaBersih === '' ? '0' : volSemulaBersih) : '';
+            const volSemulaAngka = VolumeTeks.volumeKeAngka(volSemulaTeks);
+            const volSemulaNum = volSemulaAngka === null ? 0 : volSemulaAngka;
             const satSemulaStr = pickExplicitText(sem.satuan, 'Paket');
             const biayaSemulaNum = pickExplicitNumber(sem.biaya, 0);
             const lokasiSemulaStr = pickExplicitText(sem.lokasi, 'Desa Batetangnga');
@@ -9050,7 +9090,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 if (kode) {
                     const { data: existingRabMurni, error: findMurniErr } = await supabase
                         .from(RAB_TABLE)
-                        .select('id, kode_unik_full, tahun, tipe_anggaran')
+                        .select('id, kode_unik_full, tahun, tipe_anggaran, volume')
                         .eq('tahun', tahunInt)
                         .eq('tipe_anggaran', RAB_TIPE_MURNI)
                         .eq('kode_unik_full', kode)
@@ -9060,7 +9100,10 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
 
                     if (existingRabMurni && existingRabMurni.id) {
                         const { data: rabMurniUpdated, error: updRabMurniErr } = await supabase.from(RAB_TABLE).update({
-                            volume: volSemulaNum,
+                            // Teks dimensi tidak muat di kolom numeric → pertahankan angka lama.
+                            volume: volSemulaAngka !== null
+                                ? volSemulaAngka
+                                : (VolumeTeks.isVolumeKosong(volSemulaTeks) ? 0 : Number(existingRabMurni.volume ?? 0)),
                             satuan: satSemulaStr,
                             jumlah_anggaran: biayaSemulaNum,
                             harga_satuan: biayaSemulaNum,
@@ -9084,7 +9127,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
             try {
                 const stuntingSemulaStr = (sem.stunting === 'Ya' || sem.stunting === true || sem.stunting === 'true') ? 'Ya' : 'Tidak';
                 const rkpSemulaPayload = {
-                    volume: String(volSemulaNum),
+                    volume: volSemulaTeks !== '' ? volSemulaTeks : String(volSemulaNum),
                     satuan: satSemulaStr,
                     prakiraan_biaya: biayaSemulaNum,
                     lokasi: lokasiSemulaStr,
@@ -9179,8 +9222,13 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
         const men = (body.menjadi && typeof body.menjadi === 'object') ? body.menjadi : body;
         // Anti falsy-fallback MENJADI: kosong disengaja => 0 (numerik) atau '-' (teks),
         // BUKAN dikembalikan ke nilai SEMULA/default.
+        // Volume MENJADI juga boleh TEKS DIMENSI. Teks aslinya disimpan di
+        // rpjm_data.volume_teks (jsonb, tidak terbatas numeric) dan kolom numerik
+        // rab.volume hanya menerima angka murni (selain itu nilai lama dipertahankan).
         const rawMenVol = men.volume ?? body.volume;
-        const volNum = pickExplicitNumber(rawMenVol, 1);
+        const volMenjadiTeks = isFieldProvided(rawMenVol) ? VolumeTeks.bersihkan(rawMenVol) : '';
+        const volMenjadiAngka = VolumeTeks.volumeKeAngka(volMenjadiTeks);
+        const volNum = volMenjadiAngka === null ? 0 : volMenjadiAngka;
         const satStr = pickExplicitText(men.satuan ?? body.satuan, 'Paket');
         const rawMenBiaya = men.biaya != null ? men.biaya : body.biaya;
         const biayaNum = pickExplicitNumber(rawMenBiaya, 0);
@@ -9238,7 +9286,9 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 manfaat_updated_at: nowIso,
                 manfaat_l: formatManfaatRpjm(mLStr, 'Org'),
                 manfaat_p: formatManfaatRpjm(mPStr, 'Org'),
-                manfaat_rtm: formatManfaatRpjm(mRtmStr, 'KK')
+                manfaat_rtm: formatManfaatRpjm(mRtmStr, 'KK'),
+                // Volume MENJADI apa adanya (boleh teks dimensi). Kosong = pakai kolom numerik.
+                volume_teks: volMenjadiTeks
             };
 
             if (existingRabPer && existingRabPer.id) {
@@ -9250,8 +9300,11 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 // seluruh itemnya bervolume 0 kembali tercatat Rp 95.816.000 setelah admin
                 // menyimpan modal, lalu GET menampilkannya sebagai "Menjadi" (desync).
                 const itemsRabPer = Array.isArray(existingRabPer.items) ? existingRabPer.items : [];
+                // Volume teks dimensi ("250mX4mX0,15m3") BUKAN nol — memakai Number()
+                // mentah akan menganggapnya 0 lalu keliru meniadakan anggaran kegiatan.
+                const itemVolumeNol = (it) => VolumeTeks.isVolumeKosong(it && it.volume);
                 const rincianPerubahanNol = itemsRabPer.length > 0
-                    && itemsRabPer.every((it) => (Number(it.volume) || 0) === 0);
+                    && itemsRabPer.every(itemVolumeNol);
                 // Kegiatan ditiadakan (semua item volume 0) => Rp 0, apa pun sisa angka header.
                 const anggaranRabPer = rincianPerubahanNol
                     ? 0
@@ -9263,7 +9316,11 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                         ? Number(existingRabPer.harga_satuan ?? existingRabPer.jumlah_anggaran ?? 0)
                         : biayaNum);
                 const { data: upRabRes, error: rabUpErr } = await supabase.from(RAB_TABLE).update({
-                    volume: volNum,
+                    // Teks dimensi tidak muat di kolom numeric → pertahankan angka lama;
+                    // teks aslinya tersimpan utuh di rpjm_data.volume_teks.
+                    volume: volMenjadiAngka !== null
+                        ? volMenjadiAngka
+                        : (VolumeTeks.isVolumeKosong(volMenjadiTeks) ? 0 : Number(existingRabPer.volume ?? 0)),
                     satuan: satStr,
                     jumlah_anggaran: anggaranRabPer,
                     harga_satuan: hargaSatuanRabPer,
@@ -9395,7 +9452,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     bidang: bidang || 'Bidang Penyelenggaraan Pemerintahan Desa',
                     stunting: stuntingMenjadiStr,
                     mendukung_sdgs: sdgsMenjadiLabel,
-                    volume: String(volNum),
+                    volume: volMenjadiTeks !== '' ? volMenjadiTeks : String(volNum),
                     satuan: satStr,
                     prakiraan_biaya: biayaNum,
                     lokasi: lokasiStr,
@@ -9429,7 +9486,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     stunting: (body.semula.stunting === 'Ya' || body.semula.stunting === true || body.semula.stunting === 'true') ? 'Ya' : 'Tidak'
                 } : null,
                 menjadi: {
-                    volume: volNum,
+                    volume: volMenjadiTeks !== '' ? volMenjadiTeks : volNum,
                     satuan: satStr,
                     biaya: totalTersimpanRabPer,
                     lokasi: lokasiStr,
@@ -9444,7 +9501,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     manfaat_rtm: mRtmStr
                 },
                 stunting: stuntingMenjadiStr,
-                volume: volNum,
+                volume: volMenjadiTeks !== '' ? volMenjadiTeks : volNum,
                 satuan: satStr,
                 biaya: totalTersimpanRabPer,
                 lokasi: lokasiStr,

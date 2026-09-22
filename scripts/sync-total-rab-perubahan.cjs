@@ -31,6 +31,8 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { Client } = require('pg');
+// Aturan volume yang sama dengan server & halaman (nol/kosong vs teks dimensi).
+const VolumeTeks = require('../frontend/volumeTeks.js');
 
 const args = process.argv.slice(2);
 const APPLY = args.includes('--apply');
@@ -100,7 +102,9 @@ const norm = (v) => String(v == null ? '' : v).trim().toLowerCase();
     for (const r of rows) {
         const items = Array.isArray(r.items) ? r.items : [];
         if (!items.length) continue;
-        const semuaNol = items.every((it) => (Number(it.volume) || 0) === 0);
+        // Volume boleh berupa TEKS DIMENSI ("250mX4mX0,15m3") yang BUKAN nol — memakai
+        // Number() mentah akan menganggapnya 0 dan keliru meniadakan anggaran kegiatan.
+        const semuaNol = items.every((it) => VolumeTeks.isVolumeKosong(it && it.volume));
         if (!semuaNol) continue;
         const ditandai = r.rincian_override === 'true' || r.rincian_override === true;
         const totalHeader = Number(r.jumlah_anggaran) || 0;

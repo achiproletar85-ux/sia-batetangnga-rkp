@@ -15,6 +15,7 @@
     "audit:undeclared": "node scripts/audit-undeclared-vars.cjs",
     "sync:rab-perubahan": "node scripts/sync-total-rab-perubahan.cjs",
     "test:undeclared": "node scripts/test-undeclared-vars.cjs",
+    "test:volume-menjadi": "node scripts/test-volume-menjadi.cjs",
     "audit:tingkat-lanjut": "node scripts/audit-tingkat-lanjut.cjs",
     "audit:rab-fetches": "node scripts/audit-rab-fetches.cjs",
     "test:rab-perubahan": "node scripts/test-rab-perubahan.cjs",
@@ -24,8 +25,8 @@
     "test:pembiayaan:perubahan": "node scripts/test-pembiayaan-perubahan.cjs",
     "test:notulensi": "node scripts/test-notulensi.cjs",
     "enforce:klasifikasi": "node scripts/enforce-master-klasifikasi.cjs",
-    "check:all": "npm run audit:egress && npm run audit:undeclared && npm run test:undeclared && node --check server.js && node --check frontend/rkpdes.js && node --check frontend/rktl.js && node --check frontend/notulensi.js && node --check frontend/rab.js && node --check frontend/pagu-indikatif.js && node --check frontend/pembiayaan.js && node --check frontend/rpjmdesModule.js && node --check backend/services/rpjmdesService.js && node --check scripts/import-csv.js && npm run test:rab-perubahan && npm run test:rkpdes-perubahan && npm run test:rktl-perubahan && npm run test:notulensi && npm run test:pagu-indikatif-perubahan && npm run test:pembiayaan:perubahan && npm run audit:tingkat-lanjut && npm run audit:rab-fetches",
-    "test": "node scripts/test-undeclared-vars.cjs && node scripts/test-rab-perubahan.cjs && node scripts/test-rkpdes-perubahan.cjs && node scripts/test-rktl-perubahan.cjs && node scripts/test-notulensi.cjs && node scripts/test-pagu-indikatif-perubahan.cjs && node scripts/test-pembiayaan-perubahan.cjs"
+    "check:all": "npm run audit:egress && npm run audit:undeclared && npm run test:undeclared && node --check server.js && node --check frontend/rkpdes.js && node --check frontend/rktl.js && node --check frontend/notulensi.js && node --check frontend/rab.js && node --check frontend/pagu-indikatif.js && node --check frontend/pembiayaan.js && node --check frontend/rpjmdesModule.js && node --check frontend/volumeTeks.js && node --check backend/services/rkpdesMenjadi.js && node --check backend/services/rpjmdesService.js && node --check scripts/import-csv.js && npm run test:volume-menjadi && npm run test:rab-perubahan && npm run test:rkpdes-perubahan && npm run test:rktl-perubahan && npm run test:notulensi && npm run test:pagu-indikatif-perubahan && npm run test:pembiayaan:perubahan && npm run audit:tingkat-lanjut && npm run audit:rab-fetches",
+    "test": "node scripts/test-undeclared-vars.cjs && node scripts/test-volume-menjadi.cjs && node scripts/test-rab-perubahan.cjs && node scripts/test-rkpdes-perubahan.cjs && node scripts/test-rktl-perubahan.cjs && node scripts/test-notulensi.cjs && node scripts/test-pagu-indikatif-perubahan.cjs && node scripts/test-pembiayaan-perubahan.cjs"
   },
   "keywords": [
     "electron",

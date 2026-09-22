@@ -2419,9 +2419,15 @@ function addRabItem() {
         return;
     }
 
-    const volumeNumber = Number(volume.replace(/,/g, '.'));
-    const validVol = (Number.isFinite(volumeNumber) && volumeNumber >= 0) ? volumeNumber : 0;
-    const jumlah = validVol * harga;
+    // VOLUME BOLEH TEKS DIMENSI ("250mX4mX0,15m3"): angka murni dihitung seperti biasa,
+    // sedangkan teks dimensi disimpan APA ADANYA (jsonb `rab.items`) dan total itemnya
+    // dihitung sebagai 1 satuan kerja (harga satuan) supaya nominal tidak menjadi NaN/0.
+    const volumeAngka = (typeof window !== 'undefined' && window.VolumeTeks)
+        ? window.VolumeTeks.volumeKeAngka(volume)
+        : (Number.isFinite(Number(volume.replace(/,/g, '.'))) ? Number(volume.replace(/,/g, '.')) : null);
+    const volumeDimensi = volumeAngka === null;
+    const validVol = (volumeAngka !== null && volumeAngka >= 0) ? volumeAngka : volume;
+    const jumlah = (volumeDimensi ? 1 : validVol) * harga;
 
     // VALIDASI OVER-BUDGET LOGIC (MENCEGAH OVER-BUDGET) - hanya jika jumlah > 0
     if (jumlah > 0) {
