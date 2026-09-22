@@ -408,6 +408,16 @@ assert(jsCode.includes("behavior: 'instant'"), 'Pemulihan scroll tanpa animasi (
 assert(jsCode.includes('tr[data-kode='), 'Baris teredit dicari lewat data-kode agar tetap terlihat');
 assert(!htmlCode.includes('href="#"'), 'Tidak ada tautan href="#" pada modal yang memicu loncatan scroll ke atas');
 
+// 20. ANTI-REFERENCEERROR pada listener klik & kesinambungan setelah simpan
+console.log('\n--- ANTI-REFERENCEERROR & KESINAMBUNGAN HANDLER KLIK ---\n');
+const jsCodeTanpaKomentar = jsCode.replace(/\/\/[^\n]*/g, ' ').replace(/\/\*[\s\S]*?\*\//g, ' ');
+assert(!/activeRkpTab/.test(jsCodeTanpaKomentar), 'Tidak ada pemakaian `activeRkpTab` yang tak terdeklarasi di kode (hanya di komentar penjelasan)');
+assert(jsCode.includes('let currentRkpdesTab ='), 'State `currentRkpdesTab` dideklarasikan di lingkup modul');
+assert(jsCode.includes('function getActiveRkpTab()') && jsCode.includes('function isActiveRkpdesTab(tab)'), 'Tab aktif diakses lewat helper terdeklarasi (getActiveRkpTab / isActiveRkpdesTab)');
+assert(jsCode.includes("if (trPerubahan && isActiveRkpdesTab('perubahan'))"), 'Listener klik baris memakai helper tab aktif (bukan identifier hantu)');
+assert(jsCode.includes('const savedScrollY = scrollState.y;') && jsCode.includes('const editedKodeUnik = scrollState.kode;'), 'saveEditRkpPerubahanItem mencatat savedScrollY & kode baris teredit');
+assert(jsCode.includes('window.scrollTo({ top: savedScrollY, behavior: \'instant\' })'), 'Posisi scroll dipulihkan eksplisit ke savedScrollY tanpa animasi');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

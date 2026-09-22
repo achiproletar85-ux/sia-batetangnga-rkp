@@ -1,6 +1,19 @@
 let rkpdesList = [];
 let activeYear = 2027;
 let currentRkpdesTab = 'murni';
+
+// Tab RKPDesa yang sedang aktif ('murni' | 'perubahan').
+// CATATAN: listener klik pernah memakai `activeRkpTab` yang TIDAK PERNAH
+// dideklarasikan → setiap klik pada baris tabel melempar ReferenceError dan
+// menghentikan sisa eksekusi handler (UI tidak ter-refresh, scroll terlempar).
+// Selalu akses state lewat helper di bawah agar tidak ada identifier hantu lagi.
+function getActiveRkpTab() {
+    return currentRkpdesTab === 'perubahan' ? 'perubahan' : 'murni';
+}
+
+function isActiveRkpdesTab(tab) {
+    return getActiveRkpTab() === tab;
+}
 let rkpdesPerubahanList = [];
 let rkpdesPerubahanTotals = { semula: 0, menjadi: 0, selisih: 0 };
 // Guard anti dobel-panggilan cetak: satu klik tombol cetak tercatat memicu
@@ -2552,7 +2565,7 @@ document.addEventListener('click', function(e) {
 
     // Klik pada baris kegiatan RKPDes Perubahan untuk membuka modal edit secara bersih
     const trPerubahan = e.target.closest('tr[data-item-key]');
-    if (trPerubahan && activeRkpTab === 'perubahan') {
+    if (trPerubahan && isActiveRkpdesTab('perubahan')) {
         if (!['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) {
             const itemKey = trPerubahan.getAttribute('data-item-key') ||
                             trPerubahan.dataset.itemKey ||
@@ -2928,6 +2941,8 @@ async function saveEditRkpPerubahanItem(event) {
     // Simpan posisi scroll SEBELUM modal ditutup & tabel di-render ulang.
     // Tanpa ini, pengguna yang mengedit baris di bagian bawah tabel akan terlempar ke atas.
     const scrollState = captureScrollState(kode);
+    const savedScrollY = scrollState.y;
+    const editedKodeUnik = scrollState.kode;
     const idVal = (item.id != null && item.id !== '') ? item.id : (document.getElementById('edit-perubahan-id')?.value || null);
     const parsedId = (idVal != null && idVal !== '' && !isNaN(Number(idVal))) ? Number(idVal) : idVal;
 
@@ -3125,6 +3140,11 @@ async function saveEditRkpPerubahanItem(event) {
             // Pulihkan posisi layar: render ulang tabel sempat menyusutkan tinggi
             // dokumen sehingga browser memaksa scroll ke atas.
             restoreScrollState(scrollState);
+            window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+            if (editedKodeUnik) {
+                const rowEdited = document.querySelector(`tr[data-kode="${String(editedKodeUnik).replace(/"/g, '\\"')}"]`);
+                if (rowEdited) rowEdited.setAttribute('data-just-saved', '1');
+            }
         } else {
             const errMsg = result?.error || `Gagal menyimpan data ke database (Status HTTP ${res.status})`;
             console.error('❌ Gagal menyimpan RKPDes Perubahan:', errMsg, result);
