@@ -276,6 +276,20 @@ function formatSdgsLabel(raw) {
     return s.toLowerCase().startsWith('sdg') ? s : `SDGs ${s}`;
 }
 
+// ---- Normalisasi nama untuk pencocokan referensi --------------------------
+// Menyeragamkan spasi ganda, spasi tak-putus, dan huruf besar/kecil supaya
+// "Kegiatan Lomba Senam  tingkat Desa" (typo spasi di rpjmdes_standar) tetap
+// cocok dengan "Kegiatan Lomba Senam Tingkat Desa" dari tabel transaksi.
+function normLookupName(v) {
+    if (v === null || v === undefined) return '';
+    return String(v).replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+// Nilai teks yang dianggap "ada isinya" (bukan kosong / '-').
+function hasTextValue(v) {
+    return v !== null && v !== undefined && String(v).trim() !== '' && String(v).trim() !== '-';
+}
+
 function isTableMissingError(error) {
     const message = String(error?.message || '').toLowerCase();
     // common Postgres / PostgREST messages when a table is missing
@@ -2718,9 +2732,13 @@ async function loadRpjmLookup() {
         if (bidClean && !byBid.has(bidClean)) byBid.set(bidClean, rec);
         if (rec.kode_bidang && !byBid.has(String(rec.kode_bidang).trim())) byBid.set(String(rec.kode_bidang).trim(), rec);
 
-        if (rec.nama_kegiatan) byName.set(String(rec.nama_kegiatan).trim().toLowerCase(), rec);
-        if (rec.jenis_kegiatan && !byName.has(String(rec.jenis_kegiatan).trim().toLowerCase())) {
-            byName.set(String(rec.jenis_kegiatan).trim().toLowerCase(), rec);
+        if (rec.nama_kegiatan) {
+            const recNameKey = normLookupName(rec.nama_kegiatan);
+            if (recNameKey) byName.set(recNameKey, rec);
+        }
+        if (rec.jenis_kegiatan) {
+            const recJenisKey = normLookupName(rec.jenis_kegiatan);
+            if (recJenisKey && !byName.has(recJenisKey)) byName.set(recJenisKey, rec);
         }
     });
 
@@ -2753,7 +2771,8 @@ async function loadRpjmLookup() {
         if (m.kode_bidang && (!byBid.has(String(m.kode_bidang).trim()) || m.bidang)) byBid.set(String(m.kode_bidang).trim(), entry);
 
         if (m.jenis_kegiatan) {
-            byName.set(String(m.jenis_kegiatan).trim().toLowerCase(), entry);
+            const mJenisKey = normLookupName(m.jenis_kegiatan);
+            if (mJenisKey) byName.set(mJenisKey, entry);
         }
     });
 
@@ -2783,9 +2802,10 @@ function resolveRpjmStandar(kode, currentBidang, currentJenisBidang, currentNama
     if (rpjmLookupData) {
         // 1. Exact full code match
         matched = (rpjmLookupData.byFull && (rpjmLookupData.byFull.get(clean) || rpjmLookupData.byFull.get(String(kode || '').trim())));
-        // 2. Exact name match if no full code match
+        // 2. Exact name match if no full code match (spasi ganda/typo dinormalisasi)
         if (!matched && currentNamaKegiatan && rpjmLookupData.byName) {
-            matched = rpjmLookupData.byName.get(String(currentNamaKegiatan).trim().toLowerCase());
+            const nameKey = normLookupName(currentNamaKegiatan);
+            if (nameKey) matched = rpjmLookupData.byName.get(nameKey);
         }
         // 3. Category matches by code prefix
         if (kegKey && rpjmLookupData.byKeg) {
@@ -2810,11 +2830,42 @@ function resolveRpjmStandar(kode, currentBidang, currentJenisBidang, currentNama
                    (currentBidang && String(currentBidang).trim() !== '' && String(currentBidang).trim() !== '-' ? String(currentBidang).trim() : 'Bidang Penyelenggaraan Pemerintah Desa');
 
     // 2. Sub Bidang / jenis_bidang (Level 2)
-    const jenis_bidang = (matched && (matched.sub_bidang || matched.jenis_bidang)) ||
-                         (matchedKeg && (matchedKeg.sub_bidang || matchedKeg.jenis_bidang)) ||
-                         (matchedSub && (matchedSub.sub_bidang || matchedSub.jenis_bidang)) ||
-                         RAB_SUB_BIDANG_MAP[subKey] ||
-                         (currentJenisBidang && String(currentJenisBidang).trim() !== '' && String(currentJenisBidang).trim() !== '-' ? String(currentJenisBidang).trim() : 'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa');
+    // Otoritas pengelompokan adalah STRUKTUR KODE, bukan satu rekaman standar:
+    // seluruh kegiatan dengan kode_kegiatan (dan kode_sub) yang sama WAJIB berada
+    // di grup Level 2 yang sama. Karena itu label diambil dari suara mayoritas
+    // antara rekaman kelompok (kode_kegiatan), rekaman sub (kode_sub), dan rekaman
+    // kegiatan itu sendiri — sehingga satu baris rpjmdes_standar yang salah/typo
+    // (mis. Lomba Senam 01.01.08.04 yang tertulis "Penyediaan Sarana Prasarana
+    // Pemerintahan Desa") tidak bisa melempar kegiatan ke grup yang berbeda.
+    const subBidangCandidates = [
+        (matchedKeg && (matchedKeg.sub_bidang || matchedKeg.jenis_bidang)),
+        (matchedSub && (matchedSub.sub_bidang || matchedSub.jenis_bidang)),
+        (matched && (matched.sub_bidang || matched.jenis_bidang))
+    ]
+        .map(v => (hasTextValue(v) ? String(v).trim() : ''))
+        .filter(v => v !== '');
+
+    let jenis_bidang = '';
+    if (subBidangCandidates.length > 0) {
+        const votes = new Map();
+        subBidangCandidates.forEach(v => {
+            const key = v.toLowerCase();
+            const entry = votes.get(key) || { count: 0, value: v };
+            entry.count += 1;
+            votes.set(key, entry);
+        });
+        let best = null;
+        votes.forEach(entry => {
+            if (!best || entry.count > best.count) best = entry;
+        });
+        jenis_bidang = (best && best.value) || subBidangCandidates[0];
+    }
+
+    if (!jenis_bidang) {
+        jenis_bidang = RAB_SUB_BIDANG_MAP[subKey] ||
+                       (hasTextValue(currentJenisBidang) ? String(currentJenisBidang).trim() : '') ||
+                       'Penyelenggaraan Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa';
+    }
 
     // 3. Jenis Kegiatan / kelompok kegiatan (Level 3)
     // Utamakan jenis_kegiatan resmi dari standar agar tidak menyamai nama kegiatan
@@ -7776,7 +7827,14 @@ app.get('/api/rkpdes', async (req, res) => {
                         const items = Array.isArray(rb.items) ? rb.items : [];
                         const totalBiaya = Number(rb.jumlah_anggaran || 0) || items.reduce((s, it) => s + (Number(it.jumlah) || 0), 0);
                         return {
-                            id: rb.id || code,
+                            // Baris ini BELUM ada di tabel rkpdes. `id` sengaja dikosongkan:
+                            // id tabel `rab` dan `rkpdes` tidak berbagi ruang id, sehingga
+                            // memakai rb.id sebagai id rkpdes membuat UPDATE/DELETE mengenai
+                            // baris rkpdes yang SALAH (edit tampak tidak tersimpan). Identitas
+                            // baris fallback adalah kode_unik_full + tahun.
+                            id: null,
+                            rab_id: rb.id || null,
+                            sumber_data: 'rab',
                             tahun: tahunInt,
                             kode_unik_full: code,
                             bidang: rb.bidang || rpjmObj.bidang || 'Bidang Penyelenggaraan Pemerintah Desa',
@@ -8070,7 +8128,13 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             const sdgsSemulaLabel = sdgsSemulaVal ? formatSdgsLabel(sdgsSemulaVal) : '-';
             const sdgsMenjadiLabel = sdgsMenjadiVal ? formatSdgsLabel(sdgsMenjadiVal) : '-';
             const dataEksistingVal = m.data_eksisting || resolved.data_eksisting || (resolved.matchedStd && (resolved.matchedStd.data_existing || resolved.matchedStd.data_eksisting)) || 'Kegiatan operasional & pembangunan desa';
-            const lokasiVal = m.lokasi || (p ? p.lokasi : 'Desa Batetangnga');
+            // MENJADI lokasi disimpan pada baris RAB PERUBAHAN (p.lokasi) oleh
+            // PUT /api/rkpdes/perubahan, sehingga p.lokasi wajib menang atas m.lokasi
+            // (m.lokasi adalah sisi SEMULA/RKPDes). Tanpa ini hasil edit lokasi MENJADI
+            // akan tampak kembali ke nilai lama di perangkat lain.
+            const lokasiVal = (p && hasTextValue(p.lokasi))
+                ? String(p.lokasi).trim()
+                : (hasTextValue(m.lokasi) ? String(m.lokasi).trim() : 'Desa Batetangnga');
             const manfaatVal = m.total_manfaat ? `${m.total_manfaat} Orang` : (m.penerima_manfaat && m.penerima_manfaat !== '-' ? m.penerima_manfaat : ((resolved.total_manfaat || (resolved.matchedStd && resolved.matchedStd.total_manfaat)) ? `${resolved.total_manfaat || resolved.matchedStd.total_manfaat} Orang` : '-'));
             const sumberSemula = m.sumber_pembiayaan || 'DDS';
             const sumberMenjadi = p ? (p.sumber_dana || sumberSemula) : sumberSemula;
@@ -8137,27 +8201,48 @@ app.get(['/api/rkpdes/perubahan', '/api/perubahan', '/perubahan'], async (req, r
             const lpRtmSemula = parseLPRTMDetails(m, resolved);
             let lpRtmMenjadi = p ? parseLPRTMDetails(p, resolved) : { ...lpRtmSemula };
 
-            // Cek jika p.rpjm_data memiliki data tersimpan dari edit manual
+            // Cek jika p.rpjm_data memiliki data tersimpan dari edit manual.
+            // `manfaat_override = true` berarti admin SUDAH menyimpan nilai ini secara
+            // eksplisit (via /api/rkpdes/perubahan/manfaat), sehingga nilainya dipakai
+            // apa adanya — termasuk '-' — dan tidak boleh ditimpa nilai SEMULA/RPJMDes.
             const pRpjm = (p && p.rpjm_data) || {};
-            if (pRpjm.manfaat_l && pRpjm.manfaat_l !== '-') {
-                lpRtmMenjadi.l = pRpjm.manfaat_l.includes('Org') ? pRpjm.manfaat_l : `${pRpjm.manfaat_l} Org`;
-            }
-            if (pRpjm.manfaat_p && pRpjm.manfaat_p !== '-') {
-                lpRtmMenjadi.p = pRpjm.manfaat_p.includes('Org') ? pRpjm.manfaat_p : `${pRpjm.manfaat_p} Org`;
-            }
-            if (pRpjm.manfaat_rtm && pRpjm.manfaat_rtm !== '-') {
-                lpRtmMenjadi.rtm = pRpjm.manfaat_rtm.includes('KK') ? pRpjm.manfaat_rtm : `${pRpjm.manfaat_rtm} KK`;
+            const formatManfaatCell = (v, unit) => {
+                if (!hasTextValue(v)) return '-';
+                const s = String(v).trim();
+                return s.toLowerCase().includes(String(unit).toLowerCase()) ? s : `${s} ${unit}`;
+            };
+            const manfaatDiubahManual = pRpjm.manfaat_override === true || String(pRpjm.manfaat_override) === 'true';
+
+            if (manfaatDiubahManual) {
+                lpRtmMenjadi = {
+                    l: formatManfaatCell(pRpjm.manfaat_l, 'Org'),
+                    p: formatManfaatCell(pRpjm.manfaat_p, 'Org'),
+                    rtm: formatManfaatCell(pRpjm.manfaat_rtm, 'KK')
+                };
+            } else {
+                if (pRpjm.manfaat_l && pRpjm.manfaat_l !== '-') {
+                    lpRtmMenjadi.l = formatManfaatCell(pRpjm.manfaat_l, 'Org');
+                }
+                if (pRpjm.manfaat_p && pRpjm.manfaat_p !== '-') {
+                    lpRtmMenjadi.p = formatManfaatCell(pRpjm.manfaat_p, 'Org');
+                }
+                if (pRpjm.manfaat_rtm && pRpjm.manfaat_rtm !== '-') {
+                    lpRtmMenjadi.rtm = formatManfaatCell(pRpjm.manfaat_rtm, 'KK');
+                }
             }
 
             // Fallback otomatis jika data Menjadi kosong: salin dari Semula
-            if ((!lpRtmMenjadi.l || lpRtmMenjadi.l === '-') && lpRtmSemula.l && lpRtmSemula.l !== '-') {
-                lpRtmMenjadi.l = lpRtmSemula.l;
-            }
-            if ((!lpRtmMenjadi.p || lpRtmMenjadi.p === '-') && lpRtmSemula.p && lpRtmSemula.p !== '-') {
-                lpRtmMenjadi.p = lpRtmSemula.p;
-            }
-            if ((!lpRtmMenjadi.rtm || lpRtmMenjadi.rtm === '-') && lpRtmSemula.rtm && lpRtmSemula.rtm !== '-') {
-                lpRtmMenjadi.rtm = lpRtmSemula.rtm;
+            // (hanya bila admin belum menyimpan penyesuaian manual)
+            if (!manfaatDiubahManual) {
+                if ((!lpRtmMenjadi.l || lpRtmMenjadi.l === '-') && lpRtmSemula.l && lpRtmSemula.l !== '-') {
+                    lpRtmMenjadi.l = lpRtmSemula.l;
+                }
+                if ((!lpRtmMenjadi.p || lpRtmMenjadi.p === '-') && lpRtmSemula.p && lpRtmSemula.p !== '-') {
+                    lpRtmMenjadi.p = lpRtmSemula.p;
+                }
+                if ((!lpRtmMenjadi.rtm || lpRtmMenjadi.rtm === '-') && lpRtmSemula.rtm && lpRtmSemula.rtm !== '-') {
+                    lpRtmMenjadi.rtm = lpRtmSemula.rtm;
+                }
             }
 
             const sdgsMenjadiSaved = pRpjm.sdgs ? formatSdgsLabel(cleanSdgsRaw(pRpjm.sdgs)) : null;
@@ -8364,20 +8449,57 @@ app.put('/api/rkpdes', async (req, res) => {
             updated_at: new Date().toISOString()
         });
 
-        // 1. Cek keberadaan baris target di tabel rkpdes
-        let existingRow = null;
-        if (idInt) {
-            let checkQ = supabase.from('rkpdes').select('id, tahun, kode_unik_full').eq('id', idInt);
-            if (tahunInt) checkQ = checkQ.eq('tahun', tahunInt);
-            const { data: rowById, error: errById } = await checkQ.maybeSingle();
-            if (errById) {
-                console.error('❌ Error checking rkpdes by ID:', errById.message);
-                throw errById;
+        // 1. TULIS-BALIK KE TABEL `rab` (versi MURNI) — WAJIB SEBELUM rkpdes.
+        // GET /api/rkpdes memakai baris RAB MURNI sebagai sumber `prakiraan_biaya` dan
+        // `sumber_pembiayaan` bila baris RAB ada. Tanpa tulis-balik ini hasil edit
+        // pengguna hanya hidup di memori browser yang mengedit: begitu halaman dimuat
+        // ulang (apalagi di perangkat lain) nilai lama dari RAB kembali muncul.
+        if (kode && tahunInt) {
+            const { data: rabTarget, error: rabFindErr } = await supabase
+                .from('rab')
+                .select('id, kode_unik_full, tahun, tipe_anggaran')
+                .eq('tahun', tahunInt)
+                .eq('tipe_anggaran', 'MURNI')
+                .eq('kode_unik_full', kode)
+                .maybeSingle();
+
+            if (rabFindErr) {
+                console.error('❌ Error mencari baris RAB MURNI untuk tulis-balik:', rabFindErr.message);
+                throw rabFindErr;
             }
-            if (rowById) existingRow = rowById;
+
+            if (rabTarget && rabTarget.id) {
+                const lokasiSync = String(item.lokasi || item.lokasi_kegiatan || 'Desa Batetangnga');
+                const { data: rabUpdated, error: rabUpdateErr } = await supabase
+                    .from('rab')
+                    .update({
+                        volume: Number(item.volume) > 0 ? Number(item.volume) : 1,
+                        satuan: String(item.satuan || 'Kegiatan'),
+                        jumlah_anggaran: isNaN(Number(item.prakiraan_biaya)) ? 0 : Number(item.prakiraan_biaya),
+                        harga_satuan: isNaN(Number(item.prakiraan_biaya)) ? 0 : Number(item.prakiraan_biaya),
+                        lokasi: lokasiSync,
+                        lokasi_kegiatan: lokasiSync,
+                        sumber_dana: String(item.sumber_pembiayaan || 'DDS'),
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', rabTarget.id)
+                    .select('id');
+
+                if (rabUpdateErr) {
+                    console.error('❌ Gagal tulis-balik RKPDes → RAB MURNI:', rabUpdateErr.message);
+                    throw new Error(`Gagal sinkronisasi ke tabel RAB (MURNI): ${rabUpdateErr.message}`);
+                }
+                if (!rabUpdated || rabUpdated.length === 0) {
+                    throw new Error('Gagal sinkronisasi ke tabel RAB (MURNI): tidak ada baris yang terpengaruh di tabel rab');
+                }
+            }
         }
 
-        if (!existingRow && kode && tahunInt) {
+        // 2. Cek keberadaan baris target di tabel rkpdes.
+        // Pencocokan KODE lebih dulu daripada ID: id baris fallback berasal dari tabel
+        // `rab` sehingga pencocokan berbasis ID dapat memperbarui baris rkpdes yang SALAH.
+        let existingRow = null;
+        if (kode && tahunInt) {
             const { data: rowByCode, error: errByCode } = await supabase
                 .from('rkpdes')
                 .select('id, tahun, kode_unik_full')
@@ -8391,7 +8513,21 @@ app.put('/api/rkpdes', async (req, res) => {
             if (rowByCode) existingRow = rowByCode;
         }
 
-        // 2. Jika baris sudah ada di tabel rkpdes, lakukan UPDATE dengan validasi affected rows
+        if (!existingRow && idInt) {
+            let checkQ = supabase.from('rkpdes').select('id, tahun, kode_unik_full').eq('id', idInt);
+            if (tahunInt) checkQ = checkQ.eq('tahun', tahunInt);
+            const { data: rowById, error: errById } = await checkQ.maybeSingle();
+            if (errById) {
+                console.error('❌ Error checking rkpdes by ID:', errById.message);
+                throw errById;
+            }
+            // Hanya percayai pencocokan ID bila kodenya memang sama (id RAB ≠ id rkpdes).
+            if (rowById && (!kode || !hasTextValue(rowById.kode_unik_full) || String(rowById.kode_unik_full).trim() === kode)) {
+                existingRow = rowById;
+            }
+        }
+
+        // 3. Jika baris sudah ada di tabel rkpdes, lakukan UPDATE dengan validasi affected rows
         if (existingRow) {
             const { data: updatedRows, error: updateErr } = await supabase
                 .from('rkpdes')
@@ -8416,8 +8552,9 @@ app.put('/api/rkpdes', async (req, res) => {
             });
         }
 
-        // 3. Jika baris belum ada di tabel rkpdes (misalnya data hasil fallback dari tabel rab),
-        // lakukan INSERT agar data hasil edit tersimpan permanen di tabel rkpdes
+        // 4. Jika baris belum ada di tabel rkpdes (misalnya data hasil fallback dari tabel rab),
+        // lakukan INSERT agar data hasil edit tersimpan PERMANEN di tabel rkpdes —
+        // bukan sekadar di memori/localStorage perangkat yang mengedit.
         const insertPayload = sanitizeRkpdesPayload({
             tahun: tahunInt || 2027,
             kode_unik_full: kode || `RKP-${Date.now()}`,
@@ -8522,6 +8659,228 @@ app.put('/api/rkpdes/perubahan/sdgs', async (req, res) => {
     }
 });
 
+// PUT /api/rkpdes/perubahan/manfaat — simpan Penerima Manfaat (SEMULA & MENJADI)
+// pada lembar RKPDes Perubahan. Sebelumnya penyesuaian ini HANYA tersimpan di
+// localStorage browser (tidak pernah sampai ke database), sehingga hasil edit
+// hilang saat dibuka di perangkat lain. Endpoint ini menyimpannya PERMANEN:
+//   • MENJADI -> kolom rpjm_data baris RAB PERUBAHAN (manfaat_l/p/rtm)
+//     + penanda `manfaat_override` agar nilai eksplisit admin tidak ditimpa
+//       oleh salinan otomatis dari SEMULA saat data dibaca ulang.
+//   • SEMULA  -> kolom manfaat_l/p/rtm + total_manfaat + sasaran_manfaat/ penerima
+//     pada baris `rkpdes` tahun tersebut.
+// ZERO-DEFAULT: kosong / '-' berarti menghapus nilai (bukan diisi tebakan).
+app.put(['/api/rkpdes/perubahan/manfaat', '/api/perubahan/manfaat'], async (req, res) => {
+    try {
+        const body = req.body || {};
+        const { tahun, kode_unik_full, id, manfaat_semula, manfaat_menjadi } = body;
+        const parsedYear = parseInt(tahun, 10);
+        const tahunInt = (Number.isFinite(parsedYear) && parsedYear > 1900 && parsedYear < 2100) ? parsedYear : 2027;
+        const kode = String(kode_unik_full || '').trim();
+        const idInt = (id !== undefined && id !== null && id !== '' && !isNaN(Number(id))) ? Number(id) : null;
+
+        if (!kode && !idInt) {
+            return res.status(400).json({ success: false, error: 'Parameter kode_unik_full atau id wajib diisi.' });
+        }
+        if (!manfaat_semula && !manfaat_menjadi) {
+            return res.status(400).json({ success: false, error: 'Tidak ada nilai penerima manfaat yang dikirim.' });
+        }
+
+        const nowIso = new Date().toISOString();
+
+        // Normalisasi satu sel manfaat: angka murni disimpan apa adanya;
+        // kosong / '-' => null (nilai dihapus, tanpa tebakan).
+        const normalizeManfaat = (v) => {
+            if (v === null || v === undefined) return null;
+            const s = String(v).trim();
+            if (s === '' || s === '-') return null;
+            const m = s.match(/\d+/);
+            return m ? Number(m[0]) : null;
+        };
+        const asCellText = (n, unit) => (n === null ? '-' : `${n} ${unit}`);
+
+        const result = {
+            tahun: tahunInt,
+            kode_unik_full: kode || null,
+            id: idInt,
+            semula: null,
+            menjadi: null
+        };
+
+        // ---------- A. SISI SEMULA -> tabel rkpdes ----------
+        if (manfaat_semula && typeof manfaat_semula === 'object') {
+            const lS = normalizeManfaat(manfaat_semula.l ?? manfaat_semula.manfaat_l);
+            const pS = normalizeManfaat(manfaat_semula.p ?? manfaat_semula.manfaat_p);
+            const rtmS = normalizeManfaat(manfaat_semula.rtm ?? manfaat_semula.manfaat_rtm);
+            const totalS = (lS || 0) + (pS || 0);
+
+            const updateSemula = {
+                manfaat_l: lS,
+                manfaat_p: pS,
+                manfaat_rtm: rtmS,
+                total_manfaat: totalS,
+                sasaran_manfaat: totalS > 0
+                    ? `L: ${lS || 0}, P: ${pS || 0}, RTM: ${rtmS || 0} (Total: ${totalS} Orang)`
+                    : '-',
+                penerima_manfaat: totalS > 0 ? `${totalS} Orang` : '-',
+                updated_at: nowIso
+            };
+
+            const { data: rkpSemula, error: errSemula } = await supabase
+                .from('rkpdes')
+                .update(sanitizeRkpdesPayload(updateSemula))
+                .eq('tahun', tahunInt)
+                .eq('kode_unik_full', kode || '')
+                .select('id, kode_unik_full, manfaat_l, manfaat_p, manfaat_rtm, total_manfaat');
+
+            if (errSemula) {
+                console.error('❌ Gagal simpan penerima manfaat SEMULA:', errSemula.message);
+                return res.status(500).json({ success: false, error: `Gagal menyimpan penerima manfaat SEMULA: ${errSemula.message}` });
+            }
+            if (!rkpSemula || rkpSemula.length === 0) {
+                return res.status(404).json({ success: false, error: 'Baris rkpdes tidak ditemukan untuk tahun/kode tersebut (sisi SEMULA).' });
+            }
+            result.semula = {
+                ...rkpSemula[0],
+                l: asCellText(lS, 'Org'),
+                p: asCellText(pS, 'Org'),
+                rtm: asCellText(rtmS, 'KK')
+            };
+        }
+
+        // ---------- B. SISI MENJADI -> rpjm_data baris RAB PERUBAHAN ----------
+        if (manfaat_menjadi && typeof manfaat_menjadi === 'object') {
+            const lM = normalizeManfaat(manfaat_menjadi.l ?? manfaat_menjadi.manfaat_l);
+            const pM = normalizeManfaat(manfaat_menjadi.p ?? manfaat_menjadi.manfaat_p);
+            const rtmM = normalizeManfaat(manfaat_menjadi.rtm ?? manfaat_menjadi.manfaat_rtm);
+            // `reset: true` => buang penanda penyesuaian manual sehingga nilai
+            // MENJADI kembali diturunkan otomatis (salin dari SEMULA/RPJMDes).
+            const isReset = manfaat_menjadi.reset === true || String(manfaat_menjadi.reset) === 'true';
+
+            const { data: rabRow, error: rabFindErr } = await supabase
+                .from(RAB_TABLE)
+                .select('id, kode_unik_full, tahun, tipe_anggaran, rpjm_data')
+                .eq('tahun', tahunInt)
+                .eq('tipe_anggaran', RAB_TIPE_PERUBAHAN)
+                .eq('kode_unik_full', kode || '')
+                .maybeSingle();
+
+            if (rabFindErr) {
+                console.error('❌ Gagal mencari baris RAB PERUBAHAN:', rabFindErr.message);
+                return res.status(500).json({ success: false, error: `Gagal mencari baris RAB PERUBAHAN: ${rabFindErr.message}` });
+            }
+
+            if (rabRow && rabRow.id) {
+                const rpjmDataLama = (rabRow.rpjm_data && typeof rabRow.rpjm_data === 'object') ? rabRow.rpjm_data : {};
+                const rpjmDataBaru = {
+                    ...rpjmDataLama,
+                    manfaat_l: asCellText(lM, 'Org'),
+                    manfaat_p: asCellText(pM, 'Org'),
+                    manfaat_rtm: asCellText(rtmM, 'KK'),
+                    // Penanda: nilai ini hasil input admin (jangan ditimpa default SEMULA).
+                    // Saat reset, penanda dimatikan kembali.
+                    manfaat_override: !isReset,
+                    manfaat_updated_at: nowIso
+                };
+
+                const { data: rabUpdated, error: rabUpdErr } = await supabase
+                    .from(RAB_TABLE)
+                    .update({ rpjm_data: rpjmDataBaru, updated_at: nowIso })
+                    .eq('id', rabRow.id)
+                    .select('id');
+
+                if (rabUpdErr) {
+                    console.error('❌ Gagal simpan penerima manfaat MENJADI:', rabUpdErr.message);
+                    return res.status(500).json({ success: false, error: `Gagal menyimpan penerima manfaat MENJADI: ${rabUpdErr.message}` });
+                }
+                if (!rabUpdated || rabUpdated.length === 0) {
+                    return res.status(500).json({ success: false, error: 'Gagal menyimpan penerima manfaat MENJADI: tidak ada baris RAB yang terpengaruh.' });
+                }
+
+                result.menjadi = {
+                    id: rabRow.id,
+                    l: asCellText(lM, 'Org'),
+                    p: asCellText(pM, 'Org'),
+                    rtm: asCellText(rtmM, 'KK')
+                };
+            } else if (kode && !isReset) {
+                // Belum ada baris RAB PERUBAHAN untuk kegiatan ini: buat baris penampung
+                // agar penyesuaian admin tersimpan permanen (bukan hilang di reload).
+                const { data: murniRef } = await supabase
+                    .from(RAB_TABLE)
+                    .select('id, nama_kegiatan, uraian, bidang, jenis_kegiatan, lokasi, lokasi_kegiatan, sumber_dana, group_nama, sub_group_nama')
+                    .eq('tahun', tahunInt)
+                    .eq('tipe_anggaran', RAB_TIPE_MURNI)
+                    .eq('kode_unik_full', kode)
+                    .maybeSingle();
+
+                const { data: maxPerRow } = await supabase
+                    .from(RAB_TABLE)
+                    .select('id')
+                    .order('id', { ascending: false })
+                    .limit(1);
+                const nextPerId = (maxPerRow && maxPerRow[0] && Number(maxPerRow[0].id)) ? Number(maxPerRow[0].id) + 1 : Date.now();
+
+                const payloadBaru = {
+                    id: nextPerId,
+                    kode_unik: kode,
+                    kode_unik_full: kode,
+                    tahun: tahunInt,
+                    nama_kegiatan: murniRef?.nama_kegiatan || '-',
+                    uraian: murniRef?.uraian || murniRef?.nama_kegiatan || '-',
+                    bidang: murniRef?.bidang || '',
+                    status: 'perubahan',
+                    group_nama: murniRef?.group_nama || '',
+                    sub_group_nama: murniRef?.sub_group_nama || '',
+                    lokasi: murniRef?.lokasi || murniRef?.lokasi_kegiatan || 'Desa Batetangnga',
+                    lokasi_kegiatan: murniRef?.lokasi || murniRef?.lokasi_kegiatan || 'Desa Batetangnga',
+                    jenis_kegiatan: murniRef?.jenis_kegiatan || '',
+                    sumber_dana: murniRef?.sumber_dana || 'DDS',
+                    items: [],
+                    rpjm_data: {
+                        manfaat_l: asCellText(lM, 'Org'),
+                        manfaat_p: asCellText(pM, 'Org'),
+                        manfaat_rtm: asCellText(rtmM, 'KK'),
+                        manfaat_override: true,
+                        manfaat_updated_at: nowIso
+                    },
+                    tipe_anggaran: RAB_TIPE_PERUBAHAN,
+                    id_referensi_murni: murniRef ? murniRef.id : null,
+                    saved_at: nowIso,
+                    updated_at: nowIso
+                };
+
+                const { data: insertedPer, error: insPerErr } = await supabase
+                    .from(RAB_TABLE)
+                    .insert(payloadBaru)
+                    .select('id');
+
+                if (insPerErr) {
+                    console.error('❌ Gagal membuat baris RAB PERUBAHAN untuk penerima manfaat:', insPerErr.message);
+                    return res.status(500).json({ success: false, error: `Gagal menyimpan penerima manfaat MENJADI: ${insPerErr.message}` });
+                }
+                if (!insertedPer || insertedPer.length === 0) {
+                    return res.status(500).json({ success: false, error: 'Gagal menyimpan penerima manfaat MENJADI: baris RAB baru tidak tersimpan.' });
+                }
+                result.menjadi = {
+                    id: insertedPer[0].id,
+                    l: asCellText(lM, 'Org'),
+                    p: asCellText(pM, 'Org'),
+                    rtm: asCellText(rtmM, 'KK')
+                };
+            }
+        }
+
+        return res.json({
+            success: true,
+            message: 'Penerima manfaat berhasil disimpan ke database.',
+            data: result
+        });
+    } catch (error) {
+        console.error('❌ Unhandled PUT /api/rkpdes/perubahan/manfaat:', error.message);
+        return res.status(500).json({ success: false, error: error.message || 'Kesalahan internal server.' });
+    }
+});
+
 // PUT /api/rkpdes/perubahan — update rincian kegiatan pada RKPDes / RAB Perubahan
 // Mendukung pembaruan data Semula (Murni) dan Menjadi (Perubahan):
 // - volume, satuan, biaya/anggaran, lokasi, sumber dana, waktu, pola pelaksanaan,
@@ -8587,7 +8946,7 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     if (findMurniErr) throw findMurniErr;
 
                     if (existingRabMurni && existingRabMurni.id) {
-                        const { error: updRabMurniErr } = await supabase.from(RAB_TABLE).update({
+                        const { data: rabMurniUpdated, error: updRabMurniErr } = await supabase.from(RAB_TABLE).update({
                             volume: volSemulaNum,
                             satuan: satSemulaStr,
                             jumlah_anggaran: biayaSemulaNum,
@@ -8598,6 +8957,9 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                             updated_at: nowIso
                         }).eq('id', existingRabMurni.id).select('id');
                         if (updRabMurniErr) throw updRabMurniErr;
+                        if (!rabMurniUpdated || rabMurniUpdated.length === 0) {
+                            throw new Error(`tidak ada baris RAB MURNI yang terpengaruh (id ${existingRabMurni.id})`);
+                        }
                     }
                 }
             } catch (semRabErr) {
@@ -8631,21 +8993,44 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     rkpSemulaPayload.sasaran_manfaat = `L: ${numLSemula || 0}, P: ${numPSemula || 0}, RTM: ${numRtmSemula || 0} (Total: ${totSemula} Orang)`;
                 }
 
-                let rkpCheck = supabase.from('rkpdes').select('id, kode_unik_full, tahun');
-                if (id && !isNaN(Number(id))) {
-                    rkpCheck = rkpCheck.eq('id', Number(id));
-                } else if (kode) {
-                    rkpCheck = rkpCheck.eq('kode_unik_full', kode).eq('tahun', tahunInt);
+                // Pencocokan KODE + TAHUN lebih dulu. `id` yang dikirim klien dapat berasal
+                // dari tabel `rab` (id RAB ≠ id rkpdes); memakai id mentah menyebabkan
+                // UPDATE mengenai baris salah atau INSERT baris DUPLIKAT pada setiap simpan.
+                let rkpTarget = null;
+                if (kode) {
+                    const { data: byKode, error: errByKode } = await supabase
+                        .from('rkpdes')
+                        .select('id, kode_unik_full, tahun')
+                        .eq('kode_unik_full', kode)
+                        .eq('tahun', tahunInt)
+                        .maybeSingle();
+                    if (errByKode) throw errByKode;
+                    if (byKode) rkpTarget = byKode;
                 }
-                const { data: existingRkp, error: findRkpErr } = await rkpCheck.maybeSingle();
-                if (findRkpErr) throw findRkpErr;
+                if (!rkpTarget && id && !isNaN(Number(id))) {
+                    const { data: byId, error: errById } = await supabase
+                        .from('rkpdes')
+                        .select('id, kode_unik_full, tahun')
+                        .eq('id', Number(id))
+                        .eq('tahun', tahunInt)
+                        .maybeSingle();
+                    if (errById) throw errById;
+                    // Hanya percayai id bila baris itu memang kegiatan yang sama
+                    if (byId && (!kode || !hasTextValue(byId.kode_unik_full) || String(byId.kode_unik_full).trim() === kode)) {
+                        rkpTarget = byId;
+                    }
+                }
+                const existingRkp = rkpTarget;
 
                 if (existingRkp && existingRkp.id) {
                     if (nama_kegiatan && String(nama_kegiatan).trim() !== '') {
                         rkpSemulaPayload.nama_kegiatan = String(nama_kegiatan).trim();
                     }
-                    const { error: updRkpErr } = await supabase.from('rkpdes').update(sanitizeRkpdesPayload(rkpSemulaPayload)).eq('id', existingRkp.id).select('id');
+                    const { data: rkpSemulaUpdated, error: updRkpErr } = await supabase.from('rkpdes').update(sanitizeRkpdesPayload(rkpSemulaPayload)).eq('id', existingRkp.id).select('id');
                     if (updRkpErr) throw updRkpErr;
+                    if (!rkpSemulaUpdated || rkpSemulaUpdated.length === 0) {
+                        throw new Error(`tidak ada baris rkpdes yang terpengaruh untuk sisi SEMULA (id ${existingRkp.id})`);
+                    }
                 } else if (kode) {
                     const { data: maxRkp } = await supabase.from('rkpdes').select('id').order('id', { ascending: false }).limit(1);
                     const nextRkpId = (maxRkp && maxRkp[0] && Number(maxRkp[0].id)) ? Number(maxRkp[0].id) + 1 : Date.now();
@@ -8736,6 +9121,9 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     console.error('❌ Gagal update RAB perubahan:', rabUpErr.message);
                     throw new Error(`Gagal update tabel RAB: ${rabUpErr.message}`);
                 }
+                if (!upRabRes || upRabRes.length === 0) {
+                    throw new Error(`Gagal update tabel RAB: tidak ada baris yang terpengaruh (id ${rabPerId})`);
+                }
             } else {
                 let murniRef = null;
                 if (kode) {
@@ -8816,12 +9204,16 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                 if (rkpRow && rkpRow.id) rkpMatchId = rkpRow.id;
             }
             if (!rkpMatchId && id && !isNaN(Number(id))) {
+                // `id` bisa berasal dari tabel `rab` — hanya dipakai bila kodenya cocok
                 const { data: rkpRowById } = await supabase
                     .from('rkpdes')
-                    .select('id')
+                    .select('id, kode_unik_full')
                     .eq('id', Number(id))
+                    .eq('tahun', tahunInt)
                     .maybeSingle();
-                if (rkpRowById && rkpRowById.id) rkpMatchId = rkpRowById.id;
+                if (rkpRowById && rkpRowById.id && (!kode || !hasTextValue(rkpRowById.kode_unik_full) || String(rkpRowById.kode_unik_full).trim() === kode)) {
+                    rkpMatchId = rkpRowById.id;
+                }
             }
 
             if (rkpMatchId) {
@@ -8831,7 +9223,10 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
                     .eq('id', rkpMatchId)
                     .select('id');
                 if (rkpUpdateErr) throw rkpUpdateErr;
-                rkpUpdatedCount = (rkpRes && rkpRes.length) ? rkpRes.length : 1;
+                if (!rkpRes || rkpRes.length === 0) {
+                    throw new Error(`tidak ada baris rkpdes yang terpengaruh (id ${rkpMatchId}) untuk stunting/mendukung_sdgs`);
+                }
+                rkpUpdatedCount = rkpRes.length;
             } else if (kode) {
                 const { data: maxRkp } = await supabase.from('rkpdes').select('id').order('id', { ascending: false }).limit(1);
                 const nextRkpId = (maxRkp && maxRkp[0] && Number(maxRkp[0].id)) ? Number(maxRkp[0].id) + 1 : Date.now();
@@ -8915,20 +9310,34 @@ app.put(['/api/rkpdes/perubahan', '/api/perubahan'], async (req, res) => {
 
 app.delete('/api/rkpdes', async (req, res) => {
     try {
-        const { id } = req.query;
-        if (!id) return res.status(400).json({ success: false, error: 'ID kegiatan diperlukan' });
+        const { id, kode, tahun } = req.query;
+        const tahunInt = parseInt(tahun, 10);
+        const kodeStr = String(kode || '').trim();
 
-        let q = supabase.from('rkpdes').delete();
-        if (!isNaN(Number(id))) {
-            q = q.eq('id', Number(id));
-        } else {
-            q = q.eq('kode_unik_full', id);
+        if (!id && !kodeStr) {
+            return res.status(400).json({ success: false, error: 'Parameter id atau kode diperlukan' });
         }
 
-        const { error } = await q.select('id');
+        let q = supabase.from('rkpdes').delete();
+
+        // Utamakan pencocokan KODE + TAHUN: id baris fallback berasal dari tabel `rab`
+        // sehingga penghapusan berbasis ID saja dapat menghapus baris rkpdes yang SALAH.
+        if (kodeStr && Number.isFinite(tahunInt)) {
+            q = q.eq('kode_unik_full', kodeStr).eq('tahun', tahunInt);
+        } else if (!isNaN(Number(id))) {
+            q = q.eq('id', Number(id));
+        } else {
+            q = q.eq('kode_unik_full', String(id));
+        }
+
+        const { data, error } = await q.select('id');
         if (error) throw error;
 
-        res.json({ success: true, message: 'Kegiatan RKPDes berhasil dihapus' });
+        if (!data || data.length === 0) {
+            return res.status(404).json({ success: false, error: 'Baris RKPDes tidak ditemukan untuk id/kode tersebut.' });
+        }
+
+        res.json({ success: true, message: 'Kegiatan RKPDes berhasil dihapus', deleted: data.length });
     } catch (err) {
         console.error('❌ Error DELETE /api/rkpdes:', err.message);
         res.status(500).json({ success: false, error: err.message });

@@ -119,6 +119,76 @@ kolom eksplisit.
 
 ---
 
+## 8. 🔴 Edit RKPDes hilang saat dibuka di perangkat lain (persistensi tidak nyata)
+
+**Status:** 🟢 **Selesai** (diperbaiki September 2026)
+
+**Gejala:** data yang diedit & disimpan di satu PC muncul kembali ke nilai lama di
+perangkat lain (atau setelah reload keras).
+
+**Akar masalah (4 jalur, semuanya ditutup):**
+1. **Penerima Manfaat (MENJADI) hanya di `localStorage`** — `saveEditManfaatMenjadi()`
+   tidak pernah menulis ke database. Kini disimpan lewat endpoint baru
+   `PUT /api/rkpdes/perubahan/manfaat` (kolom `rpjm_data` baris RAB PERUBAHAN +
+   penanda `manfaat_override`, dan kolom `manfaat_l/p/rtm` untuk sisi SEMULA).
+   `localStorage` hanya dipakai sebagai penampung sementara saat DB tak terjangkau,
+   dan otomatis didorong ke DB oleh `syncPendingLocalOverridesToDb()`.
+2. **Tulis-balik RKPDes → RAB MURNI tidak ada** — `GET /api/rkpdes` mengambil
+   `prakiraan_biaya` & `sumber_pembiayaan` dari baris RAB MURNI bila ada, sehingga
+   edit di lembar RKPDes Murni selalu tertimpa nilai RAB saat dibaca ulang.
+   `PUT /api/rkpdes` kini menulis-balik ke baris RAB MURNI yang bersangkutan.
+3. **Lokasi sisi MENJADI tidak pernah terbaca** — GET memprioritaskan `rkpdes.lokasi`
+   (sisi SEMULA). Kini `p.lokasi` (RAB PERUBAHAN) diprioritaskan untuk sisi MENJADI.
+4. **Tabrakan id antar-tabel (`rab` vs `rkpdes`)** — `id` baris fallback RAB dipakai
+   sebagai id rkpdes sehingga UPDATE bisa mengenai baris yang salah, dan pencarian
+   berbasis `id` yang tidak ada menyebabkan **INSERT baris duplikat** pada setiap simpan.
+   Kedua endpoint PUT (murni & perubahan) kini mencocokkan **kode + tahun lebih dulu**,
+   dan baris fallback diberi `id: null` + `rab_id` + `sumber_data: 'rab'`.
+
+**Tambahan:** semua mutasi sekarang divalidasi (`error == null` **dan** `data.length > 0`),
+sehingga kegagalan tulis tidak lagi lewat sebagai "sukses".
+
+---
+
+## 9. 🟠 Salah pengelompokan hirarki (Level 2) pada baris RKPDes tertentu
+
+**Status:** 🟢 **Selesai** (September 2026) — akar data diperbaiki, kode diperkuat
+
+**Kasus:** `Kegiatan Lomba Senam Tingkat Desa` (01.01.08.04.) terpisah di bawah
+`Penyediaan Sarana Prasarana Pemerintahan Desa`, padahal 3 kegiatan sekelompoknya
+(01.01.08.01 Biaya Koordinasi, 01.01.08.02 Ceremonial, 01.01.08.03 Turnamen Olahraga)
+berada di `Penyelenggaran Belanja Siltap, Tunjangan dan Operasional Pemerintahan Desa`.
+
+**Sebab:** kolom `jenis_bidang` pada baris `rpjmdes_standar` kode 01.01.08.04. salah,
+plus `nama_kegiatan`-nya mengandung **spasi ganda** ("Kegiatan Lomba Senam  tingkat Desa")
+sehingga pencocokan berbasis nama meleset.
+
+**Perbaikan:**
+- `resolveRpjmStandar()` kini menentukan Level 2 dengan **suara mayoritas** dari rekaman
+  `kode_kegiatan` → `kode_sub` → kegiatan (struktur kode adalah otoritas), sehingga satu
+  rekaman rujukan yang typo tidak bisa melempar kegiatan ke grup lain.
+- Pencocokan nama rujukan dinormalisasi (`normLookupName`: spasi ganda / NBSP / huruf besar).
+- Data rujukan diperbaiki oleh `supabase_fix_pengelompokan_rkpdes.sql` (idempotent):
+  `jenis_bidang` disamakan dengan acuan `master_klasifikasi` per `kode_kegiatan`,
+  lalu dinormalkan spasinya. **Dampak terukur: 1 baris jenis_bidang + 12 nama spasi ganda.**
+
+---
+
+## 10. 🟡 Penghapusan nilai Penerima Manfaat sisi SEMULA belum bisa eksplisit kosong
+
+**Status:** 🟠 Terbuka — minor
+
+`GET /api/rkpdes/perubahan` mengisi sel SEMULA dari kolom `manfaat_l/p/rtm` baris
+`rkpdes`; bila kolom tersebut diisi `0`/kosong, pengayaan standar RPJMDes mengisinya
+kembali dari data rujukan. Sisi MENJADI sudah punya penanda `manfaat_override` sehingga
+nilai eksplisit (termasuk `-`) dihormati; sisi SEMULA belum punya penanda serupa
+(tabel `rkpdes` tidak memiliki kolom penanda).
+
+**Rekomendasi:** tambahkan kolom penanda (mis. `manfaat_override`) pada tabel `rkpdes`,
+atau simpan nilai eksplisit di `sasaran_manfaat` dan hormati bila bukan angka.
+
+---
+
 <!-- Format entri baru:
 ## N. Judul singkat
 **Status:** 🟠 Terbuka / 🟢 Selesai

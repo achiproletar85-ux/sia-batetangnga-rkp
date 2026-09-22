@@ -277,6 +277,65 @@ assert(serverCode.includes('Math.round(acc.semula +') && serverCode.includes('Ma
 assert(jsCode.includes('Math.round(Number(num) || 0)'), 'Helper formatRupiah menggunakan Math.round untuk integritas nominal bulat');
 assert(!jsCode.includes('class="font-bold underline uppercase">${timInfo.nama') && jsCode.includes('class="font-bold underline">${timInfo.nama'), 'Nama penandatangan mempertahankan format asli gelar campuran (tanpa paksaan CSS uppercase)');
 
+// 17. INTEGRITAS DATA LINTAS PERANGKAT & PENGELOMPOKAN HIERARKI (AUDIT LANJUTAN)
+console.log('\n--- INTEGRITAS DATA LINTAS PERANGKAT & PENGELOMPOKAN HIERARKI ---\n');
+
+// 17a. Persistensi Penerima Manfaat (MENJADI) tidak lagi hanya di localStorage
+assert(serverCode.includes("app.put(['/api/rkpdes/perubahan/manfaat'"), 'Endpoint PUT /api/rkpdes/perubahan/manfaat terdaftar di server.js');
+assert(serverCode.includes('Penerima manfaat berhasil disimpan ke database.'), 'Endpoint manfaat mengembalikan konfirmasi persist database');
+assert(serverCode.includes('manfaat_override: !isReset'), 'Penanda manfaat_override (anti-timpa default SEMULA) tersimpan di rpjm_data');
+assert(serverCode.includes('const manfaatDiubahManual ='), 'GET /api/rkpdes/perubahan menghormati penanda manfaat_override');
+assert(serverCode.includes('manfaat_updated_at'), 'Jejak waktu pembaruan penerima manfaat tersimpan');
+assert(jsCode.includes("'/api/rkpdes/perubahan/manfaat'"), 'Frontend mengirim penerima manfaat ke endpoint database');
+assert(jsCode.includes('async function saveEditManfaatMenjadi'), 'saveEditManfaatMenjadi menjadi async (menunggu respons database)');
+assert(jsCode.includes('tersimpan ke database — tersinkron ke semua perangkat.'), 'Toast sukses menegaskan data tersinkron lintas perangkat');
+assert(jsCode.includes('function syncPendingLocalOverridesToDb'), 'syncPendingLocalOverridesToDb terdefinisi (dorong penampung lokal ke database)');
+assert(jsCode.includes('syncPendingLocalOverridesToDb()'), 'syncPendingLocalOverridesToDb dipanggil setiap data perubahan selesai dimuat');
+assert(jsCode.includes('pending: true'), 'Penampung lokal ditandai pending agar disinkronkan ulang');
+assert(jsCode.includes('async function resetManfaatMenjadi'), 'resetManfaatMenjadi ikut mempersist reset ke database');
+
+// 17b. Semua mutasi divalidasi (error != null DAN data.length > 0)
+assert(serverCode.includes('Tidak ada baris RAB MURNI') || serverCode.includes('tidak ada baris RAB MURNI yang terpengaruh'), 'UPDATE RAB MURNI divalidasi affected rows');
+assert(serverCode.includes('tidak ada baris rkpdes yang terpengaruh untuk sisi SEMULA'), 'UPDATE rkpdes SEMULA divalidasi affected rows');
+assert(serverCode.includes('tidak ada baris yang terpengaruh (id ${rabPerId})'), 'UPDATE RAB PERUBAHAN divalidasi affected rows');
+assert(serverCode.includes('untuk stunting/mendukung_sdgs'), 'UPDATE rkpdes stunting/mendukung_sdgs divalidasi affected rows');
+assert(serverCode.includes('hasTextValue'), 'Helper hasTextValue tersedia untuk validasi nilai kosong/\'-\'');
+
+// 17c. Tulis-balik RKPDes Murni ke tabel RAB (anti "nilai kembali lama")
+assert(serverCode.includes('TULIS-BALIK KE TABEL'), 'PUT /api/rkpdes melakukan tulis-balik ke tabel RAB (MURNI)');
+assert(serverCode.includes('Gagal sinkronisasi ke tabel RAB (MURNI)'), 'Kegagalan tulis-balik RAB MURNI dilaporkan eksplisit (bukan silent failure)');
+assert(serverCode.includes('lokasiSync'), 'Lokasi ikut disinkronkan pada tulis-balik RAB MURNI');
+
+// 17d. Pencocokan KODE lebih dulu (id tabel rab != id tabel rkpdes)
+assert(serverCode.includes('Pencocokan KODE lebih dulu'), 'PUT /api/rkpdes mencocokkan kode+tahun sebelum id');
+assert(serverCode.includes('id RAB ≠ id rkpdes') || serverCode.includes('id baris fallback berasal dari tabel'), 'PUT /api/rkpdes/perubahan mencocokkan kode+tahun sebelum id');
+assert(serverCode.includes('rab_id: rb.id || null') && serverCode.includes("sumber_data: 'rab'"), 'Baris fallback RAB ditandai rab_id/sumber_data dan tidak memakai id RAB sebagai id rkpdes');
+assert(serverCode.includes('Hasil ID tidak dipercaya') || serverCode.includes('Hanya percayai pencocokan ID bila kodenya memang sama'), 'Pencocokan via id hanya dipercaya bila kode cocok');
+
+// 17e. Lokasi sisi MENJADI dibaca dari baris RAB PERUBAHAN
+assert(serverCode.includes('p.lokasi wajib menang atas m.lokasi') || serverCode.includes('MENJADI lokasi disimpan pada baris RAB PERUBAHAN'), 'GET /api/rkpdes/perubahan membaca lokasi MENJADI dari RAB PERUBAHAN');
+
+// 17f. Pengelompokan hierarki (Level 2) mengikuti struktur kode, bukan satu rekaman typo
+assert(serverCode.includes('function normLookupName'), 'Helper normLookupName terdefinisi (normalisasi spasi/nama rujukan)');
+assert(serverCode.includes('subBidangCandidates'), 'resolveRpjmStandar memakai suara mayoritas kode_kegiatan/kode_sub/kegiatan untuk Level 2');
+assert(serverCode.includes('struktur KODE') || serverCode.includes('STRUKTUR KODE'), 'Kebijakan otoritas struktur kode terdokumentasi di server.js');
+assert(!serverCode.includes("currentNamaKegiatan).trim().toLowerCase(), rec)") , 'Pencocokan nama standar memakai kunci ternormalisasi (bukan trim mentah)');
+
+// 17g. Skrip SQL perbaikan pengelompokan tersedia & idempotent
+const sqlFixPath = path.resolve(__dirname, '..', 'supabase_fix_pengelompokan_rkpdes.sql');
+assert(fs.existsSync(sqlFixPath), 'Skrip SQL supabase_fix_pengelompokan_rkpdes.sql tersedia di root proyek');
+if (fs.existsSync(sqlFixPath)) {
+    const sqlFix = fs.readFileSync(sqlFixPath, 'utf8');
+    assert(sqlFix.toLowerCase().includes('jenis_bidang = mk.sub_bidang'), 'SQL menyamakan jenis_bidang dengan acuan master_klasifikasi');
+    assert(sqlFix.includes('mayoritas'), 'SQL memiliki fallback mayoritas per kode_kegiatan');
+    assert(sqlFix.includes("regexp_replace"), 'SQL menormalkan spasi ganda pada kolom pengelompokan');
+}
+
+// 17h. Frontend selalu menarik ulang data dari server setelah simpan
+assert(jsCode.includes('Taruh ulang dari database') || jsCode.includes('await loadRkpdesPerubahanData();'), 'saveEditRkpPerubahanItem menarik ulang data dari database setelah sukses');
+assert(jsCode.includes('kode=${encodeURIComponent(kodeItem)}&tahun='), 'deleteRkpItem menghapus berdasarkan kode + tahun (bukan id fallback RAB)');
+assert(serverCode.includes('Parameter id atau kode diperlukan'), 'DELETE /api/rkpdes menerima kode/tahun dan memvalidasi baris terhapus');
+
 console.log('\n========================================');
 console.log(`  LULUS : ${pass}`);
 console.log(`  GAGAL : ${fail}`);

@@ -1035,8 +1035,15 @@ async function deleteRkpItem(key) {
         return;
     }
 
+    const kodeItem = String(item.kode_unik_full || item.kode_unik || '').trim();
+
     try {
-        const res = await fetch(`/api/rkpdes?id=${itemId}`, {
+        // Prioritaskan kode + tahun: id baris fallback berasal dari tabel `rab`,
+        // sehingga penghapusan berbasis ID saja berisiko menghapus baris yang salah.
+        const params = kodeItem
+            ? `kode=${encodeURIComponent(kodeItem)}&tahun=${encodeURIComponent(activeYear)}`
+            : `id=${encodeURIComponent(itemId)}`;
+        const res = await fetch(`/api/rkpdes?${params}`, {
             method: 'DELETE'
         });
         const json = await res.json();
@@ -1278,6 +1285,9 @@ async function loadRkpdesPerubahanData() {
             rkpdesPerubahanTotals = json.total || { semula: 0, menjadi: 0, selisih: 0 };
             applyManfaatOverridesToPerubahanList();
             renderRkpdesPerubahanPreview();
+            // Dorong sisa penyesuaian lokal (offline) ke database agar tidak ada
+            // nilai yang hanya hidup di localStorage perangkat ini.
+            if (typeof syncPendingLocalOverridesToDb === 'function') syncPendingLocalOverridesToDb();
         } else {
             rkpdesPerubahanList = [];
             rkpdesPerubahanTotals = { semula: 0, menjadi: 0, selisih: 0 };
@@ -2141,31 +2151,87 @@ async function saveEditSdgs(event) {
 }
 window.saveEditSdgs = saveEditSdgs;
 
-function resetManfaatMenjadi() {
+async function resetManfaatMenjadi() {
     const itemKey = document.getElementById('edit-manfaat-item-key')?.value;
     if (!itemKey) return;
 
     const item = findPerubahanItem(itemKey);
-    const overrides = getManfaatOverrides(activeYear);
-
-    delete overrides[itemKey];
+    // Reset harus berlaku untuk SEMUA perangkat, bukan hanya browser ini:
+    // hapus penanda penyesuaian manual di database (manfaat_override = false)
+    // sekaligus buang override lokal.
+    let dbReset = false;
     if (item) {
-        if (item.kode_unik_full) {
-            delete overrides[String(item.kode_unik_full).trim()];
-            delete overrides[String(item.kode_unik_full).trim().replace(/\.+$/, '')];
+        const kodeTarget = String(item.kode_unik_full || item.kode_unik || '').trim();
+        if (kodeTarget) {
+            try {
+                const res = await fetch('/api/rkpdes/perubahan/manfaat', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tahun: activeYear,
+                        kode_unik_full: kodeTarget,
+                        id: item.id != null ? item.id : '',
+                        manfaat_menjadi: { l: '-', p: '-', rtm: '-', reset: true }
+                    })
+                });
+                const json = await res.json().catch(() => ({}));
+                dbReset = !!(res.ok && json.success);
+            } catch (err) {
+                console.warn('⚠️ Reset penerima manfaat di database gagal:', err.message);
+            }
         }
-        if (item.id != null) delete overrides[String(item.id)];
     }
-    saveManfaatOverrides(activeYear, overrides);
+
+    clearManfaatOverridesForItem(item, itemKey);
 
     applyManfaatOverridesToPerubahanList();
     renderRkpdesPerubahanPreview();
     closeEditManfaatMenjadiModal();
-    showToast('🔄 Penyesuaian penerima manfaat berhasil direset ke nilai awal', 'success');
+
+    if (dbReset) {
+        showToast('🔄 Penyesuaian penerima manfaat direset ke nilai awal (tersimpan di database)', 'success');
+        if (typeof loadRkpdesPerubahanData === 'function') await loadRkpdesPerubahanData();
+    } else {
+        showToast('⚠️ Reset hanya berlaku di perangkat ini (database tidak dapat dihubungi)', 'error');
+    }
 }
 window.resetManfaatMenjadi = resetManfaatMenjadi;
 
-function saveEditManfaatMenjadi(event) {
+// Kunci-kunci override lokal yang dipakai untuk satu baris kegiatan
+// (kode bertitik, kode tanpa titik, dan id) — dipakai saat menyimpan & membersihkan.
+function getManfaatOverrideKeys(item, itemKey) {
+    const keys = new Set();
+    if (itemKey) keys.add(String(itemKey).trim());
+    if (item) {
+        const kode = String(item.kode_unik_full || item.kode_unik || '').trim();
+        if (kode) {
+            keys.add(kode);
+            keys.add(kode.replace(/\.+$/, ''));
+        }
+        if (item.id != null && item.id !== '') keys.add(String(item.id));
+    }
+    return Array.from(keys).filter(Boolean);
+}
+
+// Hapus override lokal hanya untuk satu baris (dipakai setelah DB sukses menyimpan)
+function clearManfaatOverridesForItem(item, itemKey) {
+    const overrides = getManfaatOverrides(activeYear);
+    let changed = false;
+    getManfaatOverrideKeys(item, itemKey).forEach(k => {
+        if (Object.prototype.hasOwnProperty.call(overrides, k)) {
+            delete overrides[k];
+            changed = true;
+        }
+    });
+    if (changed) saveManfaatOverrides(activeYear, overrides);
+}
+window.clearManfaatOverridesForItem = clearManfaatOverridesForItem;
+
+// Simpan Penerima Manfaat (MENJADI) ke DATABASE terlebih dahulu.
+// localStorage HANYA dipakai sebagai penampung sementara bila database tidak
+// dapat dihubungi; penampung itu otomatis disinkronkan ke database saat data
+// dimuat berikutnya (syncPendingLocalOverridesToDb).
+async function saveEditManfaatMenjadi(event) {
     if (event) event.preventDefault();
     const itemKey = document.getElementById('edit-manfaat-item-key')?.value;
     if (!itemKey) return;
@@ -2175,7 +2241,10 @@ function saveEditManfaatMenjadi(event) {
     const valRtm = document.getElementById('input-menjadi-rtm')?.value?.trim() || '-';
 
     const item = findPerubahanItem(itemKey);
-    const overrides = getManfaatOverrides(activeYear);
+    const kodeTarget = item
+        ? String(item.kode_unik_full || item.kode_unik || '').trim()
+        : String(itemKey.includes('|') ? itemKey.split('|')[0] : itemKey).trim();
+
     const payload = {
         l: valL,
         p: valP,
@@ -2183,22 +2252,131 @@ function saveEditManfaatMenjadi(event) {
         updated_at: new Date().toISOString()
     };
 
-    overrides[itemKey] = payload;
-    if (item) {
-        if (item.kode_unik_full) {
-            overrides[String(item.kode_unik_full).trim()] = payload;
-            overrides[String(item.kode_unik_full).trim().replace(/\.+$/, '')] = payload;
-        }
-        if (item.id != null) overrides[String(item.id)] = payload;
+    if (!kodeTarget) {
+        showToast('❌ Kode kegiatan tidak valid — data tidak dapat disimpan ke database', 'error');
+        return;
     }
-    saveManfaatOverrides(activeYear, overrides);
+
+    // 1. TULIS KE DATABASE (sumber kebenaran lintas perangkat)
+    let dbSaved = false;
+    let dbError = '';
+    try {
+        const res = await fetch('/api/rkpdes/perubahan/manfaat', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tahun: activeYear,
+                kode_unik_full: kodeTarget,
+                id: item && item.id != null ? item.id : '',
+                manfaat_menjadi: { l: valL, p: valP, rtm: valRtm }
+            })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.success) {
+            dbSaved = true;
+        } else {
+            dbError = json.error || ('HTTP ' + res.status);
+        }
+    } catch (err) {
+        dbError = err.message;
+    }
+
+    if (dbSaved) {
+        // Nilai sudah ada di database -> override lokal untuk baris ini tidak diperlukan lagi
+        clearManfaatOverridesForItem(item, itemKey);
+    } else {
+        // Penampung sementara (offline) — akan disinkronkan otomatis ke database
+        console.warn('⚠️ Simpan penerima manfaat ke DB gagal, disimpan lokal sementara:', dbError);
+        const overrides = getManfaatOverrides(activeYear);
+        const pending = { ...payload, pending: true };
+        getManfaatOverrideKeys(item, itemKey).forEach(k => { overrides[k] = pending; });
+        saveManfaatOverrides(activeYear, overrides);
+    }
 
     applyManfaatOverridesToPerubahanList();
     renderRkpdesPerubahanPreview();
     closeEditManfaatMenjadiModal();
-    showToast('✅ Penerima manfaat (MENJADI) berhasil disimpan!', 'success');
+
+    if (dbSaved) {
+        showToast('✅ Penerima manfaat (MENJADI) tersimpan ke database — tersinkron ke semua perangkat.', 'success');
+        // Muat ulang dari database agar yang tampil benar-benar data server
+        if (typeof loadRkpdesPerubahanData === 'function') await loadRkpdesPerubahanData();
+    } else {
+        showToast(`⚠️ Gagal menyimpan ke database (${dbError}). Nilai disimpan sementara & akan disinkronkan otomatis.`, 'error');
+    }
 }
 window.saveEditManfaatMenjadi = saveEditManfaatMenjadi;
+
+// Sinkronkan penampung lokal (offline) ke database. Dipanggil setiap kali data
+// perubahan selesai dimuat, sehingga tidak ada nilai yang "hanya" hidup di
+// localStorage perangkat yang mengedit.
+let _isSyncingPendingOverrides = false;
+async function syncPendingLocalOverridesToDb() {
+    if (_isSyncingPendingOverrides) return;
+    if (!Array.isArray(rkpdesPerubahanList) || rkpdesPerubahanList.length === 0) return;
+
+    const overrides = getManfaatOverrides(activeYear);
+    const keys = Object.keys(overrides || {});
+    if (keys.length === 0) return;
+
+    _isSyncingPendingOverrides = true;
+    let synced = 0;
+    const syncedKeys = [];
+    try {
+        for (const key of keys) {
+            const ov = overrides[key];
+            if (!ov) continue;
+
+            const isSdgs = key.startsWith('__sdgs__');
+            const rawKey = isSdgs ? key.replace('__sdgs__', '') : key;
+            const item = findPerubahanItem(rawKey);
+            if (!item) continue;
+
+            const kodeTarget = String(item.kode_unik_full || item.kode_unik || '').trim();
+            if (!kodeTarget) continue;
+
+            const url = isSdgs ? '/api/rkpdes/perubahan/sdgs' : '/api/rkpdes/perubahan/manfaat';
+            const body = isSdgs
+                ? {
+                    tahun: activeYear,
+                    kode_unik_full: kodeTarget,
+                    id: item.id != null ? item.id : '',
+                    sdgs_semula: ov.semula !== undefined ? ov.semula : '',
+                    sdgs_menjadi: ov.menjadi !== undefined ? ov.menjadi : ''
+                }
+                : {
+                    tahun: activeYear,
+                    kode_unik_full: kodeTarget,
+                    id: item.id != null ? item.id : '',
+                    manfaat_menjadi: { l: ov.l, p: ov.p, rtm: ov.rtm }
+                };
+
+            try {
+                const res = await fetch(url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const json = await res.json().catch(() => ({}));
+                if (res.ok && json.success) {
+                    synced++;                 // idempoten: aman dikirim ulang
+                    syncedKeys.push(key);     // hanya kunci yang benar-benar sukses dibuang
+                }
+            } catch (_) { /* offline: coba lagi pada pemuatan berikutnya */ }
+        }
+    } finally {
+        _isSyncingPendingOverrides = false;
+    }
+
+    if (synced > 0) {
+        const current = getManfaatOverrides(activeYear);
+        syncedKeys.forEach(k => { delete current[k]; });
+        saveManfaatOverrides(activeYear, current);
+        console.log(`✅ ${synced} penyesuaian lokal disinkronkan ke database.`);
+        if (typeof loadRkpdesPerubahanData === 'function') await loadRkpdesPerubahanData();
+    }
+}
+window.syncPendingLocalOverridesToDb = syncPendingLocalOverridesToDb;
 
 // ==========================================
 // EVENT DELEGATION GLOBAL UNTUK EDIT MANFAAT
@@ -2833,6 +3011,12 @@ async function saveEditRkpPerubahanItem(event) {
             closeEditRkpPerubahanModal();
             renderRkpdesPerubahanPreview();
             showToast('✅ Berhasil memperbarui data RKPDes / RAB Perubahan (Semula & Menjadi)!', 'success');
+            // Tarik ulang dari database: pembaruan optimistis di memori saja bisa
+            // menyembunyikan kegagalan tulis sebagian, dan itulah penyebab data edit
+            // "kembali lama" saat dibuka di perangkat lain.
+            if (typeof loadRkpdesPerubahanData === 'function') {
+                await loadRkpdesPerubahanData();
+            }
         } else {
             const errMsg = result?.error || `Gagal menyimpan data ke database (Status HTTP ${res.status})`;
             console.error('❌ Gagal menyimpan RKPDes Perubahan:', errMsg, result);
