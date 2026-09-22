@@ -920,7 +920,7 @@
                     </div>
                     <div class="flex items-center gap-2 text-xs">
                         <span class="inline-flex items-center gap-1.5 bg-white border border-indigo-200 px-3 py-1 rounded-lg text-indigo-700 font-semibold shadow-sm">
-                            <i class="fas fa-calculator text-indigo-500"></i> Pagu Akhir = Murni + Perubahan + SiLPA - Pengeluaran
+                            <i class="fas fa-calculator text-indigo-500"></i> Pagu Akhir = Pagu Menjadi + SiLPA Masuk - Pengeluaran Pembiayaan
                         </span>
                         <button type="button" onclick="muatDataResmi2026()" class="btn-outline text-[11px] py-1 px-2.5 bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50">
                             <i class="fas fa-sync-alt mr-1"></i> Muat Data Resmi 2026
@@ -928,19 +928,19 @@
                     </div>
                 </div>
 
-                <!-- TABEL MATRIKS PAGU & PEMBIAYAAN -->
+                <!-- TABEL MATRIKS PAGU & PEMBIAYAAN (STANDAR ALUR SISKEUDES: SEMULA VS MENJADI) -->
                 <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                     <table class="w-full text-left text-xs border-collapse">
                         <thead>
                             <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                                 <th class="p-2.5">Sumber Dana</th>
-                                <th class="p-2.5 text-right w-32">Pagu Murni (Rp)</th>
-                                <th class="p-2.5 text-right w-32">
-                                    Perubahan (+/-)
-                                    <div class="text-[9px] font-normal text-slate-500">Selisih/Delta Riil</div>
+                                <th class="p-2.5 text-right w-36">Pagu Semula / Murni</th>
+                                <th class="p-2.5 text-right w-44">
+                                    Pagu Menjadi / Perubahan
+                                    <div class="text-[9px] font-normal text-slate-500">Nominal Positif PAK</div>
                                 </th>
-                                <th class="p-2.5 text-right w-32 text-emerald-700">SiLPA Masuk (Rp)</th>
-                                <th class="p-2.5 text-right w-36 text-amber-700">Pengeluaran Pembiayaan</th>
+                                <th class="p-2.5 text-right w-32 text-emerald-700">SiLPA Masuk (+)</th>
+                                <th class="p-2.5 text-right w-36 text-amber-700">Pengeluaran Pembiayaan (-)</th>
                                 <th class="p-2.5 text-right w-36 bg-indigo-50/50 text-indigo-950">Pagu Akhir Belanja</th>
                             </tr>
                         </thead>
@@ -951,8 +951,11 @@
                                     <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-indigo-500"></span> ADD</span>
                                     <div class="text-[10px] text-slate-400 font-normal">Alokasi Dana Desa</div>
                                 </td>
-                                <td class="p-1.5"><input type="text" id="paguMurni_ADD" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
-                                <td class="p-1.5"><input type="text" id="paguPerub_ADD" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_ADD" class="input-field text-right text-xs py-1 px-2 bg-slate-100/70 text-slate-500 cursor-not-allowed border-slate-200" placeholder="0" readonly /></td>
+                                <td class="p-1.5">
+                                    <input type="text" id="paguPerub_ADD" class="input-field text-right text-xs py-1 px-2 font-bold text-slate-800" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" />
+                                    <div id="paguDeltaLabel_ADD" class="text-[10px] text-right font-medium text-slate-400 mt-0.5"></div>
+                                </td>
                                 <td class="p-1.5"><input type="text" id="paguSilpa_ADD" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-1.5"><input type="text" id="paguPengeluaran_ADD" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_ADD">Rp 0</td>
@@ -963,8 +966,11 @@
                                     <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> DDS</span>
                                     <div class="text-[10px] text-slate-400 font-normal">Dana Desa (APBN)</div>
                                 </td>
-                                <td class="p-1.5"><input type="text" id="paguMurni_DDS" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
-                                <td class="p-1.5"><input type="text" id="paguPerub_DDS" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_DDS" class="input-field text-right text-xs py-1 px-2 bg-slate-100/70 text-slate-500 cursor-not-allowed border-slate-200" placeholder="0" readonly /></td>
+                                <td class="p-1.5">
+                                    <input type="text" id="paguPerub_DDS" class="input-field text-right text-xs py-1 px-2 font-bold text-slate-800" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" />
+                                    <div id="paguDeltaLabel_DDS" class="text-[10px] text-right font-medium text-slate-400 mt-0.5"></div>
+                                </td>
                                 <td class="p-1.5"><input type="text" id="paguSilpa_DDS" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-1.5"><input type="text" id="paguPengeluaran_DDS" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_DDS">Rp 0</td>
@@ -975,8 +981,11 @@
                                     <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span> PBH</span>
                                     <div class="text-[10px] text-slate-400 font-normal">Bagi Hasil Pajak &amp; Retribusi</div>
                                 </td>
-                                <td class="p-1.5"><input type="text" id="paguMurni_PBH" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
-                                <td class="p-1.5"><input type="text" id="paguPerub_PBH" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_PBH" class="input-field text-right text-xs py-1 px-2 bg-slate-100/70 text-slate-500 cursor-not-allowed border-slate-200" placeholder="0" readonly /></td>
+                                <td class="p-1.5">
+                                    <input type="text" id="paguPerub_PBH" class="input-field text-right text-xs py-1 px-2 font-bold text-slate-800" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" />
+                                    <div id="paguDeltaLabel_PBH" class="text-[10px] text-right font-medium text-slate-400 mt-0.5"></div>
+                                </td>
                                 <td class="p-1.5"><input type="text" id="paguSilpa_PBH" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-1.5"><input type="text" id="paguPengeluaran_PBH" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_PBH">Rp 0</td>
@@ -987,8 +996,11 @@
                                     <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span> APBD I</span>
                                     <div class="text-[10px] text-slate-400 font-normal">Bantuan Keuangan Provinsi</div>
                                 </td>
-                                <td class="p-1.5"><input type="text" id="paguMurni_APBD1" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
-                                <td class="p-1.5"><input type="text" id="paguPerub_APBD1" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_APBD1" class="input-field text-right text-xs py-1 px-2 bg-slate-100/70 text-slate-500 cursor-not-allowed border-slate-200" placeholder="0" readonly /></td>
+                                <td class="p-1.5">
+                                    <input type="text" id="paguPerub_APBD1" class="input-field text-right text-xs py-1 px-2 font-bold text-slate-800" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" />
+                                    <div id="paguDeltaLabel_APBD1" class="text-[10px] text-right font-medium text-slate-400 mt-0.5"></div>
+                                </td>
                                 <td class="p-1.5"><input type="text" id="paguSilpa_APBD1" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-1.5"><input type="text" id="paguPengeluaran_APBD1" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_APBD1">Rp 0</td>
@@ -999,8 +1011,11 @@
                                     <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-500"></span> APBD II</span>
                                     <div class="text-[10px] text-slate-400 font-normal">Bantuan Keuangan Kab/Kota</div>
                                 </td>
-                                <td class="p-1.5"><input type="text" id="paguMurni_APBD2" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
-                                <td class="p-1.5"><input type="text" id="paguPerub_APBD2" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_APBD2" class="input-field text-right text-xs py-1 px-2 bg-slate-100/70 text-slate-500 cursor-not-allowed border-slate-200" placeholder="0" readonly /></td>
+                                <td class="p-1.5">
+                                    <input type="text" id="paguPerub_APBD2" class="input-field text-right text-xs py-1 px-2 font-bold text-slate-800" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" />
+                                    <div id="paguDeltaLabel_APBD2" class="text-[10px] text-right font-medium text-slate-400 mt-0.5"></div>
+                                </td>
                                 <td class="p-1.5"><input type="text" id="paguSilpa_APBD2" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-1.5"><input type="text" id="paguPengeluaran_APBD2" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_APBD2">Rp 0</td>
@@ -1011,8 +1026,11 @@
                                     <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-teal-500"></span> PAD</span>
                                     <div class="text-[10px] text-slate-400 font-normal">Pendapatan Asli Desa</div>
                                 </td>
-                                <td class="p-1.5"><input type="text" id="paguMurni_PAD" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
-                                <td class="p-1.5"><input type="text" id="paguPerub_PAD" class="input-field text-right text-xs py-1 px-2" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
+                                <td class="p-1.5"><input type="text" id="paguMurni_PAD" class="input-field text-right text-xs py-1 px-2 bg-slate-100/70 text-slate-500 cursor-not-allowed border-slate-200" placeholder="0" readonly /></td>
+                                <td class="p-1.5">
+                                    <input type="text" id="paguPerub_PAD" class="input-field text-right text-xs py-1 px-2 font-bold text-slate-800" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" />
+                                    <div id="paguDeltaLabel_PAD" class="text-[10px] text-right font-medium text-slate-400 mt-0.5"></div>
+                                </td>
                                 <td class="p-1.5"><input type="text" id="paguSilpa_PAD" class="input-field text-right text-xs py-1 px-2 text-emerald-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-1.5"><input type="text" id="paguPengeluaran_PAD" class="input-field text-right text-xs py-1 px-2 text-amber-700 font-semibold" placeholder="0" oninput="formatNumberInput(this); hitungPaguModalRealtime();" /></td>
                                 <td class="p-2.5 text-right font-extrabold text-indigo-900 bg-indigo-50/30" id="paguAkhirLabel_PAD">Rp 0</td>
@@ -1021,11 +1039,11 @@
                         <tfoot class="bg-slate-50 font-extrabold border-t-2 border-slate-200 text-slate-900">
                             <tr>
                                 <td class="p-2.5 uppercase tracking-wider">TOTAL AKUMULASI</td>
-                                <td id="paguTotalMurni" class="p-2.5 text-right">Rp 0</td>
-                                <td id="paguTotalPerubahan" class="p-2.5 text-right">Rp 0</td>
+                                <td id="paguTotalMurni" class="p-2.5 text-right text-slate-600">Rp 0</td>
+                                <td id="paguTotalPerubahan" class="p-2.5 text-right text-indigo-950 font-black">Rp 0</td>
                                 <td id="paguTotalSilpa" class="p-2.5 text-right text-emerald-600">Rp 0</td>
                                 <td id="paguTotalPengeluaran" class="p-2.5 text-right text-amber-600">Rp 0</td>
-                                <td id="paguTotalAkhir" class="p-2.5 text-right bg-indigo-100/60 text-indigo-900 text-sm">Rp 0</td>
+                                <td id="paguTotalAkhir" class="p-2.5 text-right bg-indigo-100/60 text-indigo-900 text-sm font-black">Rp 0</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -1040,10 +1058,12 @@
                 <input type="hidden" id="paguInput_PAD" />
 
                 <!-- Peringatan info -->
-                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-800 text-[11px] leading-relaxed">
-                    <i class="fas fa-info-circle text-amber-500 mt-0.5 text-sm"></i>
+                <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-start gap-2.5 text-indigo-900 text-[11px] leading-relaxed">
+                    <i class="fas fa-info-circle text-indigo-500 mt-0.5 text-sm"></i>
                     <div>
-                        <strong>Catatan Otoritas Anggaran:</strong> Nilai <em>Pagu Akhir Belanja</em> adalah batas atas maksimal alokasi belanja yang dihitung otomatis: <code>Pagu Akhir = Pagu Murni + Perubahan (+/-) + SiLPA Masuk - Pengeluaran Pembiayaan</code>. Kolom <strong>Perubahan (+/-)</strong> diisi nilai selisih/penyesuaian (delta riil), bukan total pagu perubahan utuh, agar alokasi tidak terhitung dobel. Pengeluaran pembiayaan (Koperasi Desa &amp; BUMDes) secara otomatis memotong batas belanja dari sumber dana DDS.
+                        <strong>Standar Alur Dokumen Siskeudes (APBDes Perubahan):</strong> 
+                        <code>Pagu Akhir Belanja = Pagu Menjadi / Perubahan + SiLPA Masuk - Pengeluaran Pembiayaan</code>. 
+                        Kolom <strong>Pagu Semula</strong> bersifat read-only untuk komparasi, kolom <strong>Pagu Menjadi</strong> diisi nilai nominal definitif perubahan (selisih penyesuaian dihitung otomatis). Pengeluaran pembiayaan (Koperasi Desa &amp; BUMDes) secara otomatis memotong batas belanja dari sumber dana DDS.
                     </div>
                 </div>
             </div>
