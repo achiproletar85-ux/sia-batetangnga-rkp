@@ -17,11 +17,15 @@
 
         /* Sembunyikan elemen kop cetak & tanda tangan saat di layar browser */
         .print-header,
-        .print-signature {
+        .print-signature,
+        .print-only {
             display: none;
         }
 
         @media print {
+            .print-only {
+                display: inline-block !important;
+            }
             body {
                 background: white !important;
                 padding: 0 !important;
@@ -35,9 +39,25 @@
             #navbar-placeholder,
             header,
             nav,
-            button,
+            button:not(.nominal-link),
             .aksi-col {
                 display: none !important;
+            }
+
+            .nominal-link {
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: flex-end !important;
+                background: transparent !important;
+                color: #000000 !important;
+                border: none !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                text-decoration: none !important;
+                cursor: default !important;
+                font-weight: bold !important;
+                width: 100% !important;
+                text-align: right !important;
             }
 
             /* Tampilkan kop resmi & tanda tangan saat cetak */

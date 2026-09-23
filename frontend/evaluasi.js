@@ -354,6 +354,7 @@ function renderEvaluasiTable() {
                         const itemKey = item.id || item.kode_unik || globalItemNo;
                         const isEditing = editingRowId && String(editingRowId) === String(item.id);
                         const namaKegiatan = resolveNamaKegiatanSpesifik(item, kelName, subName);
+                        const kodeUnikItem = item.kode_unik || item.kode_unik_full || item.kode_bidang || '';
 
                         html += `
                             <tr data-id="${item.id || ''}" class="border border-slate-300 ${isEditing ? 'bg-amber-50/80 border-indigo-500 font-semibold' : 'hover:bg-slate-50'} transition">
@@ -369,7 +370,35 @@ function renderEvaluasiTable() {
                                     <input type="text" value="${escAttr(item.lokasi || '')}" oninput="updateFieldDataByItem('${itemKey}', 'lokasi', this.value)" placeholder="Dusun / RT / RW..." class="w-full p-1.5 bg-transparent border border-slate-200 focus:bg-amber-50 rounded text-xs" />
                                 </td>
                                 <td class="border border-slate-300 p-1 text-right font-bold text-slate-900 text-xs whitespace-nowrap">
-                                    ${formatRupiah(nominalVal)}
+                                    <div class="no-print flex items-center justify-end gap-1">
+                                        <div class="relative w-full">
+                                            <input type="text"
+                                                data-id="${item.id || ''}"
+                                                data-item-key="${itemKey}"
+                                                data-kode="${escAttr(kodeUnikItem)}"
+                                                data-bidang="${b}"
+                                                value="${formatRupiah(nominalVal)}"
+                                                onfocus="onNominalFocus(this)"
+                                                oninput="onNominalInput(this, '${itemKey}', ${b})"
+                                                onblur="onNominalBlur(this, '${itemKey}', ${b})"
+                                                onkeydown="onNominalKeyDown(event, this, '${itemKey}', ${b})"
+                                                placeholder="Rp 0"
+                                                class="nominal-inline-input w-full p-1 text-right font-bold text-slate-900 bg-white/70 hover:bg-white focus:bg-amber-50 focus:ring-1 focus:ring-indigo-500 border border-slate-200 focus:border-indigo-500 rounded text-xs transition"
+                                                title="Ketik untuk mengubah nominal anggaran (tersimpan otomatis)"
+                                            />
+                                            <span id="save-status-${itemKey}" class="absolute -bottom-3 right-1 text-[9px] font-semibold opacity-0 transition-opacity pointer-events-none no-print"></span>
+                                        </div>
+                                        <button type="button"
+                                            data-kode="${escAttr(kodeUnikItem)}"
+                                            data-nama="${escAttr(namaKegiatan)}"
+                                            data-tahun="${rkpYear}"
+                                            onclick="handleNominalClick(this)"
+                                            class="text-indigo-500 hover:text-indigo-800 p-1 rounded hover:bg-indigo-50 transition shrink-0"
+                                            title="Buka RAB kegiatan: ${escAttr(namaKegiatan)}${kodeUnikItem ? ' (' + escAttr(kodeUnikItem) + ')' : ''}">
+                                            <i class="fas fa-arrow-up-right-from-square text-[11px]"></i>
+                                        </button>
+                                    </div>
+                                    <span id="print-nominal-${itemKey}" class="print-only font-bold">${formatRupiah(nominalVal)}</span>
                                 </td>
                                 <td class="border border-slate-300 p-1 text-center">
                                     <input type="checkbox" ${item.realisasi ? 'checked' : ''} onchange="toggleRealisasiByItem('${itemKey}', this.checked)" class="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer align-middle" />
@@ -417,7 +446,7 @@ function renderEvaluasiTable() {
         html += `
             <tr class="bg-slate-100 font-bold text-slate-900">
                 <td colspan="3" class="border border-slate-400 text-right px-3 py-1.5 uppercase text-xs">JUMLAH PER BIDANG ${b}</td>
-                <td class="border border-slate-400 text-right px-2 py-1.5 font-mono text-xs font-bold text-indigo-950">${subTotalNominal > 0 ? formatRupiah(subTotalNominal) : '-'}</td>
+                <td class="border border-slate-400 text-right px-2 py-1.5 font-mono text-xs font-bold text-indigo-950" id="subtotal-bidang-${b}">${subTotalNominal > 0 ? formatRupiah(subTotalNominal) : '-'}</td>
                 <td colspan="3" class="border border-slate-400 no-print"></td>
             </tr>
         `;
@@ -426,7 +455,7 @@ function renderEvaluasiTable() {
     html += `
         <tr class="bg-indigo-950 text-white font-extrabold text-sm">
             <td colspan="3" class="border border-slate-600 text-right px-4 py-2.5 uppercase">J U M L A H &nbsp; T O T A L &nbsp; E V A L U A S I</td>
-            <td class="border border-slate-600 text-right px-3 py-2.5 font-mono">${formatRupiah(grandTotalNominal)}</td>
+            <td class="border border-slate-600 text-right px-3 py-2.5 font-mono" id="grand-total-evaluasi">${formatRupiah(grandTotalNominal)}</td>
             <td colspan="3" class="border border-slate-600 no-print"></td>
         </tr>
     `;
@@ -444,6 +473,176 @@ function updateFieldDataByItem(idOrKode, field, value) {
         } else {
             targetItem[field] = value;
         }
+    }
+}
+
+const nominalSaveDebounceTimers = {};
+
+function onNominalFocus(el) {
+    if (!el) return;
+    const raw = parseNumber(el.value);
+    el.value = raw > 0 ? String(raw) : '';
+    el.select();
+}
+
+function updateEvaluasiTotals(bidangNum) {
+    const validList = (Array.isArray(evaluasiList) ? evaluasiList : []).filter(item => item && typeof item === 'object');
+
+    if (bidangNum) {
+        let subTotalNominal = 0;
+        validList.filter(item => {
+            const bidangVal = item?.bidang || item?.jenis_bidang || item?.sub_bidang || 'Bidang Lainnya';
+            const bNum = parseInt(bidangVal, 10) || resolveBidangNum(item);
+            return bNum === Number(bidangNum);
+        }).forEach(item => {
+            subTotalNominal += parseNumber(item.nominal) || 0;
+        });
+
+        const subtotalEl = document.getElementById(`subtotal-bidang-${bidangNum}`);
+        if (subtotalEl) {
+            subtotalEl.textContent = subTotalNominal > 0 ? formatRupiah(subTotalNominal) : '-';
+        }
+    }
+
+    let grandTotal = 0;
+    validList.forEach(item => {
+        grandTotal += parseNumber(item.nominal) || 0;
+    });
+
+    const grandTotalEl = document.getElementById('grand-total-evaluasi');
+    if (grandTotalEl) {
+        grandTotalEl.textContent = formatRupiah(grandTotal);
+    }
+}
+
+function showSaveStatus(itemKey, status, msg) {
+    const statusEl = document.getElementById(`save-status-${itemKey}`);
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.style.opacity = '1';
+    if (status === 'saving') {
+        statusEl.className = 'absolute -bottom-3 right-1 text-[9px] font-semibold text-amber-600 transition-opacity pointer-events-none no-print';
+    } else if (status === 'success') {
+        statusEl.className = 'absolute -bottom-3 right-1 text-[9px] font-semibold text-emerald-600 transition-opacity pointer-events-none no-print';
+        setTimeout(() => {
+            if (statusEl.textContent === msg) {
+                statusEl.style.opacity = '0';
+            }
+        }, 2000);
+    } else if (status === 'error') {
+        statusEl.className = 'absolute -bottom-3 right-1 text-[9px] font-semibold text-rose-600 transition-opacity pointer-events-none no-print';
+        setTimeout(() => {
+            if (statusEl.textContent === msg) {
+                statusEl.style.opacity = '0';
+            }
+        }, 3000);
+    }
+}
+
+function onNominalInput(el, itemKey, bidangNum) {
+    if (!el) return;
+    const raw = parseNumber(el.value);
+
+    const targetItem = evaluasiList.find(i => String(i.id || i.kode_unik) === String(itemKey));
+    if (targetItem) {
+        targetItem.nominal = raw;
+    }
+
+    const printEl = document.getElementById(`print-nominal-${itemKey}`);
+    if (printEl) {
+        printEl.textContent = formatRupiah(raw);
+    }
+
+    updateEvaluasiTotals(bidangNum);
+
+    if (nominalSaveDebounceTimers[itemKey]) {
+        clearTimeout(nominalSaveDebounceTimers[itemKey]);
+    }
+    showSaveStatus(itemKey, 'saving', 'Mengetik...');
+    nominalSaveDebounceTimers[itemKey] = setTimeout(() => {
+        saveNominalChange(itemKey, raw, el);
+    }, 800);
+}
+
+function onNominalBlur(el, itemKey, bidangNum) {
+    if (!el) return;
+    if (nominalSaveDebounceTimers[itemKey]) {
+        clearTimeout(nominalSaveDebounceTimers[itemKey]);
+        delete nominalSaveDebounceTimers[itemKey];
+    }
+    const raw = parseNumber(el.value);
+    el.value = formatRupiah(raw);
+
+    const targetItem = evaluasiList.find(i => String(i.id || i.kode_unik) === String(itemKey));
+    if (targetItem) {
+        targetItem.nominal = raw;
+    }
+
+    const printEl = document.getElementById(`print-nominal-${itemKey}`);
+    if (printEl) {
+        printEl.textContent = formatRupiah(raw);
+    }
+
+    updateEvaluasiTotals(bidangNum);
+    saveNominalChange(itemKey, raw, el);
+}
+
+function onNominalKeyDown(event, el, itemKey, bidangNum) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        el.blur();
+    }
+}
+
+async function saveNominalChange(itemKey, rawNominal, el) {
+    const targetItem = evaluasiList.find(i => String(i.id || i.kode_unik) === String(itemKey));
+    if (!targetItem) return;
+
+    const rkpYear = parseInt(document.getElementById('select-year')?.value || '2026', 10);
+    showSaveStatus(itemKey, 'saving', 'Menyimpan...');
+
+    try {
+        localStorage.setItem(`evaluasi_list_${rkpYear}`, JSON.stringify(evaluasiList));
+    } catch (_) {}
+
+    try {
+        const payload = {
+            id: targetItem.id || null,
+            tahun: rkpYear,
+            kode_unik: targetItem.kode_unik || targetItem.kode_bidang || '',
+            bidang: targetItem.bidang || 1,
+            nama_kegiatan: targetItem.nama_kegiatan || targetItem.sub_kegiatan || '',
+            lokasi: targetItem.lokasi || 'Desa Batetangnga',
+            nominal: rawNominal,
+            nominal_anggaran: rawNominal,
+            realisasi: Boolean(targetItem.realisasi),
+            keterangan: targetItem.keterangan || ''
+        };
+
+        const targetEndpoint = targetItem.id
+            ? `/api/evaluasi-apbdes/${encodeURIComponent(targetItem.id)}`
+            : `/api/evaluasi-apbdes`;
+
+        const res = await fetch(targetEndpoint, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const json = await res.json();
+        if (json.success) {
+            if (json.id && !targetItem.id) {
+                targetItem.id = json.id;
+                if (el) el.setAttribute('data-id', json.id);
+            }
+            showSaveStatus(itemKey, 'success', '✓ Tersimpan');
+        } else {
+            console.warn("⚠️ Gagal menyimpan nominal evaluasi:", json.error || json.message);
+            showSaveStatus(itemKey, 'error', '✗ Gagal');
+        }
+    } catch (err) {
+        console.error("❌ Error saveNominalChange:", err);
+        showSaveStatus(itemKey, 'error', '✗ Koneksi');
     }
 }
 
@@ -1038,9 +1237,71 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function switchTab(tab, params = {}) {
+    const targetUrl = new URL(tab.endsWith('.html') ? tab : (tab + '.html'), window.location.href);
+    if (params && typeof params === 'object') {
+        Object.entries(params).forEach(([k, v]) => {
+            if (v !== undefined && v !== null && String(v).trim() !== '') {
+                targetUrl.searchParams.set(k, String(v).trim());
+            }
+        });
+    }
+    window.location.href = targetUrl.toString();
+}
+
+function navigateToRABByKodeUnik(kodeUnik, namaKegiatan, tahun) {
+    const kode = String(kodeUnik || '').trim();
+    const nama = String(namaKegiatan || '').trim();
+    const th = String(tahun || document.getElementById('select-year')?.value || '2026').trim();
+
+    try {
+        if (kode) {
+            localStorage.setItem('rab_target_kode', kode);
+            sessionStorage.setItem('rab_target_kode', kode);
+        }
+        if (nama) {
+            localStorage.setItem('rab_target_nama', nama);
+            sessionStorage.setItem('rab_target_nama', nama);
+        }
+        if (th) {
+            localStorage.setItem('rab_target_tahun', th);
+            localStorage.setItem('rab_tahun_anggaran', th);
+            localStorage.setItem('sia_tahun_anggaran', th);
+            sessionStorage.setItem('rab_target_tahun', th);
+            sessionStorage.setItem('rab_tahun_anggaran', th);
+        }
+    } catch (e) {
+        console.warn('Gagal menyimpan target RAB ke storage:', e);
+    }
+
+    const params = {};
+    if (kode) params.kode_unik = kode;
+    if (nama) params.nama = nama;
+    if (th) params.tahun = th;
+
+    switchTab('rab', params);
+}
+
+function handleNominalClick(btn) {
+    if (!btn) return;
+    const kode = btn.getAttribute('data-kode') || '';
+    const nama = btn.getAttribute('data-nama') || '';
+    const tahun = btn.getAttribute('data-tahun') || '';
+    navigateToRABByKodeUnik(kode, nama, tahun);
+}
+
 // Ekspos fungsi ke global window
 window.printPDF = printPDF;
 window.loadEvaluasiData = loadEvaluasiData;
 window.tarikDariRAB = tarikDariRAB;
 window.saveToDatabase = saveToDatabase;
 window.resolveNamaKegiatanSpesifik = resolveNamaKegiatanSpesifik;
+window.switchTab = switchTab;
+window.navigateToRABByKodeUnik = navigateToRABByKodeUnik;
+window.handleNominalClick = handleNominalClick;
+window.onNominalFocus = onNominalFocus;
+window.onNominalInput = onNominalInput;
+window.onNominalBlur = onNominalBlur;
+window.onNominalKeyDown = onNominalKeyDown;
+window.saveNominalChange = saveNominalChange;
+window.updateEvaluasiTotals = updateEvaluasiTotals;

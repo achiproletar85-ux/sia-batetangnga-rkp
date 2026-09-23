@@ -6841,45 +6841,133 @@ app.post('/api/evaluasi/sync', async (req, res) => {
     }
 });
 
-// PUT /api/evaluasi -> perbarui satu baris evaluasi
-app.put('/api/evaluasi', async (req, res) => {
+// PUT /api/evaluasi & /api/evaluasi-apbdes -> perbarui satu baris evaluasi
+const handleUpdateEvaluasi = async (req, res) => {
     try {
         const r = req.body || {};
-        const id = r.id;
-        if (!id) {
-            return res.status(400).json({ success: false, error: 'Parameter id diperlukan.' });
+        const id = req.params?.id || r.id || req.query?.id;
+        const targetKode = String(r.kode_unik || r.kode_bidang || r.kode_unik_full || '').trim();
+        const tahunInt = parseInt(r.tahun, 10) || parseInt(req.query?.tahun, 10) || 0;
+
+        // Siapkan field yang akan diupdate secara dinamis (partial update bersih tanpa merusak relasi lain)
+        const updateData = {};
+        if (r.bidang !== undefined) {
+            const bidangNum = parseInt(r.bidang, 10) || 1;
+            updateData.bidang = String(bidangNum);
         }
-        const tahunInt = parseInt(r.tahun, 10) || 0;
-        const bidangNum = parseInt(r.bidang, 10) || 1;
-        const { error } = await supabase
-            .from('evaluasi_rkpdes')
-            .update({
-                bidang: String(bidangNum),
-                lokasi_kegiatan: r.lokasi || 'Desa Batetangnga',
-                kegiatan: r.nama_kegiatan || r.sub_kegiatan || r.kegiatan || '',
-                nominal_anggaran: Number(r.nominal || 0),
-                realisasi: r.realisasi ? 'Ya' : 'Tidak',
-                keterangan: r.keterangan || ''
-            })
-            .eq('id', id)
-            .select('id');
-        if (error) {
-            if (error.code === 'PGRST205') {
-                return res.json({ success: true, message: 'Data evaluasi berhasil diupdate di memori lokal.' });
+        if (r.lokasi_kegiatan !== undefined || r.lokasi !== undefined) {
+            updateData.lokasi_kegiatan = r.lokasi_kegiatan || r.lokasi || '';
+        }
+        if (r.kegiatan !== undefined || r.nama_kegiatan !== undefined || r.sub_kegiatan !== undefined) {
+            updateData.kegiatan = r.kegiatan || r.nama_kegiatan || r.sub_kegiatan || '';
+        }
+        if (r.nominal !== undefined || r.nominal_anggaran !== undefined) {
+            const rawNom = r.nominal !== undefined ? r.nominal : r.nominal_anggaran;
+            const cleanNom = typeof rawNom === 'number' ? rawNom : parseFloat(String(rawNom).replace(/[^0-9.-]+/g, '')) || 0;
+            updateData.nominal_anggaran = cleanNom;
+        }
+        if (r.realisasi !== undefined) {
+            if (typeof r.realisasi === 'boolean') {
+                updateData.realisasi = r.realisasi ? 'Ya' : 'Tidak';
+            } else {
+                updateData.realisasi = String(r.realisasi).toLowerCase().startsWith('y') ? 'Ya' : 'Tidak';
             }
-            throw error;
         }
+        if (r.keterangan !== undefined) {
+            updateData.keterangan = String(r.keterangan || '');
+        }
+
+        // 1. Jika id ada dan valid, lakukan update by ID
+        if (id && String(id).trim() !== '' && String(id).trim() !== 'null' && String(id).trim() !== 'undefined') {
+            const { data, error } = await supabase
+                .from('evaluasi_rkpdes')
+                .update(updateData)
+                .eq('id', id)
+                .select('id, nominal_anggaran, realisasi, keterangan');
+
+            if (error) {
+                if (error.code === 'PGRST205' || (error.message && error.message.includes('Could not find the table'))) {
+                    return res.json({ success: true, message: 'Data evaluasi berhasil diupdate di memori lokal.', id });
+                }
+                throw error;
+            }
+            if (data && data.length > 0) {
+                return res.json({ success: true, message: 'Data evaluasi berhasil diupdate.', data: data[0], id: data[0].id });
+            }
+        }
+
+        // 2. Jika ID belum ada atau update by ID tidak menemukan record, cocokkan berdasarkan tahun + kode_bidang
+        if (tahunInt && targetKode) {
+            const { data: existing, error: findError } = await supabase
+                .from('evaluasi_rkpdes')
+                .select('id')
+                .eq('tahun', tahunInt)
+                .eq('kode_bidang', targetKode)
+                .limit(1);
+
+            if (findError && findError.code !== 'PGRST205') throw findError;
+
+            if (existing && existing.length > 0) {
+                const existingId = existing[0].id;
+                const { data: updData, error: updError } = await supabase
+                    .from('evaluasi_rkpdes')
+                    .update(updateData)
+                    .eq('id', existingId)
+                    .select('id, nominal_anggaran, realisasi, keterangan');
+                if (updError) throw updError;
+                return res.json({ success: true, message: 'Data evaluasi berhasil diupdate.', id: existingId, data: updData?.[0] });
+            } else {
+                // Insert baris baru jika belum ada di evaluasi_rkpdes
+                const bidangNum = parseInt(r.bidang, 10) || 1;
+                const cleanNom = updateData.nominal_anggaran !== undefined ? updateData.nominal_anggaran : (Number(r.nominal || 0));
+                const insertPayload = {
+                    tahun: tahunInt,
+                    tahun_rkp: tahunInt,
+                    tahun_evaluasi: tahunInt,
+                    kode_bidang: targetKode,
+                    bidang: String(bidangNum),
+                    kegiatan: r.nama_kegiatan || r.sub_kegiatan || r.kegiatan || '',
+                    lokasi_kegiatan: r.lokasi || r.lokasi_kegiatan || 'Desa Batetangnga',
+                    nominal_anggaran: cleanNom,
+                    realisasi: updateData.realisasi || (r.realisasi ? 'Ya' : 'Tidak'),
+                    keterangan: updateData.keterangan || r.keterangan || '',
+                    created_at: new Date().toISOString()
+                };
+                const { data: insData, error: insError } = await supabase
+                    .from('evaluasi_rkpdes')
+                    .insert([insertPayload])
+                    .select('id, nominal_anggaran, realisasi, keterangan');
+                if (insError) {
+                    if (insError.code === 'PGRST205') {
+                        return res.json({ success: true, message: 'Data evaluasi disiapkan di sesi aktif.' });
+                    }
+                    throw insError;
+                }
+                const newId = insData?.[0]?.id;
+                return res.json({ success: true, message: 'Data evaluasi baru berhasil disimpan.', id: newId, data: insData?.[0] });
+            }
+        }
+
+        if (!id) {
+            return res.status(400).json({ success: false, error: 'Parameter id atau kombinasi tahun dan kode_bidang diperlukan.' });
+        }
+
         res.json({ success: true, message: 'Data evaluasi berhasil diupdate.' });
     } catch (error) {
-        console.error('❌ Error PUT /api/evaluasi:', error.message);
+        console.error('❌ Error PUT /api/evaluasi / /api/evaluasi-apbdes:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
-});
+};
 
-// DELETE /api/evaluasi?id=... -> hapus satu baris evaluasi
-app.delete('/api/evaluasi', async (req, res) => {
+app.put('/api/evaluasi', handleUpdateEvaluasi);
+app.put('/api/evaluasi/:id', handleUpdateEvaluasi);
+app.put('/api/evaluasi-apbdes', handleUpdateEvaluasi);
+app.put('/api/evaluasi-apbdes/:id', handleUpdateEvaluasi);
+
+// DELETE /api/evaluasi -> hapus satu baris evaluasi
+const handleDeleteEvaluasi = async (req, res) => {
     try {
-        const { id } = req.query;
+        const id = req.params?.id || req.query?.id || req.body?.id;
         if (!id) {
             return res.status(400).json({ success: false, error: 'Parameter id diperlukan.' });
         }
@@ -6893,7 +6981,12 @@ app.delete('/api/evaluasi', async (req, res) => {
         console.error('❌ Error DELETE /api/evaluasi:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
-});
+};
+
+app.delete('/api/evaluasi', handleDeleteEvaluasi);
+app.delete('/api/evaluasi/:id', handleDeleteEvaluasi);
+app.delete('/api/evaluasi-apbdes', handleDeleteEvaluasi);
+app.delete('/api/evaluasi-apbdes/:id', handleDeleteEvaluasi);
 
 async function getNextKodeForPrefix(prefix) {
     const normalizedPrefix = prefix.trim().endsWith('.') ? prefix.trim() : `${prefix.trim()}.`;

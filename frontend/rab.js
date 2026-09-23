@@ -16,7 +16,16 @@ const RAB_TIPE_PERUBAHAN = 'PERUBAHAN';
 
 function getDefaultYear() {
     try {
-        const saved = localStorage.getItem('rab_tahun_anggaran') || localStorage.getItem('sia_tahun_anggaran');
+        const urlParams = (typeof window !== 'undefined' && window.location) ? new URLSearchParams(window.location.search) : null;
+        const paramYear = urlParams ? (urlParams.get('tahun') || urlParams.get('year')) : null;
+        if (paramYear) {
+            const num = parseInt(paramYear, 10);
+            if (Number.isFinite(num) && num >= 2020 && num <= 2035) return num;
+        }
+        const saved = (typeof sessionStorage !== 'undefined' ? (sessionStorage.getItem('rab_target_tahun') || sessionStorage.getItem('rab_tahun_anggaran')) : null)
+            || localStorage.getItem('rab_target_tahun')
+            || localStorage.getItem('rab_tahun_anggaran')
+            || localStorage.getItem('sia_tahun_anggaran');
         if (saved) {
             const num = parseInt(saved, 10);
             if (Number.isFinite(num) && num >= 2020 && num <= 2035) return num;
@@ -677,7 +686,7 @@ function formatRupiahInput(el) {
 async function loadInitialData() {
     // 1. Cek parameter URL terlebih dahulu (?tahun=...&tipe=...)
     const urlParams = new URLSearchParams(window.location.search);
-    const tahunFromUrl = urlParams.get('tahun');
+    const tahunFromUrl = urlParams.get('tahun') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('rab_target_tahun') : null) || localStorage.getItem('rab_target_tahun');
     const tipeFromUrl = urlParams.get('tipe') || urlParams.get('tipe_anggaran');
 
     if (tahunFromUrl) {
@@ -928,10 +937,10 @@ let _autoSelectDone = false;
 async function applyAutoSelectFromNavigation() {
     if (_autoSelectInProgress || _autoSelectDone) return;
 
-    // 1. Ambil target dari URL params atau localStorage fallback
+    // 1. Ambil target dari URL params atau storage fallback (sessionStorage & localStorage)
     const urlParams = new URLSearchParams(window.location.search);
-    const targetKode = (urlParams.get('kode_unik') || urlParams.get('kode') || localStorage.getItem('rab_target_kode') || '').trim();
-    const targetNama = (urlParams.get('nama') || localStorage.getItem('rab_target_nama') || '').trim();
+    const targetKode = (urlParams.get('kode_unik') || urlParams.get('kode') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('rab_target_kode') : null) || localStorage.getItem('rab_target_kode') || '').trim();
+    const targetNama = (urlParams.get('nama') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('rab_target_nama') : null) || localStorage.getItem('rab_target_nama') || '').trim();
 
     // Jika tidak ada target navigasi, tidak perlu lakukan auto-select
     if (!targetKode && !targetNama) return;
@@ -942,7 +951,7 @@ async function applyAutoSelectFromNavigation() {
     // Guard Asinkron: Pastikan seluruh <option> dari API sudah terisi di dropdown
     // Jika dropdown masih kosong atau baru ada placeholder (-- Pilih...), tunggu dengan retry
     if (selectEl.options.length <= 1) {
-        if (_autoSelectRetryCount < 20) {
+        if (_autoSelectRetryCount < 35) {
             _autoSelectRetryCount++;
             setTimeout(applyAutoSelectFromNavigation, 150);
         }
@@ -1087,6 +1096,21 @@ async function applyAutoSelectFromNavigation() {
             const formSelect = document.getElementById('select-kode-unik-form');
             if (formSelect) formSelect.value = matchedVal;
 
+            // Buka section accordion form panel jika tertutup
+            const formPanel = document.getElementById('rab-form-panel');
+            if (formPanel) {
+                formPanel.classList.remove('hidden');
+                formPanel.style.display = 'block';
+                if (typeof syncAccSection === 'function') syncAccSection('rab-form-panel');
+            }
+
+            // Isi filter input pencarian RPJM/kegiatan jika ada
+            const searchInput = document.getElementById('search-rpjm');
+            if (searchInput && targetKode) {
+                searchInput.value = targetKode;
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
             await selectRpjm(true);
             resetRabItemForm();
 
@@ -1108,6 +1132,12 @@ async function applyAutoSelectFromNavigation() {
         try {
             localStorage.removeItem('rab_target_kode');
             localStorage.removeItem('rab_target_nama');
+            localStorage.removeItem('rab_target_tahun');
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.removeItem('rab_target_kode');
+                sessionStorage.removeItem('rab_target_nama');
+                sessionStorage.removeItem('rab_target_tahun');
+            }
             if (window.location.search) {
                 const cleanUrl = new URL(window.location.href);
                 cleanUrl.searchParams.delete('kode');
