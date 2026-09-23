@@ -12,12 +12,15 @@
         .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.4); }
         .input-field { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; outline: none; background: white; }
 
+        .print-only { display: none !important; }
+
         @page {
             size: A4 landscape;
             margin: 10mm;
         }
 
         @media print {
+            .print-only { display: inline !important; }
             /* Sembunyikan navbar/header dan tombol */
             nav, header, .navbar, #navbar, #navbar-container, .no-print, button, .btn-action {
                 display: none !important;
@@ -86,6 +89,10 @@
                             <option value="BIDANG PEMBERDAYAAN MASYARAKAT DESA">4. Pemberdayaan Masyarakat</option>
                             <option value="BIDANG PENANGGULANGAN BENCANA DESA">5. Penanggulangan Bencana</option>
                         </select>
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-500 uppercase mr-1">Tgl Cetak:</label>
+                        <input type="date" id="toolbar-tgl-cetak" class="input-field inline-block w-36 font-semibold text-xs py-1.5 cursor-pointer" title="Tanggal Cetak Kedinasan" />
                     </div>
 
                     <button type="button" id="btn-sync-prioritas" onclick="tarikDariRancanganRKPDes(true)" class="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer" title="Tarik dan sinkronkan usulan dari Rancangan RKPDes secara manual (on-demand)">
@@ -197,7 +204,11 @@
                         <p id="lbl-ketua" class="font-bold">( .................................. )</p>
                     </div>
                     <div class="text-center">
-                        <p id="lbl-tgl-cetak" class="mb-1">Batetangnga, ....................</p>
+                        <p id="lbl-tgl-cetak" class="mb-1 flex items-center justify-center gap-1.5 flex-wrap">
+                            <span>Batetangnga,</span>
+                            <input type="date" id="tgl-cetak" class="no-print bg-white/90 border border-slate-300 rounded px-1.5 py-0.5 text-xs text-slate-700 shadow-sm focus:ring-1 focus:ring-amber-500 outline-none cursor-pointer" title="Ubah tanggal penandatanganan kedinasan" />
+                            <span id="lbl-tgl-cetak-print" class="print-only font-sans font-normal"></span>
+                        </p>
                         <p class="font-bold">Disusun oleh,</p>
                         <p class="font-bold">Sekretaris Kelompok</p>
                         <div class="h-16"></div>

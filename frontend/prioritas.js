@@ -1046,9 +1046,19 @@ function hapusItemData(index) {
     })();
 }
 
+function getTodayDateISO() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 function formatTanggalIndonesia(tanggalStr) {
-    if (!tanggalStr) return '....................';
-    const parts = tanggalStr.split('-');
+    if (!tanggalStr) {
+        tanggalStr = getTodayDateISO();
+    }
+    const parts = String(tanggalStr).split('-');
     if (parts.length !== 3) return tanggalStr;
     const tahun = parts[0];
     const bulanAngka = parseInt(parts[1], 10);
@@ -1064,10 +1074,30 @@ function formatTanggalIndonesia(tanggalStr) {
 
 function renderFooterTanggal() {
     const inputTgl = document.getElementById('tgl-cetak');
+    const toolbarTgl = document.getElementById('toolbar-tgl-cetak');
+    const todayISO = getTodayDateISO();
+
+    let rawVal = (inputTgl && inputTgl.value) ? inputTgl.value : (toolbarTgl && toolbarTgl.value ? toolbarTgl.value : '');
+    if (!rawVal) {
+        rawVal = todayISO;
+    }
+
+    if (inputTgl && inputTgl.value !== rawVal) {
+        inputTgl.value = rawVal;
+    }
+    if (toolbarTgl && toolbarTgl.value !== rawVal) {
+        toolbarTgl.value = rawVal;
+    }
+
+    const tanggalFormatted = formatTanggalIndonesia(rawVal);
+
+    const printSpan = document.getElementById('lbl-tgl-cetak-print');
+    if (printSpan) {
+        printSpan.textContent = tanggalFormatted;
+    }
+
     const lblTgl = document.getElementById('lbl-tgl-cetak');
-    if (lblTgl) {
-        const nilaiTanggal = inputTgl ? inputTgl.value : '';
-        const tanggalFormatted = formatTanggalIndonesia(nilaiTanggal);
+    if (lblTgl && !lblTgl.querySelector('#tgl-cetak')) {
         lblTgl.textContent = `Batetangnga, ${tanggalFormatted}`;
     }
 }
@@ -1151,6 +1181,7 @@ async function tetapkanRkpdes() {
 function cetakPrioritas(skoringKosong = false) {
     // Pastikan seluruh baris telah dirender lengkap (sinkron) sebelum dialog cetak terbuka, mode print tanpa form input berat
     renderTabelPrioritas(activeData, true, true);
+    renderFooterTanggal();
 
     if (skoringKosong) {
         document.body.classList.add('print-skoring-kosong');
@@ -1178,6 +1209,8 @@ window.goToPrioritasPage = goToPrioritasPage;
 window.setPrioritasShowAll = setPrioritasShowAll;
 window.updateSkorLive = updateSkorLive;
 window.hapusItemData = hapusItemData;
+window.getTodayDateISO = getTodayDateISO;
+window.formatTanggalIndonesia = formatTanggalIndonesia;
 window.renderFooterTanggal = renderFooterTanggal;
 window.tetapkanRkpdes = tetapkanRkpdes;
 window.tarikDariRancanganRKPDes = tarikDariRancanganRKPDes;
@@ -1196,13 +1229,38 @@ window.cetakPrioritas = cetakPrioritas;
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Initial load murni cepat (Single-Fetch GET /api/prioritas-rkpdes tanpa sync/tarik-rancangan)
     loadPrioritasData();
-    renderFooterTanggal();
     
-    // 2. Listener tanggal cetak
+    // 2. Inisialisasi tanggal hari ini & sinkronisasi date picker
     const inputTgl = document.getElementById('tgl-cetak');
-    if (inputTgl) {
-        inputTgl.addEventListener('change', renderFooterTanggal);
+    const toolbarTgl = document.getElementById('toolbar-tgl-cetak');
+    const todayISO = getTodayDateISO();
+
+    if (inputTgl && !inputTgl.value) {
+        inputTgl.value = todayISO;
     }
+    if (toolbarTgl && !toolbarTgl.value) {
+        toolbarTgl.value = todayISO;
+    }
+
+    renderFooterTanggal();
+
+    const onDateChange = (val) => {
+        const finalVal = val || getTodayDateISO();
+        if (inputTgl && inputTgl.value !== finalVal) inputTgl.value = finalVal;
+        if (toolbarTgl && toolbarTgl.value !== finalVal) toolbarTgl.value = finalVal;
+        renderFooterTanggal();
+    };
+
+    if (inputTgl) {
+        inputTgl.addEventListener('change', (e) => onDateChange(e.target.value));
+        inputTgl.addEventListener('input', (e) => onDateChange(e.target.value));
+    }
+    if (toolbarTgl) {
+        toolbarTgl.addEventListener('change', (e) => onDateChange(e.target.value));
+        toolbarTgl.addEventListener('input', (e) => onDateChange(e.target.value));
+    }
+
+    window.addEventListener('beforeprint', renderFooterTanggal);
 
     // 3. Hubungkan aksi sync dan tarik-rancangan HANYA ke event listener tombol interaktif (manual on-demand)
     const btnSync = document.getElementById('btn-sync-prioritas');

@@ -173,8 +173,14 @@ function formatAngka(number) {
 }
 
 function formatTanggalIndonesia(tanggalStr) {
-    if (!tanggalStr) return '....................';
-    const parts = tanggalStr.split('-');
+    if (!tanggalStr) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        tanggalStr = `${y}-${m}-${d}`;
+    }
+    const parts = String(tanggalStr).split('-');
     if (parts.length !== 3) return tanggalStr;
     const tahun = parts[0];
     const bulanAngka = parseInt(parts[1], 10);
