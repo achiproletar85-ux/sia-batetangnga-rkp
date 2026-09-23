@@ -164,11 +164,14 @@ function renderTabelSDGs(rawData, activeYear) {
             html += `
                 <tr class="border-b border-slate-200 hover:bg-indigo-50/40 transition-colors duration-150 ${isChecked ? 'bg-emerald-50/60' : (index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')} print:border-black print:bg-transparent">
                     ${isFirst ? `
-                    <td rowspan="${rowSpan}" class="border border-slate-300 text-center font-bold align-middle py-3 px-2 bg-slate-50/90 text-slate-800 print:border-black print:bg-transparent print:p-1">
-                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-extrabold border border-indigo-200 shadow-xs print:border-none print:bg-transparent print:text-black print:w-auto print:h-auto print:text-[8.5pt]">
+                    <td rowspan="${rowSpan}" class="border border-slate-300 text-center font-bold align-middle py-3 px-2 bg-slate-50/90 text-slate-800 print:hidden">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-extrabold border border-indigo-200 shadow-xs">
                             ${sdgsKey}
                         </span>
                     </td>` : ''}
+                    <td class="hidden print:table-cell border border-slate-300 text-center font-bold py-1 px-1 print:border-black print:text-black print:text-[8.5pt]">
+                        ${sdgsKey}
+                    </td>
                     <td class="border border-slate-300 text-center py-2 px-1 text-slate-600 font-medium print:border-black print:text-black print:py-1">${noUrut}</td>
                     <td class="border border-slate-300 px-3 py-2 text-left font-medium text-slate-900 leading-snug print:border-black print:text-black print:py-1">${esc(item.uraian_kegiatan) || '-'}</td>
                     <td class="border border-slate-300 px-3 py-2 text-left text-slate-700 print:border-black print:text-black print:py-1">${esc(pName)}</td>

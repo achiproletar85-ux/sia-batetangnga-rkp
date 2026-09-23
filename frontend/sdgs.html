@@ -40,28 +40,23 @@
                 font-size: 8.5pt !important;
             }
 
-            .container-main {
+            .container-main,
+            #sdgsContainer,
+            #sdgsContainer > div,
+            .table-wrapper {
                 max-width: 100% !important;
                 width: 100% !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-
-            #sdgsContainer {
-                width: 100% !important;
-                max-width: 100% !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 box-shadow: none !important;
                 border: none !important;
                 background: transparent !important;
-            }
-
-            .table-wrapper {
                 overflow: visible !important;
-                width: 100% !important;
-                box-shadow: none !important;
-                border: none !important;
+                height: auto !important;
+                min-height: auto !important;
+                max-height: none !important;
+                break-inside: auto !important;
+                page-break-inside: auto !important;
             }
 
             table {
@@ -71,18 +66,24 @@
                 font-size: 8pt !important;
                 table-layout: auto !important;
                 page-break-inside: auto !important;
+                break-inside: auto !important;
             }
 
             thead {
                 display: table-header-group !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
             }
 
             tbody {
                 display: table-row-group !important;
+                page-break-inside: auto !important;
+                break-inside: auto !important;
             }
 
             tr {
-                page-break-inside: avoid !important;
+                page-break-inside: auto !important;
+                break-inside: auto !important;
                 background: transparent !important;
             }
 
@@ -101,10 +102,13 @@
                 color: #000 !important;
                 padding: 3px 4px !important;
                 background: transparent !important;
+                page-break-inside: auto !important;
+                break-inside: auto !important;
             }
 
             .print-signature {
                 page-break-inside: avoid !important;
+                break-inside: avoid !important;
                 display: flex !important;
                 justify-content: space-between !important;
                 margin-top: 20px !important;
