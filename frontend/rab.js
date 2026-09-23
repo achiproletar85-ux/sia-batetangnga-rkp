@@ -3696,7 +3696,7 @@ function getGroupKey(row, item) {
         // 1. TAMPILKAN GROUP (Level 1 - Atas) -> bg-slate-200 font-bold
         tbodyRows += `
             <tr style="font-weight: bold; background-color: #e2e8f0;">
-                <td colspan="6" style="border: 1px solid #000; padding: 6px 8px; font-weight: bold; font-size: 12px; text-transform: uppercase;">${gKey}</td>
+                <td colspan="6" style="border: 1px solid #000; padding: 3px 5px; font-weight: bold; font-size: 11px; text-transform: uppercase; line-height: 1.15;">${gKey}</td>
             </tr>
         `;
 
@@ -3720,7 +3720,7 @@ function getGroupKey(row, item) {
             // 2. TAMPILKAN NAMA_KEGIATAN (Level 2 - Tengah) -> Tebal & Miring
             tbodyRows += `
                 <tr style="background-color: #f8fafc;">
-                    <td colspan="5" style="border: 1px solid #000; padding: 6px 8px; font-weight: bold; font-style: italic; font-size: 12px;">${namaKeg}</td>
+                    <td colspan="5" style="border: 1px solid #000; padding: 3px 5px; font-weight: bold; font-style: italic; font-size: 10.5px; line-height: 1.15;">${namaKeg}</td>
                     <td style="border: 1px solid #000;"></td>
                 </tr>
             `;
@@ -3731,8 +3731,8 @@ function getGroupKey(row, item) {
                 // 3. TAMPILKAN SUBGROUP (Level 3 - Bawah) -> Tebal, Normal Case (Bukan Uppercase) + Subtotal di Kolom f
                 tbodyRows += `
                     <tr style="font-weight: bold; background-color: #f1f5f9;">
-                        <td colspan="5" style="border: 1px solid #000; padding: 6px 8px; font-weight: bold; font-size: 12px;">${sgKey}</td>
-                        <td style="border: 1px solid #000; text-align: right; font-weight: bold; font-size: 12px; padding: 6px 8px;">
+                        <td colspan="5" style="border: 1px solid #000; padding: 3px 5px; font-weight: bold; font-size: 10.5px; line-height: 1.15;">${sgKey}</td>
+                        <td style="border: 1px solid #000; text-align: right; font-weight: bold; font-size: 10.5px; padding: 3px 5px; line-height: 1.15;">
                             Rp ${formatRupiah(groupSubData.subtotal)}
                         </td>
                     </tr>
@@ -3763,12 +3763,12 @@ function getGroupKey(row, item) {
 
                     tbodyRows += `
                         <tr>
-                            <td style="border: 1px solid #000; padding: 6px 8px; padding-left: 20px;">${charLabel} ${it.uraian}${it.keterangan ? ` (${it.keterangan})` : ''}</td>
-                            <td style="border: 1px solid #000; text-align: center; padding: 6px 8px;">${it.volume || '-'}</td>
-                            <td style="border: 1px solid #000; text-align: center; padding: 6px 8px;">${it.satuan || '-'}</td>
-                            <td style="border: 1px solid #000; text-align: right; padding: 6px 8px;">Rp ${formatRupiah(hrg)}</td>
-                            <td style="border: 1px solid #000; text-align: right; padding: 6px 8px;">Rp ${formatRupiah(itemTotal)}</td>
-                            <td style="border: 1px solid #000; text-align: right; padding: 6px 8px;"></td>
+                            <td style="border: 1px solid #000; padding: 2.5px 4px; padding-left: 14px; font-size: 10.5px; line-height: 1.15;">${charLabel} ${it.uraian}${it.keterangan ? ` (${it.keterangan})` : ''}</td>
+                            <td style="border: 1px solid #000; text-align: center; padding: 2.5px 4px; font-size: 10.5px; line-height: 1.15;">${it.volume || '-'}</td>
+                            <td style="border: 1px solid #000; text-align: center; padding: 2.5px 4px; font-size: 10.5px; line-height: 1.15;">${it.satuan || '-'}</td>
+                            <td style="border: 1px solid #000; text-align: right; padding: 2.5px 4px; font-size: 10.5px; line-height: 1.15;">Rp ${formatRupiah(hrg)}</td>
+                            <td style="border: 1px solid #000; text-align: right; padding: 2.5px 4px; font-size: 10.5px; line-height: 1.15;">Rp ${formatRupiah(itemTotal)}</td>
+                            <td style="border: 1px solid #000; text-align: right; padding: 2.5px 4px; font-size: 10.5px; line-height: 1.15;"></td>
                         </tr>
                     `;
                 });
@@ -3781,62 +3781,68 @@ function getGroupKey(row, item) {
         <head>
             <title>RAB ${prefixKode}</title>
             <style>
-                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; color: #000; background: #fff; line-height: 1.4; }
+                @page { size: portrait; margin: 6mm 8mm; }
+                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 12px; color: #000; background: #fff; line-height: 1.15; }
                 h1, h2, h3 { margin: 0; text-align: center; font-weight: bold; }
-                .header { margin-bottom: 20px; text-align: center; }
-                .header h1 { font-size: 16px; margin-bottom: 4px; text-transform: uppercase; }
-                .header h2 { font-size: 14px; margin-bottom: 4px; text-transform: uppercase; }
-                .header h3 { font-size: 12px; margin-bottom: 4px; text-transform: uppercase; }
-                table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-                th, td { border: 1px solid #000; padding: 6px 8px; font-size: 12px; }
+                .header { margin-bottom: 6px; text-align: center; }
+                .header h1 { font-size: 14px; margin-bottom: 2px; text-transform: uppercase; }
+                .header h2 { font-size: 12px; margin-bottom: 2px; text-transform: uppercase; }
+                .header h3 { font-size: 10.5px; margin-bottom: 2px; text-transform: uppercase; }
+                table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+                th, td { border: 1px solid #000; padding: 3px 4px; font-size: 10.5px; line-height: 1.15; }
                 th { background: #f8fafc; font-weight: bold; text-align: center; }
                 .text-right { text-align: right; }
                 .text-center { text-align: center; }
                 @media print { 
+                    @page { size: portrait; margin: 6mm 8mm; }
+                    html, body { padding: 0 !important; margin: 0 !important; }
                     .no-print { display: none !important; }
                     body { padding: 0; }
+                    table { page-break-inside: auto; }
+                    tr { page-break-inside: avoid; }
+                    .signature-section { page-break-inside: avoid; break-inside: avoid; }
                 }
             </style>
         </head>
         <body>
             <div class="header">
-                <h1 style="font-size: 16px; font-weight: 800; text-transform: uppercase;">RENCANA ANGGARAN BIAYA (RAB)</h1>
-                <h2 style="font-size: 14px; font-weight: 700; text-transform: uppercase;">PEMERINTAH DESA BATETANGNGA</h2>
-                <h3 style="font-size: 12px; font-weight: 600; text-transform: uppercase;">KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR</h3>
-                <h3 style="font-size: 12px; font-weight: 600; text-transform: uppercase;">TAHUN ANGGARAN ${tahunFilter}</h3>
+                <h1 style="font-size: 14px; font-weight: 800; text-transform: uppercase;">RENCANA ANGGARAN BIAYA (RAB)</h1>
+                <h2 style="font-size: 12px; font-weight: 700; text-transform: uppercase;">PEMERINTAH DESA BATETANGNGA</h2>
+                <h3 style="font-size: 10.5px; font-weight: 600; text-transform: uppercase;">KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR</h3>
+                <h3 style="font-size: 10.5px; font-weight: 600; text-transform: uppercase;">TAHUN ANGGARAN ${tahunFilter}</h3>
             </div>
             
-            <div class="meta" style="margin-top: 12px; display: flex; justify-content: space-between; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 12px 0; font-size: 12px; line-height: 1.6;">
+            <div class="meta" style="margin-top: 6px; display: flex; justify-content: space-between; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 4px 0; font-size: 10.5px; line-height: 1.25;">
                 <div style="width: 48%; display: flex; flex-direction: column;">
-                    <div style="display: flex;"><span style="width: 90px; flex-shrink: 0;">Desa</span><span style="margin-right: 8px;">:</span><strong>BATETANGNGA</strong></div>
-                    <div style="display: flex;"><span style="width: 90px; flex-shrink: 0;">Kecamatan</span><span style="margin-right: 8px;">:</span><strong>BINUANG</strong></div>
-                    <div style="display: flex;"><span style="width: 90px; flex-shrink: 0;">Kabupaten</span><span style="margin-right: 8px;">:</span><strong>POLEWALI MANDAR</strong></div>
-                    <div style="display: flex;"><span style="width: 90px; flex-shrink: 0;">Provinsi</span><span style="margin-right: 8px;">:</span><strong>SULAWESI BARAT</strong></div>
+                    <div style="display: flex;"><span style="width: 85px; flex-shrink: 0;">Desa</span><span style="margin-right: 6px;">:</span><strong>BATETANGNGA</strong></div>
+                    <div style="display: flex;"><span style="width: 85px; flex-shrink: 0;">Kecamatan</span><span style="margin-right: 6px;">:</span><strong>BINUANG</strong></div>
+                    <div style="display: flex;"><span style="width: 85px; flex-shrink: 0;">Kabupaten</span><span style="margin-right: 6px;">:</span><strong>POLEWALI MANDAR</strong></div>
+                    <div style="display: flex;"><span style="width: 85px; flex-shrink: 0;">Provinsi</span><span style="margin-right: 6px;">:</span><strong>SULAWESI BARAT</strong></div>
                 </div>
                 <div style="width: 48%; display: flex; flex-direction: column;">
-                    <div style="display: flex;"><span style="width: 90px; flex-shrink: 0;">No. RAB</span><span style="margin-right: 8px;">:</span><strong>${prefixKode}</strong></div>
-                    <div style="display: flex;"><span style="width: 90px; flex-shrink: 0;">Bidang</span><span style="margin-right: 8px;">:</span><strong>1. BIDANG PENYELENGGARAAN PEMERINTAHAN DESA</strong></div>
-                    <div style="display: flex;"><span style="width: 90px; flex-shrink: 0;">Kegiatan</span><span style="margin-right: 8px;">:</span><strong>${kegiatanTitle}</strong></div>
+                    <div style="display: flex;"><span style="width: 85px; flex-shrink: 0;">No. RAB</span><span style="margin-right: 6px;">:</span><strong>${prefixKode}</strong></div>
+                    <div style="display: flex;"><span style="width: 85px; flex-shrink: 0;">Bidang</span><span style="margin-right: 6px;">:</span><strong>1. BIDANG PENYELENGGARAAN PEMERINTAHAN DESA</strong></div>
+                    <div style="display: flex;"><span style="width: 85px; flex-shrink: 0;">Kegiatan</span><span style="margin-right: 6px;">:</span><strong>${kegiatanTitle}</strong></div>
                 </div>
             </div>
             
             <table class="print-table">
                 <thead>
                   <tr>
-                    <th style="border: 1px solid #000; text-align: center; font-weight: bold;">URAIAN</th>
-                    <th style="border: 1px solid #000; text-align: center; font-weight: bold; width: 80px;">Volume</th>
-                    <th style="border: 1px solid #000; text-align: center; font-weight: bold; width: 80px;">Satuan</th>
-                    <th style="border: 1px solid #000; text-align: center; font-weight: bold; width: 120px;">Harga Satuan<br>(Rp)</th>
-                    <th style="border: 1px solid #000; text-align: center; font-weight: bold; width: 130px;">Jumlah Total<br>(Rp)</th>
-                    <th style="border: 1px solid #000; text-align: center; font-weight: bold; width: 140px;">Jumlah</th>
+                    <th style="border: 1px solid #000; text-align: center; font-weight: bold; padding: 3px 4px;">URAIAN</th>
+                    <th style="border: 1px solid #000; text-align: center; font-weight: bold; width: 75px; padding: 3px 4px;">Volume</th>
+                    <th style="border: 1px solid #000; text-align: center; font-weight: bold; width: 75px; padding: 3px 4px;">Satuan</th>
+                    <th style="border: 1px solid #000; text-align: center; font-weight: bold; width: 110px; padding: 3px 4px;">Harga Satuan<br>(Rp)</th>
+                    <th style="border: 1px solid #000; text-align: center; font-weight: bold; width: 120px; padding: 3px 4px;">Jumlah Total<br>(Rp)</th>
+                    <th style="border: 1px solid #000; text-align: center; font-weight: bold; width: 130px; padding: 3px 4px;">Jumlah</th>
                   </tr>
-                  <tr style="font-size: 11px; font-style: italic; background-color: #f8fafc;">
-                    <td style="border: 1px solid #000; text-align: center;">a</td>
-                    <td style="border: 1px solid #000; text-align: center;">b</td>
-                    <td style="border: 1px solid #000; text-align: center;">c</td>
-                    <td style="border: 1px solid #000; text-align: center;">d</td>
-                    <td style="border: 1px solid #000; text-align: center;">e = b x d</td>
-                    <td style="border: 1px solid #000; text-align: center;">f</td>
+                  <tr style="font-size: 10px; font-style: italic; background-color: #f8fafc;">
+                    <td style="border: 1px solid #000; text-align: center; padding: 2px 4px;">a</td>
+                    <td style="border: 1px solid #000; text-align: center; padding: 2px 4px;">b</td>
+                    <td style="border: 1px solid #000; text-align: center; padding: 2px 4px;">c</td>
+                    <td style="border: 1px solid #000; text-align: center; padding: 2px 4px;">d</td>
+                    <td style="border: 1px solid #000; text-align: center; padding: 2px 4px;">e = b x d</td>
+                    <td style="border: 1px solid #000; text-align: center; padding: 2px 4px;">f</td>
                   </tr>
                 </thead>
                 <tbody>
@@ -3844,31 +3850,31 @@ function getGroupKey(row, item) {
                 </tbody>
                 <tfoot>
                     <tr style="font-weight: bold; background-color: #f1f5f9;">
-                        <td colspan="5" style="border: 1px solid #000; text-align: right; font-weight: bold; font-size: 12px; padding: 8px;">JUMLAH TOTAL BIAYA (Rp)</td>
-                        <td style="border: 1px solid #000; text-align: right; font-weight: bold; font-size: 12px; padding: 8px;">Rp ${formatRupiah(totalBiayaSeluruhnya)}</td>
+                        <td colspan="5" style="border: 1px solid #000; text-align: right; font-weight: bold; font-size: 11px; padding: 3px 5px; line-height: 1.15;">JUMLAH TOTAL BIAYA (Rp)</td>
+                        <td style="border: 1px solid #000; text-align: right; font-weight: bold; font-size: 11px; padding: 3px 5px; line-height: 1.15;">Rp ${formatRupiah(totalBiayaSeluruhnya)}</td>
                     </tr>
                 </tfoot>
             </table>
             
-            <div class="signature-section" style="margin-top: 44px; display: flex; justify-content: space-between; page-break-inside: avoid; font-size: 12px; line-height: 1.5; text-align: center;">
+            <div class="signature-section" style="margin-top: 16px; display: flex; justify-content: space-between; page-break-inside: avoid; break-inside: avoid; font-size: 10.5px; line-height: 1.2; text-align: center;">
                 <div style="width: 30%;">
                     <p style="margin: 0;">Menyetujui,</p>
-                    <p style="margin: 0 0 68px 0; font-weight: bold;">Kepala Desa Batetangnga</p>
+                    <p style="margin: 0 0 36px 0; font-weight: bold;">Kepala Desa Batetangnga</p>
                     <p style="margin: 0; text-decoration: underline; font-weight: bold;">SUMAILA DAMANG</p>
                 </div>
                 <div style="width: 30%;">
                     <p style="margin: 0;">Telah Diverifikasi</p>
-                    <p style="margin: 0 0 68px 0; font-weight: bold;">Sekretaris Desa</p>
+                    <p style="margin: 0 0 36px 0; font-weight: bold;">Sekretaris Desa</p>
                     <p style="margin: 0; text-decoration: underline; font-weight: bold;">ABDUL AZIS, S.Pd</p>
                 </div>
                 <div style="width: 30%;">
                     <p style="margin: 0;">${teksLokasiTanggal}</p>
-                    <p style="margin: 0 0 68px 0; font-weight: bold;">Pelaksana Kegiatan Anggaran</p>
+                    <p style="margin: 0 0 36px 0; font-weight: bold;">Pelaksana Kegiatan Anggaran</p>
                     <p style="margin: 0; text-decoration: underline; font-weight: bold;">${namaPelaksana}</p>
                 </div>
             </div>
             
-            <div class="footer no-print" style="margin-top: 40px; border-top: 1px solid #cbd5e1; padding-top: 10px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b;">
+            <div class="footer no-print" style="margin-top: 10px; border-top: 1px solid #cbd5e1; padding-top: 4px; display: flex; justify-content: space-between; font-size: 9.5px; color: #64748b;">
                 <div>Dicetak dari sistem SIA Batetangnga</div>
                 <div></div>
             </div>
@@ -4097,7 +4103,7 @@ async function cetakRabPerubahan() {
         // Header kegiatan
         tbodyRows += `
             <tr style="background-color:#e2e8f0;">
-                <td colspan="9" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px;">
+                <td colspan="9" style="border:1px solid #000; padding:3px 4px; font-weight:bold; font-size:10.5px; line-height:1.15;">
                     ${kodeKegiatan} — ${comp.nama_kegiatan || '-'}
                 </td>
             </tr>`;
@@ -4160,7 +4166,7 @@ async function cetakRabPerubahan() {
                 lastSubgroup = null;
                 tbodyRows += `
                     <tr style="background-color:#f1f5f9;">
-                        <td colspan="9" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px; text-transform:uppercase;">${g}</td>
+                        <td colspan="9" style="border:1px solid #000; padding:3px 4px; font-weight:bold; font-size:10px; line-height:1.15; text-transform:uppercase;">${g}</td>
                     </tr>`;
             }
 
@@ -4183,10 +4189,10 @@ async function cetakRabPerubahan() {
 
                 tbodyRows += `
                     <tr style="background-color:#f8fafc;">
-                        <td colspan="2" style="border:1px solid #000; padding:6px 8px; font-weight:bold; font-size:12px;">${sg}</td>
-                        <td colspan="3" style="border:1px solid #000; padding:6px 8px; text-align:right; font-weight:bold; font-size:12px;">Rp ${fmt(subSemula)}</td>
-                        <td colspan="3" style="border:1px solid #000; padding:6px 8px; text-align:right; font-weight:bold; font-size:12px;">Rp ${fmt(subMenjadi)}</td>
-                        <td style="border:1px solid #000; padding:6px 8px; text-align:right; font-weight:bold; font-size:12px;">${fmtSelisih(subMenjadi - subSemula)}</td>
+                        <td colspan="2" style="border:1px solid #000; padding:3px 4px; font-weight:bold; font-size:10px; line-height:1.15;">${sg}</td>
+                        <td colspan="3" style="border:1px solid #000; padding:3px 4px; text-align:right; font-weight:bold; font-size:10px; line-height:1.15;">Rp ${fmt(subSemula)}</td>
+                        <td colspan="3" style="border:1px solid #000; padding:3px 4px; text-align:right; font-weight:bold; font-size:10px; line-height:1.15;">Rp ${fmt(subMenjadi)}</td>
+                        <td style="border:1px solid #000; padding:3px 4px; text-align:right; font-weight:bold; font-size:10px; line-height:1.15;">${fmtSelisih(subMenjadi - subSemula)}</td>
                     </tr>`;
             }
 
@@ -4196,27 +4202,27 @@ async function cetakRabPerubahan() {
             const volMenjadi = it.item_dihapus ? '0' : `${it.menjadi && it.menjadi.volume != null ? it.menjadi.volume : 0} ${it.menjadi && it.menjadi.satuan ? it.menjadi.satuan : ''}`.trim();
             tbodyRows += `
             <tr>
-                <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${runningNo}</td>
-                <td style="border:1px solid #000; padding:4px 6px; padding-left:16px; font-size:11px;">${charLabel(subCounter)} ${it.uraian}${it.keterangan ? ` (${it.keterangan})` : ''}</td>
-                <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${volSemula || '0'}</td>
-                <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_baru ? '0' : fmt(it.semula && it.semula.harga)}</td>
-                <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_baru ? '0' : fmt(it.semula && it.semula.jumlah)}</td>
-                <td style="border:1px solid #000; padding:4px 6px; text-align:center; font-size:11px;">${volMenjadi || '0'}</td>
-                <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_dihapus ? '0' : fmt(it.menjadi && it.menjadi.harga)}</td>
-                <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${it.item_dihapus ? '0' : fmt(it.menjadi && it.menjadi.jumlah)}</td>
-                <td style="border:1px solid #000; padding:4px 6px; text-align:right; font-size:11px;">${fmtSelisih(it.selisih)}</td>
+                <td style="border:1px solid #000; padding:2.5px 4px; text-align:center; font-size:10px; line-height:1.15;">${runningNo}</td>
+                <td style="border:1px solid #000; padding:2.5px 4px; padding-left:12px; font-size:10px; line-height:1.15;">${charLabel(subCounter)} ${it.uraian}${it.keterangan ? ` (${it.keterangan})` : ''}</td>
+                <td style="border:1px solid #000; padding:2.5px 4px; text-align:center; font-size:10px; line-height:1.15;">${volSemula || '0'}</td>
+                <td style="border:1px solid #000; padding:2.5px 4px; text-align:right; font-size:10px; line-height:1.15;">${it.item_baru ? '0' : fmt(it.semula && it.semula.harga)}</td>
+                <td style="border:1px solid #000; padding:2.5px 4px; text-align:right; font-size:10px; line-height:1.15;">${it.item_baru ? '0' : fmt(it.semula && it.semula.jumlah)}</td>
+                <td style="border:1px solid #000; padding:2.5px 4px; text-align:center; font-size:10px; line-height:1.15;">${volMenjadi || '0'}</td>
+                <td style="border:1px solid #000; padding:2.5px 4px; text-align:right; font-size:10px; line-height:1.15;">${it.item_dihapus ? '0' : fmt(it.menjadi && it.menjadi.harga)}</td>
+                <td style="border:1px solid #000; padding:2.5px 4px; text-align:right; font-size:10px; line-height:1.15;">${it.item_dihapus ? '0' : fmt(it.menjadi && it.menjadi.jumlah)}</td>
+                <td style="border:1px solid #000; padding:2.5px 4px; text-align:right; font-size:10px; line-height:1.15;">${fmtSelisih(it.selisih)}</td>
             </tr>`;
         }
 
         // TOTAL per kegiatan
         tbodyRows += `
             <tr style="background-color:#e2e8f0; font-weight:bold;">
-                <td colspan="2" style="border:1px solid #000; padding:6px 8px; text-align:right; font-size:12px;">TOTAL KEGIATAN</td>
+                <td colspan="2" style="border:1px solid #000; padding:3px 4px; text-align:right; font-size:10px; line-height:1.15;">TOTAL KEGIATAN</td>
                 <td colspan="2" style="border:1px solid #000;"></td>
-                <td style="border:1px solid #000; padding:6px 8px; text-align:right; font-size:12px;">Rp ${fmt(comp.total.semula)}</td>
+                <td style="border:1px solid #000; padding:3px 4px; text-align:right; font-size:10px; line-height:1.15;">Rp ${fmt(comp.total.semula)}</td>
                 <td colspan="2" style="border:1px solid #000;"></td>
-                <td style="border:1px solid #000; padding:6px 8px; text-align:right; font-size:12px;">Rp ${fmt(comp.total.menjadi)}</td>
-                <td style="border:1px solid #000; padding:6px 8px; text-align:right; font-size:12px;">${fmtSelisih(comp.total.selisih)}</td>
+                <td style="border:1px solid #000; padding:3px 4px; text-align:right; font-size:10px; line-height:1.15;">Rp ${fmt(comp.total.menjadi)}</td>
+                <td style="border:1px solid #000; padding:3px 4px; text-align:right; font-size:10px; line-height:1.15;">${fmtSelisih(comp.total.selisih)}</td>
             </tr>`;
     });
 
@@ -4225,54 +4231,62 @@ async function cetakRabPerubahan() {
         <head>
             <title>RAB Perubahan ${prefix}</title>
             <style>
-                @page { size: A4 landscape; margin: 12mm; }
-                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 16px; color: #000; background: #fff; line-height: 1.35; }
+                @page { size: A4 landscape; margin: 6mm 8mm; }
+                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 10px; color: #000; background: #fff; line-height: 1.15; }
                 h1, h2, h3 { margin: 0; text-align: center; font-weight: bold; }
-                table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-                th, td { border: 1px solid #000; padding: 5px 6px; font-size: 11px; vertical-align: top; }
+                table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+                th, td { border: 1px solid #000; padding: 2.5px 4px; font-size: 10px; line-height: 1.15; vertical-align: middle; }
                 th { background: #e2e8f0; font-weight: bold; text-align: center; }
-                @media print { body { padding: 0; } }
+                @media print {
+                    @page { size: A4 landscape; margin: 6mm 8mm; }
+                    html, body { padding: 0 !important; margin: 0 !important; }
+                    .no-print { display: none !important; }
+                    body { padding: 0; }
+                    table { page-break-inside: auto; }
+                    tr { page-break-inside: avoid; }
+                    .signature-section { page-break-inside: avoid; break-inside: avoid; }
+                }
             </style>
         </head>
         <body>
-            <div style="text-align:center; margin-bottom:14px;">
-                <h1 style="font-size:16px; text-transform:uppercase;">PERUBAHAN RENCANA ANGGARAN BIAYA (RAB)</h1>
-                <h2 style="font-size:14px; text-transform:uppercase;">PEMERINTAH DESA BATETANGNGA</h2>
-                <h3 style="font-size:12px; text-transform:uppercase;">KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR</h3>
-                <h3 style="font-size:12px; text-transform:uppercase;">PROVINSI SULAWESI BARAT — TAHUN ANGGARAN ${tahunNum}</h3>
+            <div style="text-align:center; margin-bottom:6px;">
+                <h1 style="font-size:14px; text-transform:uppercase;">PERUBAHAN RENCANA ANGGARAN BIAYA (RAB)</h1>
+                <h2 style="font-size:12px; text-transform:uppercase;">PEMERINTAH DESA BATETANGNGA</h2>
+                <h3 style="font-size:10.5px; text-transform:uppercase;">KECAMATAN BINUANG KABUPATEN POLEWALI MANDAR</h3>
+                <h3 style="font-size:10.5px; text-transform:uppercase;">PROVINSI SULAWESI BARAT — TAHUN ANGGARAN ${tahunNum}</h3>
             </div>
 
-            <div style="display:flex; justify-content:space-between; border-top:2px solid #000; border-bottom:2px solid #000; padding:10px 0; font-size:12px; line-height:1.6;">
+            <div style="display:flex; justify-content:space-between; border-top:1.5px solid #000; border-bottom:1.5px solid #000; padding:4px 0; font-size:10.5px; line-height:1.25;">
                 <div style="width:48%;">
-                    <div style="display:flex;"><span style="width:90px;">Desa</span><span style="margin-right:8px;">:</span><strong>BATETANGNGA</strong></div>
-                    <div style="display:flex;"><span style="width:90px;">Kecamatan</span><span style="margin-right:8px;">:</span><strong>BINUANG</strong></div>
-                    <div style="display:flex;"><span style="width:90px;">Kabupaten</span><span style="margin-right:8px;">:</span><strong>POLEWALI MANDAR</strong></div>
-                    <div style="display:flex;"><span style="width:90px;">Provinsi</span><span style="margin-right:8px;">:</span><strong>SULAWESI BARAT</strong></div>
+                    <div style="display:flex;"><span style="width:85px;">Desa</span><span style="margin-right:6px;">:</span><strong>BATETANGNGA</strong></div>
+                    <div style="display:flex;"><span style="width:85px;">Kecamatan</span><span style="margin-right:6px;">:</span><strong>BINUANG</strong></div>
+                    <div style="display:flex;"><span style="width:85px;">Kabupaten</span><span style="margin-right:6px;">:</span><strong>POLEWALI MANDAR</strong></div>
+                    <div style="display:flex;"><span style="width:85px;">Provinsi</span><span style="margin-right:6px;">:</span><strong>SULAWESI BARAT</strong></div>
                 </div>
                 <div style="width:48%;">
-                    <div style="display:flex;"><span style="width:90px;">No. RAB</span><span style="margin-right:8px;">:</span><strong>${prefix}</strong></div>
-                    <div style="display:flex;"><span style="width:90px;">Bidang</span><span style="margin-right:8px;">:</span><strong>RAB PERUBAHAN</strong></div>
-                    <div style="display:flex;"><span style="width:90px;">Kegiatan</span><span style="margin-right:8px;">:</span><strong>${groupTitle}</strong></div>
-                    <div style="display:flex;"><span style="width:90px;">Jml Kegiatan</span><span style="margin-right:8px;">:</span><strong>${comparisons.length}</strong></div>
+                    <div style="display:flex;"><span style="width:85px;">No. RAB</span><span style="margin-right:6px;">:</span><strong>${prefix}</strong></div>
+                    <div style="display:flex;"><span style="width:85px;">Bidang</span><span style="margin-right:6px;">:</span><strong>RAB PERUBAHAN</strong></div>
+                    <div style="display:flex;"><span style="width:85px;">Kegiatan</span><span style="margin-right:6px;">:</span><strong>${groupTitle}</strong></div>
+                    <div style="display:flex;"><span style="width:85px;">Jml Kegiatan</span><span style="margin-right:6px;">:</span><strong>${comparisons.length}</strong></div>
                 </div>
             </div>
 
             <table>
                 <thead>
                     <tr>
-                        <th rowspan="2" style="width:34px;">NO</th>
-                        <th rowspan="2">URAIAN</th>
-                        <th colspan="3">SEMULA</th>
-                        <th colspan="3">MENJADI</th>
-                        <th rowspan="2" style="width:120px;">BERTAMBAH / (BERKURANG)</th>
+                        <th rowspan="2" style="width:30px; padding:3px 2px;">NO</th>
+                        <th rowspan="2" style="padding:3px 4px;">URAIAN</th>
+                        <th colspan="3" style="padding:3px 4px;">SEMULA</th>
+                        <th colspan="3" style="padding:3px 4px;">MENJADI</th>
+                        <th rowspan="2" style="width:115px; padding:3px 4px;">BERTAMBAH / (BERKURANG)</th>
                     </tr>
                     <tr>
-                        <th style="width:80px;">VOL &amp; SAT</th>
-                        <th style="width:95px;">HARGA SATUAN</th>
-                        <th style="width:105px;">JUMLAH</th>
-                        <th style="width:80px;">VOL &amp; SAT</th>
-                        <th style="width:95px;">HARGA SATUAN</th>
-                        <th style="width:105px;">JUMLAH</th>
+                        <th style="width:75px; padding:2px 3px;">VOL &amp; SAT</th>
+                        <th style="width:90px; padding:2px 3px;">HARGA SATUAN</th>
+                        <th style="width:100px; padding:2px 3px;">JUMLAH</th>
+                        <th style="width:75px; padding:2px 3px;">VOL &amp; SAT</th>
+                        <th style="width:90px; padding:2px 3px;">HARGA SATUAN</th>
+                        <th style="width:100px; padding:2px 3px;">JUMLAH</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -4280,35 +4294,35 @@ async function cetakRabPerubahan() {
                 </tbody>
                 <tfoot>
                     <tr style="font-weight:bold; background-color:#cbd5e1;">
-                        <td colspan="2" style="text-align:right; font-weight:bold;">JUMLAH TOTAL</td>
+                        <td colspan="2" style="text-align:right; font-weight:bold; padding:3px 4px;">JUMLAH TOTAL</td>
                         <td colspan="2"></td>
-                        <td style="text-align:right; font-weight:bold;">Rp ${fmt(grandTotal.semula)}</td>
+                        <td style="text-align:right; font-weight:bold; padding:3px 4px;">Rp ${fmt(grandTotal.semula)}</td>
                         <td colspan="2"></td>
-                        <td style="text-align:right; font-weight:bold;">Rp ${fmt(grandTotal.menjadi)}</td>
-                        <td style="text-align:right; font-weight:bold;">${fmtSelisih(grandTotal.selisih)}</td>
+                        <td style="text-align:right; font-weight:bold; padding:3px 4px;">Rp ${fmt(grandTotal.menjadi)}</td>
+                        <td style="text-align:right; font-weight:bold; padding:3px 4px;">${fmtSelisih(grandTotal.selisih)}</td>
                     </tr>
                 </tfoot>
             </table>
 
-            <div class="signature-section" style="margin-top:44px; display:flex; justify-content:space-between; page-break-inside:avoid; font-size:12px; line-height:1.5; text-align:center;">
+            <div class="signature-section" style="margin-top:14px; display:flex; justify-content:space-between; page-break-inside:avoid; break-inside:avoid; font-size:10.5px; line-height:1.2; text-align:center;">
                 <div style="width:30%;">
                     <p style="margin:0;">Menyetujui,</p>
-                    <p style="margin:0 0 68px 0; font-weight:bold;">Kepala Desa Batetangnga</p>
+                    <p style="margin:0 0 35px 0; font-weight:bold;">Kepala Desa Batetangnga</p>
                     <p style="margin:0; text-decoration:underline; font-weight:bold;">${namaKades}</p>
                 </div>
                 <div style="width:30%;">
                     <p style="margin:0;">Telah Diverifikasi</p>
-                    <p style="margin:0 0 68px 0; font-weight:bold;">Sekretaris Desa</p>
+                    <p style="margin:0 0 35px 0; font-weight:bold;">Sekretaris Desa</p>
                     <p style="margin:0; text-decoration:underline; font-weight:bold;">${namaSekdes}</p>
                 </div>
                 <div style="width:30%;">
                     <p style="margin:0;">${teksLokasiTanggal}</p>
-                    <p style="margin:0 0 68px 0; font-weight:bold;">Pelaksana Kegiatan Anggaran</p>
+                    <p style="margin:0 0 35px 0; font-weight:bold;">Pelaksana Kegiatan Anggaran</p>
                     <p style="margin:0; text-decoration:underline; font-weight:bold;">${namaPelaksana}</p>
                 </div>
             </div>
 
-            <div class="footer no-print" style="margin-top:28px; border-top:1px solid #cbd5e1; padding-top:8px; display:flex; justify-content:space-between; font-size:10px; color:#64748b;">
+            <div class="footer no-print" style="margin-top:8px; border-top:1px solid #cbd5e1; padding-top:4px; display:flex; justify-content:space-between; font-size:9px; color:#64748b;">
                 <div>Dicetak dari sistem SIA Batetangnga — Modul RAB Perubahan</div>
                 <div></div>
             </div>

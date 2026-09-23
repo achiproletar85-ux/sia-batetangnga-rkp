@@ -2540,6 +2540,11 @@ app.get('/api/bidang-list', (req, res) => {
 
 app.get('/api/sdgs', async (req, res) => {
     try {
+        const { tahun } = req.query;
+        if (tahun) {
+            return await handleGetSdgsData(req, res);
+        }
+
         // Cache in-memory + TTL: daftar SDGs statis
         const cachedSdgs = refCacheGet('sdgs');
         if (cachedSdgs) {
@@ -7461,12 +7466,169 @@ app.delete('/api/usulan-sdgs/:id', async (req, res) => {
 });
 
 // ============================================================
-// INDIKATOR / FOKUS SDGs DESA — MENARIK DARI prioritas_rkpdes
+// INDIKATOR / FOKUS SDGs DESA — LOOKUP PENGUSUL DARI RPJMDES_STANDAR
+// Pencocokan berdasar key unik (id_rpjm_ref, kode_unik_full, kode_unik, nama_kegiatan)
+// Zero-Wildcard policy: kolom eksplisit, bebas select(*)
 // ============================================================
-// mendukung_sdgs di prioritas_rkpdes bisa berisi "1", "1,2,17", "17".
-// Endpoint ini memecahnya menjadi satu baris per nomor SDGs sehingga
-// tab SDGs dapat mengelompokkan per SDGs ke- (rowspan), persis seperti
-// struktur Matriks Usulan SDGs baku.
+const RPJM_PENGUSUL_COLUMNS = 'id, kode_unik_full, kode_unik, nama_kegiatan, nama_pengusul';
+
+async function getRpjmPengusulMap() {
+    let cached = refCacheGet('rpjm_pengusul_map');
+    if (cached) return cached;
+
+    try {
+        const { data, error } = await supabase
+            .from('rpjmdes_standar')
+            .select(RPJM_PENGUSUL_COLUMNS)
+            .not('nama_pengusul', 'is', null)
+            .limit(2000);
+
+        if (error) {
+            console.warn('⚠️ Gagal mengambil nama_pengusul dari rpjmdes_standar:', error.message);
+            return { byId: new Map(), byFull: new Map(), byName: new Map() };
+        }
+
+        const byId = new Map();
+        const byFull = new Map();
+        const byName = new Map();
+
+        (data || []).forEach(row => {
+            const pengusul = (row.nama_pengusul || '').trim();
+            if (!pengusul) return;
+
+            if (row.id != null) {
+                byId.set(String(row.id), pengusul);
+            }
+
+            const kodeFull = String(row.kode_unik_full || '').trim();
+            if (kodeFull) {
+                byFull.set(kodeFull, pengusul);
+                byFull.set(kodeFull.replace(/\.+$/, ''), pengusul);
+                byFull.set(kodeFull.replace(/^PEM\./i, ''), pengusul);
+                byFull.set(kodeFull.replace(/^PEM\./i, '').replace(/\.+$/, ''), pengusul);
+            }
+
+            const kode = String(row.kode_unik || '').trim();
+            if (kode) {
+                byFull.set(kode, pengusul);
+                byFull.set(kode.replace(/\.+$/, ''), pengusul);
+                byFull.set(kode.replace(/^PEM\./i, ''), pengusul);
+                byFull.set(kode.replace(/^PEM\./i, '').replace(/\.+$/, ''), pengusul);
+            }
+
+            if (row.nama_kegiatan) {
+                const cleanName = String(row.nama_kegiatan).trim().toLowerCase().replace(/\s+/g, ' ');
+                if (cleanName) {
+                    byName.set(cleanName, pengusul);
+                }
+            }
+        });
+
+        const mapObj = { byId, byFull, byName };
+        refCacheSet('rpjm_pengusul_map', mapObj);
+        return mapObj;
+    } catch (err) {
+        console.warn('⚠️ Exception getRpjmPengusulMap:', err.message);
+        return { byId: new Map(), byFull: new Map(), byName: new Map() };
+    }
+}
+
+function resolvePengusul(item, pengusulMap) {
+    if (!item) return '';
+    const explicit = (item.nama_pengusul || item.pengusul || '').trim();
+    if (explicit && explicit !== '-') return explicit;
+    if (!pengusulMap) return '';
+
+    if (item.id_rpjm_ref != null && pengusulMap.byId.has(String(item.id_rpjm_ref))) {
+        return pengusulMap.byId.get(String(item.id_rpjm_ref));
+    }
+    if (item.rpjm_id != null && pengusulMap.byId.has(String(item.rpjm_id))) {
+        return pengusulMap.byId.get(String(item.rpjm_id));
+    }
+
+    const candidates = [
+        item.kode_unik_full,
+        item.kode_unik,
+        item.kode_kegiatan
+    ];
+
+    for (const c of candidates) {
+        if (!c) continue;
+        const s = String(c).trim();
+        if (pengusulMap.byFull.has(s)) return pengusulMap.byFull.get(s);
+        const noDot = s.replace(/\.+$/, '');
+        if (pengusulMap.byFull.has(noDot)) return pengusulMap.byFull.get(noDot);
+        const cleanPem = s.replace(/^PEM\./i, '').replace(/\.+$/, '');
+        if (pengusulMap.byFull.has(cleanPem)) return pengusulMap.byFull.get(cleanPem);
+    }
+
+    const names = [item.nama_kegiatan, item.sub_kegiatan, item.jenis_kegiatan, item.uraian_kegiatan];
+    for (const n of names) {
+        if (!n) continue;
+        const norm = String(n).trim().toLowerCase().replace(/\s+/g, ' ');
+        if (norm && pengusulMap.byName.has(norm)) {
+            return pengusulMap.byName.get(norm);
+        }
+    }
+
+    return '';
+}
+
+async function handleGetSdgsData(req, res) {
+    try {
+        const { tahun } = req.query;
+        const tahunInt = parseInt(tahun) || 2027;
+
+        const { data, error } = await supabase
+            .from('rancangan_rkpdes')
+            .select(RANCANGAN_LIST_COLUMNS)
+            .eq('tahun', tahunInt)
+            .order('kode_unik_full', { ascending: true });
+        if (error) throw error;
+
+        const pengusulMap = await getRpjmPengusulMap();
+        const rows = [];
+        (data || []).forEach(item => {
+            const nomorSdgs = String(item.sdgs || item.mendukung_sdgs || '')
+                .match(/\d+/g)
+                ?.map(Number) || [];
+
+            const kegiatan = item.nama_kegiatan || item.sub_kegiatan || item.jenis_kegiatan || '';
+            const daftarSdgs = nomorSdgs.length ? nomorSdgs : [18];
+            const finalPengusul = resolvePengusul(item, pengusulMap);
+
+            daftarSdgs.forEach(sdgsKe => {
+                if (sdgsKe < 1 || sdgsKe > 18) return;
+                rows.push({
+                    id: item.id,
+                    tahun: tahunInt,
+                    bidang: item.bidang ?? 1,
+                    sdgs_ke: sdgsKe,
+                    no_urut: item.no_urut || item.urutan_prioritas || '',
+                    uraian_kegiatan: kegiatan,
+                    pengusul: finalPengusul || '',
+                    nama_pengusul: finalPengusul || '',
+                    rpjm_data: { nama_pengusul: finalPengusul || '' },
+                    lokasi_kegiatan: item.lokasi_kegiatan || item.lokasi || 'Desa Batetangnga',
+                    prakiraan_volume: item.volume_kegiatan || item.volume_satuan || item.volume || '',
+                    penerima_l: Number(item.manfaat_l ?? item.penerima_laki ?? 0),
+                    penerima_p: Number(item.manfaat_p ?? item.penerima_perempuan ?? 0),
+                    penerima_rtm: Number(item.manfaat_rtm ?? item.penerima_rtm ?? 0),
+                    total_manfaat: Number(item.total_manfaat ?? 0),
+                    keterangan: item.data_eksisting || item.data_existing || String(item.sdgs || item.mendukung_sdgs || ''),
+                    is_checked: false
+                });
+            });
+        });
+
+        return res.json({ success: true, data: rows, total: rows.length });
+    } catch (err) {
+        console.error("Error GET SDGs data:", err.message);
+        return res.status(500).json({ success: false, message: err.message, data: [] });
+    }
+}
+
+// INDIKATOR / FOKUS SDGs DESA — MENARIK DARI prioritas_rkpdes
 app.get('/api/sdgs-prioritas', async (req, res) => {
     try {
         const { tahun } = req.query;
@@ -7479,6 +7641,7 @@ app.get('/api/sdgs-prioritas', async (req, res) => {
             .order('id', { ascending: true });
         if (error) throw error;
 
+        const pengusulMap = await getRpjmPengusulMap();
         const rows = [];
         (data || []).forEach(item => {
             const nomorSdgs = String(item.mendukung_sdgs || item.sdgs || '')
@@ -7486,9 +7649,8 @@ app.get('/api/sdgs-prioritas', async (req, res) => {
                 ?.map(Number) || [];
 
             const kegiatan = item.nama_kegiatan || item.sub_kegiatan || item.jenis_kegiatan || '';
-
-            // Tanpa nomor SDGs → kelompokkan ke 18 (paling umum).
             const daftarSdgs = nomorSdgs.length ? nomorSdgs : [18];
+            const finalPengusul = resolvePengusul(item, pengusulMap);
 
             daftarSdgs.forEach(sdgsKe => {
                 if (sdgsKe < 1 || sdgsKe > 18) return;
@@ -7498,7 +7660,9 @@ app.get('/api/sdgs-prioritas', async (req, res) => {
                     sdgs_ke: sdgsKe,
                     no_urut: item.kode_grup || item.no_urut || '',
                     uraian_kegiatan: kegiatan,
-                    pengusul: item.nama_pengusul || item.pengusul || '',
+                    pengusul: finalPengusul || '',
+                    nama_pengusul: finalPengusul || '',
+                    rpjm_data: { nama_pengusul: finalPengusul || '' },
                     lokasi_kegiatan: item.lokasi_kegiatan || item.lokasi || 'Desa Batetangnga',
                     prakiraan_volume: item.volume_kegiatan || item.volume_satuan || item.volume || '',
                     penerima_l: 0,
@@ -7559,57 +7723,7 @@ app.delete('/api/sdgs-prioritas/:id', async (req, res) => {
 // INDIKATOR / FOKUS SDGs DESA — MENARIK DARI rancangan_rkpdes
 // (sumber LENGKAP: sdgs, nama_pengusul, manfaat_l/p/rtm, dll)
 // ============================================================
-app.get('/api/sdgs-rancangan', async (req, res) => {
-    try {
-        const { tahun } = req.query;
-        const tahunInt = parseInt(tahun) || 2027;
-
-        const { data, error } = await supabase
-            .from('rancangan_rkpdes')
-            .select(RANCANGAN_LIST_COLUMNS)
-            .eq('tahun', tahunInt)
-            .order('kode_unik_full', { ascending: true });
-        if (error) throw error;
-
-        const rows = [];
-        (data || []).forEach(item => {
-            const nomorSdgs = String(item.sdgs || item.mendukung_sdgs || '')
-                .match(/\d+/g)
-                ?.map(Number) || [];
-
-            const kegiatan = item.nama_kegiatan || item.sub_kegiatan || item.jenis_kegiatan || '';
-
-            // Tanpa nomor SDGs → kelompokkan ke 18 (paling umum).
-            const daftarSdgs = nomorSdgs.length ? nomorSdgs : [18];
-
-            daftarSdgs.forEach(sdgsKe => {
-                if (sdgsKe < 1 || sdgsKe > 18) return;
-                rows.push({
-                    id: item.id,
-                    tahun: tahunInt,
-                    bidang: item.bidang ?? 1,
-                    sdgs_ke: sdgsKe,
-                    no_urut: item.no_urut || item.urutan_prioritas || '',
-                    uraian_kegiatan: kegiatan,
-                    pengusul: item.nama_pengusul || item.pengusul || '',
-                    lokasi_kegiatan: item.lokasi_kegiatan || item.lokasi || 'Desa Batetangnga',
-                    prakiraan_volume: item.volume_kegiatan || item.volume_satuan || item.volume || '',
-                    penerima_l: Number(item.manfaat_l ?? item.penerima_laki ?? 0),
-                    penerima_p: Number(item.manfaat_p ?? item.penerima_perempuan ?? 0),
-                    penerima_rtm: Number(item.manfaat_rtm ?? item.penerima_rtm ?? 0),
-                    total_manfaat: Number(item.total_manfaat ?? 0),
-                    keterangan: item.data_eksisting || item.data_existing || String(item.sdgs || item.mendukung_sdgs || ''),
-                    is_checked: false
-                });
-            });
-        });
-
-        return res.json({ success: true, data: rows, total: rows.length });
-    } catch (err) {
-        console.error("Error GET /api/sdgs-rancangan:", err.message);
-        return res.status(500).json({ success: false, message: err.message, data: [] });
-    }
-});
+app.get('/api/sdgs-rancangan', handleGetSdgsData);
 
 // PUT: Edit baris Indikator/Fokus SDGs (menulis balik ke rancangan_rkpdes)
 app.put('/api/sdgs-rancangan/:id', async (req, res) => {
@@ -7622,7 +7736,9 @@ app.put('/api/sdgs-rancangan/:id', async (req, res) => {
             updateData.nama_kegiatan = body.uraian_kegiatan;
             updateData.sub_kegiatan = body.uraian_kegiatan;
         }
-        if (body.pengusul !== undefined) updateData.nama_pengusul = body.pengusul;
+        if (body.pengusul !== undefined || body.nama_pengusul !== undefined) {
+            updateData.nama_pengusul = body.pengusul !== undefined ? body.pengusul : body.nama_pengusul;
+        }
         if (body.lokasi_kegiatan !== undefined) {
             updateData.lokasi_kegiatan = body.lokasi_kegiatan;
             updateData.lokasi = body.lokasi_kegiatan;
@@ -7672,7 +7788,7 @@ app.post('/api/sdgs-rancangan', async (req, res) => {
             nama_kegiatan: body.uraian_kegiatan,
             sub_kegiatan: body.uraian_kegiatan,
             jenis_kegiatan: body.uraian_kegiatan,
-            nama_pengusul: body.pengusul || '',
+            nama_pengusul: body.nama_pengusul || body.pengusul || '',
             lokasi_kegiatan: body.lokasi_kegiatan || 'Desa Batetangnga',
             lokasi: body.lokasi_kegiatan || 'Desa Batetangnga',
             volume_kegiatan: body.prakiraan_volume || '',

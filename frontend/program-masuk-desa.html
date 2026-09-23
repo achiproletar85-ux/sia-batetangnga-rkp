@@ -32,6 +32,22 @@
             .overflow-x-auto table {
                 min-width: 100% !important;
             }
+
+            /* BARIS JUMLAH TOTAL PAGU REKAPITULASI CETAK KONTRAS TINGGI */
+            tr.tr-grand-total,
+            tr.row-grand-total,
+            tr#grand-total-row,
+            .tr-grand-total td,
+            .row-grand-total td,
+            #grand-total-row td {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                border-top: 2px solid black !important;
+                border-bottom: 2px solid black !important;
+                background: #fff !important;
+                color: #000 !important;
+                font-weight: bold !important;
+            }
         }
 
         .overflow-x-auto {

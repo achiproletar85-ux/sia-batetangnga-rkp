@@ -162,18 +162,18 @@ function renderTable() {
         html += rowsHtml;
 
         html += `
-            <tr class="bg-slate-100 font-bold text-slate-900">
-                <td colspan="9" class="border border-slate-500 text-right px-3 py-1.5 uppercase text-xs">JUMLAH PER BIDANG ${b}</td>
-                <td id="subtotal-bidang-${b}" class="border border-slate-500 text-right px-2 py-1.5 font-mono text-xs">${subTotalPagu > 0 ? formatRupiah(subTotalPagu) : '-'}</td>
+            <tr class="bg-slate-100 font-bold text-slate-900 print:bg-slate-100 print:text-black">
+                <td colspan="9" class="border border-slate-500 text-right px-3 py-1.5 uppercase text-xs print:border-black print:text-black">JUMLAH PER BIDANG ${b}</td>
+                <td id="subtotal-bidang-${b}" class="border border-slate-500 text-right px-2 py-1.5 font-mono text-xs print:border-black print:text-black">${subTotalPagu > 0 ? formatRupiah(subTotalPagu) : '-'}</td>
                 <td class="border border-slate-500 no-print"></td>
             </tr>
         `;
     }
 
     html += `
-        <tr class="bg-indigo-950 text-white font-extrabold text-sm">
-            <td colspan="9" class="border border-slate-600 text-right px-4 py-2.5 uppercase">J U M L A H &nbsp; T O T A L &nbsp; P A G U</td>
-            <td id="grand-total-pagu" class="border border-slate-600 text-right px-3 py-2.5 font-mono">${formatRupiah(grandTotalPagu)}</td>
+        <tr id="grand-total-row" class="bg-indigo-950 text-white font-extrabold text-sm tr-grand-total row-grand-total print:bg-white print:text-black">
+            <td colspan="9" class="border border-slate-600 text-right px-4 py-2.5 uppercase print:border-black print:text-black">J U M L A H &nbsp; T O T A L &nbsp; P A G U</td>
+            <td id="grand-total-pagu" class="border border-slate-600 text-right px-3 py-2.5 font-mono print:border-black print:text-black">${formatRupiah(grandTotalPagu)}</td>
             <td class="border border-slate-600 no-print"></td>
         </tr>
     `;

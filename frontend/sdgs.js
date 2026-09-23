@@ -51,7 +51,7 @@ async function loadSDGsData() {
 
     try {
         // Fetch data via endpoint Express lokal (sumber: rancangan_rkpdes)
-        const res = await fetch(`/api/sdgs-rancangan?tahun=${activeYear}`);
+        const res = await fetch(`/api/sdgs-rancangan?tahun=${activeYear}`, { cache: 'no-store' });
         if (!res.ok) {
             throw new Error(`HTTP error! status: ${res.status}`);
         }
@@ -65,6 +65,22 @@ async function loadSDGsData() {
         } else if (result && Array.isArray(result.data)) {
             rawData = result.data;
         }
+
+        // Map ulang & bersihkan properti pengusul mutlak dari payload API
+        rawData = rawData.map(item => {
+            const p = (item.pengusul && String(item.pengusul).trim() !== '' && String(item.pengusul).trim() !== '-')
+                ? String(item.pengusul).trim()
+                : ((item.nama_pengusul && String(item.nama_pengusul).trim() !== '' && String(item.nama_pengusul).trim() !== '-')
+                    ? String(item.nama_pengusul).trim()
+                    : ((item.rpjm_data && item.rpjm_data.nama_pengusul && String(item.rpjm_data.nama_pengusul).trim() !== '' && String(item.rpjm_data.nama_pengusul).trim() !== '-')
+                        ? String(item.rpjm_data.nama_pengusul).trim()
+                        : (item.pengusul || item.nama_pengusul || (item.rpjm_data && item.rpjm_data.nama_pengusul) || '-')));
+            return {
+                ...item,
+                pengusul: p,
+                nama_pengusul: p
+            };
+        });
 
         // Perbarui ringkasan statistik pada banner atas
         const totalUsulan = rawData.length;
@@ -137,6 +153,13 @@ function renderTabelSDGs(rawData, activeYear) {
             const isFirst = index === 0;
             const noUrut = index + 1;
             const isChecked = item.is_checked || false;
+            const pName = (item.pengusul && String(item.pengusul).trim() !== '' && String(item.pengusul).trim() !== '-')
+                ? String(item.pengusul).trim()
+                : ((item.nama_pengusul && String(item.nama_pengusul).trim() !== '' && String(item.nama_pengusul).trim() !== '-')
+                    ? String(item.nama_pengusul).trim()
+                    : ((item.rpjm_data && item.rpjm_data.nama_pengusul && String(item.rpjm_data.nama_pengusul).trim() !== '' && String(item.rpjm_data.nama_pengusul).trim() !== '-')
+                        ? String(item.rpjm_data.nama_pengusul).trim()
+                        : (item.pengusul || item.nama_pengusul || (item.rpjm_data && item.rpjm_data.nama_pengusul) || '-')));
 
             html += `
                 <tr class="border-b border-slate-200 hover:bg-indigo-50/40 transition-colors duration-150 ${isChecked ? 'bg-emerald-50/60' : (index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')} print:border-black print:bg-transparent">
@@ -148,7 +171,7 @@ function renderTabelSDGs(rawData, activeYear) {
                     </td>` : ''}
                     <td class="border border-slate-300 text-center py-2 px-1 text-slate-600 font-medium print:border-black print:text-black print:py-1">${noUrut}</td>
                     <td class="border border-slate-300 px-3 py-2 text-left font-medium text-slate-900 leading-snug print:border-black print:text-black print:py-1">${esc(item.uraian_kegiatan) || '-'}</td>
-                    <td class="border border-slate-300 px-3 py-2 text-left text-slate-700 print:border-black print:text-black print:py-1">${esc(item.pengusul) || '-'}</td>
+                    <td class="border border-slate-300 px-3 py-2 text-left text-slate-700 print:border-black print:text-black print:py-1">${esc(pName)}</td>
                     <td class="border border-slate-300 px-3 py-2 text-left text-slate-700 print:border-black print:text-black print:py-1">${esc(item.lokasi_kegiatan) || 'Desa Batetangnga'}</td>
                     <td class="border border-slate-300 text-center px-2 py-2 text-slate-700 font-medium print:border-black print:text-black print:py-1">${esc(item.prakiraan_volume) || '-'}</td>
                     <td class="border border-slate-300 text-center px-2 py-2 text-slate-800 font-mono text-xs print:border-black print:text-black print:py-1">${item.penerima_l ?? 0}</td>
@@ -299,7 +322,7 @@ window.loadUsulanTahunAsal = async function() {
     container.innerHTML = `<p class="text-center py-4 italic text-slate-500">Memuat data tahun ${tahunAsal}...</p>`;
 
     try {
-        const res = await fetch(`/api/sdgs-rancangan?tahun=${tahunAsal}`);
+        const res = await fetch(`/api/sdgs-rancangan?tahun=${tahunAsal}`, { cache: 'no-store' });
         const result = await res.json();
         const rawData = Array.isArray(result) ? result : (result.data || []);
 
@@ -311,6 +334,13 @@ window.loadUsulanTahunAsal = async function() {
         let html = '';
         rawData.forEach(item => {
             const safeItem = JSON.stringify(item).replace(/&/g, '&amp;').replace(/'/g, '&apos;');
+            const pName = (item.pengusul && String(item.pengusul).trim() !== '' && String(item.pengusul).trim() !== '-')
+                ? String(item.pengusul).trim()
+                : ((item.nama_pengusul && String(item.nama_pengusul).trim() !== '' && String(item.nama_pengusul).trim() !== '-')
+                    ? String(item.nama_pengusul).trim()
+                    : ((item.rpjm_data && item.rpjm_data.nama_pengusul && String(item.rpjm_data.nama_pengusul).trim() !== '' && String(item.rpjm_data.nama_pengusul).trim() !== '-')
+                        ? String(item.rpjm_data.nama_pengusul).trim()
+                        : (item.pengusul || item.nama_pengusul || (item.rpjm_data && item.rpjm_data.nama_pengusul) || '-')));
             html += `
                 <label class="flex items-start gap-2.5 bg-white p-2.5 rounded border border-slate-200 hover:border-indigo-300 cursor-pointer shadow-sm">
                     <input type="checkbox" class="cb-tarik-item mt-1 rounded text-indigo-600" value="${item.id}" data-item='${safeItem}'>
@@ -318,7 +348,7 @@ window.loadUsulanTahunAsal = async function() {
                         <div class="font-bold text-slate-800">${esc(item.uraian_kegiatan)}</div>
                         <div class="text-[11px] text-slate-500 flex gap-3 mt-0.5">
                             <span>📍 ${esc(item.lokasi_kegiatan) || 'Desa Batetangnga'}</span>
-                            <span>👤 Pengusul: ${esc(item.pengusul) || '-'}</span>
+                            <span>👤 Pengusul: ${esc(pName)}</span>
                             <span>📦 Vol: ${esc(item.prakiraan_volume) || '-'}</span>
                         </div>
                     </div>
@@ -350,13 +380,15 @@ window.eksekusiTarikData = async function() {
         const rawItem = JSON.parse(cb.dataset.item);
 
         if (modePergeseran === 'salin') {
+            const pName = rawItem.pengusul || rawItem.nama_pengusul || (rawItem.rpjm_data && rawItem.rpjm_data.nama_pengusul) || '';
             // Salin ke rancangan_rkpdes tahun target (sumber lengkap SDGs)
             const payload = {
                 tahun: parseInt(targetTahun),
                 bidang: rawItem.bidang || 1,
                 sdgs_ke: rawItem.sdgs_ke || 18,
                 uraian_kegiatan: rawItem.uraian_kegiatan,
-                pengusul: rawItem.pengusul || '',
+                pengusul: pName,
+                nama_pengusul: pName,
                 lokasi_kegiatan: rawItem.lokasi_kegiatan || 'Desa Batetangnga',
                 prakiraan_volume: rawItem.prakiraan_volume || '',
                 penerima_l: rawItem.penerima_l ?? 0,
