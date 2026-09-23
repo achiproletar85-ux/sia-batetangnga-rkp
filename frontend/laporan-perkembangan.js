@@ -15,10 +15,21 @@ function formatRupiah(number) {
 }
 
 function parseNumber(val) {
-    if (typeof val === 'number') return val;
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
     if (!val) return 0;
-    const clean = String(val).replace(/[^0-9]/g, '');
-    return parseInt(clean, 10) || 0;
+    let s = String(val).trim();
+    if (!s || s === 'null' || s === 'undefined' || s === '-') return 0;
+    s = s.replace(/^(rp|idr)\.?\s*/i, '').trim();
+    if (/,\d{1,2}$/.test(s)) {
+        s = s.replace(/\./g, '').replace(',', '.');
+    } else if (/\.\d{3}(\.\d{3})*$/.test(s) || /^\d{1,3}(\.\d{3})+$/.test(s)) {
+        s = s.replace(/\./g, '');
+    } else if (s.includes('.') && s.includes(',')) {
+        s = s.replace(/\./g, '').replace(',', '.');
+    }
+    const clean = s.replace(/[^0-9.-]/g, '');
+    const n = parseFloat(clean);
+    return isNaN(n) ? 0 : Math.round(n);
 }
 
 function getBulanNumber(bulan) {
@@ -95,18 +106,18 @@ function buildLaporanItemFromRkp(item, tahun, bulan) {
     return {
         id: item.id && item.id !== 'null' ? item.id : null,
         kode_unik_full: item.kode_unik_full || '',
-        tahun: parseInt(tahun),
+        tahun: parseInt(tahun, 10) || 2027,
         bulan: bulan,
         bidang: laporanBidangNum(item),
         sub_bidang: item.sub_bidang || item.group_nama || '-',
         nama_kegiatan: item.nama_kegiatan || item.kegiatan || item.jenis_kegiatan || item.uraian || '',
         lokasi: item.lokasi || item.lokasi_kegiatan || 'Desa Batetangnga',
         volume_satuan: item.volume_satuan || ((item.volume_rab && item.satuan_rab) ? `${item.volume_rab} ${item.satuan_rab}` : (item.volume || '-')),
-        biaya: parseInt(item.biaya || item.total_biaya || item.prakiraan_biaya || item.pagu || item.nominal || 0),
-        penerima_jumlah: parseInt(item.penerima_jumlah || item.total_manfaat || 0),
-        penerima_lk: parseInt(item.penerima_lk || item.manfaat_l || item.penerima_laki || 0),
-        penerima_pr: parseInt(item.penerima_pr || item.manfaat_p || item.penerima_perempuan || 0),
-        penerima_rtm: parseInt(item.penerima_rtm || item.manfaat_rtm || 0),
+        biaya: parseNumber(item.biaya || item.total_biaya || item.prakiraan_biaya || item.pagu || item.nominal || 0),
+        penerima_jumlah: parseNumber(item.penerima_jumlah || item.total_manfaat || 0),
+        penerima_lk: parseNumber(item.penerima_lk || item.manfaat_l || item.penerima_laki || 0),
+        penerima_pr: parseNumber(item.penerima_pr || item.manfaat_p || item.penerima_perempuan || 0),
+        penerima_rtm: parseNumber(item.penerima_rtm || item.manfaat_rtm || 0),
         // Dikosongkan: diisi manual oleh pengguna
         rencana_hari: 0,
         tgl_mulai: '',
@@ -116,7 +127,6 @@ function buildLaporanItemFromRkp(item, tahun, bulan) {
     };
 }
 
-// 1. Load Laporan Perkembangan — selalu menarik dari RKPDes (tahun terpilih − 1)
 // 1. Load Laporan Perkembangan — selalu menarik dari RKPDes (tahun terpilih − 1)
 // sebagai sumber kebenaran, lalu menggabungkan kolom manual yang sudah tersimpan di DB.
 async function loadLaporanData() {
@@ -181,9 +191,14 @@ async function loadLaporanData() {
                     row.id = saved.id || null;
                     row.rencana_hari = Number(saved.rencana_hari || 0);
                     row.tgl_mulai = saved.tgl_mulai || '';
-                    row.progres_fisik = Number(saved.progres_fisik || 0);
-                    row.progres_biaya = Number(saved.progres_biaya || 0);
+                    row.progres_fisik = parseNumber(saved.progres_fisik || 0);
+                    row.progres_biaya = parseNumber(saved.progres_biaya || 0);
                     row.keterangan = saved.keterangan || '';
+
+                    // Self-healing: jika progres_biaya terpotong digitnya (< 1000 sementara biaya >= 100000 dan progres_fisik > 0)
+                    if (row.progres_biaya < 1000 && row.biaya >= 100000 && row.progres_fisik > 0) {
+                        row.progres_biaya = Math.round((row.progres_fisik / 100) * row.biaya);
+                    }
                 }
                 return row;
             });
@@ -270,8 +285,8 @@ function renderLaporanTable() {
         } else {
             itemsInBidang.forEach((item, idx) => {
                 totalKegiatanCount++;
-                const biaya = parseInt(item.biaya) || 0;
-                const progresBiaya = parseInt(item.progres_biaya) || 0;
+                const biaya = parseNumber(item.biaya) || 0;
+                const progresBiaya = parseNumber(item.progres_biaya) || 0;
                 subtotalBiaya += biaya;
                 subtotalProgresBiaya += progresBiaya;
                 grandTotalBiaya += biaya;
@@ -293,7 +308,7 @@ function renderLaporanTable() {
                             <input type="text" value="${(item.volume_satuan || '-').replace(/"/g, '&quot;')}" onchange="updateFieldData(${b}, ${idx}, 'volume_satuan', this.value)" class="w-full px-1 py-0.5 text-xs border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none text-center" placeholder="Volume...">
                         </td>
                         <td class="p-1 border border-slate-300">
-                            <input type="text" value="${formatRupiah(biaya)}" onfocus="this.value = parseNumber(this.value)" onblur="this.value = formatRupiah(this.value)" onchange="updateFieldData(${b}, ${idx}, 'biaya', this.value)" class="biaya-input w-full px-1 py-0.5 text-xs border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none text-right font-semibold text-blue-800" placeholder="Rp 0">
+                            <input type="text" value="${formatRupiah(biaya)}" onfocus="this.value = parseNumber(this.value)" onblur="this.value = formatRupiah(this.value)" onchange="onBiayaChange(${b}, ${idx}, this.value, this)" class="biaya-input w-full px-1 py-0.5 text-xs border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none text-right font-semibold text-blue-800" placeholder="Rp 0">
                         </td>
 
                         <!-- REALISASI MANFAAT (JML, LK, PR, RTM) -->
@@ -320,7 +335,7 @@ function renderLaporanTable() {
 
                         <!-- PROGRES KEGIATAN (FISIK % & BIAYA RP) -->
                         <td class="p-1 border border-slate-300">
-                            <input type="number" min="0" max="100" value="${item.progres_fisik || 0}" onchange="updateFieldData(${b}, ${idx}, 'progres_fisik', this.value)" class="progres-fisik-input w-full px-0.5 py-0.5 text-xs border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none text-center font-bold text-amber-700" placeholder="%">
+                            <input type="number" min="0" max="100" value="${item.progres_fisik || 0}" onchange="onProgresFisikChange(${b}, ${idx}, this.value, this)" class="progres-fisik-input w-full px-0.5 py-0.5 text-xs border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none text-center font-bold text-amber-700" placeholder="%">
                         </td>
                         <td class="p-1 border border-slate-300">
                             <input type="text" value="${formatRupiah(progresBiaya)}" onfocus="this.value = parseNumber(this.value)" onblur="this.value = formatRupiah(this.value)" onchange="onProgresBiayaChange(${b}, ${idx}, this.value, this)" class="progres-biaya-input w-full px-1 py-0.5 text-xs border border-transparent hover:border-slate-300 focus:border-blue-500 rounded outline-none text-right font-bold text-emerald-700" placeholder="Rp 0">
@@ -344,9 +359,9 @@ function renderLaporanTable() {
         html += `
             <tr class="bg-blue-50/70 text-blue-950 font-bold border-b-2 border-slate-300 text-xs">
                 <td colspan="5" class="p-2 text-right uppercase tracking-wide">SUBTOTAL BIDANG ${b}:</td>
-                <td class="p-2 text-right text-blue-900 font-extrabold">${formatRupiah(subtotalBiaya)}</td>
+                <td class="p-2 text-right text-blue-900 font-extrabold subtotal-biaya-bidang-${b}">${formatRupiah(subtotalBiaya)}</td>
                 <td colspan="7" class="p-2 text-right uppercase tracking-wide">PROGRES BIAYA:</td>
-                <td class="p-2 text-right text-emerald-800 font-extrabold">${formatRupiah(subtotalProgresBiaya)}</td>
+                <td class="p-2 text-right text-emerald-800 font-extrabold subtotal-progres-biaya-bidang-${b}">${formatRupiah(subtotalProgresBiaya)}</td>
                 <td colspan="2" class="p-2"></td>
             </tr>
         `;
@@ -422,16 +437,95 @@ function updateFieldData(bidangNum, idxInBidang, field, value) {
     }
 }
 
-function onProgresBiayaChange(bidangNum, idx, value, inputEl) {
-    const parsedBiayaReal = parseNumber(value);
-    updateFieldData(bidangNum, idx, 'progres_biaya', parsedBiayaReal);
+function recalculateTableTotals() {
+    let grandTotalBiaya = 0;
+    let grandTotalProgresBiaya = 0;
 
-    const row = inputEl.closest('tr');
+    for (let b = 1; b <= 5; b++) {
+        const items = laporanList.filter(it => parseInt(it.bidang) === b);
+        let subBiaya = 0;
+        let subProgBiaya = 0;
+        for (const it of items) {
+            subBiaya += parseNumber(it.biaya) || 0;
+            subProgBiaya += parseNumber(it.progres_biaya) || 0;
+        }
+        grandTotalBiaya += subBiaya;
+        grandTotalProgresBiaya += subProgBiaya;
+
+        const subBiayaEl = document.querySelector(`.subtotal-biaya-bidang-${b}`);
+        if (subBiayaEl) subBiayaEl.innerText = formatRupiah(subBiaya);
+        const subProgBiayaEl = document.querySelector(`.subtotal-progres-biaya-bidang-${b}`);
+        if (subProgBiayaEl) subProgBiayaEl.innerText = formatRupiah(subProgBiaya);
+    }
+
+    const grandAnggaran = document.getElementById('grand-total-anggaran');
+    if (grandAnggaran) grandAnggaran.innerText = formatRupiah(grandTotalBiaya);
+
+    const grandProgres = document.getElementById('grand-total-progres-biaya');
+    if (grandProgres) grandProgres.innerText = formatRupiah(grandTotalProgresBiaya);
+}
+
+function onBiayaChange(bidangNum, idx, value, inputEl) {
+    const parsedBiaya = parseNumber(value);
+    updateFieldData(bidangNum, idx, 'biaya', parsedBiaya);
+
+    const row = inputEl ? inputEl.closest('tr') : null;
+    if (row) {
+        const itemsInBidang = laporanList.filter(item => parseInt(item.bidang) === bidangNum);
+        const item = itemsInBidang[idx];
+        if (item && item.progres_fisik > 0) {
+            const computedBiaya = Math.round(((item.progres_fisik || 0) / 100) * parsedBiaya);
+            const globalIdx = laporanList.indexOf(item);
+            if (globalIdx > -1) {
+                laporanList[globalIdx].progres_biaya = computedBiaya;
+                scheduleAutoSave(laporanList[globalIdx]);
+            }
+            const progBiayaInput = row.querySelector('.progres-biaya-input');
+            if (progBiayaInput) {
+                progBiayaInput.value = formatRupiah(computedBiaya);
+            }
+        }
+    }
+    recalculateTableTotals();
+}
+
+function onProgresFisikChange(bidangNum, idx, value, inputEl) {
+    const clampedFis = Math.max(0, Math.min(100, parseFloat(value) || 0));
+    updateFieldData(bidangNum, idx, 'progres_fisik', clampedFis);
+
+    const row = inputEl ? inputEl.closest('tr') : null;
     if (row) {
         const itemsInBidang = laporanList.filter(item => parseInt(item.bidang) === bidangNum);
         const item = itemsInBidang[idx];
         if (item) {
-            const totalBiaya = parseInt(item.biaya) || 0;
+            const totalBiaya = parseNumber(item.biaya) || 0;
+            const computedBiaya = Math.round((clampedFis / 100) * totalBiaya);
+
+            const globalIdx = laporanList.indexOf(item);
+            if (globalIdx > -1) {
+                laporanList[globalIdx].progres_biaya = computedBiaya;
+                scheduleAutoSave(laporanList[globalIdx]);
+            }
+
+            const biayaInput = row.querySelector('.progres-biaya-input');
+            if (biayaInput) {
+                biayaInput.value = formatRupiah(computedBiaya);
+            }
+        }
+    }
+    recalculateTableTotals();
+}
+
+function onProgresBiayaChange(bidangNum, idx, value, inputEl) {
+    const parsedBiayaReal = parseNumber(value);
+    updateFieldData(bidangNum, idx, 'progres_biaya', parsedBiayaReal);
+
+    const row = inputEl ? inputEl.closest('tr') : null;
+    if (row) {
+        const itemsInBidang = laporanList.filter(item => parseInt(item.bidang) === bidangNum);
+        const item = itemsInBidang[idx];
+        if (item) {
+            const totalBiaya = parseNumber(item.biaya) || 0;
             let progres = 0;
             if (totalBiaya > 0) {
                 progres = Math.round((parsedBiayaReal / totalBiaya) * 100);
@@ -450,6 +544,7 @@ function onProgresBiayaChange(bidangNum, idx, value, inputEl) {
             }
         }
     }
+    recalculateTableTotals();
 }
 
 // 5. Tambah & Hapus Row
@@ -512,12 +607,12 @@ async function deleteRow(bidangNum, idxInBidang, id) {
     renderLaporanTable();
 }
 
-// 6. Update Progres Fisik Berdasarkan Realisasi Biaya
+// 6. Update Progres Fisik Berdasarkan Realisasi Biaya & Sebaliknya (Sinkronisasi Dua Arah)
 function updateProgres() {
     const tahun = document.getElementById('select-tahun')?.value || '2027';
     const bulan = document.getElementById('select-bulan')?.value || 'Agustus';
 
-    if (!confirm(`Update progres fisik berdasarkan realisasi untuk ${bulan} ${tahun}?`)) return;
+    if (!confirm(`Update kalkulasi sinkronisasi progres fisik dan biaya untuk ${bulan} ${tahun}?`)) return;
 
     fetch(`/api/laporan-perkembangan?tahun=${tahun}&bulan=${encodeURIComponent(bulan)}`)
         .then(res => res.json())
@@ -529,24 +624,39 @@ function updateProgres() {
 
             let updatedCount = 0;
             const updates = data.data.map(item => {
-                const totalBiaya = item.biaya || 0;
-                const realisasiBiaya = item.progres_biaya || 0;
-                let progres = 0;
+                const totalBiaya = parseNumber(item.biaya) || 0;
+                let realisasiBiaya = parseNumber(item.progres_biaya) || 0;
+                let fisik = parseNumber(item.progres_fisik) || 0;
 
-                if (totalBiaya > 0) {
-                    progres = Math.round((realisasiBiaya / totalBiaya) * 100);
-                    if (progres > 100) progres = 100;
+                let needUpdate = false;
+                let updatedObj = { id: item.id };
+
+                if (realisasiBiaya > 0 && totalBiaya > 0) {
+                    let calculatedFisik = Math.round((realisasiBiaya / totalBiaya) * 100);
+                    if (calculatedFisik > 100) calculatedFisik = 100;
+                    if (fisik !== calculatedFisik) {
+                        fisik = calculatedFisik;
+                        updatedObj.progres_fisik = fisik;
+                        needUpdate = true;
+                    }
+                } else if (fisik > 0 && totalBiaya > 0 && realisasiBiaya === 0) {
+                    const calculatedBiaya = Math.round((fisik / 100) * totalBiaya);
+                    if (calculatedBiaya > 0) {
+                        realisasiBiaya = calculatedBiaya;
+                        updatedObj.progres_biaya = realisasiBiaya;
+                        needUpdate = true;
+                    }
                 }
 
-                if (item.progres_fisik !== progres) {
+                if (needUpdate) {
                     updatedCount++;
-                    return { id: item.id, progres_fisik: progres };
+                    return updatedObj;
                 }
                 return null;
             }).filter(Boolean);
 
             if (updates.length === 0) {
-                alert('✅ Semua data sudah sesuai, tidak ada yang perlu diupdate');
+                alert('✅ Semua data progres sudah sinkron, tidak ada yang perlu diupdate');
                 return;
             }
 
@@ -808,3 +918,14 @@ function printPDF() {
     printWindow.document.close();
 }
 
+window.parseNumber = parseNumber;
+window.formatRupiah = formatRupiah;
+window.onBiayaChange = onBiayaChange;
+window.onProgresFisikChange = onProgresFisikChange;
+window.onProgresBiayaChange = onProgresBiayaChange;
+window.recalculateTableTotals = recalculateTableTotals;
+window.updateProgres = updateProgres;
+window.loadLaporanData = loadLaporanData;
+window.tarikDataRKP = tarikDataRKP;
+window.simpanSemua = simpanSemua;
+window.printPDF = printPDF;

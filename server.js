@@ -10821,7 +10821,17 @@ function cleanDateLaporan(val) {
 function cleanNumberLaporan(val) {
     if (typeof val === 'number') return isNaN(val) ? 0 : val;
     if (!val) return 0;
-    const clean = String(val).replace(/[^0-9.-]+/g, '');
+    let s = String(val).trim();
+    if (!s || s === 'null' || s === 'undefined' || s === '-') return 0;
+    s = s.replace(/^(rp|idr)\.?\s*/i, '').trim();
+    if (/,\d{1,2}$/.test(s)) {
+        s = s.replace(/\./g, '').replace(',', '.');
+    } else if (/\.\d{3}(\.\d{3})*$/.test(s) || /^\d{1,3}(\.\d{3})+$/.test(s)) {
+        s = s.replace(/\./g, '');
+    } else if (s.includes('.') && s.includes(',')) {
+        s = s.replace(/\./g, '').replace(',', '.');
+    }
+    const clean = s.replace(/[^0-9.-]/g, '');
     const n = parseFloat(clean);
     return isNaN(n) ? 0 : n;
 }
